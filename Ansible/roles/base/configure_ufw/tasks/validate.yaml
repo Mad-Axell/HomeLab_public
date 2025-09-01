@@ -1,0 +1,99 @@
+---
+# UFW Configuration Validation Tasks
+# Validates input parameters before applying UFW configuration
+
+- name: Validate SSH port number
+  ansible.builtin.assert:
+    that:
+      - ssh_port is number
+      - ssh_port >= 1
+      - ssh_port <= 65535
+    fail_msg: "SSH port must be a number between 1 and 65535"
+    success_msg: "SSH port validation passed"
+
+- name: Validate SSH protocol
+  ansible.builtin.assert:
+    that:
+      - ssh_protocol in ['tcp', 'udp']
+    fail_msg: "SSH protocol must be either 'tcp' or 'udp'"
+    success_msg: "SSH protocol validation passed"
+
+- name: Validate allowed SSH subnets
+  ansible.builtin.assert:
+    that:
+      - allowed_ssh_subnets is list
+      - allowed_ssh_subnets | length > 0
+    fail_msg: "allowed_ssh_subnets must be a non-empty list"
+    success_msg: "SSH subnets list validation passed"
+
+- name: Validate individual SSH subnet format
+  ansible.builtin.assert:
+    that:
+      - item matches '^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}/[0-9]{1,2}$'
+    fail_msg: "Invalid subnet format: {{ item }}. Must be in CIDR notation (e.g., 192.168.1.0/24)"
+    success_msg: "Subnet {{ item }} format is valid"
+  loop: "{{ allowed_ssh_subnets }}"
+
+- name: Validate UFW default policies
+  ansible.builtin.assert:
+    that:
+      - ufw_default_incoming in ['allow', 'deny', 'reject']
+      - ufw_default_outgoing in ['allow', 'deny', 'reject']
+    fail_msg: "UFW default policies must be 'allow', 'deny', or 'reject'"
+    success_msg: "UFW default policies validation passed"
+
+- name: Validate UFW logging level
+  ansible.builtin.assert:
+    that:
+      - ufw_logging in ['off', 'low', 'medium', 'high', 'full']
+    fail_msg: "UFW logging level must be one of: off, low, medium, high, full"
+    success_msg: "UFW logging level validation passed"
+
+- name: Validate UFW state
+  ansible.builtin.assert:
+    that:
+      - ufw_state in ['enabled', 'disabled', 'reset']
+    fail_msg: "UFW state must be 'enabled', 'disabled', or 'reset'"
+    success_msg: "UFW state validation passed"
+
+- name: Validate custom UFW rules structure
+  ansible.builtin.assert:
+    that:
+      - ufw_rules is list
+    fail_msg: "ufw_rules must be a list"
+    success_msg: "Custom UFW rules list validation passed"
+
+- name: Validate individual UFW rule structure
+  ansible.builtin.assert:
+    that:
+      - item.rule is defined
+      - item.port is defined
+      - item.proto is defined
+      - item.rule in ['allow', 'deny', 'reject', 'limit']
+      - item.proto in ['tcp', 'udp']
+      - item.port is string or item.port is number
+    fail_msg: "Invalid UFW rule structure: {{ item }}. Each rule must have 'rule', 'port', and 'proto' fields"
+    success_msg: "UFW rule {{ item }} structure is valid"
+  loop: "{{ ufw_rules }}"
+  when: ufw_rules | length > 0
+
+- name: Validate SSH rate limiting parameters
+  ansible.builtin.assert:
+    that:
+      - ssh_rate_limit_attempts is number
+      - ssh_rate_limit_attempts > 0
+      - ssh_rate_limit_time is number
+      - ssh_rate_limit_time > 0
+    fail_msg: "SSH rate limiting parameters must be positive numbers"
+    success_msg: "SSH rate limiting parameters validation passed"
+  when: ssh_rate_limit | bool
+
+- name: Validate boolean parameters
+  ansible.builtin.assert:
+    that:
+      - debug_mode is boolean
+      - ssh_rate_limit is boolean
+      - validate_configuration is boolean
+      - fail_on_validation_error is boolean
+    fail_msg: "Boolean parameters must be true or false"
+    success_msg: "Boolean parameters validation passed"

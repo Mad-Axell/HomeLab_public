@@ -1,0 +1,110 @@
+---
+# Package Installation Validation Tasks
+# Validates all input parameters before package installation
+
+- name: Validate package lists are arrays
+  ansible.builtin.assert:
+    that:
+      - essential_packages is defined
+      - essential_packages is list
+      - security_packages is defined
+      - security_packages is list
+      - admin_packages is defined
+      - admin_packages is list
+      - dev_packages is defined
+      - dev_packages is list
+      - network_packages is defined
+      - network_packages is list
+      - packages_to_remove is defined
+      - packages_to_remove is list
+    fail_msg: "Package lists must be defined as arrays"
+    success_msg: "Package lists validation passed"
+
+- name: Validate package installation options
+  ansible.builtin.assert:
+    that:
+      - package_installation is defined
+      - package_installation.state is defined
+      - package_installation.state in ['present', 'latest', 'absent']
+      - package_installation.force_apt_get is defined
+      - package_installation.force_apt_get is boolean
+      - package_installation.allow_unauthenticated is defined
+      - package_installation.allow_unauthenticated is boolean
+      - package_installation.install_recommends is defined
+      - package_installation.install_recommends is boolean
+      - package_installation.install_suggests is defined
+      - package_installation.install_suggests is boolean
+    fail_msg: "Package installation options are not properly configured"
+    success_msg: "Package installation options validation passed"
+
+- name: Validate cache settings
+  ansible.builtin.assert:
+    that:
+      - apt_cache_valid_time is defined
+      - apt_cache_valid_time is number
+      - apt_cache_valid_time > 0
+      - apt_update_cache is defined
+      - apt_update_cache is boolean
+      - apt_upgrade_packages is defined
+      - apt_upgrade_packages is boolean
+    fail_msg: "Cache settings are not properly configured"
+    success_msg: "Cache settings validation passed"
+
+- name: Validate additional repositories format
+  ansible.builtin.assert:
+    that:
+      - additional_repositories is defined
+      - additional_repositories is list
+    fail_msg: "Additional repositories must be a list"
+    success_msg: "Additional repositories validation passed"
+
+- name: Validate repository entries (if any)
+  ansible.builtin.assert:
+    that:
+      - item.repo is defined
+      - item.repo is string
+      - item.repo | length > 0
+    fail_msg: "Repository entry must have a valid 'repo' field"
+    success_msg: "Repository entry validation passed"
+  loop: "{{ additional_repositories }}"
+  when: additional_repositories | length > 0
+
+- name: Validate validation settings
+  ansible.builtin.assert:
+    that:
+      - validate_packages is defined
+      - validate_packages is boolean
+      - fail_on_validation_error is defined
+      - fail_on_validation_error is boolean
+      - check_package_availability is defined
+      - check_package_availability is boolean
+    fail_msg: "Validation settings are not properly configured"
+    success_msg: "Validation settings validation passed"
+
+- name: Check if essential packages list is empty
+  ansible.builtin.assert:
+    that:
+      - essential_packages | length > 0
+    fail_msg: "Essential packages list cannot be empty"
+    success_msg: "Essential packages list is not empty"
+
+- name: Validate debug mode
+  ansible.builtin.assert:
+    that:
+      - debug_mode is defined
+      - debug_mode is boolean
+    fail_msg: "Debug mode must be a boolean value"
+    success_msg: "Debug mode validation passed"
+
+- name: Display validation summary
+  ansible.builtin.debug:
+    msg: |
+      Validation completed successfully:
+      - Essential packages: {{ essential_packages | length }} packages
+      - Security packages: {{ security_packages | length }} packages
+      - Admin packages: {{ admin_packages | length }} packages
+      - Dev packages: {{ dev_packages | length }} packages
+      - Network packages: {{ network_packages | length }} packages
+      - Packages to remove: {{ packages_to_remove | length }} packages
+      - Additional repositories: {{ additional_repositories | length }} repositories
+  when: debug_mode | bool

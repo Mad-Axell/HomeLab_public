@@ -1,0 +1,20 @@
+---
+# UFW Configuration Handlers
+# Handlers for UFW service management
+
+- name: reload ufw
+  ansible.builtin.service:
+    name: ufw
+    state: reloaded
+  listen: "reload ufw"
+
+- name: restart ufw
+  ansible.builtin.service:
+    name: ufw
+    state: restarted
+  listen: "restart ufw"
+
+- name: enable ufw
+  community.general.ufw:
+    state: enabled
+  listen: "enable ufw"

@@ -1,0 +1,41 @@
+---
+# Package Installation Cleanup Tasks
+# Cleanup tasks for package installation role
+
+- name: Remove unnecessary packages
+  ansible.builtin.apt:
+    name: "{{ packages_to_remove }}"
+    state: absent
+    autoremove: true
+    purge: true
+  tags: [cleanup, packages]
+  register: cleanup_result
+  when: packages_to_remove | length > 0
+
+- name: Clean APT cache
+  ansible.builtin.apt:
+    autoclean: true
+  tags: [cleanup, cache]
+
+- name: Remove unnecessary dependencies
+  ansible.builtin.apt:
+    autoremove: true
+  tags: [cleanup, cache]
+
+- name: Clean downloaded package files
+  ansible.builtin.file:
+    path: "/var/cache/apt/archives/"
+    state: absent
+  tags: [cleanup, cache]
+  when: cleanup_result is defined and cleanup_result.changed
+
+- name: Display cleanup summary
+  ansible.builtin.debug:
+    msg: |
+      Cleanup completed:
+      - Packages removed: {{ packages_to_remove | length }}
+      - APT cache cleaned
+      - Unnecessary dependencies removed
+      - Downloaded files cleaned
+  when: debug_mode | bool
+  tags: [cleanup, debug]

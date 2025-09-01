@@ -1,0 +1,83 @@
+---
+# Example Playbook for UFW Configuration Role
+# This playbook demonstrates different usage scenarios
+
+- name: Configure UFW with basic settings
+  hosts: all
+  become: true
+  roles:
+    - role: base/configure_ufw
+
+- name: Configure UFW for web server
+  hosts: webservers
+  become: true
+  vars:
+    allowed_ssh_subnets:
+      - "10.0.0.0/8"
+      - "192.168.1.0/24"
+    ufw_rules:
+      - rule: "allow"
+        port: "80"
+        proto: "tcp"
+        comment: "HTTP"
+      - rule: "allow"
+        port: "443"
+        proto: "tcp"
+        comment: "HTTPS"
+      - rule: "allow"
+        port: "8080"
+        proto: "tcp"
+        comment: "Application port"
+    ssh_rate_limit: true
+    ufw_logging: "medium"
+  roles:
+    - role: base/configure_ufw
+
+- name: Configure UFW for database server
+  hosts: databases
+  become: true
+  vars:
+    allowed_ssh_subnets:
+      - "10.0.0.0/8"  # Management network only
+    ufw_rules:
+      - rule: "allow"
+        port: "3306"
+        proto: "tcp"
+        from_ip: "10.0.0.0/8"
+        comment: "MySQL from internal network"
+      - rule: "allow"
+        port: "5432"
+        proto: "tcp"
+        from_ip: "10.0.0.0/8"
+        comment: "PostgreSQL from internal network"
+    ssh_rate_limit: true
+    ssh_rate_limit_attempts: 3
+    ssh_rate_limit_time: 60
+    ufw_logging: "high"
+  roles:
+    - role: base/configure_ufw
+
+- name: Configure UFW for development environment
+  hosts: dev_servers
+  become: true
+  vars:
+    allowed_ssh_subnets:
+      - "192.168.1.0/24"
+      - "10.20.30.0/24"
+    ssh_port: 2222
+    ufw_rules:
+      - rule: "allow"
+        port: "3000"
+        proto: "tcp"
+        comment: "Node.js development server"
+      - rule: "allow"
+        port: "8080"
+        proto: "tcp"
+        comment: "Spring Boot application"
+      - rule: "allow"
+        port: "5432"
+        proto: "tcp"
+        comment: "PostgreSQL"
+    debug_mode: true
+  roles:
+    - role: base/configure_ufw

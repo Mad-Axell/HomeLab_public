@@ -1,0 +1,46 @@
+
+---
+# Debug mode for verbose output
+debug_mode: false
+
+# PAM faillock configuration - account lockout settings
+pam_faillock_deny: 3                    # Number of failed attempts before lockout
+pam_unlock_time: 1800                   # Lockout duration in seconds (30 minutes)
+pam_faillock_audit: true                # Enable audit logging for failed attempts
+pam_faillock_silent: false              # Don't be silent about lockouts
+
+# PAM password quality configuration
+pam_pwquality_retry: 3                  # Number of retries for password entry
+pam_pwquality_minlen: 8                 # Minimum password length (recommended: 12+)
+pam_pwquality_difok: 5                  # Minimum different characters from old password
+pam_pwquality_ucredit: -1               # Require at least 1 uppercase letter
+pam_pwquality_lcredit: -1               # Require at least 1 lowercase letter
+pam_pwquality_dcredit: -1               # Require at least 1 digit
+pam_pwquality_ocredit: -1               # Require at least 1 special character
+pam_pwquality_minclass: 3               # Require at least 3 character classes
+pam_pwquality_maxrepeat: 2              # Maximum consecutive repeated characters
+pam_pwquality_gecoscheck: true          # Check against user's GECOS information
+pam_pwquality_reject_username: true     # Reject passwords containing username
+
+# PAM session configuration
+pam_limits_enabled: true                # Enable PAM limits
+pam_limits_maxlogins: 10                # Maximum concurrent logins per user
+pam_limits_maxsyslogins: 50             # Maximum concurrent system logins
+
+# PAM wheel configuration
+pam_wheel_group: "sudo"                 # Group for wheel functionality
+pam_wheel_use_uid: true                 # Use UID instead of username
+
+# PAM additional security modules
+pam_tally2_enabled: true                # Enable login attempt tracking
+pam_tally2_deny: 5                      # Deny after N failed attempts
+pam_tally2_unlock_time: 1800            # Unlock time in seconds
+pam_tally2_reset: true                  # Reset counter on successful login
+
+# PAM root access restrictions
+pam_root_console_only: true             # Restrict root login to console only
+pam_root_securetty: true                # Use secure TTY for root login
+
+# Backup configuration
+pam_backup_enabled: true                # Create backups before modifications
+pam_backup_suffix: ".backup"            # Backup file suffix

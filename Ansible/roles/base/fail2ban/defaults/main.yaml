@@ -1,0 +1,116 @@
+
+---
+# Fail2Ban Configuration Role Defaults
+# This role configures Fail2Ban with security best practices
+
+# Debug mode for verbose output
+debug_mode: true
+
+# Fail2Ban Installation
+fail2ban_install: true
+fail2ban_packages:
+  - fail2ban
+  - rsyslog
+  - iptables
+
+# SSH Configuration
+ssh_port: 22
+ssh_protocol: "tcp"
+
+# Fail2Ban Jail Configuration
+fail2ban_jails:
+  ssh:
+    enabled: true
+    port: "{{ ssh_port }}"
+    filter: sshd
+    logpath: /var/log/sshd/sshd.log
+    maxretry: 3
+    findtime: 600
+    bantime: 3600
+    banaction: ufw
+    ignoreip: "127.0.0.1/8 ::1"
+  
+  sshd:
+    enabled: true
+    port: "{{ ssh_port }}"
+    filter: sshd
+    logpath: /var/log/auth.log
+    maxretry: 3
+    findtime: 600
+    bantime: 3600
+    banaction: ufw
+    ignoreip: "127.0.0.1/8 ::1"
+
+# Additional jails for common services
+fail2ban_additional_jails:
+  nginx-http-auth:
+    enabled: false
+    port: "http,https"
+    filter: nginx-http-auth
+    logpath: /var/log/nginx/error.log
+    maxretry: 3
+    findtime: 600
+    bantime: 3600
+    banaction: ufw
+  
+  apache-auth:
+    enabled: false
+    port: "http,https"
+    filter: apache-auth
+    logpath: /var/log/apache2/error.log
+    maxretry: 3
+    findtime: 600
+    bantime: 3600
+    banaction: ufw
+
+# Fail2Ban Global Configuration
+fail2ban_global_config:
+  # Logging
+  loglevel: INFO
+  logtarget: /var/log/fail2ban.log
+  
+  # Database
+  dbpurgeage: 86400
+  
+  # Socket
+  socket: /var/run/fail2ban/fail2ban.sock
+  pidfile: /var/run/fail2ban/fail2ban.pid
+  
+  # Dictionaries
+  dbfile: /var/lib/fail2ban/fail2ban.sqlite3
+  
+  # Actions
+  banaction: ufw
+  banaction_allports: ufw
+
+# SSH Logging Configuration
+ssh_logging:
+  enabled: true
+  log_directory: /var/log/sshd
+  log_file: sshd.log
+  log_level: INFO
+  syslog_facility: AUTH
+
+# Allowed IPs that should never be banned
+fail2ban_ignoreip:
+  - "127.0.0.1/8"
+  - "::1"
+  - "192.168.1.0/24"
+  - "10.20.30.0/24"
+
+# Service Management
+fail2ban_service_state: started
+fail2ban_service_enabled: true
+
+# Validation settings
+validate_configuration: true
+fail_on_validation_error: true
+
+# Backup configuration before changes
+backup_configuration: true
+
+# Custom filters (optional)
+fail2ban_custom_filters: {}
+
+# Custom actions (optional)
+fail2ban_custom_actions: {}

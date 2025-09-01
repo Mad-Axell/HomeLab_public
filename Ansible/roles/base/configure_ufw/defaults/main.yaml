@@ -1,0 +1,43 @@
+---
+# UFW Configuration Role Defaults
+# This role configures Uncomplicated Firewall (UFW) with security best practices
+
+# Debug mode for verbose output
+debug_mode: true
+
+# SSH Configuration
+ssh_port: 22
+ssh_protocol: "tcp"
+
+# Allowed SSH subnets (CIDR notation)
+# These subnets will be allowed to connect via SSH
+allowed_ssh_subnets:
+  - "192.168.1.0/24"
+  - "10.20.30.0/24"
+
+# UFW Default Policies
+ufw_default_incoming: "deny"
+ufw_default_outgoing: "allow"
+
+# Custom UFW Rules
+# Format: { rule: 'allow|deny', port: 'port_number', proto: 'tcp|udp', from_ip: 'optional_ip' }
+ufw_rules:
+  # Web services (consider restricting to specific IPs in production)
+  - { rule: 'allow', port: '80', proto: 'tcp', comment: 'HTTP' }
+  - { rule: 'allow', port: '443', proto: 'tcp', comment: 'HTTPS' }
+  - { rule: 'allow', port: "{{ ssh_port }}", proto: "{{ ssh_protocol }}", comment: 'SSH' }
+  
+# Rate limiting for SSH (optional)
+ssh_rate_limit: true
+ssh_rate_limit_attempts: 6
+ssh_rate_limit_time: 30
+
+# Logging configuration
+ufw_logging: "low"  # Options: off, low, medium, high, full
+
+# State management
+ufw_state: "enabled"  # enabled, disabled, reset
+
+# Validation settings
+validate_configuration: true
+fail_on_validation_error: true

@@ -1,0 +1,167 @@
+---
+# Advanced PAM Configuration Tasks
+# Additional security configurations for enhanced protection
+
+- name: Configure PAM time restrictions
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    line: "auth required pam_time.so"
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure PAM access restrictions
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    line: "auth required pam_access.so"
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure PAM listfile for additional restrictions
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    line: "auth required pam_listfile.so item=user sense=deny file=/etc/security/denied_users onerr=succeed"
+    state: present
+    create: yes
+    backup: yes
+
+- name: Create denied users file
+  ansible.builtin.file:
+    path: /etc/security/denied_users
+    state: touch
+    mode: '0644'
+    owner: root
+    group: root
+
+- name: Configure PAM cracklib for additional password checking
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    line: "password requisite pam_cracklib.so retry=3 minlen=12 difok=5 ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1"
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure PAM unix with additional security
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    regexp: '^auth.*pam_unix\.so'
+    line: "auth [success=1 default=bad] pam_unix.so nullok_secure try_first_pass"
+    state: present
+    backup: yes
+
+- name: Configure PAM unix password with additional security
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^password.*pam_unix\.so'
+    line: "password [success=1 default=ignore] pam_unix.so obscure sha512 shadow remember=5"
+    state: present
+    backup: yes
+
+- name: Configure PAM session with additional modules
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/common-session
+    block: |
+      session optional pam_keyinit.so revoke
+      session required pam_limits.so
+      session optional pam_motd.so motd=/etc/motd
+      session optional pam_mail.so standard
+    state: present
+    backup: yes
+
+- name: Configure PAM session-noninteractive
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/common-session-noninteractive
+    block: |
+      session optional pam_keyinit.so revoke
+      session required pam_limits.so
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure PAM for sudo with additional security
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/sudo
+    block: |
+      auth required pam_env.so
+      auth required pam_faillock.so preauth
+      auth sufficient pam_unix.so try_first_pass
+      auth [default=die] pam_faillock.so authfail
+      account required pam_unix.so
+      session required pam_unix.so
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure PAM for su with additional security
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/su
+    block: |
+      auth sufficient pam_rootok.so
+      auth required pam_wheel.so use_uid group={{ pam_wheel_group }}
+      account sufficient pam_succeed_if.so uid = 0 use_uid quiet
+      account required pam_unix.so
+      session required pam_unix.so
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure PAM for login with additional security
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/login
+    block: |
+      auth required pam_securetty.so
+      auth required pam_unix.so
+      account required pam_unix.so
+      session required pam_unix.so
+      session optional pam_motd.so motd=/etc/motd
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure PAM for remote login (SSH)
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/sshd
+    block: |
+      auth required pam_env.so
+      auth required pam_faillock.so preauth
+      auth sufficient pam_unix.so try_first_pass
+      auth [default=die] pam_faillock.so authfail
+      account required pam_unix.so
+      session required pam_unix.so
+      session optional pam_motd.so motd=/etc/motd
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure additional SSH security settings
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxAuthTries'
+    line: "MaxAuthTries {{ ssh_security.max_auth_tries }}"
+    state: present
+    backup: yes
+
+- name: Configure SSH to prevent empty passwords
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitEmptyPasswords'
+    line: "PermitEmptyPasswords {{ ssh_security.permit_empty_passwords }}"
+    state: present
+    backup: yes
+
+- name: Configure SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: "PasswordAuthentication {{ ssh_security.password_authentication }}"
+    state: present
+    backup: yes
+
+- name: Configure SSH public key authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PubkeyAuthentication'
+    line: "PubkeyAuthentication {{ ssh_security.pubkey_authentication }}"
+    state: present
+    backup: yes

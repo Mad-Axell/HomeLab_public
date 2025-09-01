@@ -1,0 +1,121 @@
+---
+# PAM Configuration Validation Tasks
+# Validates all parameters before applying PAM configuration
+
+- name: Validate PAM faillock parameters
+  ansible.builtin.assert:
+    that:
+      - pam_faillock_deny is number
+      - pam_faillock_deny >= 1
+      - pam_faillock_deny <= 10
+      - pam_unlock_time is number
+      - pam_unlock_time >= 60
+      - pam_unlock_time <= 86400
+    fail_msg: "Invalid PAM faillock parameters. deny must be 1-10, unlock_time must be 60-86400 seconds"
+    success_msg: "PAM faillock parameters are valid"
+  tags: [pam, validation]
+
+- name: Validate PAM password quality parameters
+  ansible.builtin.assert:
+    that:
+      - pam_pwquality_retry is number
+      - pam_pwquality_retry >= 1
+      - pam_pwquality_retry <= 5
+      - pam_pwquality_minlen is number
+      - pam_pwquality_minlen >= 8
+      - pam_pwquality_minlen <= 32
+      - pam_pwquality_difok is number
+      - pam_pwquality_difok >= 1
+      - pam_pwquality_difok <= 10
+      - pam_pwquality_minclass is number
+      - pam_pwquality_minclass >= 1
+      - pam_pwquality_minclass <= 4
+      - pam_pwquality_maxrepeat is number
+      - pam_pwquality_maxrepeat >= 0
+      - pam_pwquality_maxrepeat <= 10
+    fail_msg: "Invalid PAM password quality parameters"
+    success_msg: "PAM password quality parameters are valid"
+  tags: [pam, validation]
+
+- name: Validate PAM limits parameters
+  ansible.builtin.assert:
+    that:
+      - pam_limits_maxlogins is number
+      - pam_limits_maxlogins >= 1
+      - pam_limits_maxlogins <= 100
+      - pam_limits_maxsyslogins is number
+      - pam_limits_maxsyslogins >= 10
+      - pam_limits_maxsyslogins <= 1000
+    fail_msg: "Invalid PAM limits parameters"
+    success_msg: "PAM limits parameters are valid"
+  tags: [pam, validation]
+
+- name: Validate PAM tally2 parameters
+  ansible.builtin.assert:
+    that:
+      - pam_tally2_deny is number
+      - pam_tally2_deny >= 1
+      - pam_tally2_deny <= 10
+      - pam_tally2_unlock_time is number
+      - pam_tally2_unlock_time >= 60
+      - pam_tally2_unlock_time <= 86400
+    fail_msg: "Invalid PAM tally2 parameters"
+    success_msg: "PAM tally2 parameters are valid"
+  tags: [pam, validation]
+
+- name: Validate PAM wheel group
+  ansible.builtin.assert:
+    that:
+      - pam_wheel_group is string
+      - pam_wheel_group | length > 0
+      - pam_wheel_group | length <= 32
+    fail_msg: "Invalid PAM wheel group name"
+    success_msg: "PAM wheel group is valid"
+  tags: [pam, validation]
+
+- name: Validate boolean parameters
+  ansible.builtin.assert:
+    that:
+      - pam_faillock_audit is boolean
+      - pam_faillock_silent is boolean
+      - pam_pwquality_gecoscheck is boolean
+      - pam_pwquality_reject_username is boolean
+      - pam_limits_enabled is boolean
+      - pam_wheel_use_uid is boolean
+      - pam_tally2_enabled is boolean
+      - pam_tally2_reset is boolean
+      - pam_root_console_only is boolean
+      - pam_root_securetty is boolean
+      - pam_backup_enabled is boolean
+      - debug_mode is boolean
+    fail_msg: "Invalid boolean parameters in PAM configuration"
+    success_msg: "All boolean parameters are valid"
+  tags: [pam, validation]
+
+- name: Check if required PAM modules are available
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: pam_module_check
+  loop:
+    - /lib/security/pam_faillock.so
+    - /lib/security/pam_pwquality.so
+    - /lib/security/pam_tally2.so
+    - /lib/security/pam_limits.so
+    - /lib/security/pam_wheel.so
+    - /lib/security/pam_umask.so
+  tags: [pam, validation]
+
+- name: Display PAM module availability
+  ansible.builtin.debug:
+    msg: "PAM module {{ item.item }} is {{ 'available' if item.stat.exists else 'not available' }}"
+  loop: "{{ pam_module_check.results }}"
+  when: debug_mode
+  tags: [pam, validation, debug]
+
+- name: Validate system requirements
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    fail_msg: "This PAM role is designed for Debian/Ubuntu and RedHat/CentOS systems only"
+    success_msg: "System family is supported"
+  tags: [pam, validation]

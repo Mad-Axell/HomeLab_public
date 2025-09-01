@@ -1,0 +1,109 @@
+---
+# UFW Configuration Tasks
+# This role configures Uncomplicated Firewall with security best practices
+
+- name: Include validation tasks
+  include_tasks: validate.yaml
+  when: validate_configuration | bool
+
+- name: Check if UFW is installed
+  ansible.builtin.package_facts:
+    manager: apt
+  register: package_facts
+
+- name: Install UFW package
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: true
+  when: "'ufw' not in package_facts.packages"
+  register: ufw_install_result
+
+- name: Ensure UFW service is enabled and started
+  ansible.builtin.service:
+    name: ufw
+    state: started
+    enabled: true
+  when: ufw_install_result is changed or ufw_install_result is not defined
+
+- name: Reset UFW to default state (if requested)
+  community.general.ufw:
+    state: reset
+  when: ufw_state == "reset"
+  become: true
+
+- name: Configure UFW logging level
+  community.general.ufw:
+    logging: "{{ ufw_logging }}"
+  become: true
+
+- name: Set UFW default incoming policy
+  community.general.ufw:
+    direction: incoming
+    policy: "{{ ufw_default_incoming }}"
+  become: true
+
+- name: Set UFW default outgoing policy
+  community.general.ufw:
+    direction: outgoing
+    policy: "{{ ufw_default_outgoing }}"
+  become: true
+
+- name: Allow SSH access from specified subnets
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: "{{ ssh_protocol }}"
+    from_ip: "{{ item }}"
+    comment: "SSH access from {{ item }}"
+  loop: "{{ allowed_ssh_subnets }}"
+  become: true
+  register: ssh_rules_result
+
+- name: Add custom UFW rules
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    from_ip: "{{ item.from_ip | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_rules }}"
+  become: true
+  register: custom_rules_result
+
+- name: Configure SSH rate limiting (if enabled)
+  community.general.ufw:
+    rule: limit
+    port: "{{ ssh_port }}"
+    proto: "{{ ssh_protocol }}"
+    comment: "SSH rate limiting"
+  when: ssh_rate_limit | bool
+  become: true
+
+- name: Enable UFW (final step)
+  community.general.ufw:
+    state: enabled
+  become: true
+  register: ufw_enable_result
+
+- name: Display UFW status
+  ansible.builtin.command: ufw status verbose
+  register: ufw_status
+  changed_when: false
+  when: debug_mode | bool
+
+- name: Show UFW status output
+  ansible.builtin.debug:
+    var: ufw_status.stdout_lines
+  when: debug_mode | bool and ufw_status.stdout_lines is defined
+
+- name: Verify UFW is active
+  ansible.builtin.service_facts:
+
+- name: Ensure UFW service is running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['ufw.service'] is defined
+      - ansible_facts.services['ufw.service'].state == "enabled"
+    fail_msg: "UFW service is not properly configured"
+    success_msg: "UFW service is properly configured and enabled"

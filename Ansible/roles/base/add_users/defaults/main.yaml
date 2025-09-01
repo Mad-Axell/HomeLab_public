@@ -1,0 +1,14 @@
+
+---
+
+debug_mode: True
+  
+users_to_add:
+  # example users configuration format
+  - username: test_user_1
+    password: "qwerty"
+    groups: ["test_1", "test_2"]
+    is_sudoers: True
+    uid: null  # null для автоматического назначения
+    gid: null  # null для автоматического назначения
+    shell: /bin/bash

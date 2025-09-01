@@ -1,0 +1,67 @@
+---
+
+- name: Print adding users
+  ansible.builtin.debug:
+    msg: 
+    - "  --//--//--//--//--"
+    - "name is      :    {{ item.username }}"
+    - "password is  :    {{ item.password }}" 
+    - "hashed_password is :    {{ item.password | ansible.builtin.password_hash('sha512') }}"
+  loop: "{{ users_to_add }}"
+  when: debug_mode
+
+- name: Get existing users
+  ansible.builtin.getent:
+    database: passwd
+  register: existing_users
+
+- name: Get existing groups
+  ansible.builtin.getent:
+    database: group
+  register: existing_groups
+
+- name: Ensure that groups is exists
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ users_to_add | map(attribute='groups') | flatten() | unique }}" # Уникальные группы извлекаются из списка пользователей
+
+- name: Ensure sudo group exists
+  ansible.builtin.group:
+    name: sudo
+    state: present
+  when: users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+
+- name: Add users
+  ansible.builtin.user:
+    name: "{{ item.username }}"
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    groups: "{{ item.groups }}"
+    append: true
+    password: "{{ item.password | ansible.builtin.password_hash('sha512') }}"
+    update_password: always
+    createhome: true
+    home: "/home/{{ item.username }}"
+    system: false
+    state: present
+    uid: "{{ item.uid | default(omit) }}"
+    gid: "{{ item.gid | default(omit) }}"
+  loop: "{{ users_to_add }}"
+  when: item.username not in (existing_users.ansible_facts.getent_passwd | default({})).keys()
+
+- name: Add user to sudo group
+  ansible.builtin.user:
+    name: "{{ item.username }}"
+    groups: sudo
+    append: yes
+  when: item.is_sudoers | default(false)
+  loop: "{{ users_to_add }}"
+
+- name: Add user to sudoers
+  ansible.builtin.lineinfile:
+    dest: /etc/sudoers
+    line: "{{ item.username }} ALL=(ALL:ALL) ALL"
+    validate: 'visudo -cf %s'
+    state: present
+  when: item.is_sudoers | default(false)
+  loop: "{{ users_to_add }}"

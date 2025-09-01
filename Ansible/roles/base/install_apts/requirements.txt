@@ -1,0 +1,18 @@
+# Requirements for Package Installation Role
+# This file lists external dependencies and collections
+
+# Ansible Collections
+collections:
+  - name: community.general
+    version: ">=3.0.0"
+  - name: ansible.posix
+    version: ">=1.4.0"
+
+# Python Dependencies (if any custom modules are used)
+# No external Python dependencies required for this role
+
+# Role Dependencies
+# This role can work with other base roles:
+# - base/configure_ufw (when ufw is in security_packages)
+# - base/fail2ban (when fail2ban is in security_packages)
+# - base/security (for additional security hardening)

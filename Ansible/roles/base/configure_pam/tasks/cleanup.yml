@@ -1,0 +1,72 @@
+---
+# PAM Configuration Cleanup Tasks
+# Tasks for cleaning up and restoring PAM configuration
+
+- name: Reset PAM tally2 counters
+  ansible.builtin.command: "pam_tally2 --reset --user {{ item }}"
+  loop: "{{ ansible_play_hosts }}"
+  changed_when: false
+  failed_when: false
+
+- name: Reset PAM faillock counters
+  ansible.builtin.command: "faillock --reset --user {{ item }}"
+  loop: "{{ ansible_play_hosts }}"
+  changed_when: false
+  failed_when: false
+
+- name: Unlock specific user account
+  ansible.builtin.command: "pam_tally2 --reset --user {{ pam_unlock_user }}"
+  when: pam_unlock_user is defined
+  changed_when: false
+  failed_when: false
+
+- name: Unlock specific user account (faillock)
+  ansible.builtin.command: "faillock --reset --user {{ pam_unlock_user }}"
+  when: pam_unlock_user is defined
+  changed_when: false
+  failed_when: false
+
+- name: Remove PAM backup files
+  ansible.builtin.file:
+    path: "{{ item }}{{ pam_backup_suffix }}"
+    state: absent
+  loop:
+    - /etc/pam.d/common-auth
+    - /etc/pam.d/common-account
+    - /etc/pam.d/common-password
+    - /etc/pam.d/common-session
+    - /etc/pam.d/su
+    - /etc/pam.d/sudo
+  when: pam_remove_backups | default(false)
+
+- name: Restore PAM configuration from backup
+  ansible.builtin.copy:
+    src: "{{ item }}{{ pam_backup_suffix }}"
+    dest: "{{ item }}"
+    remote_src: yes
+    backup: no
+  loop:
+    - /etc/pam.d/common-auth
+    - /etc/pam.d/common-account
+    - /etc/pam.d/common-password
+    - /etc/pam.d/common-session
+    - /etc/pam.d/su
+    - /etc/pam.d/sudo
+  when: pam_restore_from_backup | default(false)
+  notify: restart ssh
+
+- name: Remove custom sudoers configuration
+  ansible.builtin.file:
+    path: /etc/sudoers.d/{{ pam_wheel_group }}
+    state: absent
+  when: pam_remove_sudoers | default(false)
+
+- name: Remove denied users file
+  ansible.builtin.file:
+    path: /etc/security/denied_users
+    state: absent
+  when: pam_remove_denied_users | default(false)
+
+- name: Display cleanup status
+  ansible.builtin.debug:
+    msg: "PAM configuration cleanup completed"

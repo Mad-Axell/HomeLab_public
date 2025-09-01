@@ -1,0 +1,163 @@
+---
+# Fail2Ban Configuration Tasks
+# This role configures Fail2Ban with security best practices
+
+- name: Include validation tasks
+  include_tasks: validate.yaml
+  when: validate_configuration | bool
+
+- name: Check if required packages are installed
+  ansible.builtin.package_facts:
+    manager: apt
+  register: package_facts
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name: "{{ fail2ban_packages }}"
+    state: present
+    update_cache: true
+  register: package_install_result
+  when: fail2ban_install | bool
+
+- name: Ensure required packages are installed
+  ansible.builtin.assert:
+    that:
+      - "'fail2ban' in package_facts.packages"
+      - "'rsyslog' in package_facts.packages"
+    fail_msg: "Required packages are not installed"
+    success_msg: "All required packages are installed"
+
+- name: Backup existing Fail2Ban configuration
+  ansible.builtin.copy:
+    src: /etc/fail2ban/jail.conf
+    dest: /etc/fail2ban/jail.conf.backup.{{ ansible_date_time.epoch }}
+    remote_src: true
+    backup: false
+  when: backup_configuration | bool
+  ignore_errors: true
+
+- name: Configure SSH logging (if enabled)
+  include_tasks: configure_ssh_logging.yaml
+  when: ssh_logging.enabled | bool
+
+- name: Create Fail2Ban configuration directory
+  ansible.builtin.file:
+    path: /etc/fail2ban
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Configure Fail2Ban global settings
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: '0644'
+    backup: "{{ backup_configuration | bool }}"
+  notify:
+    - Restart fail2ban
+
+- name: Configure Fail2Ban logging
+  ansible.builtin.template:
+    src: fail2ban.conf.j2
+    dest: /etc/fail2ban/fail2ban.conf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: "{{ backup_configuration | bool }}"
+  notify:
+    - Restart fail2ban
+
+- name: Create custom filters directory
+  ansible.builtin.file:
+    path: /etc/fail2ban/filter.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create custom actions directory
+  ansible.builtin.file:
+    path: /etc/fail2ban/action.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Configure custom filters
+  ansible.builtin.template:
+    src: "{{ item.key }}.conf.j2"
+    dest: "/etc/fail2ban/filter.d/{{ item.key }}.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ fail2ban_custom_filters | dict2items }}"
+  when: fail2ban_custom_filters | length > 0
+  notify:
+    - Restart fail2ban
+
+- name: Configure custom actions
+  ansible.builtin.template:
+    src: "{{ item.key }}.conf.j2"
+    dest: "/etc/fail2ban/action.d/{{ item.key }}.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ fail2ban_custom_actions | dict2items }}"
+  when: fail2ban_custom_actions | length > 0
+  notify:
+    - Restart fail2ban
+
+- name: Ensure Fail2Ban service is enabled and started
+  ansible.builtin.service:
+    name: fail2ban
+    state: "{{ fail2ban_service_state }}"
+    enabled: "{{ fail2ban_service_enabled }}"
+  register: fail2ban_service_result
+
+- name: Wait for Fail2Ban to be ready
+  ansible.builtin.wait_for:
+    path: /var/run/fail2ban/fail2ban.sock
+    timeout: 30
+  when: fail2ban_service_result is changed
+
+- name: Verify Fail2Ban configuration
+  ansible.builtin.command: fail2ban-client reload
+  register: fail2ban_reload_result
+  changed_when: false
+  failed_when: false
+
+- name: Check Fail2Ban status
+  ansible.builtin.command: fail2ban-client status
+  register: fail2ban_status
+  changed_when: false
+  when: debug_mode | bool
+
+- name: Display Fail2Ban status
+  ansible.builtin.debug:
+    var: fail2ban_status.stdout_lines
+  when: debug_mode | bool and fail2ban_status.stdout_lines is defined
+
+- name: Verify Fail2Ban service is running
+  ansible.builtin.service_facts:
+
+- name: Ensure Fail2Ban service is properly configured
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['fail2ban.service'] is defined
+      - ansible_facts.services['fail2ban.service'].state == "enabled"
+    fail_msg: "Fail2Ban service is not properly configured"
+    success_msg: "Fail2Ban service is properly configured and enabled"
+
+- name: Show active jails
+  ansible.builtin.command: fail2ban-client get sshd banned
+  register: fail2ban_banned_ips
+  changed_when: false
+  when: debug_mode | bool
+
+- name: Display banned IPs
+  ansible.builtin.debug:
+    var: fail2ban_banned_ips.stdout_lines
+  when: debug_mode | bool and fail2ban_banned_ips.stdout_lines is defined

@@ -1,0 +1,203 @@
+---
+# Locale Configuration Role - Main Tasks
+# This role configures system locale settings for internationalization
+
+- name: Include validation tasks
+  include_tasks: validate.yaml
+  when: validate_locale or validate_timezone
+
+- name: Gather system facts
+  ansible.builtin.setup:
+    gather_subset:
+      - distribution
+      - os_family
+
+- name: Debug system information
+  ansible.builtin.debug:
+    msg: |
+      System Information:
+      - Distribution: {{ ansible_distribution }}
+      - Version: {{ ansible_distribution_version }}
+      - Family: {{ ansible_os_family }}
+      - Primary Locale: {{ locale_primary }}
+      - Timezone: {{ timezone }}
+  when: debug_mode
+
+# Backup existing locale configuration
+- name: Backup existing locale configuration
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ item }}{{ backup_suffix }}"
+    remote_src: yes
+    backup: no
+  loop:
+    - /etc/default/locale
+    - /etc/environment
+    - /etc/locale.gen
+  when: backup_enabled
+  ignore_errors: yes
+
+# Ensure required packages are installed
+- name: Install locale packages for Debian/Ubuntu
+  ansible.builtin.apt:
+    name:
+      - locales
+      - locales-all
+      - tzdata
+      - keyboard-configuration
+      - console-setup
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install locale packages for RedHat/CentOS
+  ansible.builtin.yum:
+    name:
+      - glibc-locale-source
+      - glibc-langpack-en
+      - tzdata
+      - kbd
+    state: present
+  when: ansible_os_family == "RedHat"
+
+# Generate additional locales
+- name: Generate additional locales
+  community.general.locale_gen:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ locale_additional }}"
+  become: true
+  register: locale_gen_result
+
+- name: Debug locale generation results
+  ansible.builtin.debug:
+    msg: "Generated locale: {{ item.name }} - {{ 'Success' if item.changed else 'Already exists' }}"
+  loop: "{{ locale_gen_result.results }}"
+  when: debug_mode
+
+# Configure system locale variables
+- name: Configure system locale variables
+  ansible.builtin.lineinfile:
+    path: /etc/default/locale
+    regexp: '^{{ item.key }}=.*$'
+    line: '{{ item.key }}="{{ item.value }}"'
+    state: present
+    create: yes
+    backup: "{{ backup_enabled }}"
+  loop: "{{ locale_variables | dict2items }}"
+  become: true
+  notify: reload locale
+
+# Configure environment variables
+- name: Configure environment locale variables
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    regexp: '^{{ item.key }}=.*$'
+    line: '{{ item.key }}="{{ item.value }}"'
+    state: present
+    create: yes
+    backup: "{{ backup_suffix if backup_enabled else 'no' }}"
+  loop: "{{ locale_variables | dict2items }}"
+  become: true
+  notify: reload locale
+
+# Configure timezone
+- name: Configure system timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+  when: timezone_manage
+  become: true
+  notify: reload timezone
+
+# Configure keyboard layout (Debian/Ubuntu)
+- name: Configure keyboard layout for Debian/Ubuntu
+  ansible.builtin.debconf:
+    name: keyboard-configuration
+    question: "keyboard-configuration/layout"
+    value: "{{ keyboard_layout }}"
+    vtype: string
+  when: ansible_os_family == "Debian" and keyboard_layout != ""
+  become: true
+
+- name: Configure keyboard variant for Debian/Ubuntu
+  ansible.builtin.debconf:
+    name: keyboard-configuration
+    question: "keyboard-configuration/variant"
+    value: "{{ keyboard_variant }}"
+    vtype: string
+  when: ansible_os_family == "Debian" and keyboard_variant != ""
+  become: true
+
+- name: Configure keyboard options for Debian/Ubuntu
+  ansible.builtin.debconf:
+    name: keyboard-configuration
+    question: "keyboard-configuration/optionscode"
+    value: "{{ keyboard_options }}"
+    vtype: string
+  when: ansible_os_family == "Debian" and keyboard_options != ""
+  become: true
+
+# Configure console font
+- name: Configure console font
+  ansible.builtin.lineinfile:
+    path: /etc/default/console-setup
+    regexp: '^FONTFACE=.*$'
+    line: 'FONTFACE="{{ console_font }}"'
+    state: present
+    create: yes
+    backup: "{{ backup_suffix if backup_enabled else 'no' }}"
+  when: console_font_manage
+  become: true
+  notify: reload console
+
+# Configure NTP servers
+- name: Configure NTP servers
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/timesyncd.conf
+    regexp: '^NTP=.*$'
+    line: 'NTP={{ ntp_servers | join(" ") }}'
+    state: present
+    create: yes
+    backup: "{{ backup_suffix if backup_enabled else 'no' }}"
+  when: ntp_enabled and ansible_os_family == "Debian"
+  become: true
+  notify: restart timesyncd
+
+# Update locale database
+- name: Update locale database
+  ansible.builtin.command: locale-gen
+  become: true
+  changed_when: false
+
+- name: Update locale database for RedHat/CentOS
+  ansible.builtin.command: localedef -c -f UTF-8 -i en_US en_US.UTF-8
+  become: true
+  changed_when: false
+  when: ansible_os_family == "RedHat"
+
+# Verify locale configuration
+- name: Verify locale configuration
+  ansible.builtin.command: locale
+  register: locale_check
+  changed_when: false
+
+- name: Display current locale settings
+  ansible.builtin.debug:
+    msg: "Current locale settings: {{ locale_check.stdout_lines }}"
+  when: debug_mode
+
+# Include cleanup tasks if requested
+- name: Include cleanup tasks
+  include_tasks: cleanup.yml
+  when: cleanup_enabled | default(false)
+
+# Final status message
+- name: Locale configuration completed
+  ansible.builtin.debug:
+    msg: |
+      Locale configuration completed successfully:
+      - Primary locale: {{ locale_primary }}
+      - Timezone: {{ timezone }}
+      - Additional locales: {{ locale_additional | length }} configured
+      - Backup enabled: {{ backup_enabled }}
+      - Cleanup mode: {{ 'Enabled' if cleanup_enabled else 'Disabled' }}

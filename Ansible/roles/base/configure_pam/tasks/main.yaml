@@ -1,0 +1,206 @@
+---
+# PAM Configuration Role - Main Tasks
+# This role configures PAM modules for enhanced system security
+
+- name: Include validation tasks
+  include_tasks: validate.yaml
+
+- name: Create backup of PAM configuration files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ item }}{{ pam_backup_suffix }}"
+    remote_src: yes
+    backup: no
+  loop:
+    - /etc/pam.d/common-auth
+    - /etc/pam.d/common-account
+    - /etc/pam.d/common-password
+    - /etc/pam.d/common-session
+    - /etc/pam.d/su
+    - /etc/pam.d/sudo
+  when: pam_backup_enabled
+  ignore_errors: yes
+
+- name: Ensure PAM configuration directory exists
+  ansible.builtin.file:
+    path: /etc/pam.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+# Configure PAM faillock for account lockout protection
+- name: Configure PAM faillock - preauth phase
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/common-auth
+    block: |
+      auth required pam_faillock.so preauth audit={{ 'audit' if pam_faillock_audit else '' }} silent={{ 'silent' if pam_faillock_silent else '' }} deny={{ pam_faillock_deny }} unlock_time={{ pam_unlock_time }}
+    insertbefore: '^auth.*sufficient.*pam_unix\.so'
+    state: present
+    backup: yes
+  notify: restart ssh
+
+- name: Configure PAM faillock - authfail phase
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/common-auth
+    block: |
+      auth [default=die] pam_faillock.so authfail audit={{ 'audit' if pam_faillock_audit else '' }} deny={{ pam_faillock_deny }} unlock_time={{ pam_unlock_time }}
+    insertafter: '^auth.*sufficient.*pam_unix\.so'
+    state: present
+    backup: yes
+  notify: restart ssh
+
+- name: Configure PAM faillock for account phase
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-account
+    line: "account required pam_faillock.so"
+    state: present
+    create: yes
+    backup: yes
+  notify: restart ssh
+
+# Configure PAM tally2 as alternative/additional login attempt tracking
+- name: Configure PAM tally2 for login attempt tracking
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/common-auth
+    block: |
+      auth required pam_tally2.so deny={{ pam_tally2_deny }} unlock_time={{ pam_tally2_unlock_time }} onerr=fail
+    insertbefore: '^auth.*required.*pam_faillock\.so'
+    state: present
+    backup: yes
+  when: pam_tally2_enabled
+  notify: restart ssh
+
+- name: Configure PAM tally2 reset on successful login
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-account
+    line: "account required pam_tally2.so reset"
+    state: present
+    create: yes
+    backup: yes
+  when: pam_tally2_enabled and pam_tally2_reset
+  notify: restart ssh
+
+# Configure password quality requirements
+- name: Configure PAM pwquality for password strength
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^password\s+requisite\s+pam_pwquality\.so'
+    line: "password requisite pam_pwquality.so retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} difok={{ pam_pwquality_difok }} ucredit={{ pam_pwquality_ucredit }} lcredit={{ pam_pwquality_lcredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }} minclass={{ pam_pwquality_minclass }} maxrepeat={{ pam_pwquality_maxrepeat }} gecoscheck={{ '1' if pam_pwquality_gecoscheck else '0' }} reject_username={{ '1' if pam_pwquality_reject_username else '0' }}"
+    state: present
+    backup: yes
+
+# Configure PAM limits for session control
+- name: Configure PAM limits for session control
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session required pam_limits.so"
+    state: present
+    create: yes
+    backup: yes
+  when: pam_limits_enabled
+
+- name: Configure system-wide login limits
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    line: "* soft nproc {{ pam_limits_maxlogins }}"
+    state: present
+    backup: yes
+  when: pam_limits_enabled
+
+- name: Configure system-wide login limits (hard)
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    line: "* hard nproc {{ pam_limits_maxsyslogins }}"
+    state: present
+    backup: yes
+  when: pam_limits_enabled
+
+# Configure wheel group for su command
+- name: Configure PAM wheel for su command
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/su
+    regexp: '^#?auth\s+required\s+pam_wheel\.so'
+    line: "auth required pam_wheel.so use_uid={{ 'use_uid' if pam_wheel_use_uid else '' }} group={{ pam_wheel_group }}"
+    state: present
+    backup: yes
+
+# Configure sudo access restrictions
+- name: Create sudoers.d directory
+  ansible.builtin.file:
+    path: /etc/sudoers.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Configure sudo access for admin group
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/{{ pam_wheel_group }}
+    content: "%{{ pam_wheel_group }} ALL=(ALL:ALL) ALL\n"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: 'visudo -cf %s'
+    backup: yes
+
+# Configure root access restrictions
+- name: Configure secure TTY for root login
+  ansible.builtin.lineinfile:
+    path: /etc/securetty
+    line: "{{ item }}"
+    state: present
+    create: yes
+    backup: yes
+  loop:
+    - "console"
+    - "tty1"
+    - "tty2"
+    - "tty3"
+    - "tty4"
+    - "tty5"
+    - "tty6"
+  when: pam_root_securetty
+
+- name: Disable root login via SSH
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: "PermitRootLogin no"
+    state: present
+    backup: yes
+  when: pam_root_console_only
+  notify: restart ssh
+
+# Configure additional security modules
+- name: Configure PAM umask for session
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session optional pam_umask.so umask=077"
+    state: present
+    create: yes
+    backup: yes
+
+- name: Configure PAM motd for login banner
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session optional pam_motd.so motd=/etc/motd"
+    state: present
+    create: yes
+    backup: yes
+
+# Include advanced PAM configuration
+- name: Include advanced PAM configuration
+  include_tasks: advanced.yml
+
+# Verify PAM configuration
+- name: Verify PAM configuration syntax
+  ansible.builtin.command: "pam_tally2 --user {{ ansible_user }}"
+  register: pam_verify
+  changed_when: false
+  failed_when: false
+
+- name: Display PAM verification results
+  ansible.builtin.debug:
+    msg: "PAM configuration verification completed"
+  when: debug_mode

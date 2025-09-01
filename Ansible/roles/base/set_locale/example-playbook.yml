@@ -1,0 +1,179 @@
+---
+# Example Playbook for Locale Configuration Role
+# This playbook demonstrates various configuration options
+
+- name: Configure System Locale - Basic Setup
+  hosts: servers
+  become: yes
+  gather_facts: yes
+  
+  # Basic usage with default settings
+  roles:
+    - role: base/set_locale
+
+- name: Configure System Locale - Russian Environment
+  hosts: russian_servers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    # Primary locale for Russian environment
+    locale_primary: "ru_RU.UTF-8"
+    locale_language: "ru_RU"
+    
+    # Additional locales for multi-language support
+    locale_additional:
+      - "ru_RU.UTF-8"
+      - "en_US.UTF-8"
+      - "en_GB.UTF-8"
+    
+    # Timezone for Moscow
+    timezone: "Europe/Moscow"
+    timezone_manage: true
+    
+    # Keyboard layout for Russian
+    keyboard_layout: "ru"
+    keyboard_variant: "winkeys"
+    
+    # NTP servers for Russia
+    ntp_servers:
+      - "pool.ntp.org"
+      - "ru.pool.ntp.org"
+      - "europe.pool.ntp.org"
+    
+    # Enable debug mode for troubleshooting
+    debug_mode: true
+    
+    # Enable backups
+    backup_enabled: true
+    backup_suffix: ".locale_backup"
+  
+  roles:
+    - role: base/set_locale
+
+- name: Configure System Locale - Multi-Language Environment
+  hosts: international_servers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    # Primary locale (English)
+    locale_primary: "en_US.UTF-8"
+    
+    # Extensive list of additional locales
+    locale_additional:
+      - "en_US.UTF-8"
+      - "en_GB.UTF-8"
+      - "de_DE.UTF-8"
+      - "fr_FR.UTF-8"
+      - "es_ES.UTF-8"
+      - "it_IT.UTF-8"
+      - "pt_PT.UTF-8"
+      - "nl_NL.UTF-8"
+      - "sv_SE.UTF-8"
+      - "no_NO.UTF-8"
+      - "da_DK.UTF-8"
+      - "fi_FI.UTF-8"
+      - "pl_PL.UTF-8"
+      - "cs_CZ.UTF-8"
+      - "hu_HU.UTF-8"
+      - "ro_RO.UTF-8"
+      - "bg_BG.UTF-8"
+      - "hr_HR.UTF-8"
+      - "sl_SI.UTF-8"
+      - "sk_SK.UTF-8"
+    
+    # European timezone
+    timezone: "Europe/London"
+    
+    # UK keyboard layout
+    keyboard_layout: "gb"
+    
+    # European NTP servers
+    ntp_servers:
+      - "0.europe.pool.ntp.org"
+      - "1.europe.pool.ntp.org"
+      - "2.europe.pool.ntp.org"
+      - "3.europe.pool.ntp.org"
+    
+    # Console font for better readability
+    console_font: "Lat2-Terminus16"
+    console_font_manage: true
+    
+    # Validation settings
+    validate_locale: true
+    validate_timezone: true
+    
+    # Backup settings
+    backup_enabled: true
+    backup_suffix: ".i18n_backup"
+  
+  roles:
+    - role: base/set_locale
+
+- name: Configure System Locale - Minimal Configuration
+  hosts: minimal_servers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    # Only essential settings
+    locale_primary: "en_US.UTF-8"
+    timezone: "UTC"
+    
+    # Disable unnecessary features
+    keyboard_layout: ""
+    keyboard_variant: ""
+    keyboard_options: ""
+    console_font_manage: false
+    ntp_enabled: false
+    
+    # Minimal validation
+    validate_locale: true
+    validate_timezone: false
+    
+    # No backups for minimal setup
+    backup_enabled: false
+    debug_mode: false
+  
+  roles:
+    - role: base/set_locale
+
+- name: Configure System Locale - Production Environment
+  hosts: production_servers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    # Production locale settings
+    locale_primary: "en_US.UTF-8"
+    timezone: "America/New_York"
+    
+    # Production-appropriate additional locales
+    locale_additional:
+      - "en_US.UTF-8"
+      - "en_CA.UTF-8"
+      - "es_MX.UTF-8"
+      - "fr_CA.UTF-8"
+    
+    # US keyboard layout
+    keyboard_layout: "us"
+    
+    # Production NTP servers
+    ntp_servers:
+      - "0.north-america.pool.ntp.org"
+      - "1.north-america.pool.ntp.org"
+      - "2.north-america.pool.ntp.org"
+      - "time.nist.gov"
+    
+    # Security-focused settings
+    backup_enabled: true
+    backup_suffix: ".prod_backup"
+    debug_mode: false
+    
+    # Full validation
+    validate_locale: true
+    validate_timezone: true
+  
+  roles:
+    - role: base/set_locale

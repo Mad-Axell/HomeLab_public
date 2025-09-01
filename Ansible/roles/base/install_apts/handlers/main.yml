@@ -1,0 +1,32 @@
+---
+# Package Installation Handlers
+# Handlers for package installation events
+
+- name: restart auditd
+  ansible.builtin.service:
+    name: auditd
+    state: restarted
+  listen: "restart auditd"
+
+- name: restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+  listen: "restart fail2ban"
+
+- name: reload ufw
+  ansible.builtin.service:
+    name: ufw
+    state: reloaded
+  listen: "reload ufw"
+
+- name: update package cache
+  ansible.builtin.apt:
+    update_cache: true
+  listen: "update package cache"
+
+- name: clean package cache
+  ansible.builtin.apt:
+    autoclean: true
+    autoremove: true
+  listen: "clean package cache"

@@ -1,0 +1,142 @@
+---
+# Package Installation Tasks
+# This role installs and manages packages on Ubuntu/Debian systems
+
+- name: Include validation tasks
+  include_tasks: validate.yaml
+  tags: [validation, never]
+  when: validate_packages | bool
+
+- name: Gather package facts
+  ansible.builtin.package_facts:
+    manager: apt
+  tags: [facts, always]
+
+- name: Update APT cache
+  ansible.builtin.apt:
+    update_cache: "{{ apt_update_cache }}"
+    cache_valid_time: "{{ apt_cache_valid_time }}"
+  tags: [cache, always]
+  register: apt_cache_result
+
+- name: Upgrade packages (if requested)
+  ansible.builtin.apt:
+    upgrade: "{{ 'dist' if apt_upgrade_packages else 'yes' }}"
+    cache_valid_time: "{{ apt_cache_valid_time }}"
+  when: apt_upgrade_packages | bool
+  tags: [upgrade, packages]
+  register: apt_upgrade_result
+
+- name: Install essential packages
+  ansible.builtin.apt:
+    name: "{{ essential_packages }}"
+    state: "{{ package_installation.state }}"
+    force: "{{ package_installation.force_apt_get }}"
+    allow_unauthenticated: "{{ package_installation.allow_unauthenticated }}"
+    install_recommends: "{{ package_installation.install_recommends }}"
+    install_suggests: "{{ package_installation.install_suggests }}"
+    cache_valid_time: "{{ apt_cache_valid_time }}"
+  tags: [essential, packages]
+  register: essential_packages_result
+
+- name: Install security packages
+  ansible.builtin.apt:
+    name: "{{ security_packages }}"
+    state: "{{ package_installation.state }}"
+    force: "{{ package_installation.force_apt_get }}"
+    allow_unauthenticated: "{{ package_installation.allow_unauthenticated }}"
+    install_recommends: "{{ package_installation.install_recommends }}"
+    install_suggests: "{{ package_installation.install_suggests }}"
+    cache_valid_time: "{{ apt_cache_valid_time }}"
+  tags: [security, packages]
+  register: security_packages_result
+  notify:
+    - "restart auditd"
+    - "restart fail2ban"
+    - "reload ufw"
+
+- name: Install system administration packages
+  ansible.builtin.apt:
+    name: "{{ admin_packages }}"
+    state: "{{ package_installation.state }}"
+    force: "{{ package_installation.force_apt_get }}"
+    allow_unauthenticated: "{{ package_installation.allow_unauthenticated }}"
+    install_recommends: "{{ package_installation.install_recommends }}"
+    install_suggests: "{{ package_installation.install_suggests }}"
+    cache_valid_time: "{{ apt_cache_valid_time }}"
+  tags: [admin, packages]
+  register: admin_packages_result
+
+- name: Install development packages
+  ansible.builtin.apt:
+    name: "{{ dev_packages }}"
+    state: "{{ package_installation.state }}"
+    force: "{{ package_installation.force_apt_get }}"
+    allow_unauthenticated: "{{ package_installation.allow_unauthenticated }}"
+    install_recommends: "{{ package_installation.install_recommends }}"
+    install_suggests: "{{ package_installation.install_suggests }}"
+    cache_valid_time: "{{ apt_cache_valid_time }}"
+  tags: [dev, packages]
+  register: dev_packages_result
+
+- name: Install network packages
+  ansible.builtin.apt:
+    name: "{{ network_packages }}"
+    state: "{{ package_installation.state }}"
+    force: "{{ package_installation.force_apt_get }}"
+    allow_unauthenticated: "{{ package_installation.allow_unauthenticated }}"
+    install_recommends: "{{ package_installation.install_recommends }}"
+    install_suggests: "{{ package_installation.install_suggests }}"
+    cache_valid_time: "{{ apt_cache_valid_time }}"
+  tags: [network, packages]
+  register: network_packages_result
+
+- name: Add additional repositories
+  ansible.builtin.apt_repository:
+    repo: "{{ item.repo }}"
+    state: "{{ item.state | default('present') }}"
+    filename: "{{ item.filename | default(omit) }}"
+    key_url: "{{ item.key_url | default(omit) }}"
+    key_id: "{{ item.key_id | default(omit) }}"
+    update_cache: true
+  loop: "{{ additional_repositories }}"
+  tags: [repositories, packages]
+  register: repo_result
+  when: additional_repositories | length > 0
+  notify: "update package cache"
+
+- name: Remove specified packages
+  ansible.builtin.apt:
+    name: "{{ packages_to_remove }}"
+    state: absent
+    autoremove: true
+    purge: true
+  tags: [cleanup, packages]
+  register: remove_packages_result
+  when: packages_to_remove | length > 0
+
+- name: Clean up APT cache
+  ansible.builtin.apt:
+    autoclean: true
+    autoremove: true
+  tags: [cleanup, cache]
+  when: apt_cache_result is changed or apt_upgrade_result is changed
+  notify: "clean package cache"
+
+- name: Include cleanup tasks
+  include_tasks: cleanup.yml
+  tags: [cleanup, packages]
+  when: packages_to_remove | length > 0
+
+- name: Display installation summary
+  ansible.builtin.debug:
+    msg: |
+      Package installation completed:
+      - Essential packages: {{ essential_packages_result.results | map(attribute='item') | list }}
+      - Security packages: {{ security_packages_result.results | map(attribute='item') | list }}
+      - Admin packages: {{ admin_packages_result.results | map(attribute='item') | list }}
+      - Dev packages: {{ dev_packages_result.results | map(attribute='item') | list }}
+      - Network packages: {{ network_packages_result.results | map(attribute='item') | list }}
+      - Packages removed: {{ packages_to_remove }}
+  when: debug_mode | bool
+  tags: [debug, always]

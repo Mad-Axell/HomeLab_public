@@ -1,0 +1,57 @@
+---
+# SSH Logging Configuration Tasks
+
+- name: Ensure SSH log directory exists
+  ansible.builtin.file:
+    path: "{{ ssh_logging.log_directory }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create SSH log file
+  ansible.builtin.file:
+    path: "{{ ssh_logging.log_directory }}/{{ ssh_logging.log_file }}"
+    state: touch
+    owner: root
+    group: adm
+    mode: '0640'
+
+- name: Configure rsyslog for SSH logging
+  ansible.builtin.template:
+    dest: /etc/rsyslog.d/50-ssh.conf
+    content: |
+      # SSH logging configuration
+      if $programname == 'sshd' then {{ ssh_logging.log_directory }}/{{ ssh_logging.log_file }}
+      & stop
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Restart rsyslog
+
+- name: Configure SSH daemon logging settings
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?SyslogFacility'
+    line: 'SyslogFacility {{ ssh_logging.syslog_facility }}'
+    state: present
+  notify:
+    - Restart sshd
+
+- name: Configure SSH log level
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LogLevel'
+    line: 'LogLevel {{ ssh_logging.log_level }}'
+    state: present
+  notify:
+    - Restart sshd
+
+- name: Ensure SSH logging is properly configured
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['rsyslog.service'] is defined
+      - ansible_facts.services['sshd.service'] is defined
+    fail_msg: "Required services for SSH logging are not available"
+    success_msg: "SSH logging services are properly configured"

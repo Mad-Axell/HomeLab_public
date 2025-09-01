@@ -1,0 +1,123 @@
+---
+# Example Playbook for Fail2Ban Configuration
+# This playbook demonstrates how to use the fail2ban role with different configurations
+
+- name: Configure Fail2Ban with default settings
+  hosts: servers
+  become: true
+  roles:
+    - role: base/fail2ban
+
+- name: Configure Fail2Ban with custom settings
+  hosts: production_servers
+  become: true
+  roles:
+    - role: base/fail2ban
+      vars:
+        # Custom SSH configuration
+        ssh_port: 2222
+        ssh_protocol: "tcp"
+        
+        # Stricter jail settings for production
+        fail2ban_jails:
+          ssh:
+            enabled: true
+            port: "{{ ssh_port }}"
+            filter: sshd
+            logpath: /var/log/sshd/sshd.log
+            maxretry: 2
+            findtime: 300
+            bantime: 7200
+            banaction: ufw
+            ignoreip: "127.0.0.1/8 ::1"
+          
+          sshd:
+            enabled: true
+            port: "{{ ssh_port }}"
+            filter: sshd
+            logpath: /var/log/auth.log
+            maxretry: 2
+            findtime: 300
+            bantime: 7200
+            banaction: ufw
+            ignoreip: "127.0.0.1/8 ::1"
+        
+        # Additional jails for web services
+        fail2ban_additional_jails:
+          nginx-http-auth:
+            enabled: true
+            port: "http,https"
+            filter: nginx-http-auth
+            logpath: /var/log/nginx/error.log
+            maxretry: 3
+            findtime: 600
+            bantime: 3600
+            banaction: ufw
+          
+          apache-auth:
+            enabled: true
+            port: "http,https"
+            filter: apache-auth
+            logpath: /var/log/apache2/error.log
+            maxretry: 3
+            findtime: 600
+            bantime: 3600
+            banaction: ufw
+        
+        # Custom ignore IPs for production
+        fail2ban_ignoreip:
+          - "127.0.0.1/8"
+          - "::1"
+          - "192.168.1.0/24"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+        
+        # Enhanced logging
+        ssh_logging:
+          enabled: true
+          log_directory: /var/log/sshd
+          log_file: sshd.log
+          log_level: VERBOSE
+          syslog_facility: AUTH
+        
+        # Global configuration
+        fail2ban_global_config:
+          loglevel: INFO
+          logtarget: /var/log/fail2ban.log
+          dbpurgeage: 86400
+          socket: /var/run/fail2ban/fail2ban.sock
+          pidfile: /var/run/fail2ban/fail2ban.pid
+          dbfile: /var/lib/fail2ban/fail2ban.sqlite3
+          banaction: ufw
+          banaction_allports: ufw
+
+- name: Configure Fail2Ban for development environment
+  hosts: dev_servers
+  become: true
+  roles:
+    - role: base/fail2ban
+      vars:
+        # More lenient settings for development
+        fail2ban_jails:
+          ssh:
+            enabled: true
+            port: 22
+            filter: sshd
+            logpath: /var/log/sshd/sshd.log
+            maxretry: 5
+            findtime: 900
+            bantime: 1800
+            banaction: ufw
+            ignoreip: "127.0.0.1/8 ::1 192.168.1.0/24 10.0.0.0/8"
+        
+        # Disable additional jails for dev
+        fail2ban_additional_jails:
+          nginx-http-auth:
+            enabled: false
+          apache-auth:
+            enabled: false
+        
+        # Debug mode for development
+        debug_mode: true
+        validate_configuration: true
+        backup_configuration: true

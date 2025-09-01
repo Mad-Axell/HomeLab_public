@@ -1,0 +1,17 @@
+# Locale Configuration Role - Requirements
+# This file lists the required Ansible collections for this role
+
+# Required Ansible collections
+ansible_collections:
+  - name: community.general
+    version: ">=3.0.0"
+    source: https://galaxy.ansible.com
+
+# Optional but recommended collections
+ansible_collections:
+  - name: ansible.posix
+    version: ">=1.3.0"
+    source: https://galaxy.ansible.com
+  - name: community.systemd
+    version: ">=1.0.0"
+    source: https://galaxy.ansible.com

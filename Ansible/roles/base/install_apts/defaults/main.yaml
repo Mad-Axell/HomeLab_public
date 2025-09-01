@@ -1,0 +1,66 @@
+---
+# Package Installation Role Defaults
+# This role installs essential packages for Ubuntu/Debian systems
+
+# Debug mode for verbose output
+debug_mode: false
+
+# Package cache management
+apt_cache_valid_time: 86400  # 24 hours in seconds
+apt_update_cache: true
+apt_upgrade_packages: false  # Set to true for dist-upgrade, false for security updates only
+
+# Essential system packages (always installed)
+essential_packages:
+  - acl
+  - sudo
+  - net-tools
+  - gnupg
+
+# Security packages (recommended for production)
+security_packages:
+  - auditd      # System audit daemon for SIEM integration
+  - ufw         # Uncomplicated firewall
+  - fail2ban    # Intrusion prevention system
+  - libpam-pwquality  # Password quality enforcement
+
+# System administration packages (optional)
+admin_packages:
+  - htop        # Interactive process viewer
+  - curl        # Command line tool for transferring data
+  - wget        # Internet file retriever
+  - vim         # Text editor
+  - tree        # Directory listing in tree format
+
+# Development packages (optional)
+dev_packages:
+  - python3
+  - python3-pip
+  - python3-requests
+  - build-essential
+
+# Network and communication packages (optional)
+network_packages:
+  - apt-transport-https
+  - software-properties-common
+  - ca-certificates
+  - openssh-client
+
+# Package installation options
+package_installation:
+  state: present          # present, latest, absent
+  force_apt_get: false    # Use force option (use with caution)
+  allow_unauthenticated: false  # Allow installation of unsigned packages
+  install_recommends: true      # Install recommended packages
+  install_suggests: false       # Install suggested packages
+
+# Package removal (cleanup)
+packages_to_remove: []    # List of packages to remove
+
+# Repository management
+additional_repositories: []  # List of additional APT repositories
+
+# Validation settings
+validate_packages: true
+fail_on_validation_error: true
+check_package_availability: true

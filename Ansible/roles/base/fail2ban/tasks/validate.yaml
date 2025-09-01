@@ -1,0 +1,92 @@
+---
+# Fail2Ban Configuration Validation Tasks
+
+- name: Validate Fail2Ban configuration variables
+  ansible.builtin.assert:
+    that:
+      - fail2ban_install is defined
+      - fail2ban_packages is defined
+      - fail2ban_jails is defined
+      - ssh_port is defined
+      - ssh_protocol is defined
+    fail_msg: "Required Fail2Ban configuration variables are not defined"
+    success_msg: "All required Fail2Ban configuration variables are defined"
+
+- name: Validate SSH port configuration
+  ansible.builtin.assert:
+    that:
+      - ssh_port is number
+      - ssh_port >= 1
+      - ssh_port <= 65535
+    fail_msg: "SSH port must be a valid port number (1-65535)"
+    success_msg: "SSH port configuration is valid"
+
+- name: Validate SSH protocol configuration
+  ansible.builtin.assert:
+    that:
+      - ssh_protocol in ['tcp', 'udp']
+    fail_msg: "SSH protocol must be 'tcp' or 'udp'"
+    success_msg: "SSH protocol configuration is valid"
+
+- name: Validate Fail2Ban jail configurations
+  ansible.builtin.assert:
+    that:
+      - item.value.enabled is defined
+      - item.value.port is defined
+      - item.value.filter is defined
+      - item.value.logpath is defined
+      - item.value.maxretry is defined
+      - item.value.findtime is defined
+      - item.value.bantime is defined
+    fail_msg: "Invalid jail configuration for {{ item.key }}"
+    success_msg: "Jail configuration for {{ item.key }} is valid"
+  loop: "{{ fail2ban_jails | dict2items }}"
+  when: fail2ban_jails is defined
+
+- name: Validate Fail2Ban jail values
+  ansible.builtin.assert:
+    that:
+      - item.value.maxretry is number
+      - item.value.maxretry > 0
+      - item.value.findtime is number
+      - item.value.findtime > 0
+      - item.value.bantime is number
+      - item.value.bantime >= 0
+    fail_msg: "Invalid jail values for {{ item.key }}"
+    success_msg: "Jail values for {{ item.key }} are valid"
+  loop: "{{ fail2ban_jails | dict2items }}"
+  when: fail2ban_jails is defined
+
+- name: Validate ignore IP addresses
+  ansible.builtin.assert:
+    that:
+      - item is match('^[0-9a-fA-F:./]+$')
+    fail_msg: "Invalid IP address format: {{ item }}"
+    success_msg: "IP address format is valid: {{ item }}"
+  loop: "{{ fail2ban_ignoreip }}"
+  when: fail2ban_ignoreip is defined
+
+- name: Check if system supports Fail2Ban
+  ansible.builtin.stat:
+    path: /etc/debian_version
+  register: debian_check
+
+- name: Validate operating system
+  ansible.builtin.assert:
+    that:
+      - debian_check.stat.exists or ansible_os_family == "Debian"
+    fail_msg: "This role is designed for Debian-based systems"
+    success_msg: "Operating system is compatible"
+
+- name: Check available disk space
+  ansible.builtin.stat:
+    path: /var/log
+  register: log_dir_check
+
+- name: Validate disk space for logging
+  ansible.builtin.assert:
+    that:
+      - log_dir_check.stat.size is defined
+      - log_dir_check.stat.size > 10485760  # 10MB minimum
+    fail_msg: "Insufficient disk space for logging"
+    success_msg: "Sufficient disk space available for logging"

@@ -1,0 +1,113 @@
+---
+# Locale Configuration Role - Cleanup Tasks
+# This file contains cleanup and rollback tasks for locale configuration
+
+- name: Include cleanup tasks
+  include_tasks: cleanup.yml
+  when: cleanup_enabled | default(false)
+
+# Restore locale configuration from backup
+- name: Restore locale configuration from backup
+  ansible.builtin.copy:
+    src: "{{ item }}{{ backup_suffix }}"
+    dest: "{{ item }}"
+    remote_src: yes
+    backup: no
+  loop:
+    - /etc/default/locale
+    - /etc/environment
+    - /etc/locale.gen
+  when: backup_enabled and ansible.builtin.stat(item + backup_suffix).stat.exists
+  become: true
+  register: restore_result
+
+- name: Debug restore results
+  ansible.builtin.debug:
+    msg: "Restored {{ item.item }} from backup"
+  loop: "{{ restore_result.results }}"
+  when: debug_mode and item.changed
+
+# Remove additional locales
+- name: Remove additional locales
+  community.general.locale_gen:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ locale_additional }}"
+  when: locale_cleanup_enabled | default(false)
+  become: true
+  register: locale_remove_result
+
+- name: Debug locale removal results
+  ansible.builtin.debug:
+    msg: "Removed locale: {{ item.name }}"
+  loop: "{{ locale_remove_result.results }}"
+  when: debug_mode and item.changed
+
+# Reset timezone to default
+- name: Reset timezone to default
+  community.general.timezone:
+    name: "UTC"
+  when: timezone_cleanup_enabled | default(false)
+  become: true
+  notify: reload timezone
+
+# Reset keyboard layout to default
+- name: Reset keyboard layout to default
+  ansible.builtin.debconf:
+    name: keyboard-configuration
+    question: "keyboard-configuration/layout"
+    value: "us"
+    vtype: string
+  when: ansible_os_family == "Debian" and keyboard_cleanup_enabled | default(false)
+  become: true
+
+# Remove NTP configuration
+- name: Remove NTP configuration
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/timesyncd.conf
+    regexp: '^NTP=.*$'
+    state: absent
+    backup: "{{ backup_suffix if backup_enabled else 'no' }}"
+  when: ntp_cleanup_enabled | default(false) and ansible_os_family == "Debian"
+  become: true
+  notify: restart timesyncd
+
+# Remove console font configuration
+- name: Remove console font configuration
+  ansible.builtin.lineinfile:
+    path: /etc/default/console-setup
+    regexp: '^FONTFACE=.*$'
+    state: absent
+    backup: "{{ backup_suffix if backup_enabled else 'no' }}"
+  when: console_cleanup_enabled | default(false)
+  become: true
+  notify: reload console
+
+# Update locale database after cleanup
+- name: Update locale database after cleanup
+  ansible.builtin.command: locale-gen
+  become: true
+  changed_when: false
+
+# Verify cleanup results
+- name: Verify cleanup results
+  ansible.builtin.command: locale
+  register: locale_check_after_cleanup
+  changed_when: false
+
+- name: Display locale settings after cleanup
+  ansible.builtin.debug:
+    msg: "Locale settings after cleanup: {{ locale_check_after_cleanup.stdout_lines }}"
+  when: debug_mode
+
+# Final cleanup status
+- name: Cleanup completed
+  ansible.builtin.debug:
+    msg: |
+      Locale configuration cleanup completed:
+      - Backup files: {{ 'Preserved' if backup_enabled else 'Not available' }}
+      - Additional locales: {{ 'Removed' if locale_cleanup_enabled else 'Preserved' }}
+      - Timezone: {{ 'Reset to UTC' if timezone_cleanup_enabled else 'Preserved' }}
+      - Keyboard: {{ 'Reset to US' if keyboard_cleanup_enabled else 'Preserved' }}
+      - NTP: {{ 'Removed' if ntp_cleanup_enabled else 'Preserved' }}
+      - Console: {{ 'Reset' if console_cleanup_enabled else 'Preserved' }}

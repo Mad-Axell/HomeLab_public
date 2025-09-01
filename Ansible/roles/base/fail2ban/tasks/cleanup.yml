@@ -1,0 +1,72 @@
+---
+# Fail2Ban Cleanup Tasks
+# Use with caution - this will remove Fail2Ban configuration
+
+- name: Stop Fail2Ban service
+  ansible.builtin.service:
+    name: fail2ban
+    state: stopped
+  when: fail2ban_cleanup | default(false) | bool
+
+- name: Disable Fail2Ban service
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: false
+  when: fail2ban_cleanup | default(false) | bool
+
+- name: Remove Fail2Ban configuration files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/fail2ban/jail.local
+    - /etc/fail2ban/fail2ban.conf
+    - /etc/rsyslog.d/50-ssh.conf
+  when: fail2ban_cleanup | default(false) | bool
+
+- name: Remove SSH log directory
+  ansible.builtin.file:
+    path: "{{ ssh_logging.log_directory | default('/var/log/sshd') }}"
+    state: absent
+  when: fail2ban_cleanup | default(false) | bool and ssh_logging.enabled | default(false) | bool
+
+- name: Restore SSH configuration
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^SyslogFacility'
+    line: '#SyslogFacility AUTH'
+    state: present
+  when: fail2ban_cleanup | default(false) | bool
+
+- name: Restore SSH log level
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^LogLevel'
+    line: '#LogLevel INFO'
+    state: present
+  when: fail2ban_cleanup | default(false) | bool
+
+- name: Restart SSH service
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: fail2ban_cleanup | default(false) | bool
+
+- name: Restart rsyslog service
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted
+  when: fail2ban_cleanup | default(false) | bool
+
+- name: Unban all IPs (if service is still running)
+  ansible.builtin.command: fail2ban-client unban --all
+  register: unban_result
+  failed_when: false
+  when: fail2ban_cleanup | default(false) | bool
+
+- name: Remove Fail2Ban packages (optional)
+  ansible.builtin.apt:
+    name: fail2ban
+    state: absent
+    purge: true
+  when: fail2ban_cleanup | default(false) | bool and fail2ban_remove_packages | default(false) | bool
