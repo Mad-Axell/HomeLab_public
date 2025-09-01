@@ -1,122 +1,150 @@
 
 ---
 
+# 2.4.1 Ограничение доступа к логам ядра (только для физических серверов)
 - name: 2.4.1 Restrict access to kernel logs
-  sysctl:
+  ansible.builtin.sysctl:
     name: kernel.dmesg_restrict
     value: 1
     state: present
     sysctl_set: yes
+  when: not ct_mode
 
+# Проверка применения изменений sysctl
 - name: Check for CAP_SYSLOG capability
-  command: "sysctl -p"
+  ansible.builtin.command: "sysctl -p"
   changed_when: false
   register: sysctl_result
+  when: not ct_mode
 
 - name: Print sysctl result
-  debug:
+  ansible.builtin.debug:
     var: sysctl_result
       
+# 2.4.2 Проверка и обновление значения kernel.kptr_restrict и адреса интерфейса
 - name: 2.4.2 Check and update kernel.kptr_restrict value and interface address
-  shell: cat /proc/sys/kernel/kptr_restrict
+  ansible.builtin.shell: cat /proc/sys/kernel/kptr_restrict
   register: kptr_restrict_value
+  when: not ct_mode
   
 - name: Check if kptr_restrict value is 2
-  debug:
+  ansible.builtin.debug:
     msg: "The kernel.kptr_restrict value is already set to 2"
-  when: kptr_restrict_value.stdout == "2\n"
+  when: debug_mode and kptr_restrict_value.stdout == "2\n" and not ct_mode
   
 - name: Set kernel.kptr_restrict value to 2
-  sysctl:
+  ansible.builtin.sysctl:
     name: kernel.kptr_restrict
     value: 2
     state: present
   register: kernel_kptr_restrict
-  when: kptr_restrict_value.stdout != "2\n"
+  when: kptr_restrict_value.stdout != "2\n" and not ct_mode
   
+# Получение информации о сетевых интерфейсах
 - name: Get network interfaces information
-  shell: ip addr show
+  ansible.builtin.shell: ip addr show
   register: network_interface_info
+  when: not ct_mode
   
 - name: Check if any interface has address 0.0.0.0
-  debug:
+  ansible.builtin.debug:
     msg: "Interface has address 0.0.0.0"
-  when: "'0.0.0.0' in network_interface_info.stdout"
+  when: debug_mode and '0.0.0.0' in network_interface_info.stdout and not ct_mode
   
 - name: Set interface address to 0.0.0.0
-  shell: ip addr add 0.0.0.0 dev {{ item }}
+  ansible.builtin.shell: ip addr add 0.0.0.0 dev {{ item }}
   with_items: "{{ ansible_interfaces }}"
   register: interface_address_change
-  when: "'0.0.0.0' not in network_interface_info.stdout"
+  when: "'0.0.0.0' not in network_interface_info.stdout and not ct_mode"
   
 - name: Check if interface address was changed
-  debug:
+  ansible.builtin.debug:
     msg: "Interface address changed"
-  when: interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0
+  when: debug_mode and (interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0) and not ct_mode
   
 - name: Persist interface address changes
-  shell: ip addr save
-  when: interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0
+  ansible.builtin.shell: ip addr save
+  when: (interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0) and not ct_mode
   
 - name: Check if kernel.kptr_restrict value is set to 2
-  debug:
+  ansible.builtin.debug:
     msg: "The kernel.kptr_restrict value is set to 2"
-  when: kernel_kptr_restrict.changed or interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0
+  when: debug_mode and (kernel_kptr_restrict.changed or interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0) and not ct_mode
 
+# 2.4.3 Проверка значения опции загрузки ядра initonalloc
 - name: 2.4.3. Checking the value of the initonalloc kernel boot option
   become: true
-  shell: cat /proc/cmdline
+  ansible.builtin.shell: cat /proc/cmdline
   register: cmdlineoutput
+  when: not ct_mode
+
 - name: Checking the value of the initonalloc kernel boot option
   become: true
-  debug:
+  ansible.builtin.debug:
     msg: The initonalloc option is already set to 1!
-  when: "'initonalloc=1' in cmdlineoutput.stdout"
+  when: debug_mode and "'initonalloc=1' in cmdlineoutput.stdout" and not ct_mode
+
 - name: Setting the value of the initonalloc kernel boot option
   become: true
-  lineinfile:
+  ansible.builtin.lineinfile:
     dest: /etc/default/grub
     regexp: ^GRUB_CMDLINE_LINUX=
     line: GRUB_CMDLINE_LINUX="initonalloc=1"
+  when: not ct_mode
 
+# 2.4.4 Проверка значения опции slab_nomerge
 - name: 2.4.4 Checking the value of the slab_nomerge option
-  blockinfile:
+  ansible.builtin.blockinfile:
     path: /etc/default/grub
     block: |
       # Added by Ansible to enable slab_nomerge
       GRUB_CMDLINE_LINUX="slab_nomerge"
     insertafter: EOF
   changed_when: false
+  when: not ct_mode
 
+# 2.4.5 Инициализация механизма IOMMU
 - name: 2.4.5. Initialize the IOMMU mechanism
-  blockinfile:
+  ansible.builtin.blockinfile:
     path: /etc/default/grub
     block: |
       # Added by Ansible: Initialize the IOMMU mechanism
       GRUB_CMDLINE_LINUX="iommu=force iommu.strict=1 iommu.passthrough=0"
     insertafter: EOF
   changed_when: false
+  when: not ct_mode
+
+# 2.4.6 Рандомизация расположения стека ядра
 - name: 2.4.6. Randomize the location of the kernel stack
-  blockinfile:
+  ansible.builtin.blockinfile:
     path: /etc/default/grub
     block: |
       # Added by Ansible: Randomize the location of the kernel stack
       GRUB_CMDLINE_LINUX="randomizekstackoffset=1"
     insertafter: EOF
-  changed_when: false    
+  changed_when: false
+  when: not ct_mode
+
+# 2.4.7 Включение защиты от уязвимостей CPU
 - name: 2.4.7 Enable protection against CPU hardware vulnerabilities
-  blockinfile:
+  ansible.builtin.blockinfile:
     path: /etc/default/grub
     block: |
       # Added by Ansible: Enable protection against CPU hardware vulnerabilities
       GRUB_CMDLINE_LINUX="mitigations=auto,nosmt"
     insertafter: EOF
   changed_when: false
-- name: Update Grub
-  command: sudo grub2-mkconfig -o /boot/grub2/grub.cfg  
+  when: not ct_mode
 
+# Обновление конфигурации Grub (только для физических серверов)
+- name: Update Grub
+  ansible.builtin.command: sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+  when: not ct_mode
+
+# 2.4.8 Включение защиты подсистемы eBPF JIT ядра Linux
 - name: 2.4.8. Enable protection of the eBPF JIT subsystem of the Linux kernel
-  sysctl:
+  ansible.builtin.sysctl:
     name: net.core.bpf_jit_harden
     value: "2"
     state: present
+  when: not ct_mode

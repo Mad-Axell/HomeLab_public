@@ -1,6 +1,7 @@
 
 ---
 
+# 2.3.1 Установка прав доступа к критическим системным файлам
 - name: 2.3.1 Set the rights to /etc/passwd
   ansible.builtin.file:
     path: /etc/passwd
@@ -25,15 +26,18 @@
     mode: '0600'
   become: True
 
+# 2.3.2 Установка прав доступа к исполняемым файлам в /proc (только для физических серверов)
 - name: 2.3.2. Set the correct access rights to the files of running processes by executing a command like chmod go-w /path/to/file for all executable files currently running and the corresponding libraries. After that, it is necessary to check that the directory containing this file, as well as all parent directories, are not writable by unprivileged users.
-  shell: >
+  ansible.builtin.shell: >
     find /proc -maxdepth 2 -type f -executable -execdir chmod -R
     go-w {} \;
   register: procoutput
   changed_when: false
-##WARNING! CRON ACCESS!
+  when: not ct_mode
+
+# 2.3.3 Установка прав доступа к файлам cron
 - name: 2.3.3 Set file access rights for cron files
-  find:
+  ansible.builtin.find:
     paths: /etc/cron*
     patterns: "*"
     file_type: file
@@ -41,17 +45,18 @@
   register: cronfiles
 
 - name: Set correct permissions for cron files
-  file:
+  ansible.builtin.file:
     path: "{{ item.path }}"
     mode: "0640"
   with_items: "{{ cronfiles.files }}"
 
+# 2.3.4 Поиск и защита файлов в переменной PATH
 - name: 2.3.4 Find files and links based on $PATH
-  shell: echo $PATH
+  ansible.builtin.shell: echo $PATH
   register: pathvar
 
 - name: Find regular files
-  find:
+  ansible.builtin.find:
     paths: '{{ pathvar.stdout.split(":") }}'
     file_type: file
     patterns: '*'
@@ -60,7 +65,7 @@
   register: regular_files
 
 - name: Find symlinks
-  find:
+  ansible.builtin.find:
     paths: '{{ pathvar.stdout.split(":") }}'
     file_type: link
     patterns: '*'
@@ -69,37 +74,37 @@
   register: symlinks
 
 - name: Output list of regular files to admin
-  debug:
+  ansible.builtin.debug:
     msg: "Found regular applications: {{ regular_files.files | map(attribute='path') | list }}"
   when: debug_mode
 
 - name: Output list of symlinks to admin
-  debug:
+  ansible.builtin.debug:
     msg: "Found symlinks: {{ symlinks.files | map(attribute='path') | list }}"
   when: debug_mode
 
-##WARNING!
+# 2.3.4 Изменение прав доступа к файлам в PATH
+- name: 2.3.4 Change permissions of files if admin approves
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: go-w
+    state: file
+    owner: root
+  loop: "{{ regular_files.files }}"
+  become: True
 
-#- name: 2.3.4 Change permissions of files if admin approves
-#  file:
-#    path: "{{ item.path }}"
-#    mode: go-w
-#    state: file
-#    owner: root
-#  loop: "{{ regular_files.files }}"
-#  become: True
+- name: 2.3.4 Change permissions of links if admin approves
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: go-w
+    state: link
+    owner: root
+  loop: "{{ symlinks.files }}"
+  become: True
 
-#- name: 2.3.4 Change permissions of links if admin approves
-#  file:
-#    path: "{{ item.path }}"
-#    mode: go-w
-#    state: link
-#    owner: root
-#  loop: "{{ symlinks.files }}"
-#  become: True
-
+# 2.3.5 Установка прав доступа к скриптам автозапуска
 - name: 2.3.5. Set the correct access rights to the startup scripts
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     owner: root
     group: root
@@ -107,60 +112,64 @@
   with_fileglob:
     - /etc/rc*.d/*
 
+# Поиск и защита .service файлов
 - name: Set access rights to .service files
-  find:
+  ansible.builtin.find:
     paths: /
     patterns: "*.service"
   register: service_files_result
 
 - name: Set access rights for .service files
-  file:
+  ansible.builtin.file:
     path: "{{ item.path }}"
     owner: root
     group: root
     mode: '0755'
   loop: "{{ service_files_result.files }}"
 
+# 2.3.6 Установка прав доступа к файлам cron
 - name: 2.3.6 Set access rights to /etc/crontab /etc/cron.d /etc/cron.hourly /etc/cron.daily /etc/cron.weekly /etc/cron.monthly
-  find:
+  ansible.builtin.find:
     paths: /etc/cron*
     file_type: any
   register: cron_files
 
 - name: Print found files
-  debug:
+  ansible.builtin.debug:
     var: cron_files
   when: debug_mode
 
 - name: Set access rights to found cron files
-  file:
+  ansible.builtin.file:
     path: "{{ item.path }}"
     mode: 'go-w'
   loop: "{{ cron_files.files }}"
 
+# 2.3.7 Установка прав доступа к пользовательским файлам cron
 - name: 2.3.7 Setting access rights to user files of cron tasks
-  shell: chmod go-w "{{ item }}"
+  ansible.builtin.shell: chmod go-w "{{ item }}"
   with_fileglob:
     - /var/spool/cron/crontabs/*
   register: cron_files_result
 
 - name: Check the result of changes
-  debug:
+  ansible.builtin.debug:
     var: cron_files_result
   when: debug_mode
 
+# 2.3.8 Установка прав доступа к исполняемым файлам и библиотекам ОС
 - name: 2.3.8 Setting access rights to executable files and operating system libraries
-  shell: echo $PATH
+  ansible.builtin.shell: echo $PATH
   register: path_result
   changed_when: False
 
 - name: Set access rights to executable files in paths
-  command: find "{{ item }}" -type f -exec chmod go-w {} +
+  ansible.builtin.command: find "{{ item }}" -type f -exec chmod go-w {} +
   with_items: "{{ path_result.stdout_lines[0].split(':') }}"
   changed_when: False
 
 - name: Set access rights to libraries in paths
-  command: find "{{ item }}" -type f -exec chmod go-w {} +
+  ansible.builtin.command: find "{{ item }}" -type f -exec chmod go-w {} +
   with_items:
     - /lib
     - /lib64
@@ -168,8 +177,9 @@
     - /usr/bin
   changed_when: False
 
+# Установка прав доступа к модулям ядра (только для физических серверов)
 - name: Set access rights to kernel modules
-  command: find /lib/modules/{{ ansible_kernel }} -type f -exec chmod go-w {} +
+  ansible.builtin.command: find /lib/modules/{{ ansible_kernel }} -type f -exec chmod go-w {} +
   changed_when: False
   when: not ct_mode
 
@@ -185,39 +195,42 @@
 #  ignore_errors: True
 
 - name: Display found files with setuid permissions
-  debug:
+  ansible.builtin.debug:
     msg: "{{ found_files_4000.stdout_lines }}"
   when: debug_mode and found_files_4000 is defined
 
 - name: Display found files with setgid permissions
-  debug:
+  ansible.builtin.debug:
     msg: "{{ found_files_2000.stdout_lines }}"
   when: debug_mode and found_files_2000 is defined
 
+# 2.3.9 Удаление прав на запись для группы и других для файлов с setuid
 - name: 2.3.9 Remove write permissions from group and others for files with setuid permissions
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     mode: '4755'
   loop: "{{ found_files_4000.stdout_lines | default([]) }}"
 
+# 2.3.9 Удаление прав на запись для группы и других для файлов с setgid
 - name: 2.3.9 Remove write permissions from group and others for files with setgid permissions
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     mode: '2755'
   loop: "{{ found_files_2000.stdout_lines | default([]) }}"
 
+# 2.3.10 Получение домашних директорий пользователей
 - name: 2.3.10 Get home directories
-  shell: ls -d /home/*/
+  ansible.builtin.shell: ls -d /home/*/
   register: home_directories_output
   ignore_errors: True
 
 - name: 2.3.10 Convert home directories output to list
-  set_fact:
+  ansible.builtin.set_fact:
     home_directories: "{{ home_directories_output.stdout_lines }}"
   when: home_directories_output is defined
 
 - name: 2.3.10 Find dot files in home directories
-  find:
+  ansible.builtin.find:
     paths: "{{ item }}"
     patterns: ".*"
     file_type: file
@@ -226,16 +239,18 @@
   loop_control:
     loop_var: item
 
+# 2.3.10 Установка правильных прав доступа к содержимому домашних директорий пользователей
 - name: 2.3.10 Set the correct access rights to the contents of users' home directories
-  file:
+  ansible.builtin.file:
     path: "{{ item.path }}"
     mode: go-rwx
   with_items: "{{ dot_files.files }}"
   when: dot_files.files | default([])
   become: True
 
+# 2.3.11 Установка правильных прав доступа к домашним директориям пользователей
 - name: 2.3.11. Set correct access rights to users' home directories
-  find:
+  ansible.builtin.find:
     paths: /home
     patterns: "*"
     depth: 1
@@ -243,7 +258,7 @@
   register: home_directories_result
 
 - name: Set correct access rights to users' home directories
-  file:
+  ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
     mode: "0700"

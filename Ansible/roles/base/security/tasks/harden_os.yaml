@@ -3,6 +3,7 @@
 
 ###  In environments like Docker containers, direct modification of host kernel parameters like kernel.randomize_va_space is often restricted or not possible, as containers share the host's kernel.
 
+# Включение Address Space Layout Randomization (только для физических серверов)
 - name: Enable Address Space Layout Randomization
   ansible.posix.sysctl:
     name: kernel.randomize_va_space
@@ -10,7 +11,9 @@
     state: present
     sysctl_set: True
     reload: True
+  when: not ct_mode
 
+# Защита от загрузки модулей ядра (только для физических серверов)
 - name: Kernel module loading protection
   ansible.posix.sysctl:
     name: kernel.modules_disabled
@@ -18,17 +21,20 @@
     state: present
     sysctl_set: True
     reload: True
-
+  when: not ct_mode
 
 ## Warning! ##
 ## Сделай проверку на установку auditd для siem
 
+# Ограничение использования chmod 777 с помощью auditd
 - name: Restrict chmod 777 with auditd command
   ansible.builtin.lineinfile:
     dest: /etc/audit/rules.d/audit.rules
     regexp: '-w /bin/chmod'
     line: '-w /bin/chmod -p x -k chmod_watch'
+  when: not ct_mode
 
+# Установка правильных прав доступа к /etc/shadow
 - name: Set permissions on /etc/shadow
   ansible.builtin.file:
     path: /etc/shadow
@@ -36,6 +42,7 @@
     group: shadow
     mode: '0640'
 
+# Отключение входа root через SSH
 - name: Disable root SSH login
   ansible.builtin.lineinfile:
     dest: /etc/ssh/sshd_config
@@ -44,12 +51,14 @@
     state: present
     backup: True
 
+# Отключение пустых паролей в SSH
 - name: Disable empty passwords in SSH
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: '^PermitEmptyPasswords'
     line: 'PermitEmptyPasswords no'
 
+# Ограничение доступа SSH по IP подсети
 - name: Restrict SSH access by IP subnet
   ansible.builtin.lineinfile:
     path: /etc/hosts.allow

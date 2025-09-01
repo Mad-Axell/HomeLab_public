@@ -1,0 +1,16 @@
+---
+# Обработчики для роли безопасности
+
+# Перезапуск SSH сервиса при изменении конфигурации
+- name: Restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: not ct_mode
+
+# Перезапуск auditd при изменении правил
+- name: Restart auditd
+  ansible.builtin.service:
+    name: auditd
+    state: restarted
+  when: not ct_mode

@@ -1,52 +1,69 @@
 
 ---
 
+# 2.6.1 Запрет подключения к другим процессам с помощью ptrace
 - name: 2.6.1. Prohibit connection to other processes using ptrace
-  sysctl:
+  ansible.builtin.sysctl:
     name: kernel.yama.ptrace_scope
     value: "3"
     state: present
+  when: not ct_mode
 
+# 2.6.2 Ограничение небезопасных опций для прохождения символических ссылок
 - name: 2.6.2. Limit unsafe options for passing through symbolic links
-  sysctl:
+  ansible.builtin.sysctl:
     name: fs.protected_symlinks
     value: "1"
     state: present
+  when: not ct_mode
 
+# 2.6.3 Ограничение небезопасных опций для работы с жесткими ссылками
 - name: 2.6.3. Limit unsafe options for working with hard links
-  sysctl:
+  ansible.builtin.sysctl:
     name: fs.protected_hardlinks
     value: "1"
     state: present
+  when: not ct_mode
 
-
+# 2.6.4 Включение защиты от непреднамеренной записи в FIFO объект
 - name: 2.6.4. Enable protection against unintentional writing to a FIFO object
-  sysctl:
+  ansible.builtin.sysctl:
     name: fs.protected_fifos
     value: "2"
     state: present
+  when: not ct_mode
 
+# 2.6.5 Включение защиты от непреднамеренной записи в файл
 - name: 2.6.5. Enable protection against unintentional writing to a file
   become: yes
-  sysctl:
+  ansible.builtin.sysctl:
     name: fs.protected_regular
     value: 2
   register: sysctl_result
+  when: not ct_mode
+
 - name: Check the result of changing the sysctl option
-  debug:
+  ansible.builtin.debug:
     var: sysctl_result
 
+# 2.6.6 Запрет создания core dump
 - name: 2.6.6. Prohibit the creation of core dump
-  sysctl:
+  ansible.builtin.sysctl:
     name: fs.suid_dumpable
     value: 0
   register: sysctl_result
+  when: not ct_mode
+
 - name: Check the result of changing the sysctl option
-  debug:
+  ansible.builtin.debug:
     var: sysctl_result
 
+# Применение изменений sysctl (только для физических серверов)
 - name: Applying sysctl change
-  command: sysctl -p
+  ansible.builtin.command: sysctl -p
+  when: not ct_mode
 
+# Обновление конфигурации Grub (только для физических серверов)
 - name: Update Grub configuration
-  command: sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+  ansible.builtin.command: sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+  when: not ct_mode

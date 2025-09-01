@@ -1,0 +1,23 @@
+# Ansible role specific ignores
+*.retry
+*.log
+.DS_Store
+Thumbs.db
+
+# Molecule
+.molecule/
+.cache/
+.pytest_cache/
+
+# Vagrant
+.vagrant/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
