@@ -1,0 +1,122 @@
+
+---
+
+- name: 2.4.1 Restrict access to kernel logs
+  sysctl:
+    name: kernel.dmesg_restrict
+    value: 1
+    state: present
+    sysctl_set: yes
+
+- name: Check for CAP_SYSLOG capability
+  command: "sysctl -p"
+  changed_when: false
+  register: sysctl_result
+
+- name: Print sysctl result
+  debug:
+    var: sysctl_result
+      
+- name: 2.4.2 Check and update kernel.kptr_restrict value and interface address
+  shell: cat /proc/sys/kernel/kptr_restrict
+  register: kptr_restrict_value
+  
+- name: Check if kptr_restrict value is 2
+  debug:
+    msg: "The kernel.kptr_restrict value is already set to 2"
+  when: kptr_restrict_value.stdout == "2\n"
+  
+- name: Set kernel.kptr_restrict value to 2
+  sysctl:
+    name: kernel.kptr_restrict
+    value: 2
+    state: present
+  register: kernel_kptr_restrict
+  when: kptr_restrict_value.stdout != "2\n"
+  
+- name: Get network interfaces information
+  shell: ip addr show
+  register: network_interface_info
+  
+- name: Check if any interface has address 0.0.0.0
+  debug:
+    msg: "Interface has address 0.0.0.0"
+  when: "'0.0.0.0' in network_interface_info.stdout"
+  
+- name: Set interface address to 0.0.0.0
+  shell: ip addr add 0.0.0.0 dev {{ item }}
+  with_items: "{{ ansible_interfaces }}"
+  register: interface_address_change
+  when: "'0.0.0.0' not in network_interface_info.stdout"
+  
+- name: Check if interface address was changed
+  debug:
+    msg: "Interface address changed"
+  when: interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0
+  
+- name: Persist interface address changes
+  shell: ip addr save
+  when: interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0
+  
+- name: Check if kernel.kptr_restrict value is set to 2
+  debug:
+    msg: "The kernel.kptr_restrict value is set to 2"
+  when: kernel_kptr_restrict.changed or interface_address_change.changed or interface_address_change.results | selectattr('changed', 'defined') | list | length > 0
+
+- name: 2.4.3. Checking the value of the initonalloc kernel boot option
+  become: true
+  shell: cat /proc/cmdline
+  register: cmdlineoutput
+- name: Checking the value of the initonalloc kernel boot option
+  become: true
+  debug:
+    msg: The initonalloc option is already set to 1!
+  when: "'initonalloc=1' in cmdlineoutput.stdout"
+- name: Setting the value of the initonalloc kernel boot option
+  become: true
+  lineinfile:
+    dest: /etc/default/grub
+    regexp: ^GRUB_CMDLINE_LINUX=
+    line: GRUB_CMDLINE_LINUX="initonalloc=1"
+
+- name: 2.4.4 Checking the value of the slab_nomerge option
+  blockinfile:
+    path: /etc/default/grub
+    block: |
+      # Added by Ansible to enable slab_nomerge
+      GRUB_CMDLINE_LINUX="slab_nomerge"
+    insertafter: EOF
+  changed_when: false
+
+- name: 2.4.5. Initialize the IOMMU mechanism
+  blockinfile:
+    path: /etc/default/grub
+    block: |
+      # Added by Ansible: Initialize the IOMMU mechanism
+      GRUB_CMDLINE_LINUX="iommu=force iommu.strict=1 iommu.passthrough=0"
+    insertafter: EOF
+  changed_when: false
+- name: 2.4.6. Randomize the location of the kernel stack
+  blockinfile:
+    path: /etc/default/grub
+    block: |
+      # Added by Ansible: Randomize the location of the kernel stack
+      GRUB_CMDLINE_LINUX="randomizekstackoffset=1"
+    insertafter: EOF
+  changed_when: false    
+- name: 2.4.7 Enable protection against CPU hardware vulnerabilities
+  blockinfile:
+    path: /etc/default/grub
+    block: |
+      # Added by Ansible: Enable protection against CPU hardware vulnerabilities
+      GRUB_CMDLINE_LINUX="mitigations=auto,nosmt"
+    insertafter: EOF
+  changed_when: false
+- name: Update Grub
+  command: sudo grub2-mkconfig -o /boot/grub2/grub.cfg  
+
+- name: 2.4.8. Enable protection of the eBPF JIT subsystem of the Linux kernel
+  sysctl:
+    name: net.core.bpf_jit_harden
+    value: "2"
+    state: present

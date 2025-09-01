@@ -1,0 +1,17 @@
+
+--- 
+
+- include_tasks: set_default_locale.yaml
+- include_tasks: install_base_software.yaml
+
+- include_tasks: linux-kernel_protection.yaml
+  when: not ct_mode
+- include_tasks: user_space_protection.yaml
+  when: not ct_mode
+- include_tasks: reducing_the_attack_perimeter.yaml
+  when: not ct_mode
+- include_tasks: configure_pam.yaml
+- include_tasks: harden_os.yaml
+
+- include_tasks: access_rights_to_file_system_objects.yaml
+- include_tasks: add_users.yaml

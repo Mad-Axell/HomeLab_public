@@ -1,0 +1,52 @@
+
+---
+
+- name: 2.6.1. Prohibit connection to other processes using ptrace
+  sysctl:
+    name: kernel.yama.ptrace_scope
+    value: "3"
+    state: present
+
+- name: 2.6.2. Limit unsafe options for passing through symbolic links
+  sysctl:
+    name: fs.protected_symlinks
+    value: "1"
+    state: present
+
+- name: 2.6.3. Limit unsafe options for working with hard links
+  sysctl:
+    name: fs.protected_hardlinks
+    value: "1"
+    state: present
+
+
+- name: 2.6.4. Enable protection against unintentional writing to a FIFO object
+  sysctl:
+    name: fs.protected_fifos
+    value: "2"
+    state: present
+
+- name: 2.6.5. Enable protection against unintentional writing to a file
+  become: yes
+  sysctl:
+    name: fs.protected_regular
+    value: 2
+  register: sysctl_result
+- name: Check the result of changing the sysctl option
+  debug:
+    var: sysctl_result
+
+- name: 2.6.6. Prohibit the creation of core dump
+  sysctl:
+    name: fs.suid_dumpable
+    value: 0
+  register: sysctl_result
+- name: Check the result of changing the sysctl option
+  debug:
+    var: sysctl_result
+
+- name: Applying sysctl change
+  command: sysctl -p
+
+- name: Update Grub configuration
+  command: sudo grub2-mkconfig -o /boot/grub2/grub.cfg

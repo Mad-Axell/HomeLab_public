@@ -1,0 +1,75 @@
+
+---
+
+- name: 2.5.1 Disabling the outdated vsyscall interface
+  blockinfile:
+    path: /etc/default/grub
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - vsyscall settings"
+    block: |
+      GRUB_CMDLINE_LINUX_DEFAULT="quiet splash vsyscall=none"
+          
+- name: 2.5.2. Restrict access to performance events
+  sysctl:
+    name: kernel.perf_event_paranoid
+    value: "3"
+    state: present
+
+- name: 2.5.3. Disable mounting of the debugfs virtual file system
+  blockinfile:
+    path: /etc/default/grub
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - debugfs settings"
+    block: |
+      GRUB_CMDLINE_LINUX_DEFAULT="quiet splash debugfs=no-mount"
+  
+- name: 2.5.4. Disable the kexec_load system call
+  sysctl:
+    name: kernel.kexec_load_disabled
+    value: "1"
+    state: present
+
+- name: 2.5.5. Restrict the use of user namespaces
+  sysctl:
+    name: user.max_user_namespaces
+    value: "0"
+    state: present
+
+- name: 2.5.6. Prohibit the bpf system call for unprivileged users
+  sysctl:
+    name: kernel.unprivileged_bpf_disabled
+    value: "1"
+    state: present
+
+- name: 2.5.7. Prohibit the userfaultfd system call for unprivileged users
+  sysctl:
+    name: vm.unprivileged_userfaultfd
+    value: "0"
+    state: present
+
+- name: 2.5.8. Prohibition of automatic loading of kernel modules for terminal line discipline
+  sysctl:
+    name: dev.tty.ldisc_autoload
+    value: "0"
+    state: present
+
+- name: 2.5.9. Disable Transactional Synchronization Extensions (TSX) technology
+  blockinfile:
+    path: /etc/default/grub
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - TSX settings"
+    block: |
+      GRUB_CMDLINE_LINUX_DEFAULT="quiet splash tsx=off"
+
+
+- name: 2.5.10 Configuring the vm.mmap_min_addr kernel parameter
+  sysctl:
+    name: vm.mmap_min_addr
+    value: "4096"
+    state: present
+
+- name: 2.5.11. Implement address space randomization
+  sysctl:
+    name: kernel.randomize_va_space
+    value: "2"
+    state: present
+
+- name: Applying sysctl change
+  command: sysctl -p

@@ -1,0 +1,59 @@
+
+---
+
+debug_mode: True
+ct_mode: True
+locale : en_US.UTF-8
+allowed_ssh_subnet: 
+  - "192.168.1.0/24"
+  - "10.20.30.0/24"
+ssh_port: 22
+
+sysctl_key: 2
+
+pam_faillock_deny: 5
+pam_unlock_time: 900
+pam_pwquality_retry: 3
+pam_pwquality_minlen: 12
+pam_pwquality_difok: 3
+pam_pwquality_ucredit: -1
+pam_pwquality_lcredit: -1
+pam_pwquality_dcredit: -1
+pam_pwquality_ocredit: -1
+
+
+
+fail2ban_bantime: 600  # время бана
+fail2ban_findtime: 600 # частота бана
+fail2ban_maxretry: 5   # число неудачных попыток
+
+apt_to_add:
+  - acl
+  - sudo
+  - net-tools
+  #- fail2ban
+  #- libpam-pwquality
+  - auditd    # make system logs for SIEM
+  #- apparmor  # система безопасности Linux, которая ограничивает возможности приложений на основе профилей
+  #- curl
+  #- htop
+  #- python3
+  #- python3-pip
+  #- python3-requests
+  #- apt-transport-https
+  #- software-properties-common
+  #- wget
+  #- gnupg2
+  - ufw
+
+ufw_rules: 
+  - { rule: 'allow', port: '80', proto: 'tcp' }  
+  - { rule: 'allow', port: '443', proto: 'tcp' }
+  - { rule: 'allow', port: "{{ ssh_port }}", proto: 'tcp' }
+  
+users_to_add:
+  # example users configuration format
+  - username: test_user_1
+    password: "qwerty"
+    groups: ["test_1", "test_2"]
+
