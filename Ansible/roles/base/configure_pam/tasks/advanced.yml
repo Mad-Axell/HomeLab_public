@@ -1,8 +1,8 @@
 ---
-# Advanced PAM Configuration Tasks
-# Additional security configurations for enhanced protection
+# Расширенные задачи конфигурации PAM
+# Дополнительные конфигурации безопасности для усиленной защиты
 
-- name: Configure PAM time restrictions
+- name: Configure PAM time limits
   ansible.builtin.lineinfile:
     path: /etc/pam.d/common-auth
     line: "auth required pam_time.so"
@@ -10,7 +10,7 @@
     create: yes
     backup: yes
 
-- name: Configure PAM access restrictions
+- name: Configure PAM access limits
   ansible.builtin.lineinfile:
     path: /etc/pam.d/common-auth
     line: "auth required pam_access.so"
@@ -18,7 +18,7 @@
     create: yes
     backup: yes
 
-- name: Configure PAM listfile for additional restrictions
+- name: Нас троить PAM listfile для дополнительных ограничений
   ansible.builtin.lineinfile:
     path: /etc/pam.d/common-auth
     line: "auth required pam_listfile.so item=user sense=deny file=/etc/security/denied_users onerr=succeed"
@@ -26,21 +26,13 @@
     create: yes
     backup: yes
 
-- name: Create denied users file
+- name: Create file of denied users
   ansible.builtin.file:
     path: /etc/security/denied_users
     state: touch
     mode: '0644'
     owner: root
     group: root
-
-- name: Configure PAM cracklib for additional password checking
-  ansible.builtin.lineinfile:
-    path: /etc/pam.d/common-password
-    line: "password requisite pam_cracklib.so retry=3 minlen=12 difok=5 ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1"
-    state: present
-    create: yes
-    backup: yes
 
 - name: Configure PAM unix with additional security
   ansible.builtin.lineinfile:
@@ -134,7 +126,7 @@
     create: yes
     backup: yes
 
-- name: Configure additional SSH security settings
+- name: Configure additional SSH security parameters
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: '^#?MaxAuthTries'

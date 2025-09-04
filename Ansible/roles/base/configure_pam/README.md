@@ -1,96 +1,38 @@
-# PAM Configuration Role
+# Роль настройки PAM (Pluggable Authentication Modules)
 
-This Ansible role configures PAM (Pluggable Authentication Modules) for enhanced system security on Linux systems.
+Эта Ansible роль предназначена для настройки и усиления безопасности системы аутентификации Linux через PAM модули. Роль обеспечивает комплексную защиту от атак методом перебора, улучшает качество паролей и ограничивает доступ к критическим функциям системы.
 
-## Overview
+## 🎯 Назначение
 
-The PAM Configuration role implements comprehensive security measures through PAM modules:
+Роль `configure_pam` реализует следующие меры безопасности:
 
-- **Account Lockout Protection**: Prevents brute-force attacks using `pam_faillock` and `pam_tally2`
-- **Password Quality Enforcement**: Ensures strong passwords with `pam_pwquality`
-- **Session Control**: Manages user sessions and limits with `pam_limits`
-- **Privilege Escalation Control**: Restricts `su` and `sudo` access with `pam_wheel`
-- **Root Access Restrictions**: Secures root login and SSH access
-- **Additional Security**: Implements umask and MOTD for enhanced security
+- **Защита от блокировки аккаунтов** - предотвращает атаки методом перебора
+- **Контроль качества паролей** - обеспечивает надежные пароли пользователей
+- **Управление сессиями** - ограничивает количество одновременных входов
+- **Контроль повышения привилегий** - ограничивает доступ к `su` и `sudo`
+- **Ограничения доступа root** - защищает вход root и SSH доступ
+- **Дополнительная безопасность** - реализует umask и MOTD
 
-## Requirements
+## 📋 Требования
 
-- Ansible 2.9+
-- Target system: Debian/Ubuntu or RedHat/CentOS
-- Root or sudo privileges
-- Required PAM modules (usually pre-installed)
+### Системные требования
+- **Ansible**: версия 2.9 или выше
+- **Операционные системы**: 
+  - Debian/Ubuntu (все версии)
+  - RedHat/CentOS 7, 8, 9
+  - Rocky Linux 8, 9
+  - AlmaLinux 8, 9
+- **Привилегии**: root или sudo права
+- **PAM модули**: обычно предустановлены в системе
 
-## Role Variables
+### Зависимости
+- `ansible.builtin` - базовые модули Ansible
+- `ansible.posix` - модули для работы с файлами и сервисами
+- `ansible.utils` - утилиты для валидации
 
-### Debug and Backup Settings
+## 🚀 Быстрый старт
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `debug_mode` | `false` | Enable verbose debug output |
-| `pam_backup_enabled` | `true` | Create backups before modifications |
-| `pam_backup_suffix` | `.backup` | Backup file suffix |
-
-### PAM Faillock Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `pam_faillock_deny` | `3` | Failed attempts before lockout (1-10) |
-| `pam_unlock_time` | `1800` | Lockout duration in seconds (60-86400) |
-| `pam_faillock_audit` | `true` | Enable audit logging |
-| `pam_faillock_silent` | `false` | Silent lockout mode |
-
-### Password Quality Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `pam_pwquality_retry` | `3` | Password entry retries (1-5) |
-| `pam_pwquality_minlen` | `12` | Minimum password length (8-32) |
-| `pam_pwquality_difok` | `5` | Different chars from old password (1-10) |
-| `pam_pwquality_ucredit` | `-1` | Require uppercase letters |
-| `pam_pwquality_lcredit` | `-1` | Require lowercase letters |
-| `pam_pwquality_dcredit` | `-1` | Require digits |
-| `pam_pwquality_ocredit` | `-1` | Require special characters |
-| `pam_pwquality_minclass` | `3` | Require character classes (1-4) |
-| `pam_pwquality_maxrepeat` | `2` | Max consecutive repeated chars (0-10) |
-| `pam_pwquality_gecoscheck` | `true` | Check against GECOS info |
-| `pam_pwquality_reject_username` | `true` | Reject passwords with username |
-
-### Session and Limits
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `pam_limits_enabled` | `true` | Enable PAM limits |
-| `pam_limits_maxlogins` | `10` | Max concurrent logins per user (1-100) |
-| `pam_limits_maxsyslogins` | `50` | Max concurrent system logins (10-1000) |
-
-### Wheel and Sudo Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `pam_wheel_group` | `sudo` | Group for wheel functionality |
-| `pam_wheel_use_uid` | `true` | Use UID instead of username |
-
-### PAM Tally2 (Alternative Lockout)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `pam_tally2_enabled` | `true` | Enable PAM tally2 |
-| `pam_tally2_deny` | `5` | Deny after N failed attempts (1-10) |
-| `pam_tally2_unlock_time` | `1800` | Unlock time in seconds (60-86400) |
-| `pam_tally2_reset` | `true` | Reset counter on successful login |
-
-### Root Access Security
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `pam_root_console_only` | `true` | Restrict root to console only |
-| `pam_root_securetty` | `true` | Use secure TTY for root login |
-
-## Dependencies
-
-This role has no dependencies on other roles.
-
-## Example Playbook
+### 1. Базовая установка
 
 ```yaml
 ---
@@ -98,121 +40,286 @@ This role has no dependencies on other roles.
   become: yes
   roles:
     - role: base/configure_pam
-      vars:
-        pam_faillock_deny: 5
-        pam_unlock_time: 900
-        pam_pwquality_minlen: 16
-        debug_mode: true
 ```
 
-## Advanced Configuration
-
-### Custom Password Policy
+### 2. С настройками по умолчанию
 
 ```yaml
 ---
 - hosts: servers
   become: yes
+  vars:
+    debug_mode: true
+    pam_backup_enabled: true
+  
   roles:
     - role: base/configure_pam
-      vars:
-        pam_pwquality_minlen: 16
-        pam_pwquality_minclass: 4
-        pam_pwquality_maxrepeat: 1
-        pam_pwquality_gecoscheck: true
-        pam_pwquality_reject_username: true
 ```
 
-### Strict Lockout Policy
+### 3. С пользовательскими настройками
 
 ```yaml
 ---
 - hosts: servers
   become: yes
+  vars:
+    # Настройки блокировки аккаунтов
+    pam_faillock_deny: 5
+    pam_unlock_time: 900  # 15 минут
+    
+    # Требования к паролям
+    pam_pwquality_minlen: 16
+    pam_pwquality_minclass: 4
+    
+    # Ограничения SSH
+    ssh_security:
+      max_auth_tries: 2
+      permit_empty_passwords: "no"
+  
   roles:
     - role: base/configure_pam
-      vars:
-        pam_faillock_deny: 3
-        pam_unlock_time: 3600
-        pam_faillock_audit: true
-        pam_faillock_silent: false
 ```
 
-## Tags
+## ⚙️ Переменные роли
 
-The role supports the following tags for selective execution:
+### Основные настройки
 
-- `pam` - All PAM-related tasks
-- `validation` - Parameter validation tasks
-- `backup` - Backup creation tasks
-- `setup` - Initial setup tasks
-- `faillock` - Account lockout configuration
-- `tally2` - PAM tally2 configuration
-- `password` - Password quality configuration
-- `limits` - Session limits configuration
-- `wheel` - Wheel group configuration
-- `sudo` - Sudo access configuration
-- `root` - Root access restrictions
-- `verify` - Configuration verification
-- `debug` - Debug output tasks
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `debug_mode` | `false` | Включить подробный вывод отладки |
+| `pam_backup_enabled` | `true` | Создавать резервные копии перед изменениями |
+| `pam_backup_suffix` | `.backup` | Суффикс резервного файла |
 
-## Files Modified
+### Блокировка аккаунтов (pam_faillock)
 
-The role modifies the following system files:
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `pam_faillock_deny` | `3` | Количество неудачных попыток до блокировки (1-10) |
+| `pam_unlock_time` | `1800` | Длительность блокировки в секундах (60-86400) |
+| `pam_faillock_audit` | `true` | Включить аудит неудачных попыток |
+| `pam_faillock_silent` | `false` | Тихий режим блокировки |
 
-- `/etc/pam.d/common-auth`
-- `/etc/pam.d/common-account`
-- `/etc/pam.d/common-password`
-- `/etc/pam.d/common-session`
-- `/etc/pam.d/su`
-- `/etc/sudoers.d/`
-- `/etc/security/limits.conf`
-- `/etc/securetty`
-- `/etc/ssh/sshd_config`
+### Качество паролей
 
-## Security Considerations
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `pam_pwquality_retry` | `3` | Количество попыток ввода пароля (1-5) |
+| `pam_pwquality_minlen` | `12` | Минимальная длина пароля (8-32) |
+| `pam_pwquality_difok` | `5` | Минимум разных символов от старого пароля (1-10) |
+| `pam_pwquality_ucredit` | `-1` | Требовать заглавные буквы |
+| `pam_pwquality_lcredit` | `-1` | Требовать строчные буквы |
+| `pam_pwquality_dcredit` | `-1` | Требовать цифры |
+| `pam_pwquality_ocredit` | `-1` | Требовать специальные символы |
+| `pam_pwquality_minclass` | `3` | Требовать классы символов (1-4) |
+| `pam_pwquality_maxrepeat` | `2` | Максимум последовательных повторяющихся символов (0-10) |
+| `pam_pwquality_gecoscheck` | `true` | Проверять против информации GECOS |
+| `pam_pwquality_reject_username` | `true` | Отклонять пароли с именем пользователя |
 
-1. **Backup Creation**: Always enable backups before applying changes
-2. **Testing**: Test configuration in a safe environment first
-3. **Access Control**: Ensure you have alternative access methods
-4. **Monitoring**: Monitor system logs after applying changes
-5. **Rollback**: Keep backup files for potential rollback
+### Сессии и лимиты
 
-## Troubleshooting
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `pam_limits_enabled` | `true` | Включить PAM лимиты |
+| `pam_limits_maxlogins` | `10` | Максимум одновременных входов на пользователя (1-100) |
+| `pam_limits_maxsyslogins` | `50` | Максимум одновременных системных входов (10-1000) |
 
-### Common Issues
+### Wheel и Sudo
 
-1. **Locked Out**: Use console access or boot into recovery mode
-2. **SSH Issues**: Check SSH configuration and restart service
-3. **Password Problems**: Verify password policy settings
-4. **Permission Errors**: Ensure proper file permissions
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `pam_wheel_group` | `sudo` | Группа для функциональности wheel |
+| `pam_wheel_use_uid` | `true` | Использовать UID вместо имени пользователя |
 
-### Verification Commands
+### Безопасность root
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `pam_root_console_only` | `true` | Ограничить root только консолью |
+| `pam_root_securetty` | `true` | Использовать безопасный TTY для входа root |
+
+### SSH безопасность
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `ssh_security.max_auth_tries` | `3` | Максимум попыток аутентификации SSH |
+| `ssh_security.permit_empty_passwords` | `no` | Разрешить пустые пароли SSH |
+| `ssh_security.password_authentication` | `yes` | Аутентификация по паролю SSH |
+| `ssh_security.pubkey_authentication` | `yes` | Аутентификация по публичному ключу SSH |
+
+## 📁 Структура роли
+
+```
+configure_pam/
+├── defaults/
+│   └── main.yaml          # Переменные по умолчанию
+├── handlers/
+│   └── main.yml           # Обработчики событий
+├── tasks/
+│   ├── main.yaml          # Основные задачи
+│   ├── advanced.yml       # Расширенные настройки
+│   ├── validate.yaml      # Валидация параметров
+│   └── cleanup.yml        # Очистка и восстановление
+└── README.md              # Документация
+```
+
+## 🔧 Примеры использования
+
+### Пример 1: Базовая безопасность
+
+```yaml
+---
+- name: Базовая настройка PAM безопасности
+  hosts: webservers
+  become: yes
+  
+  vars:
+    # Стандартные настройки безопасности
+    pam_faillock_deny: 3
+    pam_unlock_time: 1800  # 30 минут
+    pam_pwquality_minlen: 12
+    
+  roles:
+    - role: base/configure_pam
+```
+
+### Пример 2: Высокая безопасность
+
+```yaml
+---
+- name: Высокая безопасность PAM
+  hosts: production_servers
+  become: yes
+  
+  vars:
+    # Строгие настройки блокировки
+    pam_faillock_deny: 2
+    pam_unlock_time: 3600  # 1 час
+    
+    # Строгие требования к паролям
+    pam_pwquality_minlen: 16
+    pam_pwquality_minclass: 4
+    pam_pwquality_maxrepeat: 1
+    
+    # Ограничения SSH
+    ssh_security:
+      max_auth_tries: 2
+      password_authentication: "no"  # Только ключи
+  
+  roles:
+    - role: base/configure_pam
+```
+
+### Пример 3: Тестирование
+
+```yaml
+---
+- name: Тестирование PAM конфигурации
+  hosts: test_servers
+  become: yes
+  
+  vars:
+    # Безопасные настройки для тестирования
+    pam_faillock_deny: 5
+    pam_unlock_time: 300   # 5 минут
+    pam_pwquality_minlen: 8
+    
+    # Включить отладку
+    debug_mode: true
+  
+  roles:
+    - role: base/configure_pam
+```
+
+## 📝 Изменяемые файлы
+
+Роль изменяет следующие системные файлы:
+
+- `/etc/pam.d/common-auth` - Основная аутентификация
+- `/etc/pam.d/common-account` - Управление аккаунтами
+- `/etc/pam.d/common-password` - Политика паролей
+- `/etc/pam.d/common-session` - Управление сессиями
+- `/etc/pam.d/su` - Конфигурация su
+- `/etc/pam.d/sudo` - Конфигурация sudo
+- `/etc/sudoers.d/` - Правила sudo
+- `/etc/security/limits.conf` - Лимиты системы
+- `/etc/securetty` - Безопасные TTY
+- `/etc/ssh/sshd_config` - Конфигурация SSH
+
+## ⚠️ Важные предупреждения
+
+### Безопасность
+1. **ВСЕГДА тестируйте** роль в безопасной среде сначала
+2. **Включите резервное копирование** перед применением
+3. **Убедитесь в наличии** альтернативных методов доступа
+4. **Мониторьте логи** после применения изменений
+
+### Критические настройки
+- Не устанавливайте `pam_faillock_deny` меньше 3
+- Не устанавливайте `pam_unlock_time` меньше 300 секунд
+- Не отключайте `pam_backup_enabled`
+
+## 🆘 Устранение неполадок
+
+### Если доступ заблокирован
+
+1. **Консольный доступ**: Используйте физическую консоль или IPMI
+2. **Режим восстановления**: Загрузитесь в режиме восстановления
+3. **Восстановление из резервной копии**:
+   ```bash
+   cp /etc/pam.d/common-auth.backup /etc/pam.d/common-auth
+   cp /etc/pam.d/common-password.backup /etc/pam.d/common-password
+   ```
+4. **Перезапуск SSH**: `systemctl restart ssh`
+
+### Команды диагностики
 
 ```bash
-# Check PAM configuration
-pam_tally2 --user username
+# Проверить статус блокировки
+faillock --user username
 
-# Verify password policy
-cat /etc/pam.d/common-password
+# Просмотреть логи PAM
+tail -f /var/log/auth.log
 
-# Check account lockout
+# Проверить конфигурацию
 cat /etc/pam.d/common-auth
 
-# Test sudo access
+# Тестировать sudo доступ
 sudo -l
 ```
 
-## License
+### Общие проблемы
 
-This role is provided as-is for educational and security hardening purposes.
+| Проблема | Решение |
+|----------|---------|
+| Заблокирован доступ | Использовать консоль или режим восстановления |
+| Проблемы SSH | Проверить конфигурацию и перезапустить сервис |
+| Проблемы с паролями | Проверить настройки политики паролей |
+| Ошибки разрешений | Убедиться в правильных разрешениях файлов |
 
-## Contributing
+## 🔍 Мониторинг
 
-When contributing to this role:
+### Логи для отслеживания
+- `/var/log/auth.log` - Логи аутентификации (Debian/Ubuntu)
+- `/var/log/secure` - Логи безопасности (RHEL/CentOS)
+- `/var/log/faillog` - Логи неудачных попыток
 
-1. Follow Ansible best practices
-2. Add appropriate validation
-3. Include error handling
-4. Update documentation
-5. Test thoroughly
+### Метрики для мониторинга
+- Количество заблокированных аккаунтов
+- Частота неудачных попыток входа
+- Время разблокировки аккаунтов
+
+## 📚 Дополнительные ресурсы
+
+- [PAM Documentation](https://man7.org/linux/man-pages/man7/pam.7.html)
+- [Ansible Best Practices](https://docs.ansible.com/ansible/latest/user_guide/playbooks_best_practices.html)
+- [Linux Security Hardening](https://wiki.archlinux.org/title/Security)
+- [SSH Security](https://www.openssh.com/security.html)
+
+
+## 📄 Лицензия
+
+Эта роль предоставляется под лицензией MIT для образовательных целей и повышения безопасности.
+
+---
+
+**⚠️ ВНИМАНИЕ**: Эта роль изменяет критические системные файлы аутентификации. Неправильная конфигурация может заблокировать доступ к системе. Всегда тестируйте в безопасной среде и создавайте резервные копии.

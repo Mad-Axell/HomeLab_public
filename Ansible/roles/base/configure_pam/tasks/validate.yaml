@@ -1,6 +1,6 @@
 ---
-# PAM Configuration Validation Tasks
-# Validates all parameters before applying PAM configuration
+# Задачи валидации конфигурации PAM
+# Валидирует все параметры перед применением конфигурации PAM
 
 - name: Validate PAM faillock parameters
   ansible.builtin.assert:
@@ -11,9 +11,8 @@
       - pam_unlock_time is number
       - pam_unlock_time >= 60
       - pam_unlock_time <= 86400
-    fail_msg: "Invalid PAM faillock parameters. deny must be 1-10, unlock_time must be 60-86400 seconds"
-    success_msg: "PAM faillock parameters are valid"
-  tags: [pam, validation]
+    fail_msg: "Неверные параметры PAM faillock. deny должен быть 1-10, unlock_time должен быть 60-86400 секунд"
+    success_msg: "Параметры PAM faillock корректны"
 
 - name: Validate PAM password quality parameters
   ansible.builtin.assert:
@@ -33,11 +32,10 @@
       - pam_pwquality_maxrepeat is number
       - pam_pwquality_maxrepeat >= 0
       - pam_pwquality_maxrepeat <= 10
-    fail_msg: "Invalid PAM password quality parameters"
-    success_msg: "PAM password quality parameters are valid"
-  tags: [pam, validation]
+    fail_msg: "Неверные параметры качества паролей PAM"
+    success_msg: "Параметры качества паролей PAM корректны"
 
-- name: Validate PAM limits parameters
+- name: Валидировать параметры лимитов PAM
   ansible.builtin.assert:
     that:
       - pam_limits_maxlogins is number
@@ -46,22 +44,8 @@
       - pam_limits_maxsyslogins is number
       - pam_limits_maxsyslogins >= 10
       - pam_limits_maxsyslogins <= 1000
-    fail_msg: "Invalid PAM limits parameters"
-    success_msg: "PAM limits parameters are valid"
-  tags: [pam, validation]
-
-- name: Validate PAM tally2 parameters
-  ansible.builtin.assert:
-    that:
-      - pam_tally2_deny is number
-      - pam_tally2_deny >= 1
-      - pam_tally2_deny <= 10
-      - pam_tally2_unlock_time is number
-      - pam_tally2_unlock_time >= 60
-      - pam_tally2_unlock_time <= 86400
-    fail_msg: "Invalid PAM tally2 parameters"
-    success_msg: "PAM tally2 parameters are valid"
-  tags: [pam, validation]
+    fail_msg: "Неверные параметры лимитов PAM"
+    success_msg: "Параметры лимитов PAM корректны"
 
 - name: Validate PAM wheel group
   ansible.builtin.assert:
@@ -69,9 +53,25 @@
       - pam_wheel_group is string
       - pam_wheel_group | length > 0
       - pam_wheel_group | length <= 32
-    fail_msg: "Invalid PAM wheel group name"
-    success_msg: "PAM wheel group is valid"
-  tags: [pam, validation]
+    fail_msg: "Неверное имя группы PAM wheel"
+    success_msg: "Группа PAM wheel корректна"
+
+- name: Validate SSH security parameters
+  ansible.builtin.assert:
+    that:
+      - ssh_security is defined
+      - ssh_security.max_auth_tries is defined
+      - ssh_security.max_auth_tries is number
+      - ssh_security.max_auth_tries >= 1
+      - ssh_security.max_auth_tries <= 10
+      - ssh_security.permit_empty_passwords is defined
+      - ssh_security.permit_empty_passwords in ['yes', 'no']
+      - ssh_security.password_authentication is defined
+      - ssh_security.password_authentication in ['yes', 'no']
+      - ssh_security.pubkey_authentication is defined
+      - ssh_security.pubkey_authentication in ['yes', 'no']
+    fail_msg: "Неверные параметры безопасности SSH"
+    success_msg: "Параметры безопасности SSH корректны"
 
 - name: Validate boolean parameters
   ansible.builtin.assert:
@@ -82,40 +82,33 @@
       - pam_pwquality_reject_username is boolean
       - pam_limits_enabled is boolean
       - pam_wheel_use_uid is boolean
-      - pam_tally2_enabled is boolean
-      - pam_tally2_reset is boolean
       - pam_root_console_only is boolean
       - pam_root_securetty is boolean
       - pam_backup_enabled is boolean
       - debug_mode is boolean
-    fail_msg: "Invalid boolean parameters in PAM configuration"
-    success_msg: "All boolean parameters are valid"
-  tags: [pam, validation]
+    fail_msg: "Неверные булевы параметры в конфигурации PAM"
+    success_msg: "Все булевы параметры корректны"
 
-- name: Check if required PAM modules are available
+- name: Проверить доступность требуемых PAM модулей
   ansible.builtin.stat:
     path: "{{ item }}"
   register: pam_module_check
   loop:
     - /lib/security/pam_faillock.so
     - /lib/security/pam_pwquality.so
-    - /lib/security/pam_tally2.so
     - /lib/security/pam_limits.so
     - /lib/security/pam_wheel.so
     - /lib/security/pam_umask.so
-  tags: [pam, validation]
 
-- name: Display PAM module availability
+- name: Display availability of PAM modules
   ansible.builtin.debug:
-    msg: "PAM module {{ item.item }} is {{ 'available' if item.stat.exists else 'not available' }}"
+    msg: "PAM модуль {{ item.item }} {{ 'доступен' if item.stat.exists else 'не доступен' }}"
   loop: "{{ pam_module_check.results }}"
   when: debug_mode
-  tags: [pam, validation, debug]
 
 - name: Validate system requirements
   ansible.builtin.assert:
     that:
       - ansible_os_family == "Debian" or ansible_os_family == "RedHat"
-    fail_msg: "This PAM role is designed for Debian/Ubuntu and RedHat/CentOS systems only"
-    success_msg: "System family is supported"
-  tags: [pam, validation]
+    fail_msg: "Эта роль PAM предназначена только для систем Debian/Ubuntu и RedHat/CentOS"
+    success_msg: "Семейство системы поддерживается"

@@ -1,46 +1,47 @@
 
 ---
-# Debug mode for verbose output
+# Режим отладки для подробного вывода
 debug_mode: false
 
-# PAM faillock configuration - account lockout settings
-pam_faillock_deny: 3                    # Number of failed attempts before lockout
-pam_unlock_time: 1800                   # Lockout duration in seconds (30 minutes)
-pam_faillock_audit: true                # Enable audit logging for failed attempts
-pam_faillock_silent: false              # Don't be silent about lockouts
+# Конфигурация PAM faillock - настройки блокировки аккаунтов
+pam_faillock_deny: 3                    # Количество неудачных попыток до блокировки
+pam_unlock_time: 1800                   # Длительность блокировки в секундах (30 минут)
+pam_faillock_audit: true                # Включить аудит неудачных попыток
+pam_faillock_silent: false              # Не быть тихим о блокировках
 
-# PAM password quality configuration
-pam_pwquality_retry: 3                  # Number of retries for password entry
-pam_pwquality_minlen: 8                 # Minimum password length (recommended: 12+)
-pam_pwquality_difok: 5                  # Minimum different characters from old password
-pam_pwquality_ucredit: -1               # Require at least 1 uppercase letter
-pam_pwquality_lcredit: -1               # Require at least 1 lowercase letter
-pam_pwquality_dcredit: -1               # Require at least 1 digit
-pam_pwquality_ocredit: -1               # Require at least 1 special character
-pam_pwquality_minclass: 3               # Require at least 3 character classes
-pam_pwquality_maxrepeat: 2              # Maximum consecutive repeated characters
-pam_pwquality_gecoscheck: true          # Check against user's GECOS information
-pam_pwquality_reject_username: true     # Reject passwords containing username
+# Конфигурация качества паролей PAM
+pam_pwquality_retry: 3                  # Количество попыток ввода пароля
+pam_pwquality_minlen: 12                # Минимальная длина пароля (рекомендуется: 12+)
+pam_pwquality_difok: 5                  # Минимум разных символов от старого пароля
+pam_pwquality_ucredit: -1               # Требовать минимум 1 заглавную букву
+pam_pwquality_lcredit: -1               # Требовать минимум 1 строчную букву
+pam_pwquality_dcredit: -1               # Требовать минимум 1 цифру
+pam_pwquality_ocredit: -1               # Требовать минимум 1 специальный символ
+pam_pwquality_minclass: 3               # Требовать минимум 3 класса символов
+pam_pwquality_maxrepeat: 2              # Максимум последовательных повторяющихся символов
+pam_pwquality_gecoscheck: true          # Проверять против информации GECOS пользователя
+pam_pwquality_reject_username: true     # Отклонять пароли, содержащие имя пользователя
 
-# PAM session configuration
-pam_limits_enabled: true                # Enable PAM limits
-pam_limits_maxlogins: 10                # Maximum concurrent logins per user
-pam_limits_maxsyslogins: 50             # Maximum concurrent system logins
+# Конфигурация сессий PAM
+pam_limits_enabled: true                # Включить PAM лимиты
+pam_limits_maxlogins: 10                # Максимум одновременных входов на пользователя
+pam_limits_maxsyslogins: 50             # Максимум одновременных системных входов
 
-# PAM wheel configuration
-pam_wheel_group: "sudo"                 # Group for wheel functionality
-pam_wheel_use_uid: true                 # Use UID instead of username
+# Конфигурация PAM wheel
+pam_wheel_group: "sudo"                 # Группа для функциональности wheel
+pam_wheel_use_uid: true                 # Использовать UID вместо имени пользователя
 
-# PAM additional security modules
-pam_tally2_enabled: true                # Enable login attempt tracking
-pam_tally2_deny: 5                      # Deny after N failed attempts
-pam_tally2_unlock_time: 1800            # Unlock time in seconds
-pam_tally2_reset: true                  # Reset counter on successful login
+# Ограничения доступа root
+pam_root_console_only: true             # Ограничить вход root только консолью
+pam_root_securetty: true                # Использовать безопасный TTY для входа root
 
-# PAM root access restrictions
-pam_root_console_only: true             # Restrict root login to console only
-pam_root_securetty: true                # Use secure TTY for root login
+# Настройки резервного копирования
+pam_backup_enabled: true                # Создавать резервные копии перед изменениями
+pam_backup_suffix: ".backup"            # Суффикс резервного файла
 
-# Backup configuration
-pam_backup_enabled: true                # Create backups before modifications
-pam_backup_suffix: ".backup"            # Backup file suffix
+# Дополнительные настройки безопасности SSH
+ssh_security:
+  max_auth_tries: 3                     # Максимум попыток аутентификации SSH
+  permit_empty_passwords: "no"          # Разрешить пустые пароли SSH
+  password_authentication: "yes"        # Аутентификация по паролю SSH
+  pubkey_authentication: "yes"          # Аутентификация по публичному ключу SSH
