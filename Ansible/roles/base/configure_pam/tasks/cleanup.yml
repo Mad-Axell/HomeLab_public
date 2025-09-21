@@ -53,7 +53,7 @@
 
 - name: Remove denied users file
   ansible.builtin.file:
-    path: /etc/security/denied_users
+    path: "{{ pam_denied_users_file }}"
     state: absent
   when: pam_remove_denied_users | default(false)
 

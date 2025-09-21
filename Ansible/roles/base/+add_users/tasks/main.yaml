@@ -73,6 +73,5 @@
     content: "{{ item.username }} ALL=(ALL:ALL) ALL"
     mode: '0440'
     validate: 'visudo -cf %s'
-    state: present
   when: item.is_sudoers | default(false)
   loop: "{{ users_to_add }}"

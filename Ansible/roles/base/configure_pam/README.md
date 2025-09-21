@@ -146,6 +146,26 @@
 | `ssh_security.password_authentication` | `yes` | Аутентификация по паролю SSH |
 | `ssh_security.pubkey_authentication` | `yes` | Аутентификация по публичному ключу SSH |
 
+### Пути к PAM модулям
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `pam_module_paths` | Список стандартных путей | Пути к PAM модулям для разных дистрибутивов |
+| `pam_critical_modules` | `["pam_faillock", "pam_pwquality", "pam_limits", "pam_wheel"]` | Критические PAM модули (обязательные) |
+| `pam_optional_modules` | Список опциональных модулей | Дополнительные PAM модули |
+| `pam_check_optional_modules` | `false` | Проверять наличие опциональных модулей |
+
+### Дополнительные настройки
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `pam_denied_users_file` | `/etc/security/denied_users` | Файл запрещенных пользователей |
+| `pam_motd_file` | `/etc/motd` | Файл MOTD для отображения при входе |
+| `pam_umask_value` | `077` | Значение umask для сессий |
+| `pam_securetty_ttys` | Список TTY | Список безопасных TTY для входа root |
+| `pam_check_groups` | `true` | Проверять существование групп |
+| `pam_create_missing_groups` | `false` | Создавать отсутствующие группы |
+
 ## 📁 Структура роли
 
 ```
@@ -159,6 +179,8 @@ configure_pam/
 │   ├── advanced.yml       # Расширенные настройки
 │   ├── validate.yaml      # Валидация параметров
 │   └── cleanup.yml        # Очистка и восстановление
+├── examples/
+│   └── custom_pam_paths.yaml  # Пример с пользовательскими путями
 └── README.md              # Документация
 ```
 
@@ -224,6 +246,31 @@ configure_pam/
     pam_pwquality_minlen: 8
     
     # Включить отладку
+    debug_mode: true
+  
+  roles:
+    - role: base/configure_pam
+```
+
+### Пример 4: Пользовательские пути к PAM модулям
+
+```yaml
+---
+- name: PAM с пользовательскими путями
+  hosts: custom_servers
+  become: yes
+  
+  vars:
+    # Пользовательские пути к PAM модулям
+    pam_module_paths:
+      - "/usr/lib/security/pam_faillock.so"
+      - "/usr/lib64/security/pam_faillock.so"
+      - "/usr/lib/security/pam_pwquality.so"
+      - "/usr/lib64/security/pam_pwquality.so"
+      # ... другие пути
+    
+    # Проверить опциональные модули
+    pam_check_optional_modules: true
     debug_mode: true
   
   roles:

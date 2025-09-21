@@ -1,12 +1,14 @@
 
 ---
-# Locale Configuration Role - Default Variables
-# This role configures system locale settings for internationalization
 
 # Debug and backup settings
 debug_mode: false
 backup_enabled: true
 backup_suffix: ".backup"
+
+keyboard_layout: "us"
+keyboard_variant: ""
+keyboard_options: ""
 
 # Primary locale configuration
 locale_primary: "en_US.UTF-8"
@@ -16,10 +18,7 @@ locale_encoding: "UTF-8"
 # Additional locales to generate (useful for multi-language environments)
 locale_additional:
   - "en_US.UTF-8"
-  - "en_GB.UTF-8"
   - "ru_RU.UTF-8"
-  - "de_DE.UTF-8"
-  - "fr_FR.UTF-8"
 
 # System locale variables
 locale_variables:
@@ -37,30 +36,6 @@ locale_variables:
 timezone: "Europe/Moscow" ##"UTC"
 timezone_manage: true
 
-# Keyboard layout configuration
-keyboard_layout: "us"
-keyboard_variant: ""
-keyboard_options: ""
-
 # Console font configuration
 console_font: "Lat2-Terminus16"
-console_font_manage: false
-
-# NTP configuration
-ntp_enabled: true
-ntp_servers:
-  - "0.pool.ntp.org"
-  - "1.pool.ntp.org"
-  - "2.pool.ntp.org"
-
-# Validation settings
-validate_locale: true
-validate_timezone: true
-
-# Cleanup settings
-cleanup_enabled: false
-locale_cleanup_enabled: false
-timezone_cleanup_enabled: false
-keyboard_cleanup_enabled: false
-ntp_cleanup_enabled: false
-console_cleanup_enabled: false
+console_font_manage: true

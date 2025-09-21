@@ -1,0 +1,30 @@
+---
+
+# Debug mode for variable preparation
+debug_mode: true
+
+# Host name for loading host_vars (used when prepare_mode is enabled)
+host_name: "some-server"
+
+# Prefix for variables in secrets.yaml (used when prepare_mode is enabled)
+host_vars: "some_server"
+
+
+#########################################################
+### Configurable paths section ###
+#########################################################
+
+# Base directory for Ansible configuration
+ansible_base_dir: "/etc/ansible"
+
+# Directory for host variables
+ansible_host_vars_dir: "{{ ansible_base_dir }}/host_vars"
+
+# Directory for secrets and vault files
+ansible_vars_dir: "{{ ansible_base_dir }}/VARS"
+
+# Path to secrets file
+secrets_file_path: "{{ ansible_vars_dir }}/secrets.yaml"
+
+
+

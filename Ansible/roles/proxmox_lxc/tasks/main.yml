@@ -1,54 +1,5 @@
 ---
 
-#########################################################
-### LXC Prepare section (merged from lxc_prepare role) ###
-#########################################################
-
-- name: Overwrite variables from secrets
-  ansible.builtin.set_fact:
-    # Overwrite server variables
-    pve_node :          "{{  vars[ host_vars  ~ '_pve_node'] }}"
-    pve_api_host :      "{{ hostvars[ vars[ host_vars  ~ '_pve_node']]['ansible_host'] }}"
-    pve_api_user :      "{{ vars[ host_vars  ~ '_pve_api_user'] }}"
-    pve_api_password :  "{{ vars[ host_vars  ~ '_pve_api_password'] }}"
-    # Overwrite LXC variables
-    pve_lxc_root_password :           "{{ vars[ host_vars  ~ '_pve_lxc_root_password'] }}"
-    pve_lxc_root_authorized_pubkey :  "{{ vars[ host_vars ~ '_pve_lxc_root_password'] }}"
-    # Overwrite user to be added variables
-    admin_name :        "{{ vars[ host_vars ~ '_admin_user'] }}"
-    admin_password :    "{{ vars[ host_vars ~ '_admin_password'] }}"
-
-- name: Print gathering facts
-  ansible.builtin.debug:
-    msg: 
-    - "pve_node         : {{ pve_node }}"
-    - "pve_api_host     : {{ pve_api_host }}"
-    - "pve_api_user     : {{ pve_api_user }}"
-    - "pve_api_password : {{ pve_api_password }}"
-  when: debug_mode | default(false)
-
-- name: Import node variables
-  ansible.builtin.include_vars:
-    file: "/etc/ansible/host_vars/{{ host_name}}.yml"
-
-- name: Print node variables when prepare mode is enabled
-  ansible.builtin.debug:
-    msg: 
-    - "pve_lxc_name             : {{ pve_lxc_name }}"
-    - "pve_lxc_vmid             : {{ pve_lxc_vmid }}"
-    - "pve_lxc_ostemplate_name  : {{ pve_lxc_ostemplate_name }}"
-    - "pve_lxc_ip_address       : {{ pve_lxc_ip_address }}"
-    - "pve_lxc_ip_mask          : {{ pve_lxc_ip_mask }}"
-    - "pve_lxc_ip_gateway       : {{ pve_lxc_ip_gateway }}"
-    - "pve_lxc_nameserver       : {{ pve_lxc_nameserver }}"
-    - "pve_lxc_searchdomain     : {{ pve_lxc_searchdomain }}"
-    - "pve_lxc_description      : {{ pve_lxc_description }}"
-  when: debug_mode | default(false)
-
-#########################################################
-### Proxmox LXC container creation section ###
-#########################################################
-
 - name: Installing python3 and python3-pip on the Proxmox node
   ansible.builtin.apt:
     name: "{{ item }}"
@@ -57,11 +8,6 @@
     - python3
     - python3-pip
     - python3-proxmoxer
-
-#- name: Installing proxmoxer pip3 moduleon the Proxmox node
-#  ansible.builtin.apt:
-#    name: python3-proxmoxer
-#    state: present
 
 - name: Get VM information
   community.general.proxmox_vm_info:
@@ -74,7 +20,7 @@
 
 - name: Get VM_ID info
   set_fact:
-    pve_vmid_info: "{{ pve_vms_info | json_query('proxmox_vms') | join(',') }}"
+    pve_vmid_info: "{{ pve_vms_info.proxmox_vms | default([]) | map(attribute='vmid') | default([]) | join(',') }}"
 
 - debug:
     msg: "pve_vmid_info:  {{ pve_vmid_info }} "
@@ -104,7 +50,7 @@
 - name: Download the container template if it's needed
   ansible.builtin.get_url:
     url: "{{ pve_lxc_ostemplate_url }}"
-    dest: "{{pve_lxc_ostemplate_src_dest}}"
+    dest: "{{ pve_lxc_ostemplate_src_dest }}"
   register: pve_lxc_ostemplate_downloaded
   when: not pve_lxc_ostemplate_exists.stat.exists
 
@@ -133,6 +79,9 @@
     - "pve_default_behavior = {{ pve_default_behavior }}"
     - "nameserver = {{ pve_lxc_nameserver }}"
     - "searchdomain = {{ pve_lxc_searchdomain }}"
+    - "--------------------------------"
+    - "vmid = {{ pve_lxc_vmid }}"
+    - "hostname = {{ pve_hostname }}"
   when: debug_mode
 
 
@@ -156,7 +105,6 @@
     description: "{{ pve_lxc_description }}" #description: "{{ pve_lxc_description | default(omit) }}"
     ostemplate: "{{ pve_lxc_ostemplate_storage | default('local') }}:{{ pve_lxc_ostemplate_content_type | default('vztmpl') }}/{{ pve_lxc_ostemplate_name if(pve_lxc_ostemplate_name is defined) else ( pve_lxc_ostemplate_url | urlsplit('path') | basename ) }}"
 
-    #proxmox_default_behavior: "{{ pve_default_behavior | default('compatibility') }}"
     validate_certs: "{{ pve_validate_certs | default(omit) }}"
     hookscript: "{{ pve_lxc_hookscript | default(omit) }}"
     
@@ -217,7 +165,7 @@
   - name: Additional configurations directly on the container .conf file
     ansible.builtin.lineinfile:
       unsafe_writes: yes # Otherwise Proxmox denies permission
-      path: /etc/pve/nodes/{{ pve_node }}/lxc/{{ pve_lxc_inferred_vmid }}.conf
+      path: "{{ proxmox_config_dir | default('/etc/pve') }}/nodes/{{ pve_node }}/lxc/{{ pve_lxc_inferred_vmid }}.conf"
       regexp: "{{ item.regexp }}"
       line: "{{ item.line }}"
       state: "{{ item.state | default(omit) }}"
@@ -237,6 +185,12 @@
     when: pve_lxc_additional_configurations_result is changed
   when: pve_lxc_additional_configurations is defined
 
+- name: pve_lxc_container_created status
+  ansible.builtin.debug:
+    msg: "pve_lxc_container_created status: {{ pve_lxc_container_created }}"
+  when: debug_mode
+
+
 - name: Ensure the container is turned on
   community.general.proxmox:
     node: "{{ pve_node }}"
@@ -245,6 +199,7 @@
     api_password: "{{ pve_api_password | default(omit) }}"
     api_token_id: "{{ pve_api_token_id | default(omit) }}"
     api_token_secret: "{{ pve_api_token_secret | default(omit) }}"
+    vmid: "{{ pve_lxc_inferred_vmid }}"
     state: started
   notify: pve_lxc wait for connection
   when: (pve_lxc_container_created is not defined) or (pve_lxc_container_created is succeeded)

@@ -18,17 +18,17 @@
     create: yes
     backup: yes
 
-- name: Нас троить PAM listfile для дополнительных ограничений
+- name: Настроить PAM listfile для дополнительных ограничений
   ansible.builtin.lineinfile:
     path: /etc/pam.d/common-auth
-    line: "auth required pam_listfile.so item=user sense=deny file=/etc/security/denied_users onerr=succeed"
+    line: "auth required pam_listfile.so item=user sense=deny file={{ pam_denied_users_file }} onerr=succeed"
     state: present
     create: yes
     backup: yes
 
 - name: Create file of denied users
   ansible.builtin.file:
-    path: /etc/security/denied_users
+    path: "{{ pam_denied_users_file }}"
     state: touch
     mode: '0644'
     owner: root

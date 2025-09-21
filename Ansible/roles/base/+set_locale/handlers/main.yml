@@ -1,0 +1,16 @@
+---
+
+- name: reload locale
+  ansible.builtin.command: "locale-gen"
+  become: true
+  listen: "reload locale"
+
+- name: reload timezone
+  ansible.builtin.command: "timedatectl set-timezone {{ timezone }}"
+  become: true
+  listen: "reload timezone"
+
+- name: reload console
+  ansible.builtin.command: "setupcon"
+  become: true
+  listen: "reload console"

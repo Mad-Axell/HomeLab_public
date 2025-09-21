@@ -19,7 +19,16 @@
     - /etc/pam.d/su
     - /etc/pam.d/sudo
   when: pam_backup_enabled
+  register: pam_backup_result
+  failed_when: false
   ignore_errors: yes
+
+- name: Проверить успешность создания резервных копий
+  ansible.builtin.fail:
+    msg: "Не удалось создать резервные копии для файлов: {{ pam_backup_result.results | selectattr('failed', 'equalto', true) | map(attribute='item') | list }}"
+  when: 
+    - pam_backup_enabled
+    - pam_backup_result.results | selectattr('failed', 'equalto', true) | list | length > 0
 
 - name: Ensure that PAM configuration directory exists
   ansible.builtin.file:
@@ -121,6 +130,13 @@
     mode: '0440'
     validate: 'visudo -cf %s'
     backup: yes
+  register: sudoers_config_result
+  failed_when: false
+
+- name: Проверить корректность sudoers конфигурации
+  ansible.builtin.fail:
+    msg: "Ошибка в конфигурации sudoers для группы {{ pam_wheel_group }}. Проверьте синтаксис."
+  when: sudoers_config_result.failed
 
 # Настроить ограничения доступа root
 - name: Configure secure TTY for root login
@@ -130,14 +146,7 @@
     state: present
     create: yes
     backup: yes
-  loop:
-    - "console"
-    - "tty1"
-    - "tty2"
-    - "tty3"
-    - "tty4"
-    - "tty5"
-    - "tty6"
+  loop: "{{ pam_securetty_ttys }}"
   when: pam_root_securetty
 
 - name: Disable root login via SSH
@@ -154,7 +163,7 @@
 - name: Configure PAM umask for sessions
   ansible.builtin.lineinfile:
     path: /etc/pam.d/common-session
-    line: "session optional pam_umask.so umask=077"
+    line: "session optional pam_umask.so umask={{ pam_umask_value }}"
     state: present
     create: yes
     backup: yes
@@ -162,7 +171,7 @@
 - name: Configure PAM motd for login banner
   ansible.builtin.lineinfile:
     path: /etc/pam.d/common-session
-    line: "session optional pam_motd.so motd=/etc/motd"
+    line: "session optional pam_motd.so motd={{ pam_motd_file }}"
     state: present
     create: yes
     backup: yes
@@ -170,6 +179,7 @@
 # Включить расширенную конфигурацию PAM
 - name: Enable advanced PAM configuration
   include_tasks: advanced.yml
+  when: pam_advanced_enabled
 
 # Проверить конфигурацию PAM
 - name: Check PAM configuration syntax

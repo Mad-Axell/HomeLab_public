@@ -1,10 +1,4 @@
 ---
-# Locale Configuration Role - Main Tasks
-# This role configures system locale settings for internationalization
-
-- name: Include validation tasks
-  include_tasks: validate.yaml
-  when: validate_locale or validate_timezone
 
 - name: Gather system facts
   ansible.builtin.setup:
@@ -23,7 +17,6 @@
       - Timezone: {{ timezone }}
   when: debug_mode
 
-# Backup existing locale configuration
 - name: Backup existing locale configuration
   ansible.builtin.copy:
     src: "{{ item }}"
@@ -37,7 +30,6 @@
   when: backup_enabled
   ignore_errors: yes
 
-# Ensure required packages are installed
 - name: Install locale packages for Debian/Ubuntu
   ansible.builtin.apt:
     name:
@@ -48,7 +40,6 @@
       - console-setup
     state: present
     update_cache: yes
-  when: ansible_os_family == "Debian"
 
 - name: Install locale packages for RedHat/CentOS
   ansible.builtin.yum:
@@ -60,7 +51,6 @@
     state: present
   when: ansible_os_family == "RedHat"
 
-# Generate additional locales
 - name: Generate additional locales
   community.general.locale_gen:
     name: "{{ item }}"
@@ -96,7 +86,7 @@
     line: '{{ item.key }}="{{ item.value }}"'
     state: present
     create: yes
-    backup: "{{ backup_suffix if backup_enabled else 'no' }}"
+    backup: "{{ backup_enabled }}"
   loop: "{{ locale_variables | dict2items }}"
   become: true
   notify: reload locale
@@ -145,29 +135,17 @@
     line: 'FONTFACE="{{ console_font }}"'
     state: present
     create: yes
-    backup: "{{ backup_suffix if backup_enabled else 'no' }}"
+    backup: "{{ backup_enabled }}"
   when: console_font_manage
   become: true
   notify: reload console
 
-# Configure NTP servers
-- name: Configure NTP servers
-  ansible.builtin.lineinfile:
-    path: /etc/systemd/timesyncd.conf
-    regexp: '^NTP=.*$'
-    line: 'NTP={{ ntp_servers | join(" ") }}'
-    state: present
-    create: yes
-    backup: "{{ backup_suffix if backup_enabled else 'no' }}"
-  when: ntp_enabled and ansible_os_family == "Debian"
-  become: true
-  notify: restart timesyncd
 
-# Update locale database
-- name: Update locale database
+- name: Update locale database for Debian/Ubuntu
   ansible.builtin.command: locale-gen
   become: true
   changed_when: false
+  when: ansible_os_family == "Debian"
 
 - name: Update locale database for RedHat/CentOS
   ansible.builtin.command: localedef -c -f UTF-8 -i en_US en_US.UTF-8
@@ -175,23 +153,6 @@
   changed_when: false
   when: ansible_os_family == "RedHat"
 
-# Verify locale configuration
-- name: Verify locale configuration
-  ansible.builtin.command: locale
-  register: locale_check
-  changed_when: false
-
-- name: Display current locale settings
-  ansible.builtin.debug:
-    msg: "Current locale settings: {{ locale_check.stdout_lines }}"
-  when: debug_mode
-
-# Include cleanup tasks if requested
-- name: Include cleanup tasks
-  include_tasks: cleanup.yml
-  when: cleanup_enabled | default(false)
-
-# Final status message
 - name: Locale configuration completed
   ansible.builtin.debug:
     msg: |
@@ -200,4 +161,3 @@
       - Timezone: {{ timezone }}
       - Additional locales: {{ locale_additional | length }} configured
       - Backup enabled: {{ backup_enabled }}
-      - Cleanup mode: {{ 'Enabled' if cleanup_enabled else 'Disabled' }}

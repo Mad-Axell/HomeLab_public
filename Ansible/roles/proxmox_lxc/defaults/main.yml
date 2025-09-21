@@ -1,19 +1,4 @@
 ---
-# defaults file for ansible-role-proxmox-create-lxc/
-# vars needed to define the parameters for the wraped Proxmox API
-
-#########################################################
-### LXC Prepare section (merged from lxc_prepare role) ###
-#########################################################
-
-# Debug mode for variable preparation
-debug_mode: false
-
-# Host name for loading host_vars (used when prepare_mode is enabled)
-host_name: "some-server"
-
-# Prefix for variables in secrets.yaml (used when prepare_mode is enabled)
-host_vars: "some_server"
 
 #########################################################
 ### Proxmox API connection and authentication section ###
@@ -176,10 +161,11 @@ proxmox_default_behavior: no_defaults
 pve_lxc_ostemplate_state: present
 
 
-pve_lxc_nameserver:   "{{ hostvars[pve_lxc_tech]['ansible_host'] }}"
-pve_lxc_searchdomain: "{{ hostvars[pve_lxc_tech]['searchdomain'] }}"
-pve_lxc_ip_address:   "{{ hostvars[pve_lxc_name]['ansible_host'] }}"
-pve_lxc_ip_gateway:   "{{ pve_lxc_nameserver }}"
+# Network configuration (can be overridden in host_vars)
+pve_lxc_nameserver:   "{{ hostvars[pve_lxc_tech]['ansible_host'] | default(omit) }}"
+pve_lxc_searchdomain: "{{ hostvars[pve_lxc_tech]['searchdomain'] | default(omit) }}"
+pve_lxc_ip_address:   "{{ hostvars[pve_lxc_name]['ansible_host'] | default(omit) }}"
+pve_lxc_ip_gateway:   "{{ pve_lxc_nameserver | default(omit) }}"
 
 pve_lxc_description: |
   This host is a "{{ pve_lxc_ostemplate_name }}" container 
@@ -206,13 +192,15 @@ pve_lxc_net_interfaces:
   #vlan_tag: 200
 
 
+# Template configuration with configurable paths
+pve_lxc_ostemplate_src_dest: "{{ proxmox_template_cache_dir }}"
 pve_lxc_ostemplate_timeout: 60 # in seconds
 pve_lxc_timeout: 30 # in seconds
 
+# Container behavior settings
 pve_onboot: true
 pve_lxc_unprivileged: true
 pve_lxc_force: true
-
 pve_lxc_ostemplate_force: true
 
 ...
