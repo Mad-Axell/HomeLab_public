@@ -1,25 +1,33 @@
 ---
+# PAM configuration handlers
 # Обработчики конфигурации PAM
+# Handlers for restarting services after PAM configuration changes
 # Обработчики для перезапуска сервисов после изменений конфигурации PAM
 
-- name: restart ssh
+- name: "restart ssh / перезапустить ssh"
   ansible.builtin.service:
     name: ssh
     state: restarted
   listen: "restart ssh"
 
-- name: restart sshd
+- name: "restart sshd / перезапустить sshd"
   ansible.builtin.service:
     name: sshd
     state: restarted
   listen: "restart ssh"
 
-- name: reload pam
+- name: "reload pam / перезагрузить pam"
   ansible.builtin.command: "faillock --reset"
   changed_when: false
   listen: "reload pam"
 
-- name: flush pam cache
+- name: "flush pam cache / очистить кэш pam"
   ansible.builtin.command: "faillock --reset --user root"
   changed_when: false
   listen: "flush pam cache"
+
+- name: "reload sshd config / перезагрузить конфигурацию sshd"
+  ansible.builtin.service:
+    name: sshd
+    state: reloaded
+  listen: "reload sshd config"

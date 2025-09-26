@@ -1,0 +1,25 @@
+---
+# Обработчики конфигурации PAM
+# Обработчики для перезапуска сервисов после изменений конфигурации PAM
+
+- name: restart ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+  listen: "restart ssh"
+
+- name: restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  listen: "restart ssh"
+
+- name: reload pam
+  ansible.builtin.command: "faillock --reset"
+  changed_when: false
+  listen: "reload pam"
+
+- name: flush pam cache
+  ansible.builtin.command: "faillock --reset --user root"
+  changed_when: false
+  listen: "flush pam cache"

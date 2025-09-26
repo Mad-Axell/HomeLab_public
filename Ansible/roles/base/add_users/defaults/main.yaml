@@ -1,0 +1,29 @@
+---
+# Default variables for add_users role
+# Переменные по умолчанию для роли add_users
+
+# Debug mode - shows detailed information during execution
+# Режим отладки - показывает подробную информацию во время выполнения
+debug_mode: true
+
+# List of users to add to the system
+# Список пользователей для добавления в систему
+users_to_add: []
+  # Example configuration / Пример конфигурации:
+  # - username: test_user_1
+  #   password: "qwerty"
+  #   groups: ["test_1", "test_2"]
+  #   is_sudoers: true
+  #   uid: null  # null for automatic assignment / null для автоматического назначения
+  #   gid: null  # null for automatic assignment / null для автоматического назначения
+  #   shell: /bin/bash
+  #   create_home: true
+  #   home: "/home/test_user_1"
+
+# Global settings for user creation
+# Глобальные настройки для создания пользователей
+add_users_create_home: true          # Create home directory / Создавать домашнюю директорию
+add_users_home_prefix: "/home"       # Home directory prefix / Префикс домашней директории
+add_users_default_shell: "/bin/bash" # Default shell for users / Оболочка по умолчанию для пользователей
+add_users_validate_passwords: true   # Enable password validation / Включить валидацию паролей
+add_users_min_password_length: 8     # Minimum password length / Минимальная длина пароля

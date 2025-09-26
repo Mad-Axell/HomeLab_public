@@ -1,7 +1,9 @@
 ---
-# Fail2Ban Configuration Validation Tasks
+# Fail2Ban Configuration Validation Tasks / Задачи валидации конфигурации Fail2Ban
+# This file contains validation tasks for Fail2Ban configuration
+# Данный файл содержит задачи валидации конфигурации Fail2Ban
 
-- name: Validate Fail2Ban configuration variables
+- name: "Validate presence of all required Fail2Ban configuration variables / Валидация наличия всех обязательных переменных конфигурации Fail2Ban"
   ansible.builtin.assert:
     that:
       - fail2ban_install is defined
@@ -9,26 +11,64 @@
       - fail2ban_jails is defined
       - ssh_port is defined
       - ssh_protocol is defined
-    fail_msg: "Required Fail2Ban configuration variables are not defined"
-    success_msg: "All required Fail2Ban configuration variables are defined"
+    fail_msg: "Required Fail2Ban configuration variables are not defined / Обязательные переменные конфигурации Fail2Ban не определены"
+    success_msg: "All required Fail2Ban configuration variables are defined / Все обязательные переменные конфигурации Fail2Ban определены"
+  tags:
+    - validation
+    - fail2ban
 
-- name: Validate SSH port configuration
+- name: "Display validation progress / Отображение прогресса валидации"
+  ansible.builtin.debug:
+    msg: "Starting Fail2Ban configuration validation / Начало валидации конфигурации Fail2Ban"
+  when: debug_mode | bool
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Validate SSH port number is within valid range (1-65535) / Валидация номера порта SSH в допустимом диапазоне (1-65535)"
   ansible.builtin.assert:
     that:
       - ssh_port is number
       - ssh_port >= 1
       - ssh_port <= 65535
-    fail_msg: "SSH port must be a valid port number (1-65535)"
-    success_msg: "SSH port configuration is valid"
+    fail_msg: "SSH port must be a valid port number (1-65535) / Порт SSH должен быть действительным номером порта (1-65535)"
+    success_msg: "SSH port configuration is valid / Конфигурация порта SSH корректна"
+  tags:
+    - validation
+    - ssh
+    - fail2ban
 
-- name: Validate SSH protocol configuration
+- name: "Display SSH port validation result / Отображение результата валидации порта SSH"
+  ansible.builtin.debug:
+    msg: "SSH port validation passed: {{ ssh_port }}"
+  when: debug_mode | bool
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Validate SSH protocol is either TCP or UDP / Валидация протокола SSH как TCP или UDP"
   ansible.builtin.assert:
     that:
       - ssh_protocol in ['tcp', 'udp']
-    fail_msg: "SSH protocol must be 'tcp' or 'udp'"
-    success_msg: "SSH protocol configuration is valid"
+    fail_msg: "SSH protocol must be 'tcp' or 'udp' / Протокол SSH должен быть 'tcp' или 'udp'"
+    success_msg: "SSH protocol configuration is valid / Конфигурация протокола SSH корректна"
+  tags:
+    - validation
+    - ssh
+    - fail2ban
 
-- name: Validate Fail2Ban jail configurations
+- name: "Display SSH protocol validation result / Отображение результата валидации протокола SSH"
+  ansible.builtin.debug:
+    msg: "SSH protocol validation passed: {{ ssh_protocol }}"
+  when: debug_mode | bool
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Validate all Fail2Ban jail configurations have required parameters / Валидация наличия всех обязательных параметров в конфигурациях тюрем Fail2Ban"
   ansible.builtin.assert:
     that:
       - item.value.enabled is defined
@@ -38,12 +78,27 @@
       - item.value.maxretry is defined
       - item.value.findtime is defined
       - item.value.bantime is defined
-    fail_msg: "Invalid jail configuration for {{ item.key }}"
-    success_msg: "Jail configuration for {{ item.key }} is valid"
+    fail_msg: "Invalid jail configuration for {{ item.key }} / Неверная конфигурация тюрьмы для {{ item.key }}"
+    success_msg: "Jail configuration for {{ item.key }} is valid / Конфигурация тюрьмы для {{ item.key }} корректна"
   loop: "{{ fail2ban_jails | dict2items }}"
   when: fail2ban_jails is defined
+  register: jail_config_validation
+  tags:
+    - validation
+    - jails
+    - fail2ban
 
-- name: Validate Fail2Ban jail values
+- name: "Display jail configuration validation results / Отображение результатов валидации конфигурации тюрем"
+  ansible.builtin.debug:
+    msg: "Jail configuration validation completed for: {{ item.item.key }}"
+  loop: "{{ jail_config_validation.results | default([]) }}"
+  when: debug_mode | bool and jail_config_validation is defined
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Validate Fail2Ban jail parameter values are within acceptable ranges / Валидация значений параметров тюрем Fail2Ban в допустимых диапазонах"
   ansible.builtin.assert:
     that:
       - item.value.maxretry is number
@@ -52,41 +107,171 @@
       - item.value.findtime > 0
       - item.value.bantime is number
       - item.value.bantime >= 0
-    fail_msg: "Invalid jail values for {{ item.key }}"
-    success_msg: "Jail values for {{ item.key }} are valid"
+    fail_msg: "Invalid jail values for {{ item.key }} / Неверные значения тюрьмы для {{ item.key }}"
+    success_msg: "Jail values for {{ item.key }} are valid / Значения тюрьмы для {{ item.key }} корректны"
   loop: "{{ fail2ban_jails | dict2items }}"
   when: fail2ban_jails is defined
+  register: jail_values_validation
+  tags:
+    - validation
+    - jails
+    - fail2ban
 
-- name: Validate ignore IP addresses
+- name: "Display jail values validation results / Отображение результатов валидации значений тюрем"
+  ansible.builtin.debug:
+    msg: "Jail values validation completed for: {{ item.item.key }}"
+  loop: "{{ jail_values_validation.results | default([]) }}"
+  when: debug_mode | bool and jail_values_validation is defined
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Validate ignore IP addresses format using regex pattern / Валидация формата игнорируемых IP адресов с использованием регулярного выражения"
   ansible.builtin.assert:
     that:
       - item is match('^[0-9a-fA-F:./]+$')
-    fail_msg: "Invalid IP address format: {{ item }}"
-    success_msg: "IP address format is valid: {{ item }}"
+    fail_msg: "Invalid IP address format: {{ item }} / Неверный формат IP адреса: {{ item }}"
+    success_msg: "IP address format is valid: {{ item }} / Формат IP адреса корректный: {{ item }}"
   loop: "{{ fail2ban_ignoreip }}"
   when: fail2ban_ignoreip is defined
+  register: ip_validation
+  tags:
+    - validation
+    - network
+    - fail2ban
 
-- name: Check if system supports Fail2Ban
+- name: "Display IP validation results / Отображение результатов валидации IP"
+  ansible.builtin.debug:
+    msg: "IP validation completed for: {{ item.item }}"
+  loop: "{{ ip_validation.results | default([]) }}"
+  when: debug_mode | bool and ip_validation is defined
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Check if system supports Fail2Ban by detecting Debian version / Проверка поддержки Fail2Ban системой через обнаружение версии Debian"
   ansible.builtin.stat:
     path: /etc/debian_version
   register: debian_check
+  tags:
+    - validation
+    - system
+    - fail2ban
 
-- name: Validate operating system
+- name: "Display system compatibility check / Отображение проверки совместимости системы"
+  ansible.builtin.debug:
+    msg: "Debian version file exists: {{ debian_check.stat.exists }}, OS family: {{ ansible_os_family }}"
+  when: debug_mode | bool
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Validate operating system compatibility for Fail2Ban installation / Валидация совместимости операционной системы для установки Fail2Ban"
   ansible.builtin.assert:
     that:
       - debian_check.stat.exists or ansible_os_family == "Debian"
-    fail_msg: "This role is designed for Debian-based systems"
-    success_msg: "Operating system is compatible"
+    fail_msg: "This role is designed for Debian-based systems / Данная роль предназначена для систем на базе Debian"
+    success_msg: "Operating system is compatible / Операционная система совместима"
+  tags:
+    - validation
+    - system
+    - fail2ban
 
-- name: Check available disk space
+- name: "Check available disk space in /var/log directory for Fail2Ban logging / Проверка доступного места на диске в директории /var/log для логирования Fail2Ban"
+  ansible.builtin.command: df -B1 /var/log
+  register: disk_space_check
+  changed_when: false
+  failed_when: false
+  when: validate_disk_space | default(true) | bool
+  tags:
+    - validation
+    - system
+    - fail2ban
+
+- name: "Alternative disk space check using statvfs for /var/log directory / Альтернативная проверка места на диске через statvfs для директории /var/log"
   ansible.builtin.stat:
     path: /var/log
-  register: log_dir_check
+  register: log_dir_stat
+  when: validate_disk_space | default(true) | bool
+  tags:
+    - validation
+    - system
+    - fail2ban
 
-- name: Validate disk space for logging
+- name: "Display disk space information / Отображение информации о месте на диске"
+  ansible.builtin.debug:
+    msg: |
+      Disk space information:
+      Информация о месте на диске:
+      {% if disk_space_check.stdout_lines is defined and disk_space_check.stdout_lines | length > 1 %}
+      - Available space (df): {{ (disk_space_check.stdout_lines[1].split()[3] | int) / 1024 / 1024 | round(2) }} MB
+      - Total space (df): {{ (disk_space_check.stdout_lines[1].split()[1] | int) / 1024 / 1024 | round(2) }} MB
+      - Usage (df): {{ (disk_space_check.stdout_lines[1].split()[4] | replace('%', '')) }}%
+      {% endif %}
+      {% if log_dir_stat.stat is defined %}
+      - Directory exists: {{ log_dir_stat.stat.exists }}
+      - Directory size: {{ log_dir_stat.stat.size | default('unknown') }} bytes
+      {% endif %}
+  when: debug_mode | bool and validate_disk_space | default(true) | bool
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Validate sufficient disk space is available for Fail2Ban logging operations / Валидация достаточного места на диске для операций логирования Fail2Ban"
   ansible.builtin.assert:
     that:
-      - log_dir_check.stat.size is defined
-      - log_dir_check.stat.size > 10485760  # 10MB minimum
-    fail_msg: "Insufficient disk space for logging"
-    success_msg: "Sufficient disk space available for logging"
+      - (disk_space_check.stdout_lines is defined and disk_space_check.stdout_lines | length > 1 and (disk_space_check.stdout_lines[1].split()[3] | int) > 104857600) or (log_dir_stat.stat is defined and log_dir_stat.stat.exists)
+    fail_msg: |
+      Insufficient disk space for logging or directory not accessible:
+      Недостаточно места на диске для логирования или директория недоступна:
+      - df command result: {{ disk_space_check.stdout_lines | default('failed') }}
+      - Directory stat: {{ log_dir_stat.stat | default('failed') }}
+    success_msg: "Sufficient disk space available for logging / Достаточно места на диске для логирования"
+  when: validate_disk_space | default(true) | bool
+  tags:
+    - validation
+    - system
+    - fail2ban
+
+- name: "Display validation completion summary / Отображение сводки завершения валидации"
+  ansible.builtin.debug:
+    msg: |
+      Fail2Ban configuration validation completed successfully!
+      Валидация конфигурации Fail2Ban успешно завершена!
+      - SSH port: {{ ssh_port }}
+      - SSH protocol: {{ ssh_protocol }}
+      - Jails configured: {{ fail2ban_jails.keys() | list }}
+      - Ignore IPs: {{ fail2ban_ignoreip | length }} addresses
+      - System compatibility: {{ ansible_os_family }} {{ ansible_distribution_version | default('unknown') }}
+      - Validation timestamp: {{ ansible_date_time.iso8601 }}
+  when: debug_mode | bool
+  tags:
+    - validation
+    - debug
+    - fail2ban
+
+- name: "Display detailed jail configuration summary / Отображение детальной сводки конфигурации тюрем"
+  ansible.builtin.debug:
+    msg: |
+      Detailed jail configuration summary:
+      Детальная сводка конфигурации тюрем:
+      {% for jail_name, jail_config in fail2ban_jails.items() %}
+      - Jail: {{ jail_name }}
+        * Enabled: {{ jail_config.enabled }}
+        * Port: {{ jail_config.port }}
+        * Filter: {{ jail_config.filter }}
+        * Log path: {{ jail_config.logpath }}
+        * Max retry: {{ jail_config.maxretry }}
+        * Find time: {{ jail_config.findtime }}s
+        * Ban time: {{ jail_config.bantime }}s
+        * Ban action: {{ jail_config.banaction }}
+      {% endfor %}
+  when: debug_mode | bool and fail2ban_jails is defined
+  tags:
+    - validation
+    - debug
+    - fail2ban

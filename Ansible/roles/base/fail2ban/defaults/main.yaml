@@ -12,6 +12,7 @@ fail2ban_packages:
   - fail2ban
   - rsyslog
   - iptables
+  - ufw
 
 # SSH Configuration
 ssh_port: 22
@@ -94,7 +95,6 @@ ssh_logging:
 # Allowed IPs that should never be banned
 fail2ban_ignoreip:
   - "127.0.0.1/8"
-  - "::1"
   - "192.168.1.0/24"
   - "10.20.30.0/24"
 
@@ -105,6 +105,7 @@ fail2ban_service_enabled: true
 # Validation settings
 validate_configuration: true
 fail_on_validation_error: true
+validate_disk_space: true
 
 # Backup configuration before changes
 backup_configuration: true

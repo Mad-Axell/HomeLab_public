@@ -1,20 +1,62 @@
 ---
-# Fail2Ban Cleanup Tasks
+# Fail2Ban Cleanup Tasks / Задачи очистки Fail2Ban
 # Use with caution - this will remove Fail2Ban configuration
+# Используйте с осторожностью - это удалит конфигурацию Fail2Ban
 
-- name: Stop Fail2Ban service
+- name: "Display cleanup operation warning / Отображение предупреждения об операции очистки"
+  ansible.builtin.debug:
+    msg: |
+      WARNING: Fail2Ban cleanup operation started!
+      ПРЕДУПРЕЖДЕНИЕ: Начата операция очистки Fail2Ban!
+      This will remove Fail2Ban configuration and may affect system security.
+      Это удалит конфигурацию Fail2Ban и может повлиять на безопасность системы.
+  when: debug_mode | bool and fail2ban_cleanup | default(false) | bool
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Stop Fail2Ban service / Остановка службы Fail2Ban"
   ansible.builtin.service:
     name: fail2ban
     state: stopped
   when: fail2ban_cleanup | default(false) | bool
+  register: stop_service_result
+  tags:
+    - cleanup
+    - service
+    - fail2ban
 
-- name: Disable Fail2Ban service
+- name: "Display service stop result / Отображение результата остановки службы"
+  ansible.builtin.debug:
+    msg: "Fail2Ban service stop result: {{ stop_service_result }}"
+  when: debug_mode | bool and stop_service_result is defined
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Disable Fail2Ban service / Отключение службы Fail2Ban"
   ansible.builtin.service:
     name: fail2ban
     enabled: false
   when: fail2ban_cleanup | default(false) | bool
+  register: disable_service_result
+  tags:
+    - cleanup
+    - service
+    - fail2ban
 
-- name: Remove Fail2Ban configuration files
+- name: "Display service disable result / Отображение результата отключения службы"
+  ansible.builtin.debug:
+    msg: "Fail2Ban service disable result: {{ disable_service_result }}"
+  when: debug_mode | bool and disable_service_result is defined
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Remove Fail2Ban configuration files / Удаление файлов конфигурации Fail2Ban"
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
@@ -23,50 +65,189 @@
     - /etc/fail2ban/fail2ban.conf
     - /etc/rsyslog.d/50-ssh.conf
   when: fail2ban_cleanup | default(false) | bool
+  register: config_removal_result
+  tags:
+    - cleanup
+    - configuration
+    - fail2ban
 
-- name: Remove SSH log directory
+- name: "Display configuration files removal result / Отображение результата удаления файлов конфигурации"
+  ansible.builtin.debug:
+    msg: "Configuration files removal result: {{ config_removal_result }}"
+  when: debug_mode | bool and config_removal_result is defined
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Remove SSH log directory / Удаление директории логов SSH"
   ansible.builtin.file:
     path: "{{ ssh_logging.log_directory | default('/var/log/sshd') }}"
     state: absent
   when: fail2ban_cleanup | default(false) | bool and ssh_logging.enabled | default(false) | bool
+  register: ssh_log_removal_result
+  tags:
+    - cleanup
+    - ssh
+    - logging
+    - fail2ban
 
-- name: Restore SSH configuration
+- name: "Display SSH log directory removal result / Отображение результата удаления директории логов SSH"
+  ansible.builtin.debug:
+    msg: "SSH log directory removal result: {{ ssh_log_removal_result }}"
+  when: debug_mode | bool and ssh_log_removal_result is defined
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Restore SSH syslog facility configuration / Восстановление конфигурации syslog facility SSH"
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: '^SyslogFacility'
     line: '#SyslogFacility AUTH'
     state: present
   when: fail2ban_cleanup | default(false) | bool
+  register: ssh_syslog_restore_result
+  tags:
+    - cleanup
+    - ssh
+    - configuration
+    - fail2ban
 
-- name: Restore SSH log level
+- name: "Restore SSH log level configuration / Восстановление конфигурации уровня логирования SSH"
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: '^LogLevel'
     line: '#LogLevel INFO'
     state: present
   when: fail2ban_cleanup | default(false) | bool
+  register: ssh_log_level_restore_result
+  tags:
+    - cleanup
+    - ssh
+    - configuration
+    - fail2ban
 
-- name: Restart SSH service
+- name: "Display SSH configuration restoration results / Отображение результатов восстановления конфигурации SSH"
+  ansible.builtin.debug:
+    msg: "SSH configuration restoration - Syslog: {{ ssh_syslog_restore_result }}, Log level: {{ ssh_log_level_restore_result }}"
+  when: debug_mode | bool and (ssh_syslog_restore_result is defined or ssh_log_level_restore_result is defined)
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Restart SSH service / Перезапуск службы SSH"
   ansible.builtin.service:
     name: sshd
     state: restarted
   when: fail2ban_cleanup | default(false) | bool
+  register: ssh_restart_result
+  tags:
+    - cleanup
+    - service
+    - ssh
+    - fail2ban
 
-- name: Restart rsyslog service
+- name: "Restart rsyslog service / Перезапуск службы rsyslog"
   ansible.builtin.service:
     name: rsyslog
     state: restarted
   when: fail2ban_cleanup | default(false) | bool
+  register: rsyslog_restart_result
+  tags:
+    - cleanup
+    - service
+    - rsyslog
+    - fail2ban
 
-- name: Unban all IPs (if service is still running)
+- name: "Display services restart results / Отображение результатов перезапуска служб"
+  ansible.builtin.debug:
+    msg: "Services restart - SSH: {{ ssh_restart_result }}, rsyslog: {{ rsyslog_restart_result }}"
+  when: debug_mode | bool and (ssh_restart_result is defined or rsyslog_restart_result is defined)
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Unban all IPs if service is still running / Разблокировка всех IP если служба еще работает"
   ansible.builtin.command: fail2ban-client unban --all
   register: unban_result
   failed_when: false
   when: fail2ban_cleanup | default(false) | bool
+  tags:
+    - cleanup
+    - service
+    - fail2ban
 
-- name: Remove Fail2Ban packages (optional)
+- name: "Display IP unban result / Отображение результата разблокировки IP"
+  ansible.builtin.debug:
+    msg: "IP unban result: {{ unban_result }}"
+  when: debug_mode | bool and unban_result is defined
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Remove Fail2Ban packages if requested / Удаление пакетов Fail2Ban при запросе"
   ansible.builtin.apt:
     name: fail2ban
     state: absent
     purge: true
   when: fail2ban_cleanup | default(false) | bool and fail2ban_remove_packages | default(false) | bool
+  register: package_removal_result
+  tags:
+    - cleanup
+    - packages
+    - fail2ban
+
+- name: "Display package removal result / Отображение результата удаления пакетов"
+  ansible.builtin.debug:
+    msg: "Fail2Ban package removal result: {{ package_removal_result }}"
+  when: debug_mode | bool and package_removal_result is defined
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Display cleanup completion summary / Отображение сводки завершения очистки"
+  ansible.builtin.debug:
+    msg: |
+      Fail2Ban cleanup operation completed!
+      Операция очистки Fail2Ban завершена!
+      - Service stopped and disabled: {{ stop_service_result.changed | default('N/A') }}
+      - Service disabled: {{ disable_service_result.changed | default('N/A') }}
+      - Configuration files removed: {{ config_removal_result.results | length | default(0) }} files
+      - SSH log directory removed: {{ ssh_log_removal_result.changed | default('N/A') }}
+      - SSH configuration restored: {{ ssh_syslog_restore_result.changed | default('N/A') }}
+      - Packages removed: {{ package_removal_result.changed | default('N/A') }}
+      - Cleanup timestamp: {{ ansible_date_time.iso8601 }}
+      - Служба остановлена и отключена
+      - Файлы конфигурации удалены
+      - Конфигурация SSH восстановлена
+  when: debug_mode | bool and fail2ban_cleanup | default(false) | bool
+  tags:
+    - cleanup
+    - debug
+    - fail2ban
+
+- name: "Display detailed cleanup results / Отображение детальных результатов очистки"
+  ansible.builtin.debug:
+    msg: |
+      Detailed cleanup operation results:
+      Детальные результаты операции очистки:
+      {% if config_removal_result.results is defined %}
+      - Configuration files processed:
+        {% for result in config_removal_result.results %}
+        * {{ result.item }}: {{ result.changed | ternary('removed', 'not found') }}
+        {% endfor %}
+      {% endif %}
+      {% if package_removal_result is defined %}
+      - Package removal: {{ package_removal_result.changed | ternary('packages removed', 'no packages to remove') }}
+      {% endif %}
+  when: debug_mode | bool and fail2ban_cleanup | default(false) | bool
+  tags:
+    - cleanup
+    - debug
+    - fail2ban

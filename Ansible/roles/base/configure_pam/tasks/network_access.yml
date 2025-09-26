@@ -1,0 +1,237 @@
+---
+# Network access management tasks through PAM
+# Задачи для управления сетевым доступом через PAM
+# Control user access from specific networks
+# Контроль доступа пользователей из определенных сетей
+
+# Configure pam_access for network access control
+# Настройка pam_access для контроля доступа по сетям
+- name: "Configure pam_access for network access control / Настроить pam_access для контроля сетевого доступа"
+  ansible.builtin.template:
+    src: access.conf.j2
+    dest: "{{ pam_access_file }}"
+    mode: '0644'
+    owner: root
+    group: root
+    backup: yes
+  notify: restart ssh
+
+# Create SSH users file
+# Создание файла разрешенных SSH пользователей
+- name: "Create SSH users file / Создать файл SSH пользователей"
+  ansible.builtin.template:
+    src: ssh_users.j2
+    dest: "{{ pam_ssh_users_file }}"
+    mode: '0644'
+    owner: root
+    group: root
+    backup: yes
+  when: users_to_add | length > 0
+
+- name: "Display network access configuration / Показать конфигурацию сетевого доступа"
+  ansible.builtin.debug:
+    msg: "Network access configured: access_file={{ pam_access_file }}, ssh_users_file={{ pam_ssh_users_file }} / Сетевой доступ настроен: access_file={{ pam_access_file }}, ssh_users_file={{ pam_ssh_users_file }}"
+  when: debug_mode
+
+# Configure pam_access in common-auth
+# Настройка pam_access в common-auth
+- name: "Configure pam_access in common-auth / Настроить pam_access в common-auth"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    line: "auth required pam_access.so accessfile={{ pam_access_file }}"
+    state: present
+    insertafter: '^auth.*pam_unix\.so'
+    backup: yes
+  notify: restart ssh
+
+# Configure pam_listfile for user control
+# Настройка pam_listfile для контроля пользователей
+- name: "Configure pam_listfile in common-auth / Настроить pam_listfile в common-auth"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    line: "auth required pam_listfile.so item={{ pam_listfile_item }} sense={{ pam_listfile_sense }} file={{ pam_listfile_file }} onerr={{ pam_listfile_onerr }}"
+    state: present
+    insertafter: '^auth.*pam_access\.so'
+    backup: yes
+  when: 
+    - pam_listfile_enabled
+    - users_to_add | length > 0
+  notify: restart ssh
+
+# Configure pam_access in sshd
+# Настройка pam_access в sshd
+- name: "Configure pam_access in sshd / Настроить pam_access в sshd"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/sshd
+    line: "auth required pam_access.so accessfile={{ pam_access_file }}"
+    state: present
+    insertafter: '^auth.*pam_unix\.so'
+    backup: yes
+    create: yes
+  notify: restart ssh
+
+# Configure pam_listfile in sshd
+# Настройка pam_listfile в sshd
+- name: "Configure pam_listfile in sshd / Настроить pam_listfile в sshd"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/sshd
+    line: "auth required pam_listfile.so item={{ pam_listfile_item }} sense={{ pam_listfile_sense }} file={{ pam_listfile_file }} onerr={{ pam_listfile_onerr }}"
+    state: present
+    insertafter: '^auth.*pam_access\.so'
+    backup: yes
+    create: yes
+  when: 
+    - pam_listfile_enabled
+    - users_to_add | length > 0
+  notify: restart ssh
+
+# Configure additional SSH security parameters
+# Настройка дополнительных параметров SSH безопасности
+- name: "Configure SSH MaxAuthTries / Настроить SSH MaxAuthTries"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxAuthTries'
+    line: "MaxAuthTries {{ ssh_security.max_auth_tries }}"
+    state: present
+    backup: yes
+  notify: reload sshd config
+
+- name: "Configure SSH PermitEmptyPasswords / Настроить SSH PermitEmptyPasswords"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitEmptyPasswords'
+    line: "PermitEmptyPasswords {{ ssh_security.permit_empty_passwords }}"
+    state: present
+    backup: yes
+  notify: reload sshd config
+
+- name: "Configure SSH PasswordAuthentication / Настроить SSH PasswordAuthentication"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: "PasswordAuthentication {{ ssh_security.password_authentication }}"
+    state: present
+    backup: yes
+  notify: reload sshd config
+
+- name: "Configure SSH PubkeyAuthentication / Настроить SSH PubkeyAuthentication"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PubkeyAuthentication'
+    line: "PubkeyAuthentication {{ ssh_security.pubkey_authentication }}"
+    state: present
+    backup: yes
+  notify: reload sshd config
+
+
+- name: "Disable root login via SSH / Отключить вход root через SSH"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: "PermitRootLogin no"
+    state: present
+    backup: yes
+  when: pam_root_console_only
+  notify: reload sshd config
+
+- name: "Display SSH security configuration / Показать конфигурацию безопасности SSH"
+  ansible.builtin.debug:
+    msg: "SSH security configured: MaxAuthTries={{ ssh_security.max_auth_tries }}, PermitEmptyPasswords={{ ssh_security.permit_empty_passwords }} / Безопасность SSH настроена: MaxAuthTries={{ ssh_security.max_auth_tries }}, PermitEmptyPasswords={{ ssh_security.permit_empty_passwords }}"
+  when: debug_mode
+
+# Test pam_access configuration
+# Проверка конфигурации pam_access
+- name: "Test pam_access configuration / Протестировать конфигурацию pam_access"
+  ansible.builtin.command: "pam_access -v"
+  register: pam_access_test
+  changed_when: false
+  failed_when: false
+
+- name: "Display pam_access test results / Показать результаты теста pam_access"
+  ansible.builtin.debug:
+    msg: "PAM access test / Тест PAM access: {{ pam_access_test.stdout | default('test failed / не удалось выполнить тест') }}"
+  when: debug_mode
+
+# Create access management script
+# Создание скрипта для управления доступом
+- name: "Create access management script / Создать скрипт управления доступом"
+  ansible.builtin.template:
+    src: manage_ssh_access.sh.j2
+    dest: /root/manage_ssh_access.sh
+    mode: '0755'
+    owner: root
+    group: root
+
+# Create denied users file
+# Создание файла запрещенных пользователей
+- name: "Create denied users file / Создать файл запрещенных пользователей"
+  ansible.builtin.file:
+    path: "{{ pam_denied_users_file }}"
+    state: touch
+    mode: '0644'
+    owner: root
+    group: root
+
+# Configure pam_listfile for denied users
+# Настройка pam_listfile для запрещенных пользователей
+- name: "Configure pam_listfile for denied users / Настроить pam_listfile для запрещенных пользователей"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    line: "auth required pam_listfile.so item=user sense=deny file={{ pam_denied_users_file }} onerr=succeed"
+    state: present
+    insertafter: '^auth.*pam_listfile\.so.*ssh_users'
+    backup: yes
+  notify: restart ssh
+
+# Create network access summary report
+# Создание отчета о сетевых настройках
+- name: "Create network access summary report / Создать сводный отчет о сетевых настройках"
+  ansible.builtin.copy:
+    dest: "/tmp/pam_network_summary_{{ ansible_date_time.epoch }}"
+    content: |
+      PAM Role Network Access Report / Отчет о сетевых настройках PAM роли
+      ====================================================================
+      Application Date / Дата применения: {{ ansible_date_time.iso8601 }}
+      Host / Хост: {{ ansible_hostname }}
+      
+      Access Settings / Настройки доступа:
+      - pam_access file / Файл pam_access: {{ pam_access_file }}
+      - SSH users file / Файл SSH пользователей: {{ pam_ssh_users_file }}
+      - Denied users file / Файл запрещенных пользователей: {{ pam_denied_users_file }}
+      - Local access allowed / Разрешен локальный доступ: {{ 'Yes / Да' if pam_access_allow_local else 'No / Нет' }}
+      - Console access allowed / Разрешен консольный доступ: {{ 'Yes / Да' if pam_access_allow_console else 'No / Нет' }}
+      - All other access denied / Запрещен доступ всем остальным: {{ 'Yes / Да' if pam_access_deny_all_other else 'No / Нет' }}
+      
+      SSH Settings / SSH настройки:
+      - Max authentication attempts / Максимум попыток аутентификации: {{ ssh_security.max_auth_tries }}
+      - Empty passwords allowed / Разрешены пустые пароли: {{ ssh_security.permit_empty_passwords }}
+      - Password authentication / Аутентификация по паролю: {{ ssh_security.password_authentication }}
+      - Public key authentication / Аутентификация по ключу: {{ ssh_security.pubkey_authentication }}
+      - Root login via SSH / Вход root через SSH: {{ 'Disabled / Запрещен' if pam_root_console_only else 'Enabled / Разрешен' }}
+      
+      Users with network restrictions / Пользователи с сетевыми ограничениями:
+      {% for user in users_to_add %}
+      - {{ user.username }}
+        Allowed networks / Разрешенные сети: {{ user.allowed_subnets | default([]) | join(', ') }}
+        Denied networks / Запрещенные сети: {{ user.denied_ssh_subnets | default([]) | join(', ') }}
+      {% endfor %}
+    mode: '0644'
+    owner: root
+    group: root
+  when: debug_mode
+
+# Notify SSH restart for network access changes
+# Уведомление о перезапуске SSH
+- name: "Notify SSH restart for network access changes / Уведомить о перезапуске SSH для изменений сетевого доступа"
+  ansible.builtin.meta: flush_handlers
+
+- name: "Display network access management summary / Показать сводку управления сетевым доступом"
+  ansible.builtin.debug:
+    msg:
+      - "Network Access Management Summary / Сводка управления сетевым доступом:"
+      - "  - Access control enabled / Контроль доступа включен: {{ pam_network_access_enabled }}"
+      - "  - Users with network restrictions / Пользователи с сетевыми ограничениями: {{ users_to_add | length }}"
+      - "  - SSH security configured / Безопасность SSH настроена: Yes / Да"
+      - "  - Access management script created / Скрипт управления доступом создан: Yes / Да"
+      - "  - PAM modules configured / PAM модули настроены: pam_access, pam_listfile"
+  when: debug_mode

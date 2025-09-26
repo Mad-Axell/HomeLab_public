@@ -1,0 +1,273 @@
+---
+# PAM configuration validation tasks
+# Задачи валидации конфигурации PAM
+# Validates all parameters before applying PAM configuration
+# Валидирует все параметры перед применением конфигурации PAM
+
+- name: "Validate PAM faillock parameters / Валидировать параметры PAM faillock"
+  ansible.builtin.assert:
+    that:
+      - pam_faillock_deny is number
+      - pam_faillock_deny >= 1
+      - pam_faillock_deny <= 10
+      - pam_unlock_time is number
+      - pam_unlock_time >= 60
+      - pam_unlock_time <= 86400
+    fail_msg: "Invalid PAM faillock parameters. deny must be 1-10, unlock_time must be 60-86400 seconds / Неверные параметры PAM faillock. deny должен быть 1-10, unlock_time должен быть 60-86400 секунд"
+    success_msg: "PAM faillock parameters are correct / Параметры PAM faillock корректны"
+
+- name: "Validate PAM password quality parameters / Валидировать параметры качества паролей PAM"
+  ansible.builtin.assert:
+    that:
+      - pam_pwquality_retry is number
+      - pam_pwquality_retry >= 1
+      - pam_pwquality_retry <= 5
+      - pam_pwquality_minlen is number
+      - pam_pwquality_minlen >= 8
+      - pam_pwquality_minlen <= 32
+      - pam_pwquality_difok is number
+      - pam_pwquality_difok >= 1
+      - pam_pwquality_difok <= 10
+      - pam_pwquality_minclass is number
+      - pam_pwquality_minclass >= 1
+      - pam_pwquality_minclass <= 4
+      - pam_pwquality_maxrepeat is number
+      - pam_pwquality_maxrepeat >= 0
+      - pam_pwquality_maxrepeat <= 10
+    fail_msg: "Invalid PAM password quality parameters / Неверные параметры качества паролей PAM"
+    success_msg: "PAM password quality parameters are correct / Параметры качества паролей PAM корректны"
+
+- name: "Validate PAM limits parameters / Валидировать параметры лимитов PAM"
+  ansible.builtin.assert:
+    that:
+      - pam_limits_maxlogins is number
+      - pam_limits_maxlogins >= 1
+      - pam_limits_maxlogins <= 100
+      - pam_limits_maxsyslogins is number
+      - pam_limits_maxsyslogins >= 10
+      - pam_limits_maxsyslogins <= 1000
+    fail_msg: "Invalid PAM limits parameters / Неверные параметры лимитов PAM"
+    success_msg: "PAM limits parameters are correct / Параметры лимитов PAM корректны"
+
+- name: "Validate PAM wheel group / Валидировать группу PAM wheel"
+  ansible.builtin.assert:
+    that:
+      - pam_wheel_group is string
+      - pam_wheel_group | length > 0
+      - pam_wheel_group | length <= 32
+    fail_msg: "Invalid PAM wheel group name / Неверное имя группы PAM wheel"
+    success_msg: "PAM wheel group is correct / Группа PAM wheel корректна"
+
+- name: "Check PAM wheel group existence / Проверить существование группы PAM wheel"
+  ansible.builtin.getent:
+    database: group
+    key: "{{ pam_wheel_group }}"
+  register: pam_wheel_group_check
+  failed_when: false
+  when: pam_check_groups
+
+- name: "Verify PAM wheel group existence / Проверить существование группы PAM wheel"
+  ansible.builtin.assert:
+    that:
+      - pam_wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+    fail_msg: "Group '{{ pam_wheel_group }}' does not exist in system. Create group or change pam_wheel_group / Группа '{{ pam_wheel_group }}' не существует в системе. Создайте группу или измените pam_wheel_group"
+    success_msg: "Group '{{ pam_wheel_group }}' exists / Группа '{{ pam_wheel_group }}' существует"
+  when: pam_check_groups
+
+- name: "Warning about non-existent PAM wheel group / Предупреждение о несуществующей группе PAM wheel"
+  ansible.builtin.debug:
+    msg: "WARNING: Group '{{ pam_wheel_group }}' does not exist in system. Role will skip wheel settings. Create group or change pam_wheel_group / ВНИМАНИЕ: Группа '{{ pam_wheel_group }}' не существует в системе. Роль будет пропускать настройки wheel. Создайте группу или измените pam_wheel_group"
+  when: 
+    - pam_check_groups
+    - pam_wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is not defined
+
+- name: "Validate SSH security parameters / Валидировать параметры безопасности SSH"
+  ansible.builtin.assert:
+    that:
+      - ssh_security is defined
+      - ssh_security.max_auth_tries is defined
+      - ssh_security.max_auth_tries is number
+      - ssh_security.max_auth_tries >= 1
+      - ssh_security.max_auth_tries <= 10
+      - ssh_security.permit_empty_passwords is defined
+      - ssh_security.permit_empty_passwords in ['yes', 'no']
+      - ssh_security.password_authentication is defined
+      - ssh_security.password_authentication in ['yes', 'no']
+      - ssh_security.pubkey_authentication is defined
+      - ssh_security.pubkey_authentication in ['yes', 'no']
+    fail_msg: "Invalid SSH security parameters / Неверные параметры безопасности SSH"
+    success_msg: "SSH security parameters are correct / Параметры безопасности SSH корректны"
+
+- name: "Validate boolean parameters / Валидировать булевы параметры"
+  ansible.builtin.assert:
+    that:
+      - pam_faillock_audit is boolean
+      - pam_faillock_silent is boolean
+      - pam_pwquality_gecoscheck is boolean
+      - pam_pwquality_reject_username is boolean
+      - pam_limits_enabled is boolean
+      - pam_wheel_use_uid is boolean
+      - pam_root_console_only is boolean
+      - pam_root_securetty is boolean
+      - pam_backup_enabled is boolean
+      - debug_mode is boolean
+    fail_msg: "Invalid boolean parameters in PAM configuration / Неверные булевы параметры в конфигурации PAM"
+    success_msg: "All boolean parameters are correct / Все булевы параметры корректны"
+
+- name: "Validate PAM module path variables / Валидировать переменные путей к PAM модулям"
+  ansible.builtin.assert:
+    that:
+      - pam_module_paths is defined
+      - pam_module_paths is iterable
+      - pam_module_paths | length > 0
+      - pam_critical_modules is defined
+      - pam_critical_modules is iterable
+      - pam_critical_modules | length > 0
+    fail_msg: "PAM module path variables are not defined or incorrect / Переменные путей к PAM модулям не определены или некорректны"
+    success_msg: "PAM module path variables are correct / Переменные путей к PAM модулям корректны"
+
+- name: "Check availability of required PAM modules / Проверить доступность требуемых PAM модулей"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: pam_module_check
+  loop: "{{ pam_module_paths }}"
+
+- name: "Find available PAM modules / Найти доступные PAM модули"
+  ansible.builtin.set_fact:
+    available_pam_modules: "{{ available_pam_modules | default({}) | combine({module_name: item.item}) }}"
+  vars:
+    module_name: "{{ item.item | basename | regex_replace('.*/', '') | regex_replace('\\.so$', '') }}"
+  loop: "{{ pam_module_check.results }}"
+  when: item.stat.exists
+
+- name: "Check critical PAM modules availability / Проверить наличие критических PAM модулей"
+  ansible.builtin.assert:
+    that:
+      - "item in available_pam_modules"
+    fail_msg: "Critical PAM module '{{ item }}' not found. Available modules: {{ available_pam_modules.keys() | list }} / Критический PAM модуль '{{ item }}' не найден. Доступные модули: {{ available_pam_modules.keys() | list }}"
+    success_msg: "Critical PAM module '{{ item }}' found / Критический PAM модуль '{{ item }}' найден"
+  loop: "{{ pam_critical_modules }}"
+
+- name: "Check optional PAM modules availability / Проверить наличие опциональных PAM модулей"
+  ansible.builtin.debug:
+    msg: "Optional PAM module '{{ item }}' {{ 'found / найден' if item in available_pam_modules else 'not found / не найден' }}"
+  loop: "{{ pam_optional_modules }}"
+  when: pam_check_optional_modules
+
+- name: "Display PAM modules availability / Показать доступность PAM модулей"
+  ansible.builtin.debug:
+    msg: "PAM module {{ item.key }} found at path / PAM модуль {{ item.key }} найден по пути: {{ item.value }}"
+  loop: "{{ available_pam_modules | dict2items }}"
+  when: debug_mode
+
+- name: "Check SSH configuration existence / Проверить существование SSH конфигурации"
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: ssh_config_check
+
+- name: "Verify SSH configuration existence / Проверить существование SSH конфигурации"
+  ansible.builtin.assert:
+    that:
+      - ssh_config_check.stat.exists
+    fail_msg: "SSH configuration /etc/ssh/sshd_config not found / SSH конфигурация /etc/ssh/sshd_config не найдена"
+    success_msg: "SSH configuration found / SSH конфигурация найдена"
+
+- name: "Check access rights to critical files / Проверить права доступа к критическим файлам"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: critical_files_check
+  loop:
+    - /etc/pam.d
+    - /etc/ssh
+    - /etc/sudoers.d
+    - /etc/security
+
+- name: "Verify access rights to critical directories / Проверить права доступа к критическим директориям"
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isdir
+    fail_msg: "Critical directory {{ item.item }} does not exist or is not accessible / Критическая директория {{ item.item }} не существует или недоступна"
+    success_msg: "All critical directories are accessible / Все критические директории доступны"
+  loop: "{{ critical_files_check.results }}"
+
+- name: "Validate network access parameters / Валидировать параметры сетевого доступа"
+  ansible.builtin.assert:
+    that:
+      - pam_network_access_enabled is boolean
+      - users_to_add is defined
+      - users_to_add is iterable
+      - pam_access_file is string
+      - pam_ssh_users_file is string
+    fail_msg: "Invalid network access parameters / Неверные параметры сетевого доступа"
+    success_msg: "Network access parameters are correct / Параметры сетевого доступа корректны"
+  when: pam_network_access_enabled
+
+- name: "Validate user structure / Валидировать структуру пользователя"
+  ansible.builtin.assert:
+    that:
+      - item.username is defined
+      - item.username is match('^[a-zA-Z0-9_-]+$')
+      - item.username | length >= 1
+      - item.username | length <= 32
+      - item.password is defined
+      - item.password | length >= 8
+      - item.groups is defined or item.groups is not defined
+      - item.is_sudoers is defined or item.is_sudoers is not defined
+      - item.shell is defined or item.shell is not defined
+      - item.allowed_subnets is defined or item.allowed_subnets is not defined
+      - item.denied_ssh_subnets is defined or item.denied_ssh_subnets is not defined
+    fail_msg: "Invalid user structure: {{ item }}. Required: username and password, optional: groups, is_sudoers, shell, allowed_subnets, denied_ssh_subnets / Неверная структура пользователя: {{ item }}. Требуется username и password, опционально: groups, is_sudoers, shell, allowed_subnets, denied_ssh_subnets"
+    success_msg: "User structure {{ item.username }} is correct / Структура пользователя {{ item.username }} корректна"
+  loop: "{{ users_to_add }}"
+  when: users_to_add | length > 0
+
+- name: "Validate user allowed subnets / Валидировать разрешенные подсети пользователя"
+  ansible.builtin.assert:
+    that:
+      - item.1 is match('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(/[0-9]{1,2})?$') or item.1 is match('^[a-fA-F0-9:]+(/[0-9]{1,3})?$')
+    fail_msg: "Invalid subnet format in user {{ item.0.username }} allowed_subnets: {{ item.1 }} / Неверный формат подсети в allowed_subnets пользователя {{ item.0.username }}: {{ item.1 }}"
+    success_msg: "Subnet {{ item.1 }} in user {{ item.0.username }} allowed_subnets is correct / Подсеть {{ item.1 }} в allowed_subnets пользователя {{ item.0.username }} корректна"
+  with_nested:
+    - "{{ users_to_add }}"
+    - "{{ item.allowed_subnets | default([]) }}"
+  when: 
+    - users_to_add | length > 0
+    - item.0.allowed_subnets is defined
+    - item.0.allowed_subnets | length > 0
+
+- name: "Validate user denied subnets / Валидировать запрещенные подсети пользователя"
+  ansible.builtin.assert:
+    that:
+      - item.1 is match('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(/[0-9]{1,2})?$') or item.1 is match('^[a-fA-F0-9:]+(/[0-9]{1,3})?$')
+    fail_msg: "Invalid subnet format in user {{ item.0.username }} denied_ssh_subnets: {{ item.1 }} / Неверный формат подсети в denied_ssh_subnets пользователя {{ item.0.username }}: {{ item.1 }}"
+    success_msg: "Subnet {{ item.1 }} in user {{ item.0.username }} denied_ssh_subnets is correct / Подсеть {{ item.1 }} в denied_ssh_subnets пользователя {{ item.0.username }} корректна"
+  with_nested:
+    - "{{ users_to_add }}"
+    - "{{ item.denied_ssh_subnets | default([]) }}"
+  when: 
+    - users_to_add | length > 0
+    - item.0.denied_ssh_subnets is defined
+    - item.0.denied_ssh_subnets | length > 0
+
+- name: "Validate system requirements / Валидировать системные требования"
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    fail_msg: "This PAM role is designed only for Debian/Ubuntu and RedHat/CentOS systems / Эта роль PAM предназначена только для систем Debian/Ubuntu и RedHat/CentOS"
+    success_msg: "System family is supported / Семейство системы поддерживается"
+
+- name: "Display validation summary / Показать сводку валидации"
+  ansible.builtin.debug:
+    msg:
+      - "Validation Summary / Сводка валидации:"
+      - "  - PAM faillock parameters: Valid / Валидны"
+      - "  - Password quality parameters: Valid / Валидны"
+      - "  - PAM limits parameters: Valid / Валидны"
+      - "  - SSH security parameters: Valid / Валидны"
+      - "  - Boolean parameters: Valid / Валидны"
+      - "  - PAM modules: {{ available_pam_modules.keys() | length }} found / найдено"
+      - "  - Critical directories: All accessible / Все доступны"
+      - "  - Users to validate: {{ users_to_add | length }}"
+      - "  - System family: {{ ansible_os_family }}"
+  when: debug_mode

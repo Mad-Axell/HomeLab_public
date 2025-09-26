@@ -1,0 +1,30 @@
+---
+galaxy_info:
+  author: Ansible Admin
+  description: Роль для безопасной настройки PAM с управлением пользователями и сетевым доступом
+  company: Internal
+  license: MIT
+  min_ansible_version: "2.9"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+  galaxy_tags:
+    - security
+    - pam
+    - authentication
+    - users
+    - network
+    - access_control
+
+dependencies: []

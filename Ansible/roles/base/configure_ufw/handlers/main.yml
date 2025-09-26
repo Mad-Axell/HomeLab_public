@@ -1,20 +1,30 @@
 ---
-# UFW Configuration Handlers
+# UFW Configuration Handlers / Обработчики конфигурации UFW
 # Handlers for UFW service management
+# Обработчики для управления службой UFW
 
-- name: reload ufw
+- name: "Reload UFW service / Перезагрузить службу UFW"
   ansible.builtin.service:
     name: ufw
     state: reloaded
   listen: "reload ufw"
+  tags:
+    - handlers
+    - ufw
 
-- name: restart ufw
+- name: "Restart UFW service / Перезапустить службу UFW"
   ansible.builtin.service:
     name: ufw
     state: restarted
   listen: "restart ufw"
+  tags:
+    - handlers
+    - ufw
 
-- name: enable ufw
+- name: "Enable UFW / Включить UFW"
   community.general.ufw:
     state: enabled
   listen: "enable ufw"
+  tags:
+    - handlers
+    - ufw

@@ -1,0 +1,127 @@
+---
+# Предварительные проверки перед применением PAM конфигурации
+# Эти проверки помогают избежать блокировки доступа
+
+- name: Проверить текущих активных пользователей
+  ansible.builtin.command: who
+  register: active_users
+  changed_when: false
+  failed_when: false
+
+- name: Показать активных пользователей
+  ansible.builtin.debug:
+    msg: "Активные пользователи: {{ active_users.stdout_lines }}"
+  when: debug_mode
+
+- name: Проверить SSH соединения
+  ansible.builtin.command: ss -tuln | grep :22
+  register: ssh_connections
+  changed_when: false
+  failed_when: false
+
+- name: Показать SSH соединения
+  ansible.builtin.debug:
+    msg: "SSH соединения: {{ ssh_connections.stdout_lines }}"
+  when: debug_mode
+
+- name: Проверить существование критических пользователей
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item }}"
+  register: critical_users_check
+  failed_when: false
+  loop: "{{ pam_critical_users | default(['root', ansible_user]) }}"
+
+- name: Предупреждение о несуществующих критических пользователях
+  ansible.builtin.debug:
+    msg: "ВНИМАНИЕ: Критический пользователь '{{ item.item }}' не существует"
+  loop: "{{ critical_users_check.results }}"
+  when: 
+    - item.ansible_facts.getent_passwd[item.item] is not defined
+    - debug_mode
+
+- name: Проверить пароли критических пользователей
+  ansible.builtin.command: "passwd -S {{ item.item }}"
+  register: password_status_check
+  failed_when: false
+  loop: "{{ critical_users_check.results }}"
+  when: item.ansible_facts.getent_passwd[item.item] is defined
+
+- name: Показать статус паролей
+  ansible.builtin.debug:
+    msg: "Пользователь {{ item.item }}: {{ item.stdout }}"
+  loop: "{{ password_status_check.results }}"
+  when: 
+    - debug_mode
+    - item.stdout is defined
+
+- name: Проверить текущие настройки SSH
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    state: absent
+  register: current_ssh_root
+  check_mode: yes
+  failed_when: false
+
+- name: Показать текущие SSH настройки
+  ansible.builtin.debug:
+    msg: "Текущая настройка PermitRootLogin: {{ current_ssh_root.before | default('не найдена') }}"
+  when: debug_mode
+
+- name: Проверить существование группы wheel
+  ansible.builtin.getent:
+    database: group
+    key: "{{ pam_wheel_group }}"
+  register: wheel_group_check
+  failed_when: false
+
+- name: Предупреждение о несуществующей группе wheel
+  ansible.builtin.fail:
+    msg: "КРИТИЧЕСКАЯ ОШИБКА: Группа '{{ pam_wheel_group }}' не существует. Создайте группу перед применением роли: groupadd {{ pam_wheel_group }}"
+  when: 
+    - pam_check_groups
+    - wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is not defined
+
+- name: Проверить членство критических пользователей в группе wheel
+  ansible.builtin.getent:
+    database: group
+    key: "{{ pam_wheel_group }}"
+  register: wheel_members
+  when: 
+    - pam_check_groups
+    - wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+
+- name: Показать членов группы wheel
+  ansible.builtin.debug:
+    msg: "Члены группы {{ pam_wheel_group }}: {{ wheel_members.ansible_facts.getent_group[pam_wheel_group].gid }}"
+  when: 
+    - debug_mode
+    - wheel_members is defined
+
+- name: Проверить альтернативные методы доступа
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: ssh_config_exists
+
+- name: Предупреждение об отсутствии SSH конфигурации
+  ansible.builtin.debug:
+    msg: "ВНИМАНИЕ: SSH конфигурация не найдена. Убедитесь в наличии альтернативного доступа"
+  when: 
+    - not ssh_config_exists.stat.exists
+    - debug_mode
+
+- name: Создать файл с информацией о применении роли
+  ansible.builtin.copy:
+    dest: /tmp/pam_role_applied_{{ ansible_date_time.epoch }}
+    content: |
+      PAM роль применена: {{ ansible_date_time.iso8601 }}
+      Пользователь: {{ ansible_user }}
+      Хост: {{ ansible_hostname }}
+      Критические пользователи: {{ pam_critical_users | default(['root', ansible_user]) }}
+      Группа wheel: {{ pam_wheel_group }}
+      SSH настройки: {{ 'включены' if pam_advanced_enabled else 'отключены' }}
+    mode: '0644'
+    owner: root
+    group: root
+  when: pam_create_audit_file | default(true)

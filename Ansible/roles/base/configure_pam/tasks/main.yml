@@ -1,0 +1,513 @@
+---
+# Main tasks for configure_pam role
+# Основные задачи роли configure_pam
+# Secure PAM configuration with user and network access management
+# Безопасная настройка PAM с управлением пользователями и сетевым доступом
+
+- name: "Include pre-checks tasks / Включить задачи предварительных проверок"
+  include_tasks: pre_checks.yml
+  when: pam_prevent_lockout | default(true)
+
+- name: "Include validation tasks / Включить задачи валидации"
+  include_tasks: validate.yml
+
+- name: "Create backup of PAM configuration files / Создать резервные копии конфигурационных файлов PAM"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ item }}{{ pam_backup_suffix }}"
+    remote_src: yes
+    backup: no
+  loop:
+    - /etc/pam.d/common-auth
+    - /etc/pam.d/common-account
+    - /etc/pam.d/common-password
+    - /etc/pam.d/common-session
+    - /etc/pam.d/su
+    - /etc/pam.d/sudo
+    - /etc/pam.d/sshd
+  when: pam_backup_enabled
+  register: pam_backup_result
+  failed_when: false
+  ignore_errors: yes
+
+- name: "Verify backup creation success / Проверить успешность создания резервных копий"
+  ansible.builtin.fail:
+    msg: "Failed to create backups for files / Не удалось создать резервные копии для файлов: {{ pam_backup_result.results | selectattr('failed', 'equalto', true) | map(attribute='item') | list }}"
+  when: 
+    - pam_backup_enabled
+    - pam_backup_result is defined
+    - pam_backup_result.results is defined
+    - pam_backup_result.results | selectattr('failed', 'equalto', true) | list | length > 0
+
+- name: "Display backup creation results / Показать результаты создания резервных копий"
+  ansible.builtin.debug:
+    msg: "Backup created for / Резервная копия создана для: {{ item.item }}"
+  loop: "{{ pam_backup_result.results }}"
+  when: 
+    - debug_mode
+    - pam_backup_enabled
+    - pam_backup_result is defined
+    - not item.failed
+
+- name: "Ensure PAM configuration directory exists / Обеспечить существование директории конфигурации PAM"
+  ansible.builtin.file:
+    path: /etc/pam.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: "Ensure security directory exists / Обеспечить существование директории безопасности"
+  ansible.builtin.file:
+    path: /etc/security
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+# Configure PAM faillock for account lockout protection
+# Настроить PAM faillock для защиты от блокировки аккаунтов
+- name: "Configure PAM faillock - preauth phase / Настроить PAM faillock - фаза предварительной аутентификации"
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/common-auth
+    block: |
+      auth required pam_faillock.so preauth audit={{ 'audit' if pam_faillock_audit else '' }} silent={{ 'silent' if pam_faillock_silent else '' }} deny={{ pam_faillock_deny }} unlock_time={{ pam_unlock_time }}
+    insertbefore: '^auth.*sufficient.*pam_unix\.so'
+    state: present
+    backup: yes
+  notify: restart ssh
+
+#- name: "Configure PAM faillock - authfail phase / Настроить PAM faillock - фаза неудачной аутентификации"
+#  ansible.builtin.blockinfile:
+#    path: /etc/pam.d/common-auth
+#    block: |
+#      auth [default=die] pam_faillock.so authfail audit={{ 'audit' if pam_faillock_audit else '' }} deny={{ pam_faillock_deny }} unlock_time={{ pam_unlock_time }}
+#    insertafter: '^auth.*sufficient.*pam_unix\.so'
+#    state: present
+#    backup: yes
+#  notify: restart ssh
+
+- name: "Configure PAM faillock for account phase / Настроить PAM faillock для фазы аккаунта"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-account
+    line: "account required pam_faillock.so"
+    state: present
+    create: yes
+    backup: yes
+  notify: restart ssh
+
+- name: "Display PAM faillock configuration / Показать конфигурацию PAM faillock"
+  ansible.builtin.debug:
+    msg: "PAM faillock configured with deny={{ pam_faillock_deny }}, unlock_time={{ pam_unlock_time }}s / PAM faillock настроен с deny={{ pam_faillock_deny }}, unlock_time={{ pam_unlock_time }}с"
+  when: debug_mode
+
+# Configure password quality requirements
+# Настроить требования к качеству паролей
+- name: "Configure PAM pwquality for password security / Настроить PAM pwquality для безопасности паролей"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^password\s+requisite\s+pam_pwquality\.so'
+    line: "password requisite pam_pwquality.so retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} difok={{ pam_pwquality_difok }} ucredit={{ pam_pwquality_ucredit }} lcredit={{ pam_pwquality_lcredit }} dcredit={{ pam_pwquality_dcredit }} ocredit={{ pam_pwquality_ocredit }} minclass={{ pam_pwquality_minclass }} maxrepeat={{ pam_pwquality_maxrepeat }} gecoscheck={{ '1' if pam_pwquality_gecoscheck else '0' }} reject_username={{ '1' if pam_pwquality_reject_username else '0' }}"
+    state: present
+    backup: yes
+
+- name: "Display PAM pwquality configuration / Показать конфигурацию PAM pwquality"
+  ansible.builtin.debug:
+    msg: "PAM pwquality configured with minlen={{ pam_pwquality_minlen }}, minclass={{ pam_pwquality_minclass }} / PAM pwquality настроен с minlen={{ pam_pwquality_minlen }}, minclass={{ pam_pwquality_minclass }}"
+  when: debug_mode
+
+# Configure PAM limits for session control
+# Настроить PAM лимиты для контроля сессий
+- name: "Configure PAM limits for session control / Настроить PAM лимиты для контроля сессий"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session required pam_limits.so"
+    state: present
+    create: yes
+    backup: yes
+  when: pam_limits_enabled
+
+- name: "Configure system-wide login limits (soft) / Настроить системные лимиты входа (мягкие)"
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    line: "* soft nproc {{ pam_limits_maxlogins }}"
+    state: present
+    backup: yes
+  when: pam_limits_enabled
+
+- name: "Configure system-wide login limits (hard) / Настроить системные лимиты входа (жесткие)"
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    line: "* hard nproc {{ pam_limits_maxsyslogins }}"
+    state: present
+    backup: yes
+  when: pam_limits_enabled
+
+- name: "Display PAM limits configuration / Показать конфигурацию PAM лимитов"
+  ansible.builtin.debug:
+    msg: "PAM limits configured: maxlogins={{ pam_limits_maxlogins }}, maxsyslogins={{ pam_limits_maxsyslogins }} / PAM лимиты настроены: maxlogins={{ pam_limits_maxlogins }}, maxsyslogins={{ pam_limits_maxsyslogins }}"
+  when: 
+    - debug_mode
+    - pam_limits_enabled
+
+- name: "Configure PAM wheel for su command / Настроить PAM wheel для команды su"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/su
+    regexp: '^#?auth\s+required\s+pam_wheel\.so'
+    line: "auth required pam_wheel.so use_uid={{ 'use_uid' if pam_wheel_use_uid else '' }} group={{ pam_wheel_group }}"
+    state: present
+    backup: yes
+  when: 
+    - pam_check_groups
+    - pam_wheel_group_check is defined
+    - pam_wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+
+- name: "Display PAM wheel configuration / Показать конфигурацию PAM wheel"
+  ansible.builtin.debug:
+    msg: "PAM wheel configured for group {{ pam_wheel_group }} / PAM wheel настроен для группы {{ pam_wheel_group }}"
+  when: 
+    - debug_mode
+    - pam_check_groups
+    - pam_wheel_group_check is defined
+    - pam_wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+
+# Configure sudo access restrictions
+# Настроить ограничения доступа sudo
+- name: "Create sudoers.d directory / Создать директорию sudoers.d"
+  ansible.builtin.file:
+    path: /etc/sudoers.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: "Configure sudo access for administrative group / Настроить доступ sudo для административной группы"
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/{{ pam_wheel_group }}
+    content: "%{{ pam_wheel_group }} ALL=(ALL:ALL) ALL\n"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: 'visudo -cf %s'
+    backup: yes
+  register: sudoers_config_result
+  failed_when: false
+  when: 
+    - pam_check_groups
+    - pam_wheel_group_check is defined
+    - pam_wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+
+- name: "Verify sudoers configuration correctness / Проверить корректность конфигурации sudoers"
+  ansible.builtin.fail:
+    msg: "Error in sudoers configuration for group {{ pam_wheel_group }}. Check syntax. / Ошибка в конфигурации sudoers для группы {{ pam_wheel_group }}. Проверьте синтаксис."
+  when: 
+    - pam_check_groups
+    - pam_wheel_group_check is defined
+    - pam_wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+    - sudoers_config_result.failed
+
+- name: "Display sudoers configuration status / Показать статус конфигурации sudoers"
+  ansible.builtin.debug:
+    msg: "Sudoers configuration for group {{ pam_wheel_group }} created successfully / Конфигурация sudoers для группы {{ pam_wheel_group }} создана успешно"
+  when: 
+    - debug_mode
+    - pam_check_groups
+    - pam_wheel_group_check is defined
+    - pam_wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+    - not sudoers_config_result.failed
+
+# Configure root access restrictions
+# Настроить ограничения доступа root
+- name: "Configure secure TTY for root login / Настроить безопасный TTY для входа root"
+  ansible.builtin.lineinfile:
+    path: /etc/securetty
+    line: "{{ item }}"
+    state: present
+    create: yes
+    backup: yes
+  loop: "{{ pam_securetty_ttys }}"
+  when: pam_root_securetty
+
+- name: "Display secure TTY configuration / Показать конфигурацию безопасного TTY"
+  ansible.builtin.debug:
+    msg: "Secure TTY configured for root login / Безопасный TTY настроен для входа root"
+  when: 
+    - debug_mode
+    - pam_root_securetty
+
+# Configure additional security modules
+# Настроить дополнительные модули безопасности
+- name: "Configure PAM umask for sessions / Настроить PAM umask для сессий"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session optional pam_umask.so umask={{ pam_umask_value }}"
+    state: present
+    create: yes
+    backup: yes
+
+- name: "Configure PAM motd for login banner / Настроить PAM motd для баннера входа"
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session optional pam_motd.so motd={{ pam_motd_file }}"
+    state: present
+    create: yes
+    backup: yes
+
+- name: "Display additional security modules configuration / Показать конфигурацию дополнительных модулей безопасности"
+  ansible.builtin.debug:
+    msg: "Additional security modules configured: umask={{ pam_umask_value }}, motd={{ pam_motd_file }} / Дополнительные модули безопасности настроены: umask={{ pam_umask_value }}, motd={{ pam_motd_file }}"
+  when: debug_mode
+
+# Enable user management and network access control
+# Включить управление пользователями и сетевым доступом
+- name: "Include user management tasks / Включить задачи управления пользователями"
+  include_tasks: user_management.yml
+  when: users_to_add | length > 0
+
+- name: "Include network access control tasks / Включить задачи контроля сетевого доступа"
+  include_tasks: network_access.yml
+  when: pam_network_access_enabled
+
+# Verify PAM configuration
+# Проверить конфигурацию PAM
+- name: "Check PAM configuration syntax / Проверить синтаксис конфигурации PAM"
+  ansible.builtin.command: "faillock --user {{ ansible_user }}"
+  register: pam_verify
+  changed_when: false
+  failed_when: false
+  ignore_errors: yes
+
+- name: "Display PAM verification results / Показать результаты проверки PAM"
+  ansible.builtin.debug:
+    msg: "PAM configuration verification completed / Проверка конфигурации PAM завершена"
+  when: debug_mode
+
+- name: "Display final PAM configuration summary / Показать итоговую сводку конфигурации PAM"
+  ansible.builtin.debug:
+    msg:
+      - "PAM Configuration Summary / Сводка конфигурации PAM:"
+      - "  - Faillock deny: {{ pam_faillock_deny }} attempts / попыток"
+      - "  - Unlock time: {{ pam_unlock_time }} seconds / секунд"
+      - "  - Password min length: {{ pam_pwquality_minlen }} characters / символов"
+      - "  - Limits enabled: {{ pam_limits_enabled }}"
+      - "  - Network access enabled: {{ pam_network_access_enabled }}"
+      - "  - Users to manage: {{ users_to_add | length }}"
+  when: debug_mode
+
+- name: "Display SSH configuration / Показать конфигурацию SSH"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "SSH CONFIGURATION / КОНФИГУРАЦИЯ SSH"
+      - "File: /etc/ssh/sshd_config"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/ssh/sshd_config') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM common-auth configuration / Показать конфигурацию PAM common-auth"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM COMMON-AUTH CONFIGURATION / КОНФИГУРАЦИЯ PAM COMMON-AUTH"
+      - "File: /etc/pam.d/common-auth"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/pam.d/common-auth') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM sshd configuration / Показать конфигурацию PAM sshd"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM SSHD CONFIGURATION / КОНФИГУРАЦИЯ PAM SSHD"
+      - "File: /etc/pam.d/sshd"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/pam.d/sshd') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM access control file / Показать файл контроля доступа PAM"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM ACCESS CONTROL / КОНТРОЛЬ ДОСТУПА PAM"
+      - "File: {{ pam_access_file }}"
+      - "==============================================="
+      - "{{ lookup('file', pam_access_file) }}"
+      - "==============================================="
+  when: 
+    - debug_mode
+    - pam_network_access_enabled
+
+- name: "Display SSH allowed users file / Показать файл разрешенных SSH пользователей"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "SSH ALLOWED USERS / РАЗРЕШЕННЫЕ SSH ПОЛЬЗОВАТЕЛИ"
+      - "File: {{ pam_ssh_users_file }}"
+      - "==============================================="
+      - "{{ lookup('file', pam_ssh_users_file) }}"
+      - "==============================================="
+  when: 
+    - debug_mode
+    - pam_network_access_enabled
+    - users_to_add | length > 0
+
+- name: "Display PAM common-password configuration / Показать конфигурацию PAM common-password"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM COMMON-PASSWORD CONFIGURATION / КОНФИГУРАЦИЯ PAM COMMON-PASSWORD"
+      - "File: /etc/pam.d/common-password"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/pam.d/common-password') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM common-account configuration / Показать конфигурацию PAM common-account"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM COMMON-ACCOUNT CONFIGURATION / КОНФИГУРАЦИЯ PAM COMMON-ACCOUNT"
+      - "File: /etc/pam.d/common-account"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/pam.d/common-account') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM common-session configuration / Показать конфигурацию PAM common-session"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM COMMON-SESSION CONFIGURATION / КОНФИГУРАЦИЯ PAM COMMON-SESSION"
+      - "File: /etc/pam.d/common-session"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/pam.d/common-session') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM su configuration / Показать конфигурацию PAM su"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM SU CONFIGURATION / КОНФИГУРАЦИЯ PAM SU"
+      - "File: /etc/pam.d/su"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/pam.d/su') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM sudo configuration / Показать конфигурацию PAM sudo"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM SUDO CONFIGURATION / КОНФИГУРАЦИЯ PAM SUDO"
+      - "File: /etc/pam.d/sudo"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/pam.d/sudo') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM limits configuration / Показать конфигурацию PAM limits"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM LIMITS CONFIGURATION / КОНФИГУРАЦИЯ PAM LIMITS"
+      - "File: /etc/security/limits.conf"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/security/limits.conf') }}"
+      - "==============================================="
+  when: 
+    - debug_mode
+    - pam_limits_enabled
+
+- name: "Display PAM denied users file / Показать файл запрещенных пользователей PAM"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM DENIED USERS / ЗАПРЕЩЕННЫЕ ПОЛЬЗОВАТЕЛИ PAM"
+      - "File: {{ pam_denied_users_file }}"
+      - "==============================================="
+      - "{{ lookup('file', pam_denied_users_file) }}"
+      - "==============================================="
+  when: 
+    - debug_mode
+    - pam_network_access_enabled
+
+- name: "Display PAM pwquality configuration / Показать конфигурацию PAM pwquality"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM PWQUALITY CONFIGURATION / КОНФИГУРАЦИЯ PAM PWQUALITY"
+      - "File: /etc/security/pwquality.conf"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/security/pwquality.conf') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display PAM securetty configuration / Показать конфигурацию PAM securetty"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "PAM SECURETTY CONFIGURATION / КОНФИГУРАЦИЯ PAM SECURETTY"
+      - "File: /etc/securetty"
+      - "==============================================="
+      - "{{ lookup('file', '/etc/securetty') }}"
+      - "==============================================="
+  when: 
+    - debug_mode
+    - pam_root_securetty
+
+- name: "Display system information / Показать системную информацию"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "SYSTEM INFORMATION / СИСТЕМНАЯ ИНФОРМАЦИЯ"
+      - "==============================================="
+      - "Hostname / Имя хоста: {{ ansible_hostname }}"
+      - "OS Family / Семейство ОС: {{ ansible_os_family }}"
+      - "OS Version / Версия ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Architecture / Архитектура: {{ ansible_architecture }}"
+      - "Current User / Текущий пользователь: {{ ansible_user }}"
+      - "SSH Service Status / Статус службы SSH: {{ ansible_facts.services['ssh.service'].state | default('unknown') }}"
+      - "SSH Service Enabled / SSH служба включена: {{ ansible_facts.services['ssh.service'].status | default('unknown') }}"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display active users and sessions / Показать активных пользователей и сессии"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "ACTIVE USERS AND SESSIONS / АКТИВНЫЕ ПОЛЬЗОВАТЕЛИ И СЕССИИ"
+      - "==============================================="
+      - "Active users / Активные пользователи: {{ ansible_facts.users | length }}"
+      - "Current SSH connections / Текущие SSH соединения: {{ ansible_facts.ssh_host_keys | length }}"
+      - "System uptime / Время работы системы: {{ ansible_uptime_seconds | int // 3600 }} hours / часов"
+      - "==============================================="
+  when: debug_mode
+
+- name: "Display configuration files summary / Показать сводку конфигурационных файлов"
+  ansible.builtin.debug:
+    msg:
+      - "==============================================="
+      - "CONFIGURATION FILES SUMMARY / СВОДКА КОНФИГУРАЦИОННЫХ ФАЙЛОВ"
+      - "==============================================="
+      - "SSH Configuration / Конфигурация SSH: /etc/ssh/sshd_config"
+      - "PAM Common Auth / PAM Общая Аутентификация: /etc/pam.d/common-auth"
+      - "PAM SSHD / PAM SSHD: /etc/pam.d/sshd"
+      - "PAM Common Password / PAM Общие Пароли: /etc/pam.d/common-password"
+      - "PAM Common Account / PAM Общие Аккаунты: /etc/pam.d/common-account"
+      - "PAM Common Session / PAM Общие Сессии: /etc/pam.d/common-session"
+      - "PAM SU / PAM SU: /etc/pam.d/su"
+      - "PAM Sudo / PAM Sudo: /etc/pam.d/sudo"
+      - "PAM Access Control / Контроль доступа PAM: {{ pam_access_file }}"
+      - "SSH Allowed Users / Разрешенные SSH пользователи: {{ pam_ssh_users_file }}"
+      - "PAM Denied Users / Запрещенные пользователи PAM: {{ pam_denied_users_file }}"
+      - "PAM Limits / Лимиты PAM: /etc/security/limits.conf"
+      - "PAM Password Quality / Качество паролей PAM: /etc/security/pwquality.conf"
+      - "PAM Secure TTY / Безопасный TTY PAM: /etc/securetty"
+      - "==============================================="
+      - "All configuration files have been displayed above / Все конфигурационные файлы показаны выше"
+      - "==============================================="
+  when: debug_mode

@@ -1,0 +1,164 @@
+---
+# User management tasks
+# Задачи для управления пользователями
+# Create and configure users according to users_to_add structure
+# Создание и настройка пользователей согласно структуре users_to_add
+
+- name: "Check if users exist / Проверить существование пользователей"
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item.username }}"
+  register: user_existence_check
+  failed_when: false
+  loop: "{{ users_to_add }}"
+
+- name: "Display user existence status / Показать статус существования пользователей"
+  ansible.builtin.debug:
+    msg: "User '{{ item.item.username }}' {{ 'exists / существует' if item.ansible_facts.getent_passwd[item.item.username] is defined else 'does not exist / не существует' }}"
+  loop: "{{ user_existence_check.results }}"
+  when: debug_mode
+
+- name: "Create users if they don't exist / Создать пользователей, если они не существуют"
+  ansible.builtin.user:
+    name: "{{ item.item.username }}"
+    password: "{{ item.item.password | password_hash('sha512') }}"
+    groups: "{{ item.item.groups | default(pam_default_groups) }}"
+    shell: "{{ item.item.shell | default(pam_default_shell) }}"
+    state: present
+    create_home: yes
+    system: no
+  loop: "{{ user_existence_check.results }}"
+  when: 
+    - item.ansible_facts.getent_passwd[item.item.username] is not defined
+    - pam_create_missing_users
+
+- name: "Update existing users / Обновить существующих пользователей"
+  ansible.builtin.user:
+    name: "{{ item.item.username }}"
+    password: "{{ item.item.password | password_hash('sha512') }}"
+    groups: "{{ item.item.groups | default(pam_default_groups) }}"
+    shell: "{{ item.item.shell | default(pam_default_shell) }}"
+    state: present
+    append: yes
+  loop: "{{ user_existence_check.results }}"
+  when: 
+    - item.ansible_facts.getent_passwd[item.item.username] is defined
+    - pam_create_missing_users
+
+- name: "Display user creation/update results / Показать результаты создания/обновления пользователей"
+  ansible.builtin.debug:
+    msg: "User {{ item.item.username }} {{ 'created / создан' if item.ansible_facts.getent_passwd[item.item.username] is not defined else 'updated / обновлен' }}"
+  loop: "{{ user_existence_check.results }}"
+  when: 
+    - debug_mode
+    - pam_create_missing_users
+
+- name: "Add users to wheel group if they are sudoers / Добавить пользователей в группу wheel, если они sudoers"
+  ansible.builtin.user:
+    name: "{{ item.item.username }}"
+    groups: "{{ item.item.groups | default([]) + [pam_wheel_group] }}"
+    append: yes
+  loop: "{{ user_existence_check.results }}"
+  when: 
+    - item.ansible_facts.getent_passwd[item.item.username] is defined
+    - (pam_add_users_to_wheel or item.item.is_sudoers | default(false))
+
+- name: "Create individual sudoers files for sudo users / Создать индивидуальные файлы sudoers для sudo пользователей"
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ item.item.username }}"
+    content: "{{ item.item.username }} ALL=(ALL:ALL) ALL\n"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: 'visudo -cf %s'
+    backup: yes
+  loop: "{{ user_existence_check.results }}"
+  when: 
+    - item.ansible_facts.getent_passwd[item.item.username] is defined
+    - item.item.is_sudoers | default(false)
+    - pam_check_groups
+    - pam_wheel_group_check is defined
+    - pam_wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+
+- name: "Verify sudoers configuration / Проверить конфигурацию sudoers"
+  ansible.builtin.command: "visudo -c"
+  register: sudoers_verify
+  changed_when: false
+  failed_when: sudoers_verify.rc != 0
+
+- name: "Display sudoers verification results / Показать результаты проверки sudoers"
+  ansible.builtin.debug:
+    msg: "Sudoers verification / Проверка sudoers: {{ sudoers_verify.stdout }}"
+  when: debug_mode
+
+- name: "Create user home directories if missing / Создать домашние директории пользователей, если они отсутствуют"
+  ansible.builtin.file:
+    path: "/home/{{ item.item.username }}"
+    state: directory
+    owner: "{{ item.item.username }}"
+    group: "{{ item.item.username }}"
+    mode: '0755'
+  loop: "{{ user_existence_check.results }}"
+  when: 
+    - item.ansible_facts.getent_passwd[item.item.username] is defined
+    - pam_create_missing_users
+
+- name: "Set up SSH directory for users / Настроить SSH директорию для пользователей"
+  ansible.builtin.file:
+    path: "/home/{{ item.item.username }}/.ssh"
+    state: directory
+    owner: "{{ item.item.username }}"
+    group: "{{ item.item.username }}"
+    mode: '0700'
+  loop: "{{ user_existence_check.results }}"
+  when: 
+    - item.ansible_facts.getent_passwd[item.item.username] is defined
+    - pam_create_missing_users
+
+- name: "Display user directory setup results / Показать результаты настройки директорий пользователей"
+  ansible.builtin.debug:
+    msg: "User directories setup completed for {{ item.item.username }} / Настройка директорий пользователя {{ item.item.username }} завершена"
+  loop: "{{ user_existence_check.results }}"
+  when: 
+    - debug_mode
+    - item.ansible_facts.getent_passwd[item.item.username] is defined
+    - pam_create_missing_users
+
+- name: "Create user summary report / Создать сводный отчет о пользователях"
+  ansible.builtin.copy:
+    dest: "/tmp/pam_users_summary_{{ ansible_date_time.epoch }}"
+    content: |
+      PAM Role Users Report / Отчет о пользователях PAM роли
+      ======================================================
+      Application Date / Дата применения: {{ ansible_date_time.iso8601 }}
+      Host / Хост: {{ ansible_hostname }}
+      
+      Users / Пользователи:
+      {% for user in users_to_add %}
+      - {{ user.username }}
+        Groups / Группы: {{ user.groups | default(pam_default_groups) | join(', ') }}
+        Sudo: {{ 'Yes / Да' if user.is_sudoers | default(false) else 'No / Нет' }}
+        Shell / Оболочка: {{ user.shell | default(pam_default_shell) }}
+        Allowed networks / Разрешенные сети: {{ user.allowed_subnets | default([]) | join(', ') }}
+        Denied networks / Запрещенные сети: {{ user.denied_ssh_subnets | default([]) | join(', ') }}
+      {% endfor %}
+      
+      Status / Статус:
+      - Users created / Создано пользователей: {{ user_existence_check.results | selectattr('ansible_facts.getent_passwd', 'undefined') | list | length }}
+      - Users updated / Обновлено пользователей: {{ user_existence_check.results | selectattr('ansible_facts.getent_passwd', 'defined') | list | length }}
+      - Sudo users / Sudo пользователей: {{ users_to_add | selectattr('is_sudoers', 'defined') | selectattr('is_sudoers', 'equalto', true) | list | length }}
+    mode: '0644'
+    owner: root
+    group: root
+  when: debug_mode
+
+- name: "Display user management summary / Показать сводку управления пользователями"
+  ansible.builtin.debug:
+    msg:
+      - "User Management Summary / Сводка управления пользователями:"
+      - "  - Total users processed / Всего пользователей обработано: {{ users_to_add | length }}"
+      - "  - Users created / Создано пользователей: {{ user_existence_check.results | selectattr('ansible_facts.getent_passwd', 'undefined') | list | length }}"
+      - "  - Users updated / Обновлено пользователей: {{ user_existence_check.results | selectattr('ansible_facts.getent_passwd', 'defined') | list | length }}"
+      - "  - Sudo users / Sudo пользователей: {{ users_to_add | selectattr('is_sudoers', 'defined') | selectattr('is_sudoers', 'equalto', true) | list | length }}"
+      - "  - Wheel group / Группа wheel: {{ pam_wheel_group }}"
+  when: debug_mode

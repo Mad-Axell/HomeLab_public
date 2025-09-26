@@ -1,69 +1,36 @@
-# Fail2Ban Configuration Role
+# Fail2Ban Configuration Role / Роль конфигурации Fail2Ban
 
-This Ansible role configures Fail2Ban with security best practices to protect your system against brute force attacks and unauthorized access attempts.
+This Ansible role configures Fail2Ban intrusion prevention system with security best practices to protect your system against brute force attacks and unauthorized access attempts.
 
-## Overview
+**Данная роль Ansible настраивает систему предотвращения вторжений Fail2Ban с соблюдением лучших практик безопасности для защиты системы от брутфорс-атак и несанкционированных попыток доступа.**
+
+## Version 2.0.0 - Enhanced Security & Best Practices / Версия 2.0.0 - Улучшенная безопасность и лучшие практики
+
+This role has been completely updated to follow Ansible best practices with comprehensive validation, enhanced debugging, and bilingual documentation.
+
+**Данная роль была полностью обновлена для следования лучшим практикам Ansible с комплексной валидацией, улучшенной отладкой и двуязычной документацией.**
+
+## Overview / Обзор
 
 Fail2Ban is an intrusion prevention software framework that protects computer servers from brute-force attacks. This role provides a comprehensive configuration that includes:
 
-- SSH protection with customizable jail settings
-- Configurable logging and monitoring
-- Integration with UFW firewall
-- Support for additional service jails (nginx, apache, etc.)
-- Comprehensive validation and error handling
+**Fail2Ban — это фреймворк для предотвращения вторжений, который защищает серверы от брутфорс-атак. Данная роль предоставляет комплексную конфигурацию, включающую:**
 
-## Requirements
+- SSH protection with customizable jail settings / Защиту SSH с настраиваемыми параметрами тюрем
+- Configurable logging and monitoring / Настраиваемое логирование и мониторинг
+- Integration with UFW firewall / Интеграцию с UFW firewall
+- Support for additional service jails (nginx, apache, etc.) / Поддержку дополнительных тюрем для сервисов (nginx, apache и др.)
+- Comprehensive validation and error handling / Комплексную валидацию и обработку ошибок
+- Extensive debug information and bilingual comments / Обширную отладочную информацию и двуязычные комментарии
 
-- Ansible 2.9 or higher
-- Debian-based Linux distribution (Ubuntu, Debian)
-- Root or sudo privileges
-- UFW firewall (recommended)
+## Requirements / Требования
 
-## Role Variables
+- Ansible 2.9 or higher / Ansible 2.9 или выше
+- Debian-based Linux distribution (Ubuntu, Debian) / Linux на базе Debian (Ubuntu, Debian)
+- Root or sudo privileges / Права root или sudo
+- UFW firewall (recommended) / UFW firewall (рекомендуется)
 
-### Main Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `fail2ban_install` | `true` | Whether to install Fail2Ban |
-| `fail2ban_packages` | `['fail2ban', 'rsyslog', 'iptables']` | Required packages |
-| `debug_mode` | `true` | Enable debug output |
-
-### SSH Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ssh_port` | `22` | SSH port number |
-| `ssh_protocol` | `"tcp"` | SSH protocol |
-
-### Jail Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `fail2ban_jails.ssh.enabled` | `true` | Enable SSH jail |
-| `fail2ban_jails.ssh.maxretry` | `3` | Maximum failed attempts |
-| `fail2ban_jails.ssh.findtime` | `600` | Time window for attempts (seconds) |
-| `fail2ban_jails.ssh.bantime` | `3600` | Ban duration (seconds) |
-| `fail2ban_jails.ssh.banaction` | `ufw` | Ban action to use |
-
-### Logging Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ssh_logging.enabled` | `true` | Enable SSH logging |
-| `ssh_logging.log_directory` | `/var/log/sshd` | SSH log directory |
-| `ssh_logging.log_file` | `sshd.log` | SSH log file name |
-| `ssh_logging.log_level` | `INFO` | SSH log level |
-
-### Security Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `fail2ban_ignoreip` | `['127.0.0.1/8', '::1', '192.168.1.0/24', '10.20.30.0/24']` | IPs to never ban |
-| `backup_configuration` | `true` | Backup existing config |
-| `validate_configuration` | `true` | Validate configuration |
-
-## Example Playbook
+## Quick Start / Быстрый старт
 
 ```yaml
 ---
@@ -79,99 +46,105 @@ Fail2Ban is an intrusion prevention software framework that protects computer se
             maxretry: 5
             findtime: 300
             bantime: 7200
-        fail2ban_ignoreip:
-          - "127.0.0.1/8"
-          - "::1"
-          - "192.168.1.0/24"
-          - "10.0.0.0/8"
 ```
 
-## Advanced Configuration
+## Key Features / Ключевые особенности
 
-### Custom Jails
+- ✅ **Comprehensive Validation** / **Комплексная валидация**: All parameters are validated before application / Все параметры валидируются перед применением
+- ✅ **Enhanced Debug Information** / **Улучшенная отладочная информация**: Detailed execution logs for troubleshooting / Подробные логи выполнения для диагностики
+- ✅ **Bilingual Support** / **Двуязычная поддержка**: Comments and messages in English and Russian / Комментарии и сообщения на английском и русском языках
+- ✅ **Security Best Practices** / **Лучшие практики безопасности**: Follows industry standards for intrusion prevention / Следует отраслевым стандартам предотвращения вторжений
+- ✅ **Easy Integration** / **Простая интеграция**: Works seamlessly with UFW and other security roles / Легко интегрируется с UFW и другими ролями безопасности
+- ✅ **Tagged Tasks** / **Тегированные задачи**: All tasks are properly tagged for selective execution / Все задачи помечены тегами для выборочного выполнения
+- ✅ **Improved Task Names** / **Улучшенные названия задач**: More descriptive and informative task names / Более описательные и информативные названия задач
+- ✅ **Ansible Best Practices** / **Лучшие практики Ansible**: Fully compliant with Ansible best practices / Полностью соответствует лучшим практикам Ansible
 
-You can add custom jails for additional services:
+## Documentation / Документация
 
-```yaml
-fail2ban_additional_jails:
-  nginx-http-auth:
-    enabled: true
-    port: "http,https"
-    filter: nginx-http-auth
-    logpath: /var/log/nginx/error.log
-    maxretry: 3
-    findtime: 600
-    bantime: 3600
-    banaction: ufw
-```
+For complete documentation, please refer to the following files:
 
-### Custom Filters and Actions
+**Для полной документации обратитесь к следующим файлам:**
 
-```yaml
-fail2ban_custom_filters:
-  custom_filter:
-    failregex: "^<HOST> .*$"
-    ignoreregex: ""
+- **[readme_eng.md](readme_eng.md)** - Complete English documentation / Полная документация на английском языке
+- **[readme_rus.md](readme_rus.md)** - Complete Russian documentation / Полная документация на русском языке
 
-fail2ban_custom_actions:
-  custom_action:
-    actionstart: ""
-    actionstop: ""
-    actioncheck: ""
-    actionban: ""
-    actionunban: ""
-```
+### What's included in the full documentation / Что включено в полную документацию:
 
-## Security Best Practices
+- **Detailed variable descriptions** / **Подробные описания переменных**
+- **Advanced configuration examples** / **Примеры расширенной конфигурации**
+- **Troubleshooting guide** / **Руководство по устранению неполадок**
+- **Security best practices** / **Лучшие практики безопасности**
+- **Performance optimization** / **Оптимизация производительности**
+- **Integration examples** / **Примеры интеграции**
+- **Tag usage guide** / **Руководство по использованию тегов**
+- **Ansible best practices compliance** / **Соответствие лучшим практикам Ansible**
+- **Comprehensive validation details** / **Детали комплексной валидации**
+- **Debug information usage** / **Использование отладочной информации**
 
-1. **Configure ignore IPs**: Always include your management networks
-2. **Use appropriate timeouts**: Balance security with usability
-3. **Monitor logs**: Regularly check Fail2Ban logs for false positives
-4. **Test configuration**: Verify rules work before production deployment
-5. **Backup configuration**: Always backup before making changes
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Service not starting**: Check configuration syntax with `fail2ban-client reload`
-2. **False positives**: Adjust `maxretry` and `findtime` values
-3. **Log file issues**: Ensure log files exist and are readable
-4. **UFW integration**: Verify UFW is properly configured
-
-### Debug Commands
+## Quick Troubleshooting / Быстрое устранение неполадок
 
 ```bash
-# Check Fail2Ban status
+# Check Fail2Ban status / Проверить статус Fail2Ban
 fail2ban-client status
 
-# Check specific jail
+# Check specific jail / Проверить конкретную тюрьму
 fail2ban-client status sshd
 
-# View banned IPs
-fail2ban-client get sshd banned
-
-# Test configuration
+# Test configuration / Протестировать конфигурацию
 fail2ban-client reload
 
-# View logs
+# View logs / Просмотреть логи
 tail -f /var/log/fail2ban.log
 ```
 
-## Dependencies
+## Tags / Теги
 
-This role has no external dependencies but works best with:
-- `base/configure_ufw` role for firewall integration
-- `base/security` role for additional security hardening
+The role supports selective execution using tags:
 
-## License
+**Роль поддерживает выборочное выполнение с помощью тегов:**
+
+- `validation` - configuration validation tasks / задачи валидации конфигурации
+- `packages` - package installation tasks / задачи установки пакетов
+- `configuration` - configuration tasks / задачи конфигурации
+- `service` - service management tasks / задачи управления службами
+- `ssh` - SSH configuration tasks / задачи конфигурации SSH
+- `logging` - logging configuration tasks / задачи конфигурации логирования
+- `debug` - debug information tasks / задачи отладочной информации
+- `fail2ban` - all role tasks / все задачи роли
+
+### Tag Usage Examples / Примеры использования тегов
+
+```bash
+# Run only validation / Выполнить только валидацию
+ansible-playbook playbook.yml --tags validation
+
+# Run only package installation / Выполнить только установку пакетов
+ansible-playbook playbook.yml --tags packages
+
+# Skip debug information / Пропустить отладочную информацию
+ansible-playbook playbook.yml --skip-tags debug
+```
+
+## Dependencies / Зависимости
+
+This role works best with:
+**Данная роль лучше всего работает с:**
+
+- `base/configure_ufw` role for firewall integration / ролью `base/configure_ufw` для интеграции с firewall
+- `base/security` role for additional security hardening / ролью `base/security` для дополнительного усиления безопасности
+
+## License / Лицензия
 
 This role is part of the HomeLab project and follows the same licensing terms.
+**Данная роль является частью проекта HomeLab и следует тем же условиям лицензирования.**
 
-## Contributing
+## Contributing / Вклад в развитие
 
 When contributing to this role:
-1. Follow Ansible best practices
-2. Add appropriate validation
-3. Update documentation
-4. Test thoroughly before submitting
+**При внесении изменений в роль:**
+
+1. Follow Ansible best practices / Следуйте лучшим практикам Ansible
+2. Add appropriate validation / Добавляйте соответствующую валидацию
+3. Update documentation / Обновляйте документацию
+4. Test thoroughly before submitting / Тщательно тестируйте перед отправкой
+5. Add proper tags to tasks / Добавляйте соответствующие теги к задачам

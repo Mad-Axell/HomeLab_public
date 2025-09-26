@@ -1,0 +1,286 @@
+---
+# Main tasks for add_users role
+# Основные задачи роли add_users
+
+# Include validation tasks
+# Подключение задач валидации
+- name: "Validate input parameters and user data | Валидация входных параметров и данных пользователей"
+  ansible.builtin.include_tasks: validate.yml
+  tags:
+    - validation
+    - always
+
+# Display detailed user information in debug mode - English
+# Отображение подробной информации о пользователях в режиме отладки - Английский
+- name: "Display user configuration details (English) | Отображение деталей конфигурации пользователей (Английский)"
+  ansible.builtin.debug:
+    msg: "{{ {
+      'user': item.username,
+      'configuration': {
+        'username': item.username,
+        'groups': item.groups | default([]),
+        'sudo_privileges': item.is_sudoers | default(false),
+        'shell': item.shell | default(add_users_default_shell),
+        'uid': item.uid | default('auto'),
+        'create_home': item.create_home | default(add_users_create_home),
+        'home_directory': item.home | default(add_users_home_prefix + '/' + item.username)
+      }
+    }
+    }}"
+  loop: "{{ users_to_add }}"
+  when: debug_mode
+  tags:
+    - debug
+    - always
+
+# Display detailed user information in debug mode - Russian
+# Отображение подробной информации о пользователях в режиме отладки - Русский
+- name: "Display user configuration details (Russian) | Отображение деталей конфигурации пользователей (Русский)"
+  ansible.builtin.debug:
+    msg: "{{ {
+      'пользователь': item.username,
+      'конфигурация': {
+        'имя_пользователя': item.username,
+        'группы': item.groups | default([]),
+        'привилегии_sudo': item.is_sudoers | default(false),
+        'оболочка': item.shell | default(add_users_default_shell),
+        'uid': item.uid | default('auto'),
+        'создать_домашнюю_папку': item.create_home | default(add_users_create_home),
+        'домашняя_директория': item.home | default(add_users_home_prefix + '/' + item.username)
+      }
+    }
+    }}"
+  loop: "{{ users_to_add }}"
+  when: debug_mode
+  tags:
+    - debug
+    - always
+
+# Gather system information about existing users and groups
+# Сбор системной информации о существующих пользователях и группах
+- name: "Collect existing system users information | Сбор информации о существующих системных пользователях"
+  ansible.builtin.getent:
+    database: passwd
+  register: existing_users
+  tags:
+    - facts
+    - always
+
+- name: "Collect existing system groups information | Сбор информации о существующих системных группах"
+  ansible.builtin.getent:
+    database: group
+  register: existing_groups
+  tags:
+    - facts
+    - always
+
+# Display system information in debug mode
+# Отображение системной информации в режиме отладки
+- name: "Display system users and groups count | Отображение количества системных пользователей и групп"
+  ansible.builtin.debug:
+    msg:
+      - "System has {{ existing_users.ansible_facts.getent_passwd | default({}) | length }} existing users | В системе {{ existing_users.ansible_facts.getent_passwd | default({}) | length }} существующих пользователей"
+      - "System has {{ existing_groups.ansible_facts.getent_group | default({}) | length }} existing groups | В системе {{ existing_groups.ansible_facts.getent_group | default({}) | length }} существующих групп"
+  when: debug_mode
+  tags:
+    - debug
+    - always
+
+# Process and create required groups
+# Обработка и создание необходимых групп
+- name: "Extract unique groups from user configuration | Извлечение уникальных групп из конфигурации пользователей"
+  ansible.builtin.set_fact:
+    unique_groups: "{{ users_to_add | map(attribute='groups') | default([]) | flatten() | unique }}"
+  tags:
+    - facts
+    - groups
+
+- name: "Display groups to be created | Отображение групп для создания"
+  ansible.builtin.debug:
+    msg:
+      - "Groups to create: {{ unique_groups }} | Группы для создания: {{ unique_groups }}"
+      - "Total groups to process: {{ unique_groups | length }} | Всего групп для обработки: {{ unique_groups | length }}"
+  when: debug_mode and unique_groups | length > 0
+  tags:
+    - debug
+    - groups
+
+- name: "Create required user groups | Создание необходимых пользовательских групп"
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ unique_groups }}"
+  when: unique_groups | length > 0
+  tags:
+    - groups
+    - create
+
+# Setup sudo configuration
+# Настройка конфигурации sudo
+- name: "Create sudo group for privileged users | Создание группы sudo для привилегированных пользователей"
+  ansible.builtin.group:
+    name: "{{ sudo_group }}"
+    state: present
+  when: users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+  tags:
+    - groups
+    - sudo
+    - create
+
+- name: "Display sudo users information | Отображение информации о пользователях sudo"
+  ansible.builtin.debug:
+    msg:
+      - "Users with sudo privileges: {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | map(attribute='username') | list }} | Пользователи с привилегиями sudo: {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | map(attribute='username') | list }}"
+      - "Sudo group: {{ sudo_group }} | Группа sudo: {{ sudo_group }}"
+  when: debug_mode and users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+  tags:
+    - debug
+    - sudo
+
+- name: "Ensure sudoers.d directory exists with proper permissions | Обеспечение существования директории sudoers.d с правильными правами"
+  ansible.builtin.file:
+    path: /etc/sudoers.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when: users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+  tags:
+    - sudo
+    - create
+
+# User management operations
+# Операции управления пользователями
+- name: "Identify existing system users | Определение существующих системных пользователей"
+  ansible.builtin.set_fact:
+    existing_usernames: "{{ existing_users.ansible_facts.getent_passwd | default({}) | list }}"
+  tags:
+    - facts
+    - users
+
+- name: "Display user creation plan | Отображение плана создания пользователей"
+  ansible.builtin.debug:
+    msg:
+      - "Users to create: {{ users_to_add | rejectattr('username', 'in', existing_usernames) | map(attribute='username') | list }} | Пользователи для создания: {{ users_to_add | rejectattr('username', 'in', existing_usernames) | map(attribute='username') | list }}"
+      - "Users to update: {{ users_to_add | selectattr('username', 'in', existing_usernames) | map(attribute='username') | list }} | Пользователи для обновления: {{ users_to_add | selectattr('username', 'in', existing_usernames) | map(attribute='username') | list }}"
+  when: debug_mode
+  tags:
+    - debug
+    - users
+
+- name: "Create new system users with full configuration | Создание новых системных пользователей с полной конфигурацией"
+  ansible.builtin.user:
+    name: "{{ item.username }}"
+    shell: "{{ item.shell | default(add_users_default_shell) }}"
+    groups: "{{ item.groups | default([]) }}"
+    append: true
+    password: "{{ item.password | ansible.builtin.password_hash('sha512') }}"
+    update_password: always
+    createhome: "{{ item.create_home | default(add_users_create_home) }}"
+    home: "{{ item.home | default(add_users_home_prefix + '/' + item.username) }}"
+    system: false
+    state: present
+    uid: "{{ item.uid | default(omit) }}"
+    gid: "{{ item.gid | default(omit) }}"
+  loop: "{{ users_to_add }}"
+  when: item.username not in existing_usernames
+  notify: "notify user creation"
+  tags:
+    - users
+    - create
+
+- name: "Update existing users with new password and group membership | Обновление существующих пользователей новым паролем и членством в группах"
+  ansible.builtin.user:
+    name: "{{ item.username }}"
+    groups: "{{ item.groups | default([]) }}"
+    append: true
+    password: "{{ item.password | ansible.builtin.password_hash('sha512') }}"
+    update_password: always
+  loop: "{{ users_to_add }}"
+  when: item.username in existing_usernames
+  tags:
+    - users
+    - update
+
+- name: "Add users to sudo group for administrative privileges | Добавление пользователей в группу sudo для административных привилегий"
+  ansible.builtin.user:
+    name: "{{ item.username }}"
+    groups: "{{ sudo_group }}"
+    append: true
+  when: item.is_sudoers | default(false)
+  loop: "{{ users_to_add }}"
+  tags:
+    - users
+    - sudo
+    - update
+
+# Sudo configuration file management
+# Управление файлами конфигурации sudo
+- name: "Create individual sudoers configuration files | Создание индивидуальных файлов конфигурации sudoers"
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ item.username }}"
+    content: "{{ item.username }} ALL=(ALL:ALL) ALL"
+    mode: '0440'
+    owner: root
+    group: root
+    validate: 'visudo -cf %s'
+    backup: true
+  when: item.is_sudoers | default(false)
+  loop: "{{ users_to_add }}"
+  tags:
+    - sudo
+    - create
+
+- name: "Remove sudoers files for users without sudo privileges | Удаление файлов sudoers для пользователей без привилегий sudo"
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/{{ item.username }}"
+    state: absent
+  when: not (item.is_sudoers | default(false))
+  loop: "{{ users_to_add }}"
+  tags:
+    - sudo
+    - cleanup
+
+# Final summary and completion status - English
+# Финальная сводка и статус завершения - Английский
+- name: "Display comprehensive user management summary (English) | Отображение комплексной сводки управления пользователями (Английский)"
+  ansible.builtin.debug:
+    msg: "{{ {
+      'summary_type': 'USER_MANAGEMENT_SUMMARY',
+      'status': 'COMPLETED_SUCCESSFULLY',
+      'statistics': {
+        'total_users_processed': users_to_add | length,
+        'users_with_sudo_privileges': users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length,
+        'groups_created_verified': unique_groups | length,
+        'new_users_created': users_to_add | rejectattr('username', 'in', existing_usernames) | list | length,
+        'existing_users_updated': users_to_add | selectattr('username', 'in', existing_usernames) | list | length
+      }
+    }
+    }}"
+  when: debug_mode
+  tags:
+    - summary
+    - debug
+    - always
+
+# Final summary and completion status - Russian
+# Финальная сводка и статус завершения - Русский
+- name: "Display comprehensive user management summary (Russian) | Отображение комплексной сводки управления пользователями (Русский)"
+  ansible.builtin.debug:
+    msg: "{{ {
+      'тип_сводки': 'СВОДКА_УПРАВЛЕНИЯ_ПОЛЬЗОВАТЕЛЯМИ',
+      'статус': 'ЗАВЕРШЕНО_УСПЕШНО',
+      'статистика': {
+        'всего_пользователей_обработано': users_to_add | length,
+        'пользователей_с_sudo_привилегиями': users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length,
+        'групп_создано_проверено': unique_groups | length,
+        'новых_пользователей_создано': users_to_add | rejectattr('username', 'in', existing_usernames) | list | length,
+        'существующих_пользователей_обновлено': users_to_add | selectattr('username', 'in', existing_usernames) | list | length
+      }
+    }  
+    }}"
+  when: debug_mode
+  tags:
+    - summary
+    - debug
+    - always

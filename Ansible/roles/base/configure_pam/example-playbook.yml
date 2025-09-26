@@ -1,0 +1,97 @@
+---
+# Пример playbook для использования роли configure_pam
+# Демонстрирует различные варианты конфигурации PAM с управлением пользователями
+
+- name: Configure PAM with user management
+  hosts: all
+  become: yes
+  vars:
+    # Включить режим отладки для подробного вывода
+    debug_mode: true
+    
+    # Настройки PAM faillock
+    pam_faillock_deny: 3
+    pam_unlock_time: 1800
+    pam_faillock_audit: true
+    
+    # Настройки качества паролей
+    pam_pwquality_minlen: 12
+    pam_pwquality_ucredit: -1
+    pam_pwquality_lcredit: -1
+    pam_pwquality_dcredit: -1
+    pam_pwquality_ocredit: -1
+    
+    # Сетевые настройки
+    pam_network_access_enabled: true
+    pam_access_allow_local: true
+    pam_access_allow_console: true
+    pam_access_deny_all_other: false
+    
+    # Основная структура пользователей
+    users_to_add:
+      # Администратор с полными правами
+      - username: "admin"
+        password: "AdminSecurePass123!"
+        groups: ["sudo", "admin", "wheel"]
+        is_sudoers: true
+        shell: /bin/bash
+        allowed_subnets:
+          - "192.168.0.0/24"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+        denied_ssh_subnets:
+          - "0.0.0.0/0"
+      
+      # Обычный пользователь с ограниченным доступом
+      - username: "user1"
+        password: "UserSecurePass123!"
+        groups: ["users", "developers"]
+        is_sudoers: false
+        shell: /bin/bash
+        allowed_subnets:
+          - "192.168.1.0/24"
+        denied_ssh_subnets:
+          - "192.168.0.0/24"
+          - "10.10.10.0/24"
+      
+      # Пользователь для мониторинга
+      - username: "monitor"
+        password: "MonitorPass123!"
+        groups: ["users", "monitoring"]
+        is_sudoers: false
+        shell: /bin/bash
+        allowed_subnets:
+          - "192.168.1.0/24"
+          - "10.20.30.0/24"
+      
+      # Пользователь для разработки
+      - username: "developer"
+        password: "DevPass123!"
+        groups: ["users", "developers", "docker"]
+        is_sudoers: true
+        shell: /bin/zsh
+        allowed_subnets:
+          - "192.168.1.0/24"
+          - "10.0.0.0/8"
+        denied_ssh_subnets:
+          - "0.0.0.0/0"
+
+  roles:
+    - configure_pam
+
+  post_tasks:
+    - name: Display summary information
+      ansible.builtin.debug:
+        msg:
+          - "PAM конфигурация применена успешно!"
+          - ""
+          - "Создано пользователей: {{ users_to_add | length }}"
+          - "Администраторов: {{ users_to_add | selectattr('is_sudoers', 'defined') | selectattr('is_sudoers', 'equalto', true) | list | length }}"
+          - ""
+          - "Файлы конфигурации:"
+          - "  - /etc/security/access.conf"
+          - "  - /etc/security/ssh_users"
+          - "  - /root/manage_ssh_access.sh"
+          - ""
+          - "Для управления доступом используйте:"
+          - "  /root/manage_ssh_access.sh list"

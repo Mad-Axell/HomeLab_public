@@ -1,0 +1,142 @@
+---
+# Pre-checks before applying PAM configuration
+# Предварительные проверки перед применением PAM конфигурации
+# These checks help avoid access lockout
+# Эти проверки помогают избежать блокировки доступа
+
+- name: "Check current active users / Проверить текущих активных пользователей"
+  ansible.builtin.command: who
+  register: active_users
+  changed_when: false
+  failed_when: false
+
+- name: "Display active users / Показать активных пользователей"
+  ansible.builtin.debug:
+    msg: "Active users / Активные пользователи: {{ active_users.stdout_lines }}"
+  when: debug_mode
+
+- name: "Check SSH connections / Проверить SSH соединения"
+  ansible.builtin.command: ss -tuln | grep :22
+  register: ssh_connections
+  changed_when: false
+  failed_when: false
+
+- name: "Display SSH connections / Показать SSH соединения"
+  ansible.builtin.debug:
+    msg: "SSH connections / SSH соединения: {{ ssh_connections.stdout_lines }}"
+  when: debug_mode
+
+- name: "Check existence of critical users / Проверить существование критических пользователей"
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item }}"
+  register: critical_users_check
+  failed_when: false
+  loop: "{{ pam_critical_users | default(['root', ansible_user]) }}"
+
+- name: "Warning about non-existent critical users / Предупреждение о несуществующих критических пользователях"
+  ansible.builtin.debug:
+    msg: "WARNING: Critical user '{{ item.item }}' does not exist / ВНИМАНИЕ: Критический пользователь '{{ item.item }}' не существует"
+  loop: "{{ critical_users_check.results }}"
+  when: 
+    - item.ansible_facts.getent_passwd[item.item] is not defined
+    - debug_mode
+
+- name: "Check passwords of critical users / Проверить пароли критических пользователей"
+  ansible.builtin.command: "passwd -S {{ item.item }}"
+  register: password_status_check
+  failed_when: false
+  loop: "{{ critical_users_check.results }}"
+  when: item.ansible_facts.getent_passwd[item.item] is defined
+
+- name: "Display password status / Показать статус паролей"
+  ansible.builtin.debug:
+    msg: "User {{ item.item }} password status / Статус пароля пользователя {{ item.item }}: {{ item.stdout }}"
+  loop: "{{ password_status_check.results }}"
+  when: 
+    - debug_mode
+    - item.stdout is defined
+
+- name: "Check current SSH settings / Проверить текущие настройки SSH"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    state: absent
+  register: current_ssh_root
+  check_mode: yes
+  failed_when: false
+
+- name: "Display current SSH settings / Показать текущие SSH настройки"
+  ansible.builtin.debug:
+    msg: "Current PermitRootLogin setting / Текущая настройка PermitRootLogin: {{ current_ssh_root.before | default('not found / не найдена') }}"
+  when: debug_mode
+
+- name: "Check wheel group existence / Проверить существование группы wheel"
+  ansible.builtin.getent:
+    database: group
+    key: "{{ pam_wheel_group }}"
+  register: wheel_group_check
+  failed_when: false
+
+- name: "Warning about non-existent wheel group / Предупреждение о несуществующей группе wheel"
+  ansible.builtin.fail:
+    msg: "CRITICAL ERROR: Group '{{ pam_wheel_group }}' does not exist. Create group before applying role: groupadd {{ pam_wheel_group }} / КРИТИЧЕСКАЯ ОШИБКА: Группа '{{ pam_wheel_group }}' не существует. Создайте группу перед применением роли: groupadd {{ pam_wheel_group }}"
+  when: 
+    - pam_check_groups
+    - wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is not defined
+
+- name: "Check critical users membership in wheel group / Проверить членство критических пользователей в группе wheel"
+  ansible.builtin.getent:
+    database: group
+    key: "{{ pam_wheel_group }}"
+  register: wheel_members
+  when: 
+    - pam_check_groups
+    - wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined
+
+- name: "Display wheel group information / Показать информацию о группе wheel"
+  ansible.builtin.debug:
+    msg: "Wheel group {{ pam_wheel_group }} exists / Группа wheel {{ pam_wheel_group }} существует: GID={{ wheel_members.ansible_facts.getent_group[pam_wheel_group].gid | default('unknown') }}, Members={{ wheel_members.ansible_facts.getent_group[pam_wheel_group].members | default([]) | join(', ') }}"
+  when: 
+    - debug_mode
+    - wheel_members is defined
+    - wheel_members.ansible_facts.getent_group[pam_wheel_group] is defined
+
+- name: "Check alternative access methods / Проверить альтернативные методы доступа"
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: ssh_config_exists
+
+- name: "Warning about missing SSH configuration / Предупреждение об отсутствии SSH конфигурации"
+  ansible.builtin.debug:
+    msg: "WARNING: SSH configuration not found. Ensure alternative access is available / ВНИМАНИЕ: SSH конфигурация не найдена. Убедитесь в наличии альтернативного доступа"
+  when: 
+    - not ssh_config_exists.stat.exists
+    - debug_mode
+
+- name: "Create role application information file / Создать файл с информацией о применении роли"
+  ansible.builtin.copy:
+    dest: /tmp/pam_role_applied_{{ ansible_date_time.epoch }}
+    content: |
+      PAM role applied / PAM роль применена: {{ ansible_date_time.iso8601 }}
+      User / Пользователь: {{ ansible_user }}
+      Host / Хост: {{ ansible_hostname }}
+      Critical users / Критические пользователи: {{ pam_critical_users | default(['root', ansible_user]) }}
+      Wheel group / Группа wheel: {{ pam_wheel_group }}
+      SSH settings / SSH настройки: {{ 'enabled / включены' if pam_network_access_enabled else 'disabled / отключены' }}
+      Users to add / Пользователи для добавления: {{ users_to_add | length }}
+    mode: '0644'
+    owner: root
+    group: root
+  when: pam_create_audit_file | default(true)
+
+- name: "Display pre-checks summary / Показать сводку предварительных проверок"
+  ansible.builtin.debug:
+    msg:
+      - "Pre-checks Summary / Сводка предварительных проверок:"
+      - "  - Active users: {{ active_users.stdout_lines | length }}"
+      - "  - SSH connections: {{ ssh_connections.stdout_lines | length }}"
+      - "  - Critical users checked: {{ critical_users_check.results | length }}"
+      - "  - Wheel group exists: {{ 'Yes / Да' if wheel_group_check.ansible_facts.getent_group[pam_wheel_group] is defined else 'No / Нет' }}"
+      - "  - SSH config exists: {{ 'Yes / Да' if ssh_config_exists.stat.exists else 'No / Нет' }}"
+  when: debug_mode

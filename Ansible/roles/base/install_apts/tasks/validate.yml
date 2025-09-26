@@ -1,0 +1,84 @@
+---
+# Validation tasks for install_apts role
+# Задачи валидации для роли install_apts
+# This file contains parameter validation logic
+# Этот файл содержит логику валидации параметров
+
+- name: "Validate role parameters / Валидация параметров роли"
+  block:
+    - name: "Check if apt_packages is defined and is a list / Проверка что apt_packages определен и является списком"
+      # Validate essential packages list format / Валидация формата списка основных пакетов
+      ansible.builtin.assert:
+        that:
+          - apt_packages is defined
+          - apt_packages is iterable
+          - apt_packages is not string
+        fail_msg: "apt_packages must be defined as a list of package names"
+        success_msg: "apt_packages parameter is valid"
+
+    - name: "Check if apt_cache_valid_time is a positive integer / Проверка что apt_cache_valid_time является положительным числом"
+      # Validate cache validity time parameter / Валидация параметра времени валидности кэша
+      ansible.builtin.assert:
+        that:
+          - apt_cache_valid_time is defined
+          - apt_cache_valid_time is number
+          - apt_cache_valid_time > 0
+        fail_msg: "apt_cache_valid_time must be a positive number (seconds)"
+        success_msg: "apt_cache_valid_time parameter is valid"
+
+    - name: "Check if apt_update_cache is boolean / Проверка что apt_update_cache является булевым значением"
+      # Validate cache update flag / Валидация флага обновления кэша
+      ansible.builtin.assert:
+        that:
+          - apt_update_cache is defined
+          - apt_update_cache is boolean or apt_update_cache is string
+        fail_msg: "apt_update_cache must be a boolean value"
+        success_msg: "apt_update_cache parameter is valid"
+
+    - name: "Check if apt_upgrade_packages is boolean / Проверка что apt_upgrade_packages является булевым значением"
+      # Validate package upgrade flag / Валидация флага обновления пакетов
+      ansible.builtin.assert:
+        that:
+          - apt_upgrade_packages is defined
+          - apt_upgrade_packages is boolean or apt_upgrade_packages is string
+        fail_msg: "apt_upgrade_packages must be a boolean value"
+        success_msg: "apt_upgrade_packages parameter is valid"
+
+    - name: "Check if debug_mode is boolean / Проверка что debug_mode является булевым значением"
+      # Validate debug mode flag / Валидация флага режима отладки
+      ansible.builtin.assert:
+        that:
+          - debug_mode is defined
+          - debug_mode is boolean or debug_mode is string
+        fail_msg: "debug_mode must be a boolean value"
+        success_msg: "debug_mode parameter is valid"
+
+    - name: "Validate package names format / Валидация формата имен пакетов"
+      # Check individual package name validity / Проверка валидности отдельных имен пакетов
+      ansible.builtin.assert:
+        that:
+          - item is string
+          - item | length > 0
+          - not (item.startswith('-') or item.startswith('+'))
+        fail_msg: "Package name '{{ item }}' is invalid. Package names must be non-empty strings and cannot start with '-' or '+'"
+        success_msg: "Package name '{{ item }}' is valid"
+      loop: "{{ apt_packages }}"
+      when: apt_packages is defined and apt_packages | length > 0
+
+    - name: "Display validation summary / Отображение сводки валидации"
+      # Show validation results / Показать результаты валидации
+      ansible.builtin.debug:
+        msg:
+          - "=== Parameter Validation Summary ==="
+          - "apt_packages: {{ apt_packages | length }} packages defined"
+          - "apt_cache_valid_time: {{ apt_cache_valid_time }} seconds"
+          - "apt_update_cache: {{ apt_update_cache }}"
+          - "apt_upgrade_packages: {{ apt_upgrade_packages }}"
+          - "debug_mode: {{ debug_mode }}"
+          - "All parameters validated successfully"
+
+  rescue:
+    - name: "Parameter validation failed / Валидация параметров не удалась"
+      # Handle validation errors / Обработка ошибок валидации
+      ansible.builtin.fail:
+        msg: "Role parameter validation failed. Please check the error messages above and correct the configuration."

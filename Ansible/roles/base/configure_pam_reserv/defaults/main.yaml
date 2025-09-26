@@ -1,0 +1,181 @@
+
+---
+# Режим отладки для подробного вывода
+debug_mode: false
+
+# Конфигурация PAM faillock - настройки блокировки аккаунтов
+pam_faillock_deny: 3                    # Количество неудачных попыток до блокировки
+pam_unlock_time: 1800                   # Длительность блокировки в секундах (30 минут)
+pam_faillock_audit: true                # Включить аудит неудачных попыток
+pam_faillock_silent: false              # Не быть тихим о блокировках
+
+# Конфигурация качества паролей PAM
+pam_pwquality_retry: 3                  # Количество попыток ввода пароля
+pam_pwquality_minlen: 12                # Минимальная длина пароля (рекомендуется: 12+)
+pam_pwquality_difok: 5                  # Минимум разных символов от старого пароля
+pam_pwquality_ucredit: -1               # Требовать минимум 1 заглавную букву
+pam_pwquality_lcredit: -1               # Требовать минимум 1 строчную букву
+pam_pwquality_dcredit: -1               # Требовать минимум 1 цифру
+pam_pwquality_ocredit: -1               # Требовать минимум 1 специальный символ
+pam_pwquality_minclass: 3               # Требовать минимум 3 класса символов
+pam_pwquality_maxrepeat: 2              # Максимум последовательных повторяющихся символов
+pam_pwquality_gecoscheck: true          # Проверять против информации GECOS пользователя
+pam_pwquality_reject_username: true     # Отклонять пароли, содержащие имя пользователя
+
+# Конфигурация сессий PAM
+pam_limits_enabled: true                # Включить PAM лимиты
+pam_limits_maxlogins: 10                # Максимум одновременных входов на пользователя
+pam_limits_maxsyslogins: 50             # Максимум одновременных системных входов
+
+# Конфигурация PAM wheel
+pam_wheel_group: "sudo"                 # Группа для функциональности wheel
+pam_wheel_use_uid: true                 # Использовать UID вместо имени пользователя
+
+# Ограничения доступа root
+pam_root_console_only: true             # Ограничить вход root только консолью
+pam_root_securetty: true                # Использовать безопасный TTY для входа root
+
+# Настройки резервного копирования
+pam_backup_enabled: true                # Создавать резервные копии перед изменениями
+pam_backup_suffix: ".backup"            # Суффикс резервного файла
+
+# Дополнительные настройки безопасности SSH
+ssh_security:
+  max_auth_tries: 3                     # Максимум попыток аутентификации SSH
+  permit_empty_passwords: "no"          # Разрешить пустые пароли SSH
+  password_authentication: "yes"        # Аутентификация по паролю SSH
+  pubkey_authentication: "yes"          # Аутентификация по публичному ключу SSH
+
+# Переменные для cleanup.yml
+pam_unlock_user: ""                     # Пользователь для разблокировки (пустая строка = не разблокировать)
+pam_remove_backups: false               # Удалять резервные копии после успешного применения
+pam_restore_from_backup: false          # Восстанавливать конфигурацию из резервной копии
+pam_remove_sudoers: false               # Удалять конфигурацию sudoers
+pam_remove_denied_users: false          # Удалять файл запрещенных пользователей
+
+# Переменные для advanced.yml
+pam_advanced_enabled: true              # Включить расширенные настройки PAM
+pam_denied_users_file: "/etc/security/denied_users"  # Файл запрещенных пользователей
+pam_motd_file: "/etc/motd"              # Файл MOTD для отображения при входе
+pam_umask_value: "077"                  # Значение umask для сессий (077 = строгие права)
+
+# Дополнительные настройки безопасности
+pam_securetty_ttys:                     # Список безопасных TTY для входа root
+  - "console"
+  - "tty1"
+  - "tty2"
+  - "tty3"
+  - "tty4"
+  - "tty5"
+  - "tty6"
+
+# Настройки для проверки существования групп
+pam_check_groups: true                  # Проверять существование групп перед созданием sudoers
+pam_create_missing_groups: false        # Создавать отсутствующие группы (не рекомендуется)
+
+# Пути к PAM модулям для разных дистрибутивов
+pam_module_paths:
+  # Стандартные пути для разных архитектур и дистрибутивов
+  - "/lib/security/pam_faillock.so"
+  - "/lib64/security/pam_faillock.so"
+  - "/lib/x86_64-linux-gnu/security/pam_faillock.so"
+  - "/lib/security/pam_pwquality.so"
+  - "/lib64/security/pam_pwquality.so"
+  - "/lib/x86_64-linux-gnu/security/pam_pwquality.so"
+  - "/lib/security/pam_limits.so"
+  - "/lib64/security/pam_limits.so"
+  - "/lib/x86_64-linux-gnu/security/pam_limits.so"
+  - "/lib/security/pam_wheel.so"
+  - "/lib64/security/pam_wheel.so"
+  - "/lib/x86_64-linux-gnu/security/pam_wheel.so"
+  - "/lib/security/pam_umask.so"
+  - "/lib64/security/pam_umask.so"
+  - "/lib/x86_64-linux-gnu/security/pam_umask.so"
+  - "/lib/security/pam_time.so"
+  - "/lib64/security/pam_time.so"
+  - "/lib/x86_64-linux-gnu/security/pam_time.so"
+  - "/lib/security/pam_access.so"
+  - "/lib64/security/pam_access.so"
+  - "/lib/x86_64-linux-gnu/security/pam_access.so"
+  - "/lib/security/pam_listfile.so"
+  - "/lib64/security/pam_listfile.so"
+  - "/lib/x86_64-linux-gnu/security/pam_listfile.so"
+  - "/lib/security/pam_keyinit.so"
+  - "/lib64/security/pam_keyinit.so"
+  - "/lib/x86_64-linux-gnu/security/pam_keyinit.so"
+  - "/lib/security/pam_mail.so"
+  - "/lib64/security/pam_mail.so"
+  - "/lib/x86_64-linux-gnu/security/pam_mail.so"
+  - "/lib/security/pam_securetty.so"
+  - "/lib64/security/pam_securetty.so"
+  - "/lib/x86_64-linux-gnu/security/pam_securetty.so"
+
+# Критические PAM модули (обязательные для работы роли)
+pam_critical_modules:
+  - "pam_faillock"
+  - "pam_pwquality"
+  - "pam_limits"
+  - "pam_wheel"
+
+# Дополнительные PAM модули (опциональные)
+pam_optional_modules:
+  - "pam_umask"
+  - "pam_time"
+  - "pam_access"
+  - "pam_listfile"
+  - "pam_keyinit"
+  - "pam_mail"
+  - "pam_securetty"
+
+# Настройки проверки PAM модулей
+pam_check_optional_modules: false        # Проверять наличие опциональных модулей (только для отладки)
+
+# Безопасные настройки для предотвращения блокировки доступа
+pam_critical_users:                      # Критические пользователи, которые не должны быть заблокированы
+  - "root"
+  - "{{ ansible_user }}"
+
+# Безопасные настройки faillock (менее строгие для предотвращения блокировки)
+pam_faillock_deny_safe: 5                # Безопасное количество попыток (больше чем по умолчанию)
+pam_unlock_time_safe: 300                # Короткое время блокировки (5 минут)
+
+# Настройки для предотвращения блокировки
+pam_prevent_lockout: true                # Включить меры предотвращения блокировки
+pam_create_audit_file: true              # Создавать файл аудита применения роли
+pam_emergency_unlock: true               # Включить экстренную разблокировку
+
+# Настройки для тестирования
+pam_test_mode: false                     # Режим тестирования (не применять критические изменения)
+pam_dry_run: false                       # Режим "сухого прогона" (только показать изменения)
+
+# Управление сетевым доступом
+pam_network_access_enabled: false        # Включить контроль доступа по сетям
+pam_users_to_add: []                     # Список пользователей для добавления в разрешенные
+users_to_add:
+  - username: "{{ dashboard_admin_user }}"
+    password: "{{ dashboard_admin_password }}"
+    groups: ["sudo", "dashboard"]
+    is_sudoers: True
+    shell: /bin/bash
+    allowed_subnets:
+      - "192.168.1.0/24"
+      - "10.20.30.0/24"
+    denied_ssh_subnets:
+      - "192.168.0.0/24"
+      - "10.10.10.0/24"
+pam_allowed_ssh_subnets: []              # Разрешенные подсети для SSH доступа (список)
+pam_denied_ssh_subnets: []               # Запрещенные подсети для SSH доступа (список)
+pam_access_file: "/etc/security/access.conf"  # Файл конфигурации pam_access
+pam_ssh_users_file: "/etc/security/ssh_users"  # Файл разрешенных SSH пользователей
+
+# Настройки для pam_access
+pam_access_allow_local: true             # Разрешить локальный доступ
+pam_access_allow_console: true           # Разрешить доступ с консоли
+pam_access_deny_all_other: false         # Запретить доступ всем остальным
+
+# Настройки для pam_listfile
+pam_listfile_enabled: true               # Включить pam_listfile для контроля пользователей
+pam_listfile_item: "user"                # Тип элемента для проверки (user, group, host, tty)
+pam_listfile_sense: "allow"              # Логика: allow (разрешить) или deny (запретить)
+pam_listfile_file: "/etc/security/ssh_users"  # Файл со списком пользователей
+pam_listfile_onerr: "succeed"            # Действие при ошибке: succeed или fail
