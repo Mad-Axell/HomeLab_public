@@ -1,0 +1,121 @@
+---
+# =============================================================================
+# SSH Configuration Role - Not Trusted Subnets Processing / Роль конфигурации SSH - Обработка недоверенных подсетей
+# =============================================================================
+# Processing logic for not trusted subnets only
+# Логика обработки только для недоверенных подсетей
+# =============================================================================
+#
+# Variables expected:
+# - not_trusted_subnets: direct not trusted subnets configuration
+# - users_to_add: user configuration with not_trusted_subnets definitions
+# =============================================================================
+
+# Initialize not trusted subnets list
+# Инициализация списка недоверенных подсетей
+- name: "Initialize not trusted subnets processing / Инициализация обработки недоверенных подсетей"
+  ansible.builtin.set_fact:
+    not_trusted_extracted_subnets: []
+    not_trusted_final_subnets: []
+  tags:
+    - not_trusted_subnets
+    - initialization
+
+# Extract not trusted subnets from users_to_add if not defined directly
+# Извлечь недоверенные подсети из users_to_add если не определены напрямую
+- name: "Extract not trusted subnets from users_to_add / Извлечь недоверенные подсети из users_to_add"
+  ansible.builtin.set_fact:
+    not_trusted_extracted_subnets: "{{ not_trusted_extracted_subnets + item.not_trusted_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - not_trusted_subnets is not defined or not_trusted_subnets | length == 0
+    - item.not_trusted_subnets is defined
+    - item.not_trusted_subnets | length > 0
+  tags:
+    - not_trusted_subnets
+    - extraction
+
+# Deduplicate extracted not trusted subnets
+# Дедуплицировать извлеченные недоверенные подсети
+- name: "Deduplicate extracted not trusted subnets / Дедуплицировать извлеченные недоверенные подсети"
+  ansible.builtin.set_fact:
+    not_trusted_extracted_subnets: "{{ not_trusted_extracted_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - not_trusted_subnets is not defined or not_trusted_subnets | length == 0
+    - not_trusted_extracted_subnets | length > 0
+  tags:
+    - not_trusted_subnets
+    - extraction
+    - deduplication
+
+# Set final not trusted subnets list
+# Установить финальный список недоверенных подсетей
+- name: "Set final not trusted subnets list / Установить финальный список недоверенных подсетей"
+  ansible.builtin.set_fact:
+    not_trusted_final_subnets: "{{ (not_trusted_subnets if (not_trusted_subnets is defined and not_trusted_subnets | length > 0) else not_trusted_extracted_subnets) | unique }}"
+  tags:
+    - not_trusted_subnets
+    - finalization
+
+# Set the final variable name
+# Установить финальное имя переменной
+- name: "Set final_not_trusted_subnets variable / Установить переменную final_not_trusted_subnets"
+  ansible.builtin.set_fact:
+    final_not_trusted_subnets: "{{ not_trusted_final_subnets }}"
+  tags:
+    - not_trusted_subnets
+    - finalization
+
+# Debug final not trusted subnets list
+# Отладка финального списка недоверенных подсетей
+- name: "Display final not trusted subnets configuration summary (English) / Отображение сводки конфигурации финальных недоверенных подсетей (английский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Not Trusted Subnets Configuration Summary:"
+      - "============================================================================="
+      - "Configuration Mode:            {{ 'Direct not_trusted_subnets variable' if (not_trusted_subnets is defined and not_trusted_subnets | length > 0) else 'Extracted from users_to_add' }}"
+      - "Total Not Trusted Subnets:     {{ not_trusted_final_subnets | length }}"
+      - "Deduplication Applied:         {{ 'YES' if (not_trusted_extracted_subnets | length != not_trusted_final_subnets | length) else 'NO' }}"
+      - "Source Configuration:          {{ 'Direct not_trusted_subnets variable' if (not_trusted_subnets is defined and not_trusted_subnets | length > 0) else 'Extracted from users_to_add' }}"
+      - "============================================================================="
+      - "Not Trusted Subnets List:"
+      - "============================================================================="
+      - "{{ not_trusted_final_subnets | map('regex_replace', '^', '  - ') | join('\n') if not_trusted_final_subnets | length > 0 else '  - No not trusted subnets configured' }}"
+      - "============================================================================="
+      - "Validation Status:             {{ 'PASSED' if not_trusted_final_subnets | length > 0 else 'INFO - No not trusted subnets configured' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - not_trusted_subnets
+    - summary
+    - english
+
+- name: "Display final not trusted subnets configuration summary (Russian) / Отображение сводки конфигурации финальных недоверенных подсетей (русский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка конфигурации финальных недоверенных подсетей:"
+      - "============================================================================="
+      - "Режим конфигурации:            {{ 'Прямая переменная not_trusted_subnets' if (not_trusted_subnets is defined and not_trusted_subnets | length > 0) else 'Извлечено из users_to_add' }}"
+      - "Всего недоверенных подсетей:   {{ not_trusted_final_subnets | length }}"
+      - "Дедупликация применена:        {{ 'ДА' if (not_trusted_extracted_subnets | length != not_trusted_final_subnets | length) else 'НЕТ' }}"
+      - "Источник конфигурации:         {{ 'Прямая переменная not_trusted_subnets' if (not_trusted_subnets is defined and not_trusted_subnets | length > 0) else 'Извлечено из users_to_add' }}"
+      - "============================================================================="
+      - "Список недоверенных подсетей:"
+      - "============================================================================="
+      - "{{ not_trusted_final_subnets | map('regex_replace', '^', '  - ') | join('\n') if not_trusted_final_subnets | length > 0 else '  - Нет настроенных недоверенных подсетей' }}"
+      - "============================================================================="
+      - "Статус валидации:              {{ 'ПРОЙДЕНА' if not_trusted_final_subnets | length > 0 else 'ИНФО - Нет настроенных недоверенных подсетей' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - not_trusted_subnets
+    - summary
+    - russian

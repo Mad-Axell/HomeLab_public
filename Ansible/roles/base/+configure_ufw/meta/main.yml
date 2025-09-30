@@ -1,0 +1,69 @@
+---
+# Meta information for UFW Configuration Role / Мета-информация для роли конфигурации UFW
+galaxy_info:
+  author: HomeLab DevOps Team
+  description: Cross-platform firewall configuration role supporting UFW and firewalld
+  company: HomeLab Infrastructure Management
+  license: MIT
+  min_ansible_version: "2.9"
+  
+  # Supported platforms / Поддерживаемые платформы
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal      # 20.04 LTS
+        - jammy      # 22.04 LTS
+        - kinetic    # 22.10
+        - lunar      # 23.04
+    - name: Debian
+      versions:
+        - bullseye   # 11
+        - bookworm   # 12
+    - name: EL
+      versions:
+        - 7          # CentOS 7, RHEL 7
+        - 8          # CentOS 8, RHEL 8, Rocky 8, AlmaLinux 8
+        - 9          # CentOS 9, RHEL 9, Rocky 9, AlmaLinux 9
+    - name: Fedora
+      versions:
+        - 37
+        - 38
+        - 39
+    - name: openSUSE
+      versions:
+        - 15.3
+        - 15.4
+        - 15.5
+    - name: SLES
+      versions:
+        - 15
+
+  # Galaxy tags for role discovery / Теги Galaxy для поиска роли
+  galaxy_tags:
+    - firewall
+    - security
+    - ufw
+    - firewalld
+    - iptables
+    - networking
+    - system
+    - administration
+    - debian
+    - ubuntu
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+    - fedora
+    - suse
+    - opensuse
+    - sles
+    - cross-platform
+
+# Role dependencies / Зависимости роли
+dependencies: []
+
+# Collections required by this role / Коллекции, требуемые этой ролью
+collections:
+  - community.general  # For UFW module / Для модуля UFW
+  - ansible.posix      # For firewalld module / Для модуля firewalld

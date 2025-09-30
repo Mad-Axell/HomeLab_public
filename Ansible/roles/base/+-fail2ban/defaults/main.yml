@@ -1,0 +1,179 @@
+---
+# Fail2ban Role Default Variables / Переменные по умолчанию для роли Fail2ban
+# =============================================================================
+
+# Debug and Validation Settings / Настройки отладки и валидации
+debug_mode: true                   # Enable debug output / Включить отладочный вывод
+backup_enabled: true               # Enable configuration backups / Включить резервное копирование конфигурации
+validate_parameters: true          # Enable parameter validation / Включить валидацию параметров
+strict_validation: true            # Enable strict validation / Включить строгую валидацию
+
+# Fail2ban Installation Settings / Настройки установки Fail2ban
+fail2ban_install: true             # Install fail2ban package / Установить пакет fail2ban
+fail2ban_service_enabled: true     # Enable fail2ban service / Включить службу fail2ban
+fail2ban_service_state: started    # Service state (started/stopped) / Состояние службы
+
+# Universal Package Mapping / Универсальное сопоставление пакетов
+universal_packages:
+  - fail2ban
+  - ufw
+  - iptables
+
+package_mappings:
+  debian:
+    fail2ban: fail2ban
+    additional:
+      - python3-systemd
+  redhat:
+    fail2ban: fail2ban-server
+    additional:
+      - python3-systemd
+  suse:
+    fail2ban: fail2ban
+    additional:
+      - python3-systemd
+
+# Fail2ban Configuration / Конфигурация Fail2ban
+fail2ban_config:
+  loglevel:       INFO                                # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  logtarget:      /var/log/fail2ban.log               # Log file path / Путь к файлу логов
+  socket:         /var/run/fail2ban/fail2ban.sock     # Socket file / Файл сокета
+  pidfile:        /var/run/fail2ban/fail2ban.pid      # PID file / Файл PID
+  syslogsocket:   auto                                # System log socket / Сокет системных логов
+  
+  # Additional configuration parameters / Дополнительные параметры конфигурации
+  usedns: warn                          # DNS resolution (yes, no, warn)
+  chain: INPUT                          # iptables chain name
+  port: ssh                             # Default port for SSH
+  
+  # Database settings / Настройки базы данных
+  dbfile: /var/lib/fail2ban/fail2ban.sqlite3 # Database file / Файл базы данных
+  dbpurgeage:  1209600                       # Database purge age in seconds (14 days) / Возраст очистки БД в секундах (14 дней) ##### 86400 (1 day)
+  
+  # Jail settings / Настройки тюрем
+  ignoreip: []                    # IP addresses to ignore. Global for all jails. / IP адреса для игнорирования. Глобально для всех тюрем.
+  bantime: 1800                   # Ban time in seconds (30 min) / Время блокировки в секундах (30 мин)
+  findtime: 300                   # Find time in seconds (5 min) / Время поиска в секундах (5 мин)
+  maxretry: 3                     # Maximum retry attempts / Максимальное количество попыток
+  # (!) maxretry = MaxAuthTries from sshd config (!) / (!) maxretry = MaxAuthTries из конфигурации sshd (!)
+  
+  # Action settings / Настройки действий
+  action: iptables-multiport      # Default action / Действие по умолчанию
+  action_mwl: iptables-multiport  # Action with mail / Действие с почтой
+  action_mw: iptables-multiport   # Action with mail / Действие с почтой
+  action_d: iptables-multiport    # Action with debug / Действие с отладкой
+
+# SSH Protection Settings / Настройки защиты SSH
+ssh_protection:
+  enabled: true                   # Enable SSH protection / Включить защиту SSH
+  port: "22"                      # SSH port (string for multiple ports support)/ Порт SSH (строка для поддержки нескольких портов)
+  protocol: tcp                   # SSH protocol / Протокол SSH
+  maxretry: 5                     # Maximum SSH retry attempts / Максимальное количество попыток SSH
+  bantime: 1800                   # SSH ban time in seconds (30 min) / Время блокировки SSH в секундах (30 мин)
+  findtime: 300                   # SSH find time in seconds (5 min) / Время поиска SSH в секундах (5 мин)
+  
+  # Whitelist settings / Настройки белого списка
+  whitelist_enabled: true         # Enable whitelist / Включить белый список
+  whitelist_ips: []               # Additional IPs to whitelist / Дополнительные IP для белого списка
+  whitelist_networks: []          # Additional networks to whitelist / Дополнительные сети для белого списка
+
+# User-based SSH Protection / Защита SSH на основе пользователей
+# This integrates with users_to_add from host_vars/hostname.yml
+# Это интегрируется с users_to_add из host_vars/hostname.yml
+user_based_protection:
+  enabled: true                   # Enable user-based protection / Включить защиту на основе пользователей
+  trusted_users: []               # List of trusted users / Список доверенных пользователей
+  trusted_networks: []            # List of trusted networks / Список доверенных сетей
+
+# Additional Jails / Дополнительные правила
+additional_jails:
+  # Apache/Nginx protection / Защита Apache/Nginx
+  apache:
+    enabled: false
+    port: "http,https"
+    filter: apache-auth
+    logpath: /var/log/apache2/error.log
+    maxretry: 3
+    bantime: 600
+    findtime: 600
+  
+  nginx:
+    enabled: false
+    port: "http,https"
+    filter: nginx-http-auth
+    logpath: /var/log/nginx/error.log
+    maxretry: 3
+    bantime: 600
+    findtime: 600
+  
+  # Postfix protection / Защита Postfix
+  postfix:
+    enabled: false
+    port: smtp,465,submission
+    filter: postfix
+    logpath: /var/log/mail.log
+    maxretry: 3
+    bantime: 600
+    findtime: 600
+
+# Firewall Integration / Интеграция с файрволом
+firewall_integration:
+  enabled: true                   # Enable firewall integration / Включить интеграцию с файрволом
+  firewall_backend: ufw           # Firewall backend (auto, iptables, firewalld, ufw) / Бэкенд файрвола
+  firewall_chain: INPUT           # Firewall chain / Цепочка файрвола
+
+# Email Notifications / Уведомления по электронной почте
+email_notifications:
+  enabled: false                  # Enable email notifications / Включить уведомления по почте
+  destemail: root@localhost       # Destination email / Email получателя
+  sender: fail2ban@localhost      # Sender email / Email отправителя
+  action: "%%(action_mw)s"        # Email action / Действие для почты
+
+# Advanced Settings / Расширенные настройки
+advanced_settings:
+  # Custom filters / Пользовательские фильтры
+  custom_filters: []              # List of custom filter files / Список пользовательских файлов фильтров
+  
+  # Custom actions / Пользовательские действия
+  custom_actions: []              # List of custom action files / Список пользовательских файлов действий
+  
+  # Custom jails / Пользовательские правила
+  custom_jails: []                # List of custom jail configurations / Список пользовательских конфигураций правил
+
+# Backup Settings / Настройки резервного копирования
+backup_settings:
+  backup_dir: /etc/fail2ban/backup # Backup directory / Директория резервного копирования
+  backup_retention: 7             # Backup retention in days / Хранение резервных копий в днях
+  backup_compress: true           # Compress backups / Сжимать резервные копии
+
+# System Integration / Интеграция с системой
+system_integration:
+  # Log rotation / Ротация логов
+  logrotate_enabled: true         # Enable log rotation / Включить ротацию логов
+  logrotate_config: /etc/logrotate.d/fail2ban # Logrotate config / Конфигурация logrotate
+  
+  # Systemd integration / Интеграция с systemd
+  systemd_enabled: true           # Enable systemd integration / Включить интеграцию с systemd
+  systemd_override: true          # Create systemd override / Создать переопределение systemd
+
+# Security Settings / Настройки безопасности
+security_settings:
+  # File permissions / Права доступа к файлам
+  config_file_mode: '0644'        # Configuration file permissions / Права доступа к конфигурационному файлу
+  log_file_mode: '0640'           # Log file permissions / Права доступа к файлу логов
+  socket_file_mode: '0644'        # Socket file permissions / Права доступа к файлу сокета
+  
+  # SELinux settings / Настройки SELinux
+  selinux_enabled: false          # Enable SELinux support / Включить поддержку SELinux
+  selinux_context: system_u:object_r:fail2ban_exec_t:s0 # SELinux context / Контекст SELinux
+
+# Performance Settings / Настройки производительности
+performance_settings:
+  # Memory settings / Настройки памяти
+  max_memory: 256                 # Maximum memory usage in MB / Максимальное использование памяти в МБ
+  
+  # Threading settings / Настройки потоков
+  max_threads: 4                  # Maximum number of threads / Максимальное количество потоков
+  
+  # Database settings / Настройки базы данных
+  db_max_connections: 10          # Maximum database connections / Максимальное количество соединений с БД

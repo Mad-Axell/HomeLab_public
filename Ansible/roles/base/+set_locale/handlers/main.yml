@@ -6,14 +6,15 @@
 # Файл содержит обработчики для изменений конфигурации локализации
 # =============================================================================
 
-# Reload locale configuration for Debian/Ubuntu / Перезагрузка конфигурации локализации для Debian/Ubuntu
-- name: "Reload locale configuration for Debian/Ubuntu / Перезагрузка конфигурации локализации для Debian/Ubuntu"
+# Main locale reload handler that calls OS-specific handlers
+# Основной обработчик перезагрузки локализации, который вызывает OS-специфичные обработчики
+- name: reload locale
   ansible.builtin.command: "locale-gen"
   args:
     creates: /var/lib/locales/supported.d/local
   register: locale_reload_result
-  failed_when: false
   changed_when: locale_reload_result.rc == 0
+  failed_when: false
   when: ansible_os_family == "Debian"
   tags:
     - handlers
@@ -21,12 +22,11 @@
     - debian
     - ubuntu
 
-# Reload locale configuration for RedHat/CentOS / Перезагрузка конфигурации локализации для RedHat/CentOS
-- name: "Reload locale configuration for RedHat/CentOS / Перезагрузка конфигурации локализации для RedHat/CentOS"
+- name: reload locale
   ansible.builtin.command: "localectl set-locale {{ locale_primary }}"
   register: locale_reload_result
-  failed_when: false
   changed_when: locale_reload_result.rc == 0
+  failed_when: false
   when: ansible_os_family == "RedHat"
   tags:
     - handlers
@@ -36,7 +36,6 @@
     - rocky
     - almalinux
 
-# Display locale reload results / Отображение результатов перезагрузки локализации
 - name: "Display locale reload results / Отображение результатов перезагрузки локализации"
   ansible.builtin.debug:
     msg:
@@ -54,12 +53,57 @@
     - debug
     - handlers
 
+# Main console reload handler that calls OS-specific handlers
+# Основной обработчик перезагрузки консоли, который вызывает OS-специфичные обработчики
+- name: reload console
+  ansible.builtin.command: "setupcon"
+  register: console_reload_result
+  failed_when: false
+  changed_when: console_reload_result.rc == 0
+  when: ansible_os_family == "Debian"
+  tags:
+    - handlers
+    - console
+    - debian
+    - ubuntu
+
+- name: reload console
+  ansible.builtin.command: "systemctl restart systemd-vconsole-setup"
+  register: console_reload_result
+  failed_when: false
+  changed_when: console_reload_result.rc == 0
+  when: ansible_os_family == "RedHat"
+  tags:
+    - handlers
+    - console
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+
+- name: "Display console reload results / Отображение результатов перезагрузки консоли"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Console Configuration Reload:"
+      - "============================================================================="
+      - "Command:               setupcon"
+      - "Return Code:           {{ console_reload_result.rc }}"
+      - "Changed:               {{ console_reload_result.changed }}"
+      - "Output:                {{ console_reload_result.stdout }}"
+      - "Errors:                {{ console_reload_result.stderr }}"
+      - "============================================================================="
+  when: debug_mode
+  tags:
+    - debug
+    - handlers
+
 # Reload timezone configuration / Перезагрузка конфигурации часового пояса
-- name: "Reload timezone configuration / Перезагрузка конфигурации часового пояса"
+- name: reload timezone
   ansible.builtin.command: "timedatectl set-timezone {{ timezone }}"
   register: timezone_reload_result
-  failed_when: false
   changed_when: timezone_reload_result.rc == 0
+  failed_when: false
   tags:
     - handlers
     - timezone
@@ -82,48 +126,3 @@
     - debug
     - handlers
 
-# Reload console configuration for Debian/Ubuntu / Перезагрузка конфигурации консоли для Debian/Ubuntu
-- name: "Reload console configuration for Debian/Ubuntu / Перезагрузка конфигурации консоли для Debian/Ubuntu"
-  ansible.builtin.command: "setupcon"
-  register: console_reload_result
-  failed_when: false
-  changed_when: console_reload_result.rc == 0
-  when: ansible_os_family == "Debian"
-  tags:
-    - handlers
-    - console
-    - debian
-    - ubuntu
-
-# Reload console configuration for RedHat/CentOS / Перезагрузка конфигурации консоли для RedHat/CentOS
-- name: "Reload console configuration for RedHat/CentOS / Перезагрузка конфигурации консоли для RedHat/CentOS"
-  ansible.builtin.command: "systemctl restart systemd-vconsole-setup"
-  register: console_reload_result
-  failed_when: false
-  changed_when: console_reload_result.rc == 0
-  when: ansible_os_family == "RedHat"
-  tags:
-    - handlers
-    - console
-    - redhat
-    - centos
-    - rocky
-    - almalinux
-
-# Display console reload results / Отображение результатов перезагрузки консоли
-- name: "Display console reload results / Отображение результатов перезагрузки консоли"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Console Configuration Reload:"
-      - "============================================================================="
-      - "Command:               setupcon"
-      - "Return Code:           {{ console_reload_result.rc }}"
-      - "Changed:               {{ console_reload_result.changed }}"
-      - "Output:                {{ console_reload_result.stdout }}"
-      - "Errors:                {{ console_reload_result.stderr }}"
-      - "============================================================================="
-  when: debug_mode
-  tags:
-    - debug
-    - handlers

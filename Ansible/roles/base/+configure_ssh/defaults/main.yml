@@ -1,0 +1,129 @@
+---
+# SSH Configuration Role Defaults / Значения по умолчанию роли конфигурации SSH
+# This role configures SSH server with security best practices and network-based access control
+# Эта роль настраивает SSH сервер с лучшими практиками безопасности и контролем доступа на основе сети
+
+
+config_ssh: true
+
+# Debug mode for verbose output / Режим отладки для подробного вывода
+debug_mode: true
+
+# Debug language selection / Выбор языка для отладки
+# Options: 'english', 'russian', 'both' / Варианты: 'english', 'russian', 'both'
+debug_lang: "both"
+
+# SSH Configuration / Конфигурация SSH
+ssh_port: 22
+ssh_protocol: "tcp"
+
+# SSH Security Settings / Настройки безопасности SSH
+ssh_security:
+  # Authentication settings / Настройки аутентификации
+  password_authentication: "yes"  # Allow password auth for trusted networks / Разрешить аутентификацию по паролю для доверенных сетей
+  pubkey_authentication: "no"    # Allow public key authentication / Разрешить аутентификацию по публичному ключу
+  permit_empty_passwords: "yes"    # Disable empty passwords / Запретить пустые пароли
+  permit_root_login: "yes"         # Disable root login / Запретить вход root
+  max_auth_tries: 6               # Maximum authentication attempts / Максимальное количество попыток аутентификации
+  login_grace_time: 60            # Login grace time in seconds / Время ожидания входа в секундах
+  client_alive_interval: 300      # Client alive interval in seconds / Интервал проверки активности клиента в секундах
+  client_alive_count_max: 2       # Client alive count max / Максимальное количество проверок активности клиента
+  
+  # Protocol settings / Настройки протокола
+  protocol: 2                     # SSH protocol version / Версия протокола SSH
+  host_key_algorithms: "rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,ssh-ed25519"
+  kex_algorithms: "curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256"
+  ciphers: "chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr"
+  macs: "hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha2-512"
+  
+  # Logging settings / Настройки логирования
+  log_level: "INFO"               # SSH log level / Уровень логирования SSH
+  syslog_facility: "AUTH"         # Syslog facility / Удобство syslog
+  
+  # Banner and welcome message / Баннер и приветственное сообщение
+  banner: "/etc/ssh/banner"        # SSH banner file / Файл баннера SSH
+  print_motd: "yes"                # Print message of the day / Выводить сообщение дня
+  print_last_log: "yes"            # Print last login / Выводить последний вход
+
+# Network-based access control / Контроль доступа на основе сети
+# Direct subnet configuration (if defined, will be used instead of users_to_add)
+# Прямая конфигурация подсетей (если определена, будет использована вместо users_to_add)
+#allowed_subnets: []      # List of trusted subnets for password-only access / Список доверенных подсетей для доступа только по паролю
+#denied_subnets: []       # List of denied subnets / Список запрещенных подсетей
+#not_trusted_subnets: []  # List of not trusted subnets / Список не доверенных подсетей
+
+# User-based configuration (used if allowed_subnets/denied_subnets are not defined)
+# Конфигурация на основе пользователей (используется если allowed_subnets/denied_subnets не определены)
+users_to_add: []
+  # Пример структуры:
+  # - username: "admin"
+  #   password: "SecurePassword123!"
+  #   groups: ["sudo", "admin"]
+  #   is_sudoers: true
+  #   shell: /bin/bash
+  #   allowed_subnets:
+  #     - "192.168.1.0/24"
+  #     - "10.20.30.0/24"
+  #   not_trusted_subnets:
+  #     - "10.30.40.0/24"
+  #   denied_subnets:
+  #     - "192.168.0.0/24"
+  #     - "10.10.10.0/24"
+  #   authorized_keys:
+  #     - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC..."
+
+# SSH Access Control Rules / Правила контроля доступа SSH
+ssh_access_control:
+  # Trusted networks - password authentication allowed / Доверенные сети - аутентификация по паролю разрешена
+  trusted_networks_password_auth: true
+  # Untrusted networks - require both password and key / Недоверенные сети - требуют и пароль, и ключ
+  untrusted_networks_require_both: true
+  # Default behavior for undefined networks / Поведение по умолчанию для неопределенных сетей
+  default_network_behavior: "restrictive"  # Options: permissive, restrictive / Варианты: разрешительный, ограничительный
+
+# Backup and safety settings / Настройки резервного копирования и безопасности
+ssh_backup_enabled: true
+ssh_backup_dir: "/etc/ssh/backup"
+ssh_backup_suffix: ".bak"
+ssh_backup_count: 5
+
+# Validation settings / Настройки валидации
+validate_configuration: true
+fail_on_validation_error: true
+strict_validation: true
+
+# Service management / Управление службами
+ssh_config_file:    "/etc/ssh/sshd_config"
+ssh_banner_file:    "/etc/ssh/banner"
+ssh_greeting_file:  "/etc/profile.d/greeting.sh" 
+
+# OS-specific unified variables / OS-специфичные унифицированные переменные
+ssh_os_vars:
+  service_name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+  server_package: "{{ 'openssh-server' if ansible_os_family in ['Debian', 'RedHat'] else 'openssh' }}"
+  client_package: "{{ 'openssh-client' if ansible_os_family == 'Debian' else ('openssh-clients' if ansible_os_family == 'RedHat' else 'openssh') }}"
+  package_manager: "{{ 'apt' if ansible_os_family == 'Debian' else ('yum' if ansible_os_family == 'RedHat' else 'zypper') }}"
+  update_cache: "{{ ansible_os_family == 'Debian' }}"
+
+# Advanced SSH settings / Расширенные настройки SSH
+ssh_advanced:
+  # Compression / Сжатие
+  compression: "delayed"
+  
+  # X11 forwarding / Переадресация X11
+  x11_forwarding: false
+  x11_display_offset: 10
+  x11_use_localhost: true
+  
+  # TCP forwarding / Переадресация TCP
+  allow_tcp_forwarding: false
+  gateway_ports: false
+  
+  # Agent forwarding / Переадресация агента
+  allow_agent_forwarding: false
+  
+  # Subsystem settings / Настройки подсистем
+  subsystem_sftp: "/usr/lib/openssh/sftp-server"
+  
+  # Match blocks for network-specific rules / Блоки Match для правил, специфичных для сети
+  use_match_blocks: true

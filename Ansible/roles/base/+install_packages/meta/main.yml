@@ -1,0 +1,52 @@
+---
+galaxy_info:
+  author: System Administrator
+  description: Multi-platform package installation role supporting Debian and RedHat OS families with comprehensive validation, advanced debugging capabilities, and production-ready error handling. Supports Ubuntu, Debian, CentOS, RHEL, Rocky Linux, and AlmaLinux distributions.
+  company: Infrastructure Team
+  license: MIT
+  min_ansible_version: "2.9"
+  platforms:
+    # Debian family distributions (ansible_os_family: Debian)
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+        - trixie
+    # RedHat family distributions (ansible_os_family: RedHat)
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+    - name: CentOS
+      versions:
+        - 7
+    - name: Rocky
+      versions:
+        - 8
+        - 9
+    - name: AlmaLinux
+      versions:
+        - 8
+        - 9
+  galaxy_tags:
+    - system
+    - packages
+    - apt
+    - yum
+    - dnf
+    - ubuntu
+    - debian
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+    - validation
+    - debugging
+    - multi-platform
+dependencies: []

@@ -1,0 +1,493 @@
+---
+# RedHat/CentOS/Rocky/AlmaLinux Specific Tasks / Специфичные задачи для RedHat/CentOS/Rocky/AlmaLinux
+# =============================================================================
+
+- name: "Display RedHat family information / Отображение информации о семействе RedHat"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "RedHat Family Configuration / Конфигурация семейства RedHat:"
+      - "============================================================================="
+      - "Distribution:             {{ ansible_distribution }}"
+      - "Version:                  {{ ansible_distribution_version }}"
+      - "Package Manager:          {{ package_manager }}"
+      - "Service Manager:          {{ service_manager }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - os-specific
+
+- name: "Update package cache for RedHat family / Обновление кэша пакетов для семейства RedHat"
+  ansible.builtin.yum:
+    update_cache: yes
+  register: redhat_yum_update_result
+  failed_when: false
+  changed_when: false
+  when: package_manager == "yum"
+  tags:
+    - redhat
+    - os-specific
+    - package-management
+
+- name: "Update package cache for Fedora / Обновление кэша пакетов для Fedora"
+  ansible.builtin.dnf:
+    update_cache: yes
+  register: redhat_dnf_update_result
+  failed_when: false
+  changed_when: false
+  when: package_manager == "dnf"
+  tags:
+    - redhat
+    - os-specific
+    - package-management
+
+- name: "Display package cache update results / Отображение результатов обновления кэша пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Cache Update Results / Результаты обновления кэша пакетов:"
+      - "============================================================================="
+      - "Package Manager:          {{ package_manager }}"
+      - "Update Status:            {{ 'SUCCESS' if (package_manager == 'yum' and redhat_yum_update_result is not failed) or (package_manager == 'dnf' and redhat_dnf_update_result is not failed) else 'FAILED' }}"
+      - "Return Code:              {{ (redhat_yum_update_result.rc | default('N/A')) if package_manager == 'yum' else (redhat_dnf_update_result.rc | default('N/A')) }}"
+      - "Changed:                  {{ redhat_yum_update_result.changed if package_manager == 'yum' else redhat_dnf_update_result.changed }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - package-management
+
+- name: "Install fail2ban packages for RedHat family (YUM) / Установка пакетов fail2ban для семейства RedHat (YUM)"
+  ansible.builtin.yum:
+    name: "{{ final_package_list }}"
+    state: present
+  register: redhat_yum_package_install_result
+  when: package_manager == "yum"
+  tags:
+    - redhat
+    - os-specific
+    - package-installation
+
+- name: "Install fail2ban packages for Fedora (DNF) / Установка пакетов fail2ban для Fedora (DNF)"
+  ansible.builtin.dnf:
+    name: "{{ final_package_list }}"
+    state: present
+  register: redhat_dnf_package_install_result
+  when: package_manager == "dnf"
+  tags:
+    - redhat
+    - os-specific
+    - package-installation
+
+- name: "Display package installation results / Отображение результатов установки пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Installation Results / Результаты установки пакетов:"
+      - "============================================================================="
+      - "Package Manager:          {{ package_manager }}"
+      - "Installation Status:      {{ 'SUCCESS' if (package_manager == 'yum' and redhat_yum_package_install_result is not failed) or (package_manager == 'dnf' and redhat_dnf_package_install_result is not failed) else 'FAILED' }}"
+      - "Return Code:              {{ (redhat_yum_package_install_result.rc | default('N/A')) if package_manager == 'yum' else (redhat_dnf_package_install_result.rc | default('N/A')) }}"
+      - "Changed:                  {{ redhat_yum_package_install_result.changed if package_manager == 'yum' else redhat_dnf_package_install_result.changed }}"
+      - "Installed Packages:       {{ final_package_list | join(', ') }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - package-installation
+
+- name: "Check fail2ban service status for RedHat family / Проверка статуса службы fail2ban для семейства RedHat"
+  ansible.builtin.systemd:
+    name: fail2ban
+  register: redhat_service_status
+  failed_when: false
+  changed_when: false
+  tags:
+    - redhat
+    - os-specific
+    - service-management
+
+- name: "Display service status / Отображение статуса службы"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Service Status / Статус службы:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Status:                   {{ redhat_service_status.status.ActiveState }}"
+      - "Enabled:                  {{ redhat_service_status.status.UnitFileState }}"
+      - "Main PID:                 {{ redhat_service_status.status.MainPID }}"
+      - "Memory Usage:             {{ redhat_service_status.status.MemoryCurrent }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - service-management
+
+- name: "Enable fail2ban service for RedHat family / Включение службы fail2ban для семейства RedHat"
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: "{{ fail2ban_service_enabled }}"
+    state: "{{ fail2ban_service_state }}"
+    daemon_reload: yes
+  register: redhat_service_enable_result
+  tags:
+    - redhat
+    - os-specific
+    - service-management
+
+- name: "Display service enable results / Отображение результатов включения службы"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Service Enable Results / Результаты включения службы:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Enabled:                  {{ fail2ban_service_enabled }}"
+      - "State:                    {{ fail2ban_service_state }}"
+      - "Changed:                  {{ redhat_service_enable_result.changed }}"
+      - "Status:                   {{ 'SUCCESS' if redhat_service_enable_result is not failed else 'FAILED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - service-management
+
+- name: "Check if firewalld is installed / Проверка установлен ли firewalld"
+  ansible.builtin.command: which firewall-cmd
+  register: firewalld_installed_check
+  failed_when: false
+  changed_when: false
+  tags:
+    - redhat
+    - os-specific
+    - firewall
+
+- name: "Check if iptables is installed / Проверка установлен ли iptables"
+  ansible.builtin.command: which iptables
+  register: iptables_installed_check
+  failed_when: false
+  changed_when: false
+  tags:
+    - redhat
+    - os-specific
+    - firewall
+
+- name: "Display firewall detection results / Отображение результатов обнаружения файрвола"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Firewall Detection / Обнаружение файрвола:"
+      - "============================================================================="
+      - "firewalld Installed:      {{ 'YES ✓' if firewalld_installed_check.rc == 0 else 'NO ✗' }}"
+      - "iptables Installed:       {{ 'YES ✓' if iptables_installed_check.rc == 0 else 'NO ✗' }}"
+      - "Configured Backend:       {{ firewall_integration.firewall_backend }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - firewall
+
+- name: "Check firewalld status for RedHat family / Проверка статуса firewalld для семейства RedHat"
+  ansible.builtin.command: firewall-cmd --state
+  register: firewalld_status_result
+  failed_when: false
+  changed_when: false
+  when: firewalld_installed_check.rc == 0
+  tags:
+    - redhat
+    - os-specific
+    - firewall
+
+- name: "Display firewalld status / Отображение статуса firewalld"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Firewalld Status / Статус firewalld:"
+      - "============================================================================="
+      - "Firewalld Status:         {{ firewalld_status_result.stdout.strip() if firewalld_status_result.stdout is defined else 'Unknown' }}"
+      - "Return Code:              {{ firewalld_status_result.rc | default('N/A') }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - firewalld_installed_check.rc == 0
+  tags:
+    - debug
+    - redhat
+    - firewall
+
+- name: "Switch to iptables if firewalld not installed / Переключение на iptables если firewalld не установлен"
+  ansible.builtin.set_fact:
+    firewall_backend_actual: "{{ 'iptables' if firewalld_installed_check.rc != 0 else firewall_integration.firewall_backend }}"
+    firewall_integration_adjusted: "{{ firewall_integration | combine({'firewall_backend': 'iptables'}) if firewalld_installed_check.rc != 0 else firewall_integration }}"
+  tags:
+    - redhat
+    - os-specific
+    - firewall
+
+- name: "Display firewall backend decision / Отображение решения о бэкенде файрвола"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Firewall Backend Decision / Решение о бэкенде файрвола:"
+      - "============================================================================="
+      - "Original Backend:         {{ firewall_integration.firewall_backend }}"
+      - "Actual Backend:           {{ firewall_backend_actual }}"
+      - "Reason:                   {{ 'firewalld not installed, switched to iptables' if firewalld_installed_check.rc != 0 else 'Using configured backend' }}"
+      - "                          {{ 'firewalld не установлен, переключено на iptables' if firewalld_installed_check.rc != 0 else 'Используется настроенный бэкенд' }}"
+      - "iptables Available:       {{ 'YES ✓' if iptables_installed_check.rc == 0 else 'NO ✗' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - firewall
+
+- name: "Validate iptables availability if required / Валидация доступности iptables если требуется"
+  ansible.builtin.assert:
+    that:
+      - iptables_installed_check.rc == 0
+    success_msg: "iptables is available for fail2ban integration / iptables доступен для интеграции с fail2ban"
+    fail_msg: |
+      CRITICAL ERROR / КРИТИЧЕСКАЯ ОШИБКА:
+      Neither firewalld nor iptables is installed!
+      Ни firewalld, ни iptables не установлены!
+      
+      fail2ban requires a firewall backend to function.
+      fail2ban требует бэкенд файрвола для работы.
+      
+      Please install either:
+      Пожалуйста установите:
+        - firewalld: yum install firewalld (or dnf install firewalld)
+        - iptables: yum install iptables-services (or dnf install iptables-services)
+  when: 
+    - strict_validation | bool
+    - firewalld_installed_check.rc != 0
+  tags:
+    - validation
+    - redhat
+    - firewall
+
+- name: "Warning if switching to iptables / Предупреждение при переключении на iptables"
+  ansible.builtin.debug:
+    msg:
+      - "⚠️  WARNING / ПРЕДУПРЕЖДЕНИЕ:"
+      - "============================================================================="
+      - "firewalld is NOT installed on this system!"
+      - "firewalld НЕ установлен на этой системе!"
+      - ""
+      - "fail2ban will use direct iptables integration instead."
+      - "fail2ban будет использовать прямую интеграцию с iptables."
+      - ""
+      - "This means:"
+      - "Это означает:"
+      - "  - fail2ban will create iptables rules directly"
+      - "  - fail2ban будет создавать правила iptables напрямую"
+      - "  - Rules won't be visible via 'firewall-cmd --list-all'"
+      - "  - Правила не будут видны через 'firewall-cmd --list-all'"
+      - "  - Use 'iptables -L' to see fail2ban rules"
+      - "  - Используйте 'iptables -L' для просмотра правил fail2ban"
+      - ""
+      - "To use firewalld instead, install it:"
+      - "Чтобы использовать firewalld, установите его:"
+      - "  sudo yum install firewalld (RHEL/CentOS 7)"
+      - "  sudo dnf install firewalld (RHEL/CentOS 8+, Fedora, Rocky, AlmaLinux)"
+      - "============================================================================="
+  when: 
+    - firewalld_installed_check.rc != 0
+    - firewall_backend_actual == 'iptables'
+  tags:
+    - redhat
+    - firewall
+    - warning
+
+- name: "Configure firewalld for fail2ban integration / Настройка firewalld для интеграции с fail2ban"
+  ansible.builtin.firewalld:
+    port: "{{ ssh_protection.port }}/{{ ssh_protection.protocol }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  when: 
+    - firewall_integration.enabled | bool
+    - firewalld_installed_check.rc == 0
+    - firewall_backend_actual == 'firewalld'
+  register: firewalld_ssh_rule_result
+  tags:
+    - redhat
+    - os-specific
+    - firewall
+
+- name: "Display firewalld configuration results / Отображение результатов конфигурации firewalld"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Firewalld Configuration Results / Результаты конфигурации firewalld:"
+      - "============================================================================="
+      - "SSH Rule Added:           {{ 'SUCCESS' if firewalld_ssh_rule_result.changed else 'NO CHANGE' }}"
+      - "Port:                     {{ ssh_protection.port }}/{{ ssh_protection.protocol }}"
+      - "Permanent:                yes"
+      - "Immediate:                yes"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - firewalld_installed_check.rc == 0
+    - firewall_backend_actual == 'firewalld'
+  tags:
+    - debug
+    - redhat
+    - firewall
+
+- name: "Check iptables rules for fail2ban compatibility / Проверка правил iptables на совместимость с fail2ban"
+  ansible.builtin.command: iptables -L INPUT -n
+  register: iptables_rules_check
+  failed_when: false
+  changed_when: false
+  when: 
+    - firewall_backend_actual == 'iptables'
+    - iptables_installed_check.rc == 0
+  tags:
+    - redhat
+    - os-specific
+    - firewall
+    - iptables
+
+- name: "Display iptables integration status / Отображение статуса интеграции с iptables"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "iptables Integration Status / Статус интеграции с iptables:"
+      - "============================================================================="
+      - "Backend:                  iptables (direct integration)"
+      - "Бэкенд:                   iptables (прямая интеграция)"
+      - ""
+      - "fail2ban will create its own chains:"
+      - "fail2ban создаст свои собственные цепочки:"
+      - "  - f2b-sshd              (SSH protection chain)"
+      - "  - f2b-<jail>            (Additional jails if configured)"
+      - ""
+      - "iptables Status:          {{ 'READY ✓' if iptables_installed_check.rc == 0 else 'NOT AVAILABLE ✗' }}"
+      - "Статус iptables:          {{ 'ГОТОВ ✓' if iptables_installed_check.rc == 0 else 'НЕДОСТУПЕН ✗' }}"
+      - ""
+      - "View rules after fail2ban start:"
+      - "Просмотр правил после запуска fail2ban:"
+      - "  sudo iptables -L -n -v"
+      - "  sudo iptables -L f2b-sshd -n -v"
+      - ""
+      - "Note: On RHEL/CentOS, you may need to install iptables-services:"
+      - "Примечание: На RHEL/CentOS может потребоваться установить iptables-services:"
+      - "  sudo yum install iptables-services (RHEL/CentOS 7)"
+      - "  sudo dnf install iptables-services (RHEL/CentOS 8+)"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - firewall_backend_actual == 'iptables'
+  tags:
+    - debug
+    - redhat
+    - firewall
+    - iptables
+
+- name: "Check SELinux status for RedHat family / Проверка статуса SELinux для семейства RedHat"
+  ansible.builtin.command: getenforce
+  register: selinux_status_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - redhat
+    - os-specific
+    - security
+
+- name: "Display SELinux status / Отображение статуса SELinux"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SELinux Status / Статус SELinux:"
+      - "============================================================================="
+      - "SELinux Status:           {{ selinux_status_result.stdout.strip() if selinux_status_result.stdout is defined else 'Unknown' }}"
+      - "SELinux Enabled:          {{ security_settings.selinux_enabled }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - security
+
+- name: "Configure SELinux for fail2ban / Настройка SELinux для fail2ban"
+  ansible.builtin.selinux:
+    policy: targeted
+    state: "{{ 'enforcing' if security_settings.selinux_enabled else 'permissive' }}"
+  when: 
+    - security_settings.selinux_enabled is defined
+    - selinux_status_result is not failed
+  register: selinux_config_result
+  tags:
+    - redhat
+    - os-specific
+    - security
+
+- name: "Display SELinux configuration results / Отображение результатов конфигурации SELinux"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SELinux Configuration Results / Результаты конфигурации SELinux:"
+      - "============================================================================="
+      - "SELinux State:            {{ 'ENFORCING' if security_settings.selinux_enabled else 'PERMISSIVE' }}"
+      - "Configuration Status:     {{ 'SUCCESS' if selinux_config_result.changed else 'NO CHANGE' }}"
+      - "Context:                  {{ security_settings.selinux_context }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - security
+
+- name: "Check logrotate configuration for RedHat family / Проверка конфигурации logrotate для семейства RedHat"
+  ansible.builtin.stat:
+    path: /etc/logrotate.d/fail2ban
+  register: redhat_logrotate_config_check
+  tags:
+    - redhat
+    - os-specific
+    - log-management
+
+- name: "Display logrotate configuration status / Отображение статуса конфигурации logrotate"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Logrotate Configuration Status / Статус конфигурации logrotate:"
+      - "============================================================================="
+      - "Config File Exists:       {{ 'Yes' if redhat_logrotate_config_check.stat.exists else 'No' }}"
+      - "Config File Path:         /etc/logrotate.d/fail2ban"
+      - "Logrotate Enabled:        {{ system_integration.logrotate_enabled }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - log-management
+
+- name: "Display RedHat family configuration summary / Отображение сводки конфигурации семейства RedHat"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "RedHat Family Configuration Summary / Сводка конфигурации семейства RedHat:"
+      - "============================================================================="
+      - "Package Installation:     {{ 'SUCCESS' if (package_manager == 'yum' and redhat_yum_package_install_result is not failed) or (package_manager == 'dnf' and redhat_dnf_package_install_result is not failed) else 'FAILED' }}"
+      - "Service Management:       {{ 'SUCCESS' if redhat_service_enable_result is not failed else 'FAILED' }}"
+      - "Firewall Backend:         {{ firewall_backend_actual | upper }}"
+      - "Firewall Integration:     {{ 'CONFIGURED (firewalld)' if (firewall_backend_actual == 'firewalld' and firewalld_ssh_rule_result.changed | default(false)) else ('READY (iptables direct)' if firewall_backend_actual == 'iptables' else 'NO CHANGE') }}"
+      - "SELinux Configuration:    {{ 'CONFIGURED' if selinux_config_result.changed else 'NO CHANGE' }}"
+      - "Logrotate Status:         {{ 'CONFIGURED' if redhat_logrotate_config_check.stat.exists else 'NOT CONFIGURED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - redhat
+    - summary

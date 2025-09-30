@@ -1,0 +1,214 @@
+---
+# Fail2ban Role Handlers / Обработчики событий роли Fail2ban
+# =============================================================================
+
+- name: "restart fail2ban"
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: restarted
+    daemon_reload: yes
+  register: fail2ban_restart_result
+  failed_when: false
+  tags:
+    - handlers
+    - restart
+
+- name: "Display fail2ban restart results / Отображение результатов перезапуска fail2ban"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Restart Results / Результаты перезапуска fail2ban:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Restart Status:           {{ 'SUCCESS' if fail2ban_restart_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ fail2ban_restart_result.changed }}"
+      - "Return Code:              {{ fail2ban_restart_result.rc }}"
+      - "Output:                   {{ fail2ban_restart_result.stdout_lines | join('\n') if fail2ban_restart_result.stdout_lines else 'No output' }}"
+      - "Errors:                   {{ fail2ban_restart_result.stderr_lines | join('\n') if fail2ban_restart_result.stderr_lines else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+    - restart
+
+- name: "reload fail2ban"
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: reloaded
+    daemon_reload: yes
+  register: fail2ban_reload_result
+  failed_when: false
+  tags:
+    - handlers
+    - reload
+
+- name: "Display fail2ban reload results / Отображение результатов перезагрузки fail2ban"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Reload Results / Результаты перезагрузки fail2ban:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Reload Status:            {{ 'SUCCESS' if fail2ban_reload_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ fail2ban_reload_result.changed }}"
+      - "Return Code:              {{ fail2ban_reload_result.rc }}"
+      - "Output:                   {{ fail2ban_reload_result.stdout_lines | join('\n') if fail2ban_reload_result.stdout_lines else 'No output' }}"
+      - "Errors:                   {{ fail2ban_reload_result.stderr_lines | join('\n') if fail2ban_reload_result.stderr_lines else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+    - reload
+
+- name: "stop fail2ban"
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: stopped
+  register: fail2ban_stop_result
+  failed_when: false
+  tags:
+    - handlers
+    - stop
+
+- name: "Display fail2ban stop results / Отображение результатов остановки fail2ban"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Stop Results / Результаты остановки fail2ban:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Stop Status:              {{ 'SUCCESS' if fail2ban_stop_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ fail2ban_stop_result.changed }}"
+      - "Return Code:              {{ fail2ban_stop_result.rc }}"
+      - "Output:                   {{ fail2ban_stop_result.stdout_lines | join('\n') if fail2ban_stop_result.stdout_lines else 'No output' }}"
+      - "Errors:                   {{ fail2ban_stop_result.stderr_lines | join('\n') if fail2ban_stop_result.stderr_lines else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+    - stop
+
+- name: "start fail2ban"
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: "{{ fail2ban_service_enabled }}"
+  register: fail2ban_start_result
+  failed_when: false
+  tags:
+    - handlers
+    - start
+
+- name: "Display fail2ban start results / Отображение результатов запуска fail2ban"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Start Results / Результаты запуска fail2ban:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Start Status:             {{ 'SUCCESS' if fail2ban_start_result.changed else 'NO CHANGE' }}"
+      - "Enabled:                  {{ fail2ban_service_enabled }}"
+      - "Changed:                  {{ fail2ban_start_result.changed }}"
+      - "Return Code:              {{ fail2ban_start_result.rc }}"
+      - "Output:                   {{ fail2ban_start_result.stdout_lines | join('\n') if fail2ban_start_result.stdout_lines else 'No output' }}"
+      - "Errors:                   {{ fail2ban_start_result.stderr_lines | join('\n') if fail2ban_start_result.stderr_lines else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+    - start
+
+- name: "test fail2ban configuration"
+  ansible.builtin.command: fail2ban-client -t
+  register: fail2ban_test_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - handlers
+    - test
+
+- name: "Display fail2ban test results / Отображение результатов тестирования fail2ban"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Test Results / Результаты тестирования fail2ban:"
+      - "============================================================================="
+      - "Test Status:              {{ 'SUCCESS' if fail2ban_test_result.rc == 0 else 'FAILED' }}"
+      - "Return Code:              {{ fail2ban_test_result.rc }}"
+      - "Output:                   {{ fail2ban_test_result.stdout_lines | join('\n') if fail2ban_test_result.stdout_lines else 'No output' }}"
+      - "Errors:                   {{ fail2ban_test_result.stderr_lines | join('\n') if fail2ban_test_result.stderr_lines else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+    - test
+
+- name: "backup fail2ban configuration"
+  ansible.builtin.copy:
+    src: /etc/fail2ban/
+    dest: "{{ backup_settings.backup_dir }}/fail2ban_backup_{{ ansible_date_time.epoch }}"
+    remote_src: yes
+    mode: preserve
+  when: backup_enabled | bool
+  register: fail2ban_backup_result
+  tags:
+    - handlers
+    - backup
+
+- name: "Display fail2ban backup results / Отображение результатов резервного копирования fail2ban"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Backup Results / Результаты резервного копирования fail2ban:"
+      - "============================================================================="
+      - "Backup Status:            {{ 'SUCCESS' if fail2ban_backup_result.changed else 'NO CHANGE' }}"
+      - "Backup Location:          {{ backup_settings.backup_dir }}/fail2ban_backup_{{ ansible_date_time.epoch }}"
+      - "Changed:                  {{ fail2ban_backup_result.changed }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+    - backup
+
+- name: "cleanup old backups"
+  ansible.builtin.find:
+    paths: "{{ backup_settings.backup_dir }}"
+    patterns: "fail2ban_backup_*"
+    age: "{{ backup_settings.backup_retention }}d"
+  register: old_backups
+  tags:
+    - handlers
+    - cleanup
+
+- name: "Remove old backup files / Удаление старых файлов резервного копирования"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ old_backups.files }}"
+  when: old_backups.files | length > 0
+  register: cleanup_result
+  tags:
+    - handlers
+    - cleanup
+
+- name: "Display cleanup results / Отображение результатов очистки"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Cleanup Results / Результаты очистки:"
+      - "============================================================================="
+      - "Old Backups Found:        {{ old_backups.files | length }}"
+      - "Backups Removed:          {{ cleanup_result.results | selectattr('changed') | list | length if cleanup_result.results is defined else 0 }}"
+      - "Cleanup Status:           {{ 'SUCCESS' if cleanup_result.changed else 'NO CHANGE' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+    - cleanup

@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# SSH Configuration Role - Handlers / Роль конфигурации SSH - Обработчики
+# =============================================================================
+# This file contains essential handlers for SSH configuration role
+# Этот файл содержит основные обработчики для роли конфигурации SSH
+# =============================================================================
+
+# Restart SSH service / Перезапустить службу SSH
+- name: "restart sshd"
+  ansible.builtin.service:
+    name: "{{ ssh_os_vars.service_name }}"
+    state: restarted
+  register: ssh_action_result
+  failed_when: false
+  become: true
+  tags:
+    - handlers
+    - ssh
+    - restart
+
+# Test SSH configuration / Тестировать конфигурацию SSH
+- name: "test sshd config"
+  ansible.builtin.command: sshd -t
+  register: ssh_action_result
+  changed_when: false
+  become: true
+  tags:
+    - handlers
+    - ssh
+    - test
+
+# Display SSH results / Отображение результатов SSH
+- name: "Display SSH results / Отображение результатов SSH"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "{% if debug_lang | default('both') in ['english', 'both'] %}SSH Action Results:{% endif %}{% if debug_lang | default('both') in ['russian', 'both'] %}Результаты действий SSH:{% endif %}"
+      - "============================================================================="
+      - "{% if debug_lang | default('both') in ['english', 'both'] %}Action:                   {{ ansible_play_name | default('Unknown') }}{% endif %}{% if debug_lang | default('both') in ['russian', 'both'] %}Действие:                 {{ ansible_play_name | default('Неизвестно') }}{% endif %}"
+      - "{% if debug_lang | default('both') in ['english', 'both'] %}Service Name:             {{ ssh_os_vars.service_name }}{% endif %}{% if debug_lang | default('both') in ['russian', 'both'] %}Имя службы:               {{ ssh_os_vars.service_name }}{% endif %}"
+      - "{% if debug_lang | default('both') in ['english', 'both'] %}Status:                   {{ 'SUCCESS' if ssh_action_result.rc == 0 else 'FAILED' }}{% endif %}{% if debug_lang | default('both') in ['russian', 'both'] %}Статус:                   {{ 'УСПЕХ' if ssh_action_result.rc == 0 else 'ОШИБКА' }}{% endif %}"
+      - "{% if debug_lang | default('both') in ['english', 'both'] %}Return Code:              {{ ssh_action_result.rc }}{% endif %}{% if debug_lang | default('both') in ['russian', 'both'] %}Код возврата:             {{ ssh_action_result.rc }}{% endif %}"
+      - "{% if debug_lang | default('both') in ['english', 'both'] %}Changed:                  {{ ssh_action_result.changed }}{% endif %}{% if debug_lang | default('both') in ['russian', 'both'] %}Изменено:                 {{ ssh_action_result.changed }}{% endif %}"
+      - "{% if debug_lang | default('both') in ['english', 'both'] %}Output:                   {{ ssh_action_result.stdout | default('N/A') }}{% endif %}{% if debug_lang | default('both') in ['russian', 'both'] %}Вывод:                    {{ ssh_action_result.stdout | default('Н/Д') }}{% endif %}"
+      - "{% if debug_lang | default('both') in ['english', 'both'] %}Errors:                   {{ ssh_action_result.stderr | default('N/A') }}{% endif %}{% if debug_lang | default('both') in ['russian', 'both'] %}Ошибки:                   {{ ssh_action_result.stderr | default('Н/Д') }}{% endif %}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+    - ssh

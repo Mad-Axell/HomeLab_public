@@ -1,0 +1,321 @@
+---
+# Parameter Validation Tasks / Задачи валидации параметров
+# =============================================================================
+
+- name: "Display validation start information / Отображение информации о начале валидации"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Role Parameter Validation / Валидация параметров роли Fail2ban:"
+      - "============================================================================="
+      - "Host:                    {{ inventory_hostname }}"
+      - "OS Family:               {{ ansible_os_family }}"
+      - "OS Distribution:         {{ ansible_distribution }}"
+      - "OS Version:              {{ ansible_distribution_version }}"
+      - "Architecture:            {{ ansible_architecture }}"
+      - "Debug Mode:              {{ debug_mode }}"
+      - "Backup Enabled:          {{ backup_enabled }}"
+      - "Strict Validation:       {{ strict_validation }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - validation
+
+- name: "Validate debug mode parameter / Валидация параметра режима отладки"
+  ansible.builtin.assert:
+    that:
+      - debug_mode is defined
+      - debug_mode is boolean
+    success_msg: "Debug mode parameter is valid / Параметр режима отладки корректен"
+    fail_msg: "Debug mode must be a boolean value / Режим отладки должен быть логическим значением"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - debug
+
+- name: "Validate backup settings / Валидация настроек резервного копирования"
+  ansible.builtin.assert:
+    that:
+      - backup_enabled is defined
+      - backup_enabled is boolean
+      - backup_settings.backup_dir is defined
+      - backup_settings.backup_dir is string
+      - backup_settings.backup_retention is defined
+      - backup_settings.backup_retention is number
+      - backup_settings.backup_retention > 0
+    success_msg: "Backup settings are valid / Настройки резервного копирования корректны"
+    fail_msg: "Backup settings validation failed / Валидация настроек резервного копирования не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - backup
+
+- name: "Validate fail2ban installation settings / Валидация настроек установки fail2ban"
+  ansible.builtin.assert:
+    that:
+      - fail2ban_install is defined
+      - fail2ban_install is boolean
+      - fail2ban_service_enabled is defined
+      - fail2ban_service_enabled is boolean
+      - fail2ban_service_state is defined
+      - fail2ban_service_state in ['started', 'stopped', 'restarted', 'reloaded']
+    success_msg: "Fail2ban installation settings are valid / Настройки установки fail2ban корректны"
+    fail_msg: "Fail2ban installation settings validation failed / Валидация настроек установки fail2ban не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - installation
+
+- name: "Validate fail2ban configuration / Валидация конфигурации fail2ban"
+  ansible.builtin.assert:
+    that:
+      - fail2ban_config is defined
+      - fail2ban_config.loglevel is defined
+      - fail2ban_config.loglevel in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+      - fail2ban_config.bantime is defined
+      - fail2ban_config.bantime is number
+      - fail2ban_config.bantime > 0
+      - fail2ban_config.findtime is defined
+      - fail2ban_config.findtime is number
+      - fail2ban_config.findtime > 0
+      - fail2ban_config.maxretry is defined
+      - fail2ban_config.maxretry is number
+      - fail2ban_config.maxretry > 0
+    success_msg: "Fail2ban configuration is valid / Конфигурация fail2ban корректна"
+    fail_msg: "Fail2ban configuration validation failed / Валидация конфигурации fail2ban не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - configuration
+
+- name: "Validate SSH protection settings / Валидация настроек защиты SSH"
+  ansible.builtin.assert:
+    that:
+      - ssh_protection is defined
+      - ssh_protection.enabled is defined
+      - ssh_protection.enabled is boolean
+      - ssh_protection.port is defined
+      - ssh_protection.port is string
+      - ssh_protection.protocol is defined
+      - ssh_protection.protocol in ['tcp', 'udp', 'both']
+      - ssh_protection.maxretry is defined
+      - ssh_protection.maxretry is number
+      - ssh_protection.maxretry > 0
+      - ssh_protection.bantime is defined
+      - ssh_protection.bantime is number
+      - ssh_protection.bantime > 0
+      - ssh_protection.findtime is defined
+      - ssh_protection.findtime is number
+      - ssh_protection.findtime > 0
+    success_msg: "SSH protection settings are valid / Настройки защиты SSH корректны"
+    fail_msg: "SSH protection settings validation failed / Валидация настроек защиты SSH не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - ssh
+
+- name: "Validate whitelist settings / Валидация настроек белого списка"
+  ansible.builtin.assert:
+    that:
+      - ssh_protection.whitelist_enabled is defined
+      - ssh_protection.whitelist_enabled is boolean
+      - ssh_protection.whitelist_ips is defined
+      - ssh_protection.whitelist_ips is sequence
+      - ssh_protection.whitelist_networks is defined
+      - ssh_protection.whitelist_networks is sequence
+    success_msg: "Whitelist settings are valid / Настройки белого списка корректны"
+    fail_msg: "Whitelist settings validation failed / Валидация настроек белого списка не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - whitelist
+
+- name: "Validate user-based protection settings / Валидация настроек защиты на основе пользователей"
+  ansible.builtin.assert:
+    that:
+      - user_based_protection is defined
+      - user_based_protection.enabled is defined
+      - user_based_protection.enabled is boolean
+      - user_based_protection.trusted_users is defined
+      - user_based_protection.trusted_users is sequence
+      - user_based_protection.trusted_networks is defined
+      - user_based_protection.trusted_networks is sequence
+    success_msg: "User-based protection settings are valid / Настройки защиты на основе пользователей корректны"
+    fail_msg: "User-based protection settings validation failed / Валидация настроек защиты на основе пользователей не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - user-protection
+
+- name: "Validate firewall integration settings / Валидация настроек интеграции с файрволом"
+  ansible.builtin.assert:
+    that:
+      - firewall_integration is defined
+      - firewall_integration.enabled is defined
+      - firewall_integration.enabled is boolean
+      - firewall_integration.firewall_backend is defined
+      - firewall_integration.firewall_backend in ['auto', 'iptables', 'firewalld', 'ufw']
+      - firewall_integration.firewall_chain is defined
+      - firewall_integration.firewall_chain is string
+    success_msg: "Firewall integration settings are valid / Настройки интеграции с файрволом корректны"
+    fail_msg: "Firewall integration settings validation failed / Валидация настроек интеграции с файрволом не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - firewall
+
+- name: "Validate email notification settings / Валидация настроек уведомлений по почте"
+  ansible.builtin.assert:
+    that:
+      - email_notifications is defined
+      - email_notifications.enabled is defined
+      - email_notifications.enabled is boolean
+      - email_notifications.destemail is defined
+      - email_notifications.destemail is string
+      - email_notifications.sender is defined
+      - email_notifications.sender is string
+      - email_notifications.action is defined
+      - email_notifications.action is string
+    success_msg: "Email notification settings are valid / Настройки уведомлений по почте корректны"
+    fail_msg: "Email notification settings validation failed / Валидация настроек уведомлений по почте не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - email
+
+- name: "Validate security settings / Валидация настроек безопасности"
+  ansible.builtin.assert:
+    that:
+      - security_settings is defined
+      - security_settings.config_file_mode is defined
+      - security_settings.config_file_mode is string
+      - security_settings.log_file_mode is defined
+      - security_settings.log_file_mode is string
+      - security_settings.socket_file_mode is defined
+      - security_settings.socket_file_mode is string
+      - security_settings.selinux_enabled is defined
+      - security_settings.selinux_enabled is boolean
+    success_msg: "Security settings are valid / Настройки безопасности корректны"
+    fail_msg: "Security settings validation failed / Валидация настроек безопасности не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - security
+
+- name: "Validate performance settings / Валидация настроек производительности"
+  ansible.builtin.assert:
+    that:
+      - performance_settings is defined
+      - performance_settings.max_memory is defined
+      - performance_settings.max_memory is number
+      - performance_settings.max_memory > 0
+      - performance_settings.max_threads is defined
+      - performance_settings.max_threads is number
+      - performance_settings.max_threads > 0
+      - performance_settings.db_max_connections is defined
+      - performance_settings.db_max_connections is number
+      - performance_settings.db_max_connections > 0
+    success_msg: "Performance settings are valid / Настройки производительности корректны"
+    fail_msg: "Performance settings validation failed / Валидация настроек производительности не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - performance
+
+- name: "Check system requirements / Проверка системных требований"
+  ansible.builtin.stat:
+    path: /var/log
+  register: log_dir_check
+  tags:
+    - validation
+    - system
+
+- name: "Validate log directory exists / Валидация существования директории логов"
+  ansible.builtin.assert:
+    that:
+      - log_dir_check.stat.exists
+      - log_dir_check.stat.isdir
+    success_msg: "Log directory exists and is accessible / Директория логов существует и доступна"
+    fail_msg: "Log directory does not exist or is not accessible / Директория логов не существует или недоступна"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - system
+
+- name: "Check firewall backend availability / Проверка доступности бэкенда файрвола"
+  ansible.builtin.command: which iptables
+  register: iptables_check
+  failed_when: false
+  changed_when: false
+  tags:
+    - validation
+    - firewall
+
+- name: "Validate firewall backend / Валидация бэкенда файрвола"
+  ansible.builtin.assert:
+    that:
+      - iptables_check is not failed
+    success_msg: "Firewall backend (iptables) is available / Бэкенд файрвола (iptables) доступен"
+    fail_msg: "Firewall backend (iptables) is not available / Бэкенд файрвола (iptables) недоступен"
+  when: 
+    - strict_validation | bool
+    - firewall_integration.firewall_backend in ['auto', 'iptables']
+  tags:
+    - validation
+    - firewall
+
+- name: "Validate IP addresses in whitelist / Валидация IP адресов в белом списке"
+  ansible.builtin.assert:
+    that:
+      - item is match('^(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:/[0-9]{1,2})?$|^[a-fA-F0-9:]+(?:/[0-9]{1,3})?$')
+    success_msg: "Valid IP address/network: {{ item }} / Корректный IP адрес/сеть: {{ item }}"
+    fail_msg: "Invalid IP address/network format: {{ item }} / Некорректный формат IP адреса/сети: {{ item }}"
+  loop: "{{ (ssh_protection.whitelist_ips + ssh_protection.whitelist_networks + user_based_protection.trusted_networks) | unique }}"
+  when: 
+    - strict_validation | bool
+    - (ssh_protection.whitelist_ips + ssh_protection.whitelist_networks + user_based_protection.trusted_networks) | length > 0
+  tags:
+    - validation
+    - ip-validation
+
+- name: "Validate time values / Валидация временных значений"
+  ansible.builtin.assert:
+    that:
+      - item is number
+      - item > 0
+      - item <= 86400  # Max 24 hours
+    success_msg: "Valid time value: {{ item }} seconds / Корректное временное значение: {{ item }} секунд"
+    fail_msg: "Time value must be between 1 and 86400 seconds: {{ item }} / Временное значение должно быть от 1 до 86400 секунд: {{ item }}"
+  loop: "{{ [fail2ban_config.bantime, fail2ban_config.findtime, ssh_protection.bantime, ssh_protection.findtime] }}"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - time-validation
+
+- name: "Display validation summary / Отображение сводки валидации"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Parameter Validation Summary / Сводка валидации параметров:"
+      - "============================================================================="
+      - "Debug Mode:               {{ debug_mode }} ✓"
+      - "Backup Enabled:           {{ backup_enabled }} ✓"
+      - "Fail2ban Install:         {{ fail2ban_install }} ✓"
+      - "SSH Protection:           {{ ssh_protection.enabled }} ✓"
+      - "Whitelist Enabled:        {{ ssh_protection.whitelist_enabled }} ✓"
+      - "User-based Protection:    {{ user_based_protection.enabled }} ✓"
+      - "Firewall Integration:     {{ firewall_integration.enabled }} ✓"
+      - "Email Notifications:      {{ email_notifications.enabled }} ✓"
+      - "Strict Validation:        {{ strict_validation }} ✓"
+      - "Log Directory:            {{ '✓' if log_dir_check.stat.exists else '✗' }}"
+      - "Firewall Backend:         {{ '✓' if iptables_check is not failed else '✗' }}"
+      - "Time Values:              ✓"
+      - "IP Addresses:             ✓"
+      - "============================================================================="
+      - "All validations completed successfully / Все валидации завершены успешно"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - validation

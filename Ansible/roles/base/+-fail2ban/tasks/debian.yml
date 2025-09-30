@@ -1,0 +1,419 @@
+---
+# Debian/Ubuntu Specific Tasks / Специфичные задачи для Debian/Ubuntu
+# =============================================================================
+
+- name: "Display Debian family information / Отображение информации о семействе Debian"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Debian Family Configuration / Конфигурация семейства Debian:"
+      - "============================================================================="
+      - "Distribution:             {{ ansible_distribution }}"
+      - "Version:                  {{ ansible_distribution_version }}"
+      - "Codename:                 {{ ansible_distribution_release }}"
+      - "Package Manager:          {{ package_manager }}"
+      - "Service Manager:          {{ service_manager }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - os-specific
+
+- name: "Update package cache for Debian/Ubuntu / Обновление кэша пакетов для Debian/Ubuntu"
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  register: apt_update_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - debian
+    - os-specific
+    - package-management
+
+- name: "Display package cache update results / Отображение результатов обновления кэша пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Cache Update Results / Результаты обновления кэша пакетов:"
+      - "============================================================================="
+      - "Update Status:            {{ 'SUCCESS' if apt_update_result is not failed else 'FAILED' }}"
+      - "Return Code:              {{ apt_update_result.rc | default('N/A') }}"
+      - "Changed:                  {{ apt_update_result.changed }}"
+      - "Output:                   {{ apt_update_result.stdout_lines | join('\n') if apt_update_result.stdout_lines is defined else 'No output' }}"
+      - "Errors:                   {{ apt_update_result.stderr_lines | join('\n') if apt_update_result.stderr_lines is defined else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - package-management
+
+- name: "Install fail2ban packages for Debian/Ubuntu / Установка пакетов fail2ban для Debian/Ubuntu"
+  ansible.builtin.apt:
+    name: "{{ final_package_list }}"
+    state: present
+    install_recommends: yes
+  register: debian_package_install_result
+  tags:
+    - debian
+    - os-specific
+    - package-installation
+
+- name: "Display package installation results / Отображение результатов установки пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Installation Results / Результаты установки пакетов:"
+      - "============================================================================="
+      - "Installation Status:      {{ 'SUCCESS' if debian_package_install_result is not failed else 'FAILED' }}"
+      - "Return Code:              {{ debian_package_install_result.rc | default('N/A') }}"
+      - "Changed:                  {{ debian_package_install_result.changed }}"
+      - "Installed Packages:       {{ final_package_list | join(', ') }}"
+      - "Output:                   {{ debian_package_install_result.stdout_lines | join('\n') if debian_package_install_result.stdout_lines is defined else 'No output' }}"
+      - "Errors:                   {{ debian_package_install_result.stderr_lines | join('\n') if debian_package_install_result.stderr_lines is defined else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - package-installation
+
+- name: "Check fail2ban service status for Debian/Ubuntu / Проверка статуса службы fail2ban для Debian/Ubuntu"
+  ansible.builtin.systemd:
+    name: fail2ban
+  register: debian_service_status
+  failed_when: false
+  changed_when: false
+  tags:
+    - debian
+    - os-specific
+    - service-management
+
+- name: "Display service status / Отображение статуса службы"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Service Status / Статус службы:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Status:                   {{ debian_service_status.status.ActiveState }}"
+      - "Enabled:                  {{ debian_service_status.status.UnitFileState }}"
+      - "Main PID:                 {{ debian_service_status.status.MainPID }}"
+      - "Memory Usage:             {{ debian_service_status.status.MemoryCurrent }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - service-management
+
+- name: "Enable fail2ban service for Debian/Ubuntu / Включение службы fail2ban для Debian/Ubuntu"
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: "{{ fail2ban_service_enabled }}"
+    state: "{{ fail2ban_service_state }}"
+    daemon_reload: yes
+  register: debian_service_enable_result
+  tags:
+    - debian
+    - os-specific
+    - service-management
+
+- name: "Display service enable results / Отображение результатов включения службы"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Service Enable Results / Результаты включения службы:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Enabled:                  {{ fail2ban_service_enabled }}"
+      - "State:                    {{ fail2ban_service_state }}"
+      - "Changed:                  {{ debian_service_enable_result.changed }}"
+      - "Status:                   {{ 'SUCCESS' if debian_service_enable_result is not failed else 'FAILED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - service-management
+
+- name: "Check if UFW is installed / Проверка установлен ли UFW"
+  ansible.builtin.command: which ufw
+  register: ufw_installed_check
+  failed_when: false
+  changed_when: false
+  tags:
+    - debian
+    - os-specific
+    - firewall
+
+- name: "Check if iptables is installed / Проверка установлен ли iptables"
+  ansible.builtin.command: which iptables
+  register: iptables_installed_check
+  failed_when: false
+  changed_when: false
+  tags:
+    - debian
+    - os-specific
+    - firewall
+
+- name: "Display firewall detection results / Отображение результатов обнаружения файрвола"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Firewall Detection / Обнаружение файрвола:"
+      - "============================================================================="
+      - "UFW Installed:            {{ 'YES ✓' if ufw_installed_check.rc == 0 else 'NO ✗' }}"
+      - "iptables Installed:       {{ 'YES ✓' if iptables_installed_check.rc == 0 else 'NO ✗' }}"
+      - "Configured Backend:       {{ firewall_integration.firewall_backend }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - firewall
+
+- name: "Check UFW status for Debian/Ubuntu / Проверка статуса UFW для Debian/Ubuntu"
+  ansible.builtin.command: ufw status
+  register: ufw_status_result
+  failed_when: false
+  changed_when: false
+  when: ufw_installed_check.rc == 0
+  tags:
+    - debian
+    - os-specific
+    - firewall
+
+- name: "Display UFW status / Отображение статуса UFW"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "UFW Status / Статус UFW:"
+      - "============================================================================="
+      - "UFW Status:               {{ ufw_status_result.stdout_lines[0] if ufw_status_result.stdout_lines is defined and ufw_status_result.stdout_lines | length > 0 else 'Unknown' }}"
+      - "Active Rules:             {{ ufw_status_result.stdout_lines | length - 1 if ufw_status_result.stdout_lines is defined else 0 }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - ufw_installed_check.rc == 0
+  tags:
+    - debug
+    - debian
+    - firewall
+
+- name: "Switch to iptables if UFW not installed / Переключение на iptables если UFW не установлен"
+  ansible.builtin.set_fact:
+    firewall_backend_actual: "{{ 'iptables' if ufw_installed_check.rc != 0 else firewall_integration.firewall_backend }}"
+    firewall_integration_adjusted: "{{ firewall_integration | combine({'firewall_backend': 'iptables'}) if ufw_installed_check.rc != 0 else firewall_integration }}"
+  tags:
+    - debian
+    - os-specific
+    - firewall
+
+- name: "Display firewall backend decision / Отображение решения о бэкенде файрвола"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Firewall Backend Decision / Решение о бэкенде файрвола:"
+      - "============================================================================="
+      - "Original Backend:         {{ firewall_integration.firewall_backend }}"
+      - "Actual Backend:           {{ firewall_backend_actual }}"
+      - "Reason:                   {{ 'UFW not installed, switched to iptables' if ufw_installed_check.rc != 0 else 'Using configured backend' }}"
+      - "                          {{ 'UFW не установлен, переключено на iptables' if ufw_installed_check.rc != 0 else 'Используется настроенный бэкенд' }}"
+      - "iptables Available:       {{ 'YES ✓' if iptables_installed_check.rc == 0 else 'NO ✗' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - firewall
+
+- name: "Validate iptables availability if required / Валидация доступности iptables если требуется"
+  ansible.builtin.assert:
+    that:
+      - iptables_installed_check.rc == 0
+    success_msg: "iptables is available for fail2ban integration / iptables доступен для интеграции с fail2ban"
+    fail_msg: |
+      CRITICAL ERROR / КРИТИЧЕСКАЯ ОШИБКА:
+      Neither UFW nor iptables is installed!
+      Ни UFW, ни iptables не установлены!
+      
+      fail2ban requires a firewall backend to function.
+      fail2ban требует бэкенд файрвола для работы.
+      
+      Please install either:
+      Пожалуйста установите:
+        - UFW: apt-get install ufw
+        - iptables: apt-get install iptables
+  when: 
+    - strict_validation | bool
+    - ufw_installed_check.rc != 0
+  tags:
+    - validation
+    - debian
+    - firewall
+
+- name: "Warning if switching to iptables / Предупреждение при переключении на iptables"
+  ansible.builtin.debug:
+    msg:
+      - "⚠️  WARNING / ПРЕДУПРЕЖДЕНИЕ:"
+      - "============================================================================="
+      - "UFW is NOT installed on this system!"
+      - "UFW НЕ установлен на этой системе!"
+      - ""
+      - "fail2ban will use direct iptables integration instead."
+      - "fail2ban будет использовать прямую интеграцию с iptables."
+      - ""
+      - "This means:"
+      - "Это означает:"
+      - "  - fail2ban will create iptables rules directly"
+      - "  - fail2ban будет создавать правила iptables напрямую"
+      - "  - Rules won't be visible via 'ufw status'"
+      - "  - Правила не будут видны через 'ufw status'"
+      - "  - Use 'iptables -L' to see fail2ban rules"
+      - "  - Используйте 'iptables -L' для просмотра правил fail2ban"
+      - ""
+      - "To use UFW instead, install it:"
+      - "Чтобы использовать UFW, установите его:"
+      - "  sudo apt-get install ufw"
+      - "============================================================================="
+  when: 
+    - ufw_installed_check.rc != 0
+    - firewall_backend_actual == 'iptables'
+  tags:
+    - debian
+    - firewall
+    - warning
+
+- name: "Configure UFW for fail2ban integration / Настройка UFW для интеграции с fail2ban"
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ ssh_protection.port }}"
+    proto: "{{ ssh_protection.protocol }}"
+    comment: "SSH access for fail2ban"
+  when: 
+    - firewall_integration.enabled | bool
+    - ufw_installed_check.rc == 0
+    - firewall_backend_actual == 'ufw'
+  register: ufw_ssh_rule_result
+  tags:
+    - debian
+    - os-specific
+    - firewall
+
+- name: "Display UFW configuration results / Отображение результатов конфигурации UFW"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "UFW Configuration Results / Результаты конфигурации UFW:"
+      - "============================================================================="
+      - "SSH Rule Added:           {{ 'SUCCESS' if ufw_ssh_rule_result.changed else 'NO CHANGE' }}"
+      - "Port:                     {{ ssh_protection.port }}"
+      - "Protocol:                 {{ ssh_protection.protocol }}"
+      - "Comment:                  SSH access for fail2ban"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - ufw_installed_check.rc == 0
+    - firewall_backend_actual == 'ufw'
+  tags:
+    - debug
+    - debian
+    - firewall
+
+- name: "Check iptables rules for fail2ban compatibility / Проверка правил iptables на совместимость с fail2ban"
+  ansible.builtin.command: iptables -L INPUT -n
+  register: iptables_rules_check
+  failed_when: false
+  changed_when: false
+  when: 
+    - firewall_backend_actual == 'iptables'
+    - iptables_installed_check.rc == 0
+  tags:
+    - debian
+    - os-specific
+    - firewall
+    - iptables
+
+- name: "Display iptables integration status / Отображение статуса интеграции с iptables"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "iptables Integration Status / Статус интеграции с iptables:"
+      - "============================================================================="
+      - "Backend:                  iptables (direct integration)"
+      - "Бэкенд:                   iptables (прямая интеграция)"
+      - ""
+      - "fail2ban will create its own chains:"
+      - "fail2ban создаст свои собственные цепочки:"
+      - "  - f2b-sshd              (SSH protection chain)"
+      - "  - f2b-<jail>            (Additional jails if configured)"
+      - ""
+      - "iptables Status:          {{ 'READY ✓' if iptables_installed_check.rc == 0 else 'NOT AVAILABLE ✗' }}"
+      - "Статус iptables:          {{ 'ГОТОВ ✓' if iptables_installed_check.rc == 0 else 'НЕДОСТУПЕН ✗' }}"
+      - ""
+      - "View rules after fail2ban start:"
+      - "Просмотр правил после запуска fail2ban:"
+      - "  sudo iptables -L -n -v"
+      - "  sudo iptables -L f2b-sshd -n -v"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - firewall_backend_actual == 'iptables'
+  tags:
+    - debug
+    - debian
+    - firewall
+    - iptables
+
+- name: "Check logrotate configuration for Debian/Ubuntu / Проверка конфигурации logrotate для Debian/Ubuntu"
+  ansible.builtin.stat:
+    path: /etc/logrotate.d/fail2ban
+  register: logrotate_config_check
+  tags:
+    - debian
+    - os-specific
+    - log-management
+
+- name: "Display logrotate configuration status / Отображение статуса конфигурации logrotate"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Logrotate Configuration Status / Статус конфигурации logrotate:"
+      - "============================================================================="
+      - "Config File Exists:       {{ 'Yes' if logrotate_config_check.stat.exists else 'No' }}"
+      - "Config File Path:         /etc/logrotate.d/fail2ban"
+      - "Logrotate Enabled:        {{ system_integration.logrotate_enabled }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - log-management
+
+- name: "Display Debian family configuration summary / Отображение сводки конфигурации семейства Debian"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Debian Family Configuration Summary / Сводка конфигурации семейства Debian:"
+      - "============================================================================="
+      - "Package Installation:     {{ 'SUCCESS ✓' if debian_package_install_result is not failed else 'FAILED ✗' }}"
+      - "Service Management:       {{ 'SUCCESS ✓' if debian_service_enable_result is not failed else 'FAILED ✗' }}"
+      - "----------------------------------------------------------------------------"
+      - "Firewall Integration:     {{ firewall_backend_actual | upper }}"
+      - "  UFW Installed:          {{ 'YES ✓' if ufw_installed_check.rc == 0 else 'NO ✗' }}"
+      - "  iptables Installed:     {{ 'YES ✓' if iptables_installed_check.rc == 0 else 'NO ✗' }}"
+      - "  Active Backend:         {{ firewall_backend_actual }}"
+      - "  Integration Status:     {{ 'CONFIGURED ✓' if (firewall_backend_actual == 'ufw' and ufw_ssh_rule_result.changed) or (firewall_backend_actual == 'iptables' and iptables_installed_check.rc == 0) else 'READY ✓' }}"
+      - "----------------------------------------------------------------------------"
+      - "Logrotate Status:         {{ 'CONFIGURED ✓' if logrotate_config_check.stat.exists else 'NOT CONFIGURED ✗' }}"
+      - "============================================================================="
+      - "Configuration completed successfully / Конфигурация завершена успешно"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - debian
+    - summary

@@ -8,15 +8,29 @@
 
 # Install required packages for RedHat/CentOS / Установка необходимых пакетов для RedHat/CentOS
 - name: "Install required packages for RedHat/CentOS / Установка необходимых пакетов для RedHat/CentOS"
-  ansible.builtin.package:
-    name: "{{ item }}"
-    state: present
-  loop:
-    - glibc-locale-source
-    - glibc-langpack-en
-    - kbd
-  register: redhat_packages_result
-  failed_when: false
+  block:
+    - name: "Install RedHat/CentOS packages / Установка пакетов RedHat/CentOS"
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - glibc-locale-source
+        - glibc-langpack-en
+        - kbd
+      register: redhat_packages_result
+      tags:
+        - packages
+        - redhat
+        - centos
+        - rocky
+        - almalinux
+        - installation
+  rescue:
+    - name: "Package installation failed / Установка пакетов не удалась"
+      ansible.builtin.debug:
+        msg: "Error: Could not install required packages. Some features may not work properly. / Ошибка: Не удалось установить необходимые пакеты. Некоторые функции могут работать неправильно."
+      register: redhat_packages_result
+      failed_when: false
   tags:
     - packages
     - redhat
@@ -52,11 +66,26 @@
 
 # Configure keyboard layout for RedHat/CentOS systems / Настройка раскладки клавиатуры для систем RedHat/CentOS
 - name: "Configure keyboard layout for RedHat/CentOS / Настройка раскладки клавиатуры для RedHat/CentOS"
-  ansible.builtin.command: "localectl set-keymap {{ keyboard_layout }}"
+  block:
+    - name: "Set keyboard layout / Установка раскладки клавиатуры"
+      ansible.builtin.command: "localectl set-keymap {{ keyboard_layout }}"
+      register: keyboard_layout_result
+      changed_when: keyboard_layout_result.rc == 0
+      tags:
+        - keyboard
+        - redhat
+        - centos
+        - rocky
+        - almalinux
+        - configuration
+        - layout
+  rescue:
+    - name: "Keyboard layout configuration failed / Настройка раскладки клавиатуры не удалась"
+      ansible.builtin.debug:
+        msg: "Error: Could not configure keyboard layout '{{ keyboard_layout }}'. / Ошибка: Не удалось настроить раскладку клавиатуры '{{ keyboard_layout }}'."
+      register: keyboard_layout_result
+      failed_when: false
   when: keyboard_layout != ""
-  register: keyboard_layout_result
-  failed_when: false
-  changed_when: keyboard_layout_result.rc == 0
   tags:
     - keyboard
     - redhat
@@ -176,11 +205,26 @@
 
 # Configure system locale using localectl for RedHat/CentOS / Настройка системной локали с помощью localectl для RedHat/CentOS
 - name: "Configure system locale using localectl for RedHat/CentOS / Настройка системной локали с помощью localectl для RedHat/CentOS"
-  ansible.builtin.command: "localectl set-locale {{ locale_primary }}"
-  register: redhat_locale_result
-  failed_when: false
-  changed_when: redhat_locale_result.rc == 0
-  notify: reload locale
+  block:
+    - name: "Set system locale / Установка системной локали"
+      ansible.builtin.command: "localectl set-locale {{ locale_primary }}"
+      register: redhat_locale_result
+      changed_when: redhat_locale_result.rc == 0
+      notify: reload locale
+      tags:
+        - locale
+        - redhat
+        - centos
+        - rocky
+        - almalinux
+        - configuration
+        - localectl
+  rescue:
+    - name: "System locale configuration failed / Настройка системной локали не удалась"
+      ansible.builtin.debug:
+        msg: "Error: Could not configure system locale '{{ locale_primary }}'. / Ошибка: Не удалось настроить системную локаль '{{ locale_primary }}'."
+      register: redhat_locale_result
+      failed_when: false
   tags:
     - locale
     - redhat

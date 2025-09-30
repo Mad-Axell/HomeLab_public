@@ -1,0 +1,121 @@
+---
+# =============================================================================
+# SSH Configuration Role - Denied Subnets Processing / Роль конфигурации SSH - Обработка запрещенных подсетей
+# =============================================================================
+# Processing logic for denied/blocked subnets only
+# Логика обработки только для запрещенных/заблокированных подсетей
+# =============================================================================
+#
+# Variables expected:
+# - denied_subnets: direct denied subnets configuration
+# - users_to_add: user configuration with denied_subnets definitions
+# =============================================================================
+
+# Initialize denied subnets list
+# Инициализация списка запрещенных подсетей
+- name: "Initialize denied subnets processing / Инициализация обработки запрещенных подсетей"
+  ansible.builtin.set_fact:
+    denied_extracted_subnets: []
+    denied_final_subnets: []
+  tags:
+    - denied_subnets
+    - initialization
+
+# Extract denied subnets from users_to_add if not defined directly
+# Извлечь запрещенные подсети из users_to_add если не определены напрямую
+- name: "Extract denied subnets from users_to_add / Извлечь запрещенные подсети из users_to_add"
+  ansible.builtin.set_fact:
+    denied_extracted_subnets: "{{ denied_extracted_subnets + item.denied_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - denied_subnets is not defined or denied_subnets | length == 0
+    - item.denied_subnets is defined
+    - item.denied_subnets | length > 0
+  tags:
+    - denied_subnets
+    - extraction
+
+# Deduplicate extracted denied subnets
+# Дедуплицировать извлеченные запрещенные подсети
+- name: "Deduplicate extracted denied subnets / Дедуплицировать извлеченные запрещенные подсети"
+  ansible.builtin.set_fact:
+    denied_extracted_subnets: "{{ denied_extracted_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - denied_subnets is not defined or denied_subnets | length == 0
+    - denied_extracted_subnets | length > 0
+  tags:
+    - denied_subnets
+    - extraction
+    - deduplication
+
+# Set final denied subnets list
+# Установить финальный список запрещенных подсетей
+- name: "Set final denied subnets list / Установить финальный список запрещенных подсетей"
+  ansible.builtin.set_fact:
+    denied_final_subnets: "{{ (denied_subnets if (denied_subnets is defined and denied_subnets | length > 0) else denied_extracted_subnets) | unique }}"
+  tags:
+    - denied_subnets
+    - finalization
+
+# Set the final variable name
+# Установить финальное имя переменной
+- name: "Set final_denied_subnets variable / Установить переменную final_denied_subnets"
+  ansible.builtin.set_fact:
+    final_denied_subnets: "{{ denied_final_subnets }}"
+  tags:
+    - denied_subnets
+    - finalization
+
+# Debug final denied subnets list
+# Отладка финального списка запрещенных подсетей
+- name: "Display final denied subnets configuration summary (English) / Отображение сводки конфигурации финальных запрещенных подсетей (английский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Denied Subnets Configuration Summary:"
+      - "============================================================================="
+      - "Configuration Mode:            {{ 'Direct denied_subnets variable' if (denied_subnets is defined and denied_subnets | length > 0) else 'Extracted from users_to_add' }}"
+      - "Total Denied Subnets:          {{ denied_final_subnets | length }}"
+      - "Deduplication Applied:         {{ 'YES' if (denied_extracted_subnets | length != denied_final_subnets | length) else 'NO' }}"
+      - "Source Configuration:          {{ 'Direct denied_subnets variable' if (denied_subnets is defined and denied_subnets | length > 0) else 'Extracted from users_to_add' }}"
+      - "============================================================================="
+      - "Denied Subnets List:"
+      - "============================================================================="
+      - "{{ denied_final_subnets | map('regex_replace', '^', '  - ') | join('\n') if denied_final_subnets | length > 0 else '  - No denied subnets configured' }}"
+      - "============================================================================="
+      - "Validation Status:             {{ 'PASSED' if denied_final_subnets | length > 0 else 'INFO - No denied subnets configured' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - denied_subnets
+    - summary
+    - english
+
+- name: "Display final denied subnets configuration summary (Russian) / Отображение сводки конфигурации финальных запрещенных подсетей (русский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка конфигурации финальных запрещенных подсетей:"
+      - "============================================================================="
+      - "Режим конфигурации:            {{ 'Прямая переменная denied_subnets' if (denied_subnets is defined and denied_subnets | length > 0) else 'Извлечено из users_to_add' }}"
+      - "Всего запрещенных подсетей:    {{ denied_final_subnets | length }}"
+      - "Дедупликация применена:        {{ 'ДА' if (denied_extracted_subnets | length != denied_final_subnets | length) else 'НЕТ' }}"
+      - "Источник конфигурации:         {{ 'Прямая переменная denied_subnets' if (denied_subnets is defined and denied_subnets | length > 0) else 'Извлечено из users_to_add' }}"
+      - "============================================================================="
+      - "Список запрещенных подсетей:"
+      - "============================================================================="
+      - "{{ denied_final_subnets | map('regex_replace', '^', '  - ') | join('\n') if denied_final_subnets | length > 0 else '  - Нет настроенных запрещенных подсетей' }}"
+      - "============================================================================="
+      - "Статус валидации:              {{ 'ПРОЙДЕНА' if denied_final_subnets | length > 0 else 'ИНФО - Нет настроенных запрещенных подсетей' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - denied_subnets
+    - summary
+    - russian

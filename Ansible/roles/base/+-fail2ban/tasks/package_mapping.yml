@@ -1,0 +1,130 @@
+---
+# Universal Package Mapping Tasks / Задачи универсального сопоставления пакетов
+# =============================================================================
+
+- name: "Display package mapping information / Отображение информации о сопоставлении пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Mapping Information / Информация о сопоставлении пакетов:"
+      - "============================================================================="
+      - "OS Family:               {{ ansible_os_family }}"
+      - "OS Distribution:         {{ ansible_distribution }}"
+      - "OS Version:              {{ ansible_distribution_version }}"
+      - "Architecture:            {{ ansible_architecture }}"
+      - "Package Manager:         {{ ansible_pkg_mgr }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - package-mapping
+
+- name: "Set package mapping variables for Debian family / Установка переменных сопоставления пакетов для семейства Debian"
+  ansible.builtin.set_fact:
+    fail2ban_packages: "{{ package_mappings.debian }}"
+    package_manager: "apt"
+    service_manager: "systemd"
+  when: ansible_os_family == "Debian"
+  tags:
+    - package-mapping
+    - debian
+
+- name: "Set package mapping variables for RedHat family / Установка переменных сопоставления пакетов для семейства RedHat"
+  ansible.builtin.set_fact:
+    fail2ban_packages: "{{ package_mappings.redhat }}"
+    package_manager: "{{ 'dnf' if ansible_distribution in ['Fedora'] else 'yum' }}"
+    service_manager: "systemd"
+  when: ansible_os_family == "RedHat"
+  tags:
+    - package-mapping
+    - redhat
+
+- name: "Set package mapping variables for SUSE family / Установка переменных сопоставления пакетов для семейства SUSE"
+  ansible.builtin.set_fact:
+    fail2ban_packages: "{{ package_mappings.suse }}"
+    package_manager: "zypper"
+    service_manager: "systemd"
+  when: ansible_os_family == "Suse"
+  tags:
+    - package-mapping
+    - suse
+
+- name: "Display mapped packages / Отображение сопоставленных пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Mapped Packages / Сопоставленные пакеты:"
+      - "============================================================================="
+      - "Main Package:             {{ fail2ban_packages.fail2ban }}"
+      - "Additional Packages:      {{ fail2ban_packages.additional | join(', ') }}"
+      - "Package Manager:          {{ package_manager }}"
+      - "Service Manager:          {{ service_manager }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - package-mapping
+
+- name: "Validate package mapping / Валидация сопоставления пакетов"
+  ansible.builtin.assert:
+    that:
+      - fail2ban_packages is defined
+      - fail2ban_packages.fail2ban is defined
+      - fail2ban_packages.fail2ban is string
+      - fail2ban_packages.additional is defined
+      - fail2ban_packages.additional is sequence
+      - package_manager is defined
+      - package_manager is string
+      - service_manager is defined
+      - service_manager is string
+    success_msg: "Package mapping is valid / Сопоставление пакетов корректно"
+    fail_msg: "Package mapping validation failed / Валидация сопоставления пакетов не пройдена"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - package-mapping
+
+- name: "Check if packages are available / Проверка доступности пакетов"
+  ansible.builtin.package_facts:
+    manager: "{{ package_manager }}"
+  register: package_facts_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - package-mapping
+    - validation
+
+- name: "Display package availability / Отображение доступности пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Availability Check / Проверка доступности пакетов:"
+      - "============================================================================="
+      - "Main Package Available:   {{ 'Yes' if ansible_facts.packages is defined and fail2ban_packages.fail2ban in ansible_facts.packages else 'Unknown' }}"
+      - "Additional Packages:      {{ fail2ban_packages.additional | map('regex_replace', '^', '  - ') | join('\n') }}"
+      - "Package Manager Status:   {{ 'Success' if package_facts_result is not failed else 'Failed' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - package-mapping
+
+- name: "Set final package list / Установка финального списка пакетов"
+  ansible.builtin.set_fact:
+    final_package_list: "{{ [fail2ban_packages.fail2ban] + fail2ban_packages.additional }}"
+  tags:
+    - package-mapping
+
+- name: "Display final package list / Отображение финального списка пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Package List / Финальный список пакетов:"
+      - "============================================================================="
+      - "Packages to install:      {{ final_package_list | join(', ') }}"
+      - "Total packages:           {{ final_package_list | length }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - package-mapping

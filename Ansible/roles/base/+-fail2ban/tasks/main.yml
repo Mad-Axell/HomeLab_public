@@ -1,0 +1,538 @@
+---
+# Main Fail2ban Role Tasks / Основные задачи роли Fail2ban
+# =============================================================================
+
+- name: "Display role execution start information / Отображение информации о начале выполнения роли"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Role Execution Started / Выполнение роли Fail2ban начато:"
+      - "============================================================================="
+      - "Host:                     {{ inventory_hostname }}"
+      - "OS Family:                {{ ansible_os_family }}"
+      - "OS Distribution:          {{ ansible_distribution }}"
+      - "OS Version:               {{ ansible_distribution_version }}"
+      - "Architecture:             {{ ansible_architecture }}"
+      - "Role Version:             1.0.0"
+      - "Execution Time:           {{ ansible_date_time.iso8601 }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - main
+
+- name: "Include parameter validation tasks / Включение задач валидации параметров"
+  ansible.builtin.include_tasks: validate.yml
+  when: validate_parameters | bool
+  tags:
+    - validation
+    - main
+
+- name: "Include package mapping tasks / Включение задач сопоставления пакетов"
+  ansible.builtin.include_tasks: package_mapping.yml
+  when: fail2ban_install | bool
+  tags:
+    - package-mapping
+    - main
+
+- name: "Include Debian/Ubuntu specific tasks / Включение специфичных задач для Debian/Ubuntu"
+  ansible.builtin.include_tasks: debian.yml
+  when: ansible_os_family == "Debian"
+  tags:
+    - debian
+    - ubuntu
+    - os-specific
+    - main
+
+- name: "Include RedHat/CentOS specific tasks / Включение специфичных задач для RedHat/CentOS"
+  ansible.builtin.include_tasks: redhat.yml
+  when: ansible_os_family == "RedHat"
+  tags:
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+    - os-specific
+    - main
+
+- name: "Include SUSE specific tasks / Включение специфичных задач для SUSE"
+  ansible.builtin.include_tasks: suse.yml
+  when: ansible_os_family == "Suse"
+  tags:
+    - suse
+    - opensuse
+    - sles
+    - os-specific
+    - main
+
+- name: "Create backup directory / Создание директории резервного копирования"
+  ansible.builtin.file:
+    path: "{{ backup_settings.backup_dir }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when: backup_enabled | bool
+  register: backup_dir_creation_result
+  tags:
+    - backup
+    - main
+
+- name: "Display backup directory creation results / Отображение результатов создания директории резервного копирования"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Backup Directory Creation Results / Результаты создания директории резервного копирования:"
+      - "============================================================================="
+      - "Backup Directory:         {{ backup_settings.backup_dir }}"
+      - "Creation Status:          {{ 'SUCCESS' if backup_dir_creation_result.changed else 'ALREADY EXISTS' }}"
+      - "Changed:                  {{ backup_dir_creation_result.changed }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - backup
+    - main
+
+- name: "Check if fail2ban configuration directory exists / Проверка существования директории конфигурации fail2ban"
+  ansible.builtin.stat:
+    path: /etc/fail2ban/
+  register: fail2ban_config_dir_check
+  tags:
+    - backup
+    - main
+
+- name: "Backup existing fail2ban configuration / Резервное копирование существующей конфигурации fail2ban"
+  ansible.builtin.copy:
+    src: /etc/fail2ban/
+    dest: "{{ backup_settings.backup_dir }}/fail2ban_backup_{{ ansible_date_time.epoch }}"
+    remote_src: yes
+    mode: preserve
+  when: 
+    - backup_enabled | bool
+    - backup_dir_creation_result.changed or backup_dir_creation_result.changed is not defined
+    - fail2ban_config_dir_check.stat.exists
+  register: config_backup_result
+  failed_when: false
+  tags:
+    - backup
+    - main
+
+- name: "Display backup skipped message / Отображение сообщения о пропуске резервного копирования"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Backup Skipped / Резервное копирование пропущено:"
+      - "============================================================================="
+      - "Reason:             Fail2ban configuration directory does not exist"
+      - "Config Directory:   /etc/fail2ban/"
+      - "Directory Exists:   {{ fail2ban_config_dir_check.stat.exists }}"
+      - "Note:               This is normal for first-time installation"
+      - "============================================================================="
+  when: 
+    - backup_enabled | bool
+    - not fail2ban_config_dir_check.stat.exists
+    - debug_mode | bool
+  tags:
+    - debug
+    - backup
+    - main
+
+- name: "Display backup error if failed / Отображение ошибки резервного копирования при неудаче"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Backup Error / Ошибка резервного копирования:"
+      - "============================================================================="
+      - "Error:              {{ config_backup_result.msg | default('Unknown error') }}"
+      - "Return Code:        {{ config_backup_result.rc | default('N/A') }}"
+      - "Failed:             {{ config_backup_result.failed | default('N/A') }}"
+      - "Note:               Continuing execution despite backup failure"
+      - "============================================================================="
+  when: 
+    - backup_enabled | bool
+    - config_backup_result is defined
+    - config_backup_result.failed is defined
+    - config_backup_result.failed | bool
+    - debug_mode | bool
+  tags:
+    - debug
+    - backup
+    - main
+
+- name: "Display configuration backup results / Отображение результатов резервного копирования конфигурации"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Configuration Backup Results / Результаты резервного копирования конфигурации:"
+      - "============================================================================="
+      - "Backup Status:            {{ 'SUCCESS' if config_backup_result is defined and config_backup_result.changed else 'NO BACKUP NEEDED' }}"
+      - "Backup Location:          {{ backup_settings.backup_dir }}/fail2ban_backup_{{ ansible_date_time.epoch }}"
+      - "Changed:                  {{ config_backup_result.changed if config_backup_result is defined else 'N/A' }}"
+      - "config_backup_result:     {{ config_backup_result | default('Not executed') }}"
+      - "Failed:                   {{ config_backup_result.failed | default(false) if config_backup_result is defined else 'N/A' }}"
+      - "Config Directory Exists:  {{ fail2ban_config_dir_check.stat.exists }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - backup
+    - main
+
+- name: "Create fail2ban main configuration / Создание основной конфигурации fail2ban"
+  ansible.builtin.template:
+    src: fail2ban.conf.j2
+    dest: /etc/fail2ban/fail2ban.conf
+    mode: "{{ security_settings.config_file_mode }}"
+    owner: root
+    group: root
+    backup: "{{ backup_enabled }}"
+  register: main_config_creation_result
+  notify: restart fail2ban
+  tags:
+    - configuration
+    - main
+
+- name: "Display main configuration creation results / Отображение результатов создания основной конфигурации"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Main Configuration Creation Results / Результаты создания основной конфигурации:"
+      - "============================================================================="
+      - "Config File:              /etc/fail2ban/fail2ban.conf"
+      - "Creation Status:          {{ 'SUCCESS' if main_config_creation_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ main_config_creation_result.changed }}"
+      - "Backup Created:           {{ 'YES' if main_config_creation_result.backup_file is defined else 'NO' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - configuration
+    - main
+
+- name: "Create fail2ban jail configuration / Создание конфигурации тюрем fail2ban"
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "{{ security_settings.config_file_mode }}"
+    owner: root
+    group: root
+    backup: "{{ backup_enabled }}"
+  register: jail_config_creation_result
+  notify: restart fail2ban
+  tags:
+    - configuration
+    - main
+
+- name: "Display jail configuration creation results / Отображение результатов создания конфигурации тюрем"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Jail Configuration Creation Results / Результаты создания конфигурации тюрем:"
+      - "============================================================================="
+      - "Config File:              /etc/fail2ban/jail.local"
+      - "Creation Status:          {{ 'SUCCESS' if jail_config_creation_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ jail_config_creation_result.changed }}"
+      - "Backup Created:           {{ 'YES' if jail_config_creation_result.backup_file is defined else 'NO' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - configuration
+    - main
+
+- name: "Create SSH jail configuration / Создание конфигурации правила SSH"
+  ansible.builtin.template:
+    src: sshd.conf.j2
+    dest: /etc/fail2ban/jail.d/sshd.conf
+    mode: "{{ security_settings.config_file_mode }}"
+    owner: root
+    group: root
+    backup: "{{ backup_enabled }}"
+  when: ssh_protection.enabled | bool
+  register: ssh_jail_config_creation_result
+  notify: restart fail2ban
+  tags:
+    - configuration
+    - ssh
+    - main
+
+- name: "Display SSH jail configuration creation results / Отображение результатов создания конфигурации правила SSH"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SSH Jail Configuration Creation Results / Результаты создания конфигурации правила SSH:"
+      - "============================================================================="
+      - "Config File:              /etc/fail2ban/jail.d/sshd.conf"
+      - "Creation Status:          {{ 'SUCCESS' if ssh_jail_config_creation_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ ssh_jail_config_creation_result.changed }}"
+      - "Backup Created:           {{ 'YES' if ssh_jail_config_creation_result.backup_file is defined else 'NO' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - configuration
+    - ssh
+    - main
+
+- name: "Create custom filter for user-based protection / Создание пользовательского фильтра для защиты на основе пользователей"
+  ansible.builtin.template:
+    src: sshd-user-based.conf.j2
+    dest: /etc/fail2ban/filter.d/sshd-user-based.conf
+    mode: "{{ security_settings.config_file_mode }}"
+    owner: root
+    group: root
+    backup: "{{ backup_enabled }}"
+  when: user_based_protection.enabled | bool
+  register: user_filter_creation_result
+  notify: restart fail2ban
+  tags:
+    - configuration
+    - user-protection
+    - main
+
+- name: "Display user filter creation results / Отображение результатов создания пользовательского фильтра"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "User Filter Creation Results / Результаты создания пользовательского фильтра:"
+      - "============================================================================="
+      - "Filter File:              /etc/fail2ban/filter.d/sshd-user-based.conf"
+      - "Creation Status:          {{ 'SUCCESS' if user_filter_creation_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ user_filter_creation_result.changed }}"
+      - "Backup Created:           {{ 'YES' if user_filter_creation_result.backup_file is defined else 'NO' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - configuration
+    - user-protection
+    - main
+
+- name: "Create logrotate configuration / Создание конфигурации logrotate"
+  ansible.builtin.template:
+    src: logrotate.j2
+    dest: /etc/logrotate.d/fail2ban
+    mode: '0644'
+    owner: root
+    group: root
+    backup: "{{ backup_enabled }}"
+  when: system_integration.logrotate_enabled | bool
+  register: logrotate_config_creation_result
+  tags:
+    - log-management
+    - main
+
+- name: "Display logrotate configuration creation results / Отображение результатов создания конфигурации logrotate"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Logrotate Configuration Creation Results / Результаты создания конфигурации logrotate:"
+      - "============================================================================="
+      - "Config File:              /etc/logrotate.d/fail2ban"
+      - "Creation Status:          {{ 'SUCCESS' if logrotate_config_creation_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ logrotate_config_creation_result.changed }}"
+      - "Backup Created:           {{ 'YES' if logrotate_config_creation_result.backup_file is defined else 'NO' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - log-management
+    - main
+
+- name: "Create required directories / Создание необходимых директорий"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop:
+    - { path: /etc/fail2ban, mode: '0755' }
+    - { path: /etc/fail2ban/jail.d, mode: '0755' }
+    - { path: /etc/fail2ban/filter.d, mode: '0755' }
+    - { path: /var/run/fail2ban, mode: '0755' }
+  register: directory_creation_result
+  tags:
+    - security
+    - main
+
+- name: "Create log file if it doesn't exist / Создание файла логов, если он не существует"
+  ansible.builtin.file:
+    path: /var/log/fail2ban.log
+    state: touch
+    mode: "{{ security_settings.log_file_mode }}"
+    owner: root
+    group: root
+  register: log_file_creation_result
+  tags:
+    - security
+    - main
+
+- name: "Set proper file permissions / Установка правильных прав доступа к файлам"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop:
+    - { path: /etc/fail2ban/fail2ban.conf, mode: "{{ security_settings.config_file_mode }}" }
+    - { path: /etc/fail2ban/jail.local, mode: "{{ security_settings.config_file_mode }}" }
+    - { path: /var/log/fail2ban.log, mode: "{{ security_settings.log_file_mode }}" }
+  register: file_permissions_result
+  tags:
+    - security
+    - main
+
+- name: "Display directory creation results / Отображение результатов создания директорий"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Directory Creation Results / Результаты создания директорий:"
+      - "============================================================================="
+      - "Directories Created:      {{ 'SUCCESS' if directory_creation_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ directory_creation_result.changed }}"
+      - "Directories Processed:    {{ directory_creation_result.results | length }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - security
+    - main
+
+- name: "Display log file creation results / Отображение результатов создания файла логов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Log File Creation Results / Результаты создания файла логов:"
+      - "============================================================================="
+      - "Log File Created:         {{ 'SUCCESS' if log_file_creation_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ log_file_creation_result.changed }}"
+      - "Log File Path:            /var/log/fail2ban.log"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - security
+    - main
+
+- name: "Display file permissions results / Отображение результатов установки прав доступа к файлам"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "File Permissions Results / Результаты установки прав доступа к файлам:"
+      - "============================================================================="
+      - "Permissions Set:          {{ 'SUCCESS' if file_permissions_result.changed else 'NO CHANGE' }}"
+      - "Changed:                  {{ file_permissions_result.changed }}"
+      - "Files Processed:          {{ file_permissions_result.results | length }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - security
+    - main
+
+- name: "Test fail2ban configuration / Тестирование конфигурации fail2ban"
+  ansible.builtin.command: fail2ban-client -t
+  register: config_test_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - testing
+    - main
+
+- name: "Display configuration test results / Отображение результатов тестирования конфигурации"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Configuration Test Results / Результаты тестирования конфигурации:"
+      - "============================================================================="
+      - "Test Status:              {{ 'SUCCESS' if config_test_result is not failed else 'FAILED' }}"
+      - "Return Code:              {{ config_test_result.rc | default('N/A') }}"
+      - "Output:                   {{ config_test_result.stdout_lines | join('\n') if config_test_result.stdout_lines is defined else 'No output' }}"
+      - "Errors:                   {{ config_test_result.stderr_lines | join('\n') if config_test_result.stderr_lines is defined else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - testing
+    - main
+
+- name: "Start fail2ban service / Запуск службы fail2ban"
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: "{{ fail2ban_service_enabled }}"
+    daemon_reload: yes
+  register: service_start_result
+  tags:
+    - service-management
+    - main
+
+- name: "Display service start results / Отображение результатов запуска службы"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Service Start Results / Результаты запуска службы:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Start Status:             {{ 'SUCCESS' if service_start_result.changed else 'ALREADY RUNNING' }}"
+      - "Enabled:                  {{ fail2ban_service_enabled }}"
+      - "Changed:                  {{ service_start_result.changed }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - service-management
+    - main
+
+- name: "Check fail2ban status / Проверка статуса fail2ban"
+  ansible.builtin.command: service fail2ban status  #fail2ban-client status
+  register: fail2ban_status_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - status-check
+    - main
+
+- name: "Display fail2ban status / Отображение статуса fail2ban"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Status / Статус fail2ban:"
+      - "============================================================================="
+      - "Status:                   {{ 'ACTIVE' if fail2ban_status_result is not failed else 'INACTIVE' }}"
+      - "Return Code:              {{ fail2ban_status_result.rc | default('N/A') }}"
+      - "Output:                   {{ fail2ban_status_result.stdout_lines | join('\n') if fail2ban_status_result.stdout_lines is defined else 'No output' }}"
+      - "Errors:                   {{ fail2ban_status_result.stderr_lines | join('\n') if fail2ban_status_result.stderr_lines is defined else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - status-check
+    - main
+
+- name: "Display role execution summary / Отображение сводки выполнения роли"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Fail2ban Role Execution Summary / Сводка выполнения роли Fail2ban:"
+      - "============================================================================="
+      - "Host:                     {{ inventory_hostname }}"
+      - "OS Family:                {{ ansible_os_family }}"
+      - "Package Installation:     {{ 'SUCCESS' if fail2ban_install else 'SKIPPED' }}"
+      - "Configuration Created:    {{ 'SUCCESS' if main_config_creation_result.changed else 'NO CHANGE' }}"
+      - "Jail Configuration:       {{ 'SUCCESS' if jail_config_creation_result.changed else 'NO CHANGE' }}"
+      - "SSH Protection:           {{ 'ENABLED' if ssh_protection.enabled else 'DISABLED' }}"
+      - "User-based Protection:    {{ 'ENABLED' if user_based_protection.enabled else 'DISABLED' }}"
+      - "Service Status:           {{ 'ACTIVE' if fail2ban_status_result is not failed else 'INACTIVE' }}"
+      - "Configuration Test:       {{ 'PASSED' if config_test_result is not failed else 'FAILED' }}"
+      - "Backup Created:           {{ 'YES' if backup_enabled and config_backup_result.changed else 'NO' }}"
+      - "============================================================================="
+      - "Role execution completed successfully / Выполнение роли завершено успешно"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - summary
+    - main

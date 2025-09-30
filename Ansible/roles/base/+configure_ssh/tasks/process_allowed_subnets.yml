@@ -1,0 +1,121 @@
+---
+# =============================================================================
+# SSH Configuration Role - Allowed Subnets Processing / Роль конфигурации SSH - Обработка разрешенных подсетей
+# =============================================================================
+# Processing logic for allowed/trusted subnets only
+# Логика обработки только для разрешенных/доверенных подсетей
+# =============================================================================
+#
+# Variables expected:
+# - allowed_subnets: direct allowed subnets configuration
+# - users_to_add: user configuration with allowed_subnets definitions
+# =============================================================================
+
+# Initialize allowed subnets list
+# Инициализация списка разрешенных подсетей
+- name: "Initialize allowed subnets processing / Инициализация обработки разрешенных подсетей"
+  ansible.builtin.set_fact:
+    allowed_extracted_subnets: []
+    allowed_final_subnets: []
+  tags:
+    - allowed_subnets
+    - initialization
+
+# Extract allowed subnets from users_to_add if not defined directly
+# Извлечь разрешенные подсети из users_to_add если не определены напрямую
+- name: "Extract allowed subnets from users_to_add / Извлечь разрешенные подсети из users_to_add"
+  ansible.builtin.set_fact:
+    allowed_extracted_subnets: "{{ allowed_extracted_subnets + item.allowed_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+    - item.allowed_subnets is defined
+    - item.allowed_subnets | length > 0
+  tags:
+    - allowed_subnets
+    - extraction
+
+# Deduplicate extracted allowed subnets
+# Дедуплицировать извлеченные разрешенные подсети
+- name: "Deduplicate extracted allowed subnets / Дедуплицировать извлеченные разрешенные подсети"
+  ansible.builtin.set_fact:
+    allowed_extracted_subnets: "{{ allowed_extracted_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+    - allowed_extracted_subnets | length > 0
+  tags:
+    - allowed_subnets
+    - extraction
+    - deduplication
+
+# Set final allowed subnets list
+# Установить финальный список разрешенных подсетей
+- name: "Set final allowed subnets list / Установить финальный список разрешенных подсетей"
+  ansible.builtin.set_fact:
+    allowed_final_subnets: "{{ (allowed_subnets if (allowed_subnets is defined and allowed_subnets | length > 0) else allowed_extracted_subnets) | unique }}"
+  tags:
+    - allowed_subnets
+    - finalization
+
+# Set the final variable name
+# Установить финальное имя переменной
+- name: "Set final_allowed_subnets variable / Установить переменную final_allowed_subnets"
+  ansible.builtin.set_fact:
+    final_allowed_subnets: "{{ allowed_final_subnets }}"
+  tags:
+    - allowed_subnets
+    - finalization
+
+# Debug final allowed subnets list
+# Отладка финального списка разрешенных подсетей
+- name: "Display final allowed subnets configuration summary (English) / Отображение сводки конфигурации финальных разрешенных подсетей (английский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Allowed Subnets Configuration Summary:"
+      - "============================================================================="
+      - "Configuration Mode:            {{ 'Direct allowed_subnets variable' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Extracted from users_to_add' }}"
+      - "Total Allowed Subnets:         {{ allowed_final_subnets | length }}"
+      - "Deduplication Applied:         {{ 'YES' if (allowed_extracted_subnets | length != allowed_final_subnets | length) else 'NO' }}"
+      - "Source Configuration:          {{ 'Direct allowed_subnets variable' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Extracted from users_to_add' }}"
+      - "============================================================================="
+      - "Allowed Subnets List:"
+      - "============================================================================="
+      - "{{ allowed_final_subnets | map('regex_replace', '^', '  - ') | join('\n') if allowed_final_subnets | length > 0 else '  - No allowed subnets configured' }}"
+      - "============================================================================="
+      - "Validation Status:             {{ 'PASSED' if allowed_final_subnets | length > 0 else 'WARNING - No allowed subnets configured' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - allowed_subnets
+    - summary
+    - english
+
+- name: "Display final allowed subnets configuration summary (Russian) / Отображение сводки конфигурации финальных разрешенных подсетей (русский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка конфигурации финальных разрешенных подсетей:"
+      - "============================================================================="
+      - "Режим конфигурации:            {{ 'Прямая переменная allowed_subnets' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Извлечено из users_to_add' }}"
+      - "Всего разрешенных подсетей:    {{ allowed_final_subnets | length }}"
+      - "Дедупликация применена:        {{ 'ДА' if (allowed_extracted_subnets | length != allowed_final_subnets | length) else 'НЕТ' }}"
+      - "Источник конфигурации:         {{ 'Прямая переменная allowed_subnets' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Извлечено из users_to_add' }}"
+      - "============================================================================="
+      - "Список разрешенных подсетей:"
+      - "============================================================================="
+      - "{{ allowed_final_subnets | map('regex_replace', '^', '  - ') | join('\n') if allowed_final_subnets | length > 0 else '  - Нет настроенных разрешенных подсетей' }}"
+      - "============================================================================="
+      - "Статус валидации:              {{ 'ПРОЙДЕНА' if allowed_final_subnets | length > 0 else 'ПРЕДУПРЕЖДЕНИЕ - Нет настроенных разрешенных подсетей' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - allowed_subnets
+    - summary
+    - russian

@@ -1,0 +1,87 @@
+---
+galaxy_info:
+  author: "Mad-Axell"
+  description: "Comprehensive SSH server configuration role with network-based access control, security hardening, and cross-platform support"
+  company: "Mad-Axell"
+  license: "MIT"
+  min_ansible_version: "2.9"
+  platforms:
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+    - name: Ubuntu
+      versions:
+        - 18.04
+        - 20.04
+        - 22.04
+        - 24.04
+    - name: Debian
+      versions:
+        - 10
+        - 11
+        - 12
+        - 13
+    - name: openSUSE
+      versions:
+        - 15.3
+        - 15.4
+        - 15.5
+        - 15.6
+    - name: SLES
+      versions:
+        - 15.3
+        - 15.4
+        - 15.5
+        - 15.6
+    - name: Fedora
+      versions:
+        - 35
+        - 36
+        - 37
+        - 38
+        - 39
+        - 40
+        - 41
+  galaxy_tags:
+    - ssh
+    - security
+    - networking
+    - system
+    - hardening
+    - access_control
+    - authentication
+    - daemon
+    - server
+    - cross_platform
+    - validation
+    - backup
+    - monitoring
+    - logging
+    - network_security
+    - remote_access
+    - encryption
+    - key_management
+  role_name: "configure_ssh"
+  namespace: "base"
+  issue_tracker_url: "https://github.com/your-org/ansible-roles/issues"
+  github_branch: "main"
+  dependencies: []
+  collections:
+    - name: ansible.builtin
+      version: ">=2.9.0"
+    - name: community.general
+      version: ">=3.0.0"
+    - name: ansible.posix
+      version: ">=1.0.0"
+
+dependencies: []
+
+# Role metadata
+role_name: "base.configure_ssh"
+version: "1.0.0"
+created: "2024-01-01"
+updated: "2024-12-19"
+maintainer: "Mad-Axell"
+

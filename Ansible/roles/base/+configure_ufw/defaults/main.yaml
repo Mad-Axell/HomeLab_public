@@ -1,0 +1,85 @@
+---
+# UFW Configuration Role Defaults / Значения по умолчанию роли конфигурации UFW
+# This role configures Uncomplicated Firewall (UFW) with security best practices
+# Эта роль настраивает простой файрвол (UFW) с лучшими практиками безопасности
+
+# Supported OS families / Поддерживаемые семейства ОС
+supported_os_families:
+  - Debian
+  - RedHat
+  - Suse
+
+# Debug mode for verbose output / Режим отладки для подробного вывода
+debug_mode: true
+
+# SSH Configuration / Конфигурация SSH
+ssh_port: 22
+ssh_protocol: "tcp"
+
+# Direct subnet configuration (if defined, will be used instead of users_to_add)
+# Прямая конфигурация подсетей (если определена, будет использована вместо users_to_add)
+#allowed_subnets: []  # List of allowed subnets for SSH / Список разрешенных подсетей для SSH
+#denied_subnets: []   # List of denied subnets for SSH / Список запрещенных подсетей для SSH
+
+# User-based configuration (used if allowed_subnets/denied_subnets are not defined)
+# Конфигурация на основе пользователей (используется если allowed_subnets/denied_subnets не определены)
+users_to_add: []
+  # Пример структуры:
+  # - username: "admin"
+  #   password: "SecurePassword123!"
+  #   groups: ["sudo", "admin"]
+  #   is_sudoers: true
+  #   shell: /bin/bash
+  #   allowed_subnets:
+  #     - "192.168.1.0/24"
+  #     - "10.20.30.0/24"
+  #   denied_subnets:
+  #     - "192.168.0.0/24"
+  #     - "10.10.10.0/24"
+
+# UFW Default Policies / Политики UFW по умолчанию
+ufw_default_incoming: "deny"
+ufw_default_outgoing: "allow"
+
+# Custom UFW Rules / Пользовательские правила UFW
+# Format: { rule: 'allow|deny', port: 'port_number', proto: 'tcp|udp', from_ip: 'optional_ip' }
+# Формат: { rule: 'allow|deny', port: 'номер_порта', proto: 'tcp|udp', from_ip: 'опциональный_ip' }
+ufw_rules:
+  # Web services (consider restricting to specific IPs in production)
+  # Веб-сервисы (рассмотрите ограничение доступа к конкретным IP в продакшене)
+  - { rule: 'allow', port: '80', proto: 'tcp', comment: 'HTTP' }
+  - { rule: 'allow', port: '443', proto: 'tcp', comment: 'HTTPS' }
+  - { rule: 'allow', port: "{{ ssh_port }}", proto: "{{ ssh_protocol }}", comment: 'SSH' }
+  
+# Rate limiting for SSH (optional). This rule ignores SSH access restrictions. / Ограничение скорости для SSH (опционально). Данное правило игнорирует запрет доступа по SSH
+# Rule : 22/tcp  LIMIT IN Anywhere
+ssh_rate_limit: false
+ssh_rate_limit_attempts: 3
+ssh_rate_limit_time: 60
+
+# Logging configuration / Конфигурация логирования
+ufw_logging: "medium"  # Options: off, low, medium, high, full / Варианты: off, low, medium, high, full
+
+# IPv6 configuration / Конфигурация IPv6
+ufw_ipv6: false  # Disable IPv6 support for security / Отключить поддержку IPv6 для безопасности
+
+# State management / Управление состоянием
+ufw_state: "enabled"  # enabled, disabled, reset / включен, отключен, сброс
+
+# Idempotency settings / Настройки идемпотентности
+ufw_auto_reset: true  # Automatically reset UFW for idempotency / Автоматически сбрасывать UFW для идемпотентности
+
+# Validation settings / Настройки валидации
+validate_configuration: true
+fail_on_validation_error: true
+
+# Error handling and logging / Обработка ошибок и логирование
+ufw_backup_enabled: true
+ufw_backup_dir: "/etc/ufw/backup"
+ufw_backup_suffix: ".bak"
+ufw_backup_count: 5
+
+# Firewalld configuration for RedHat family / Конфигурация firewalld для семейства RedHat
+firewalld_enabled: true
+firewalld_default_zone: "public"
+firewalld_ssh_service: "ssh"

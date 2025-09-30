@@ -1,0 +1,711 @@
+---
+# =============================================================================
+# SSH Configuration Role - Main Tasks / Роль конфигурации SSH - Основные задачи
+# =============================================================================
+# This role configures SSH server with security best practices and network-based access control
+# Эта роль настраивает SSH сервер с лучшими практиками безопасности и контролем доступа на основе сети
+# =============================================================================
+
+# Validate input parameters before configuration
+# Валидация входных параметров перед конфигурацией
+- name: "Include parameter validation tasks / Включить задачи валидации параметров"
+  include_tasks: validate.yml
+  when: validate_configuration | bool
+  tags:
+    - validation
+    - ssh
+
+# Display comprehensive system information for debugging
+# Отображение полной системной информации для отладки
+- name: "Display comprehensive system information for SSH configuration / Отображение полной системной информации для конфигурации SSH"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "System Information for SSH Configuration:"
+      - "============================================================================="
+      - "Distribution:                        {{ ansible_distribution }}"
+      - "Version:                             {{ ansible_distribution_version }}"
+      - "Architecture:                        {{ ansible_architecture }}"
+      - "Kernel:                              {{ ansible_kernel }}"
+      - "Hostname:                            {{ ansible_hostname }}"
+      - "FQDN:                                {{ ansible_fqdn }}"
+      - "OS Family:                           {{ ansible_os_family }}"
+      - "SSH Port:                            {{ ssh_port }}"
+      - "SSH Protocol:                        {{ ssh_protocol }}"
+      - "SSH Service Name:                    {{ ssh_os_vars.service_name }}"
+      - "SSH Config File:                     {{ ssh_config_file }}"
+      - "SSH Banner File:                     {{ ssh_banner_file }}"
+      - "Password Auth:                       {{ ssh_security.password_authentication }}"
+      - "Pubkey Auth:                         {{ ssh_security.pubkey_authentication }}"
+      - "Permit Root Login:                   {{ ssh_security.permit_root_login }}"
+      - "Max Auth Tries:                      {{ ssh_security.max_auth_tries }}"
+      - "Login Grace Time:                    {{ ssh_security.login_grace_time }}s"
+      - "Client Alive Interval:               {{ ssh_security.client_alive_interval }}s"
+      - "Client Alive Count Max:              {{ ssh_security.client_alive_count_max }}"
+      - "SSH Protocol Version:                {{ ssh_security.protocol }}"
+      - "Log Level:                           {{ ssh_security.log_level }}"
+      - "Syslog Facility:                     {{ ssh_security.syslog_facility }}"
+      - "Trusted Networks Password Auth:      {{ ssh_access_control.trusted_networks_password_auth }}"
+      - "Untrusted Networks Require Both:     {{ ssh_access_control.untrusted_networks_require_both }}"
+      - "Default Network Behavior:            {{ ssh_access_control.default_network_behavior }}"
+      - "Configuration Mode:                  {{ 'Direct subnets' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Users-based' }}"
+      - "Backup Enabled:                      {{ ssh_backup_enabled }}"
+      - "Validation Enabled:                  {{ validate_configuration }}"
+      - "Debug Mode:                          {{ debug_mode }}"
+      - "============================================================================="
+  when: debug_mode
+  tags:
+    - debug
+    - ssh
+    - system
+    - information
+
+# Check if SSH package is installed
+# Проверить установлен ли пакет SSH
+- name: "Check if SSH package is installed / Проверить установлен ли пакет SSH"
+  ansible.builtin.package_facts:
+    manager: "{{ ssh_os_vars.package_manager }}"
+  failed_when: false
+  tags:
+    - installation
+    - ssh
+
+# Universal SSH package installation (replaces OS-specific files)
+# Универсальная установка пакетов SSH (заменяет OS-специфичные файлы)
+- name: "Install SSH server package universally / Установить пакет SSH сервера универсально"
+  ansible.builtin.package:
+    name: "{{ ssh_os_vars.server_package }}"
+    state: present
+    update_cache: "{{ ssh_os_vars.update_cache }}"
+  register: ssh_server_install_result
+  become: true
+  tags:
+    - installation
+    - ssh
+    - server
+    - cross_platform
+
+- name: "Install SSH client package universally / Установить пакет SSH клиента универсально"
+  ansible.builtin.package:
+    name: "{{ ssh_os_vars.client_package }}"
+    state: present
+  register: ssh_client_install_result
+  become: true
+  tags:
+    - installation
+    - ssh
+    - client
+    - cross_platform
+
+- name: "Enable and start SSH service universally / Включить и запустить службу SSH универсально"
+  ansible.builtin.service:
+    name: "{{ ssh_os_vars.service_name }}"
+    state: started
+    enabled: true
+  register: ssh_service_install_result
+  become: true
+  tags:
+    - service
+    - installation
+    - ssh
+    - server
+    - cross_platform
+
+- name: "Display universal SSH installation results (English) / Отображение универсальных результатов установки SSH (английский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Universal SSH Installation Results:"
+      - "============================================================================="
+      - "OS Family:                    {{ ansible_os_family }}"
+      - "Distribution:                 {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "SSH Server Package:           {{ ssh_os_vars.server_package }}"
+      - "SSH Client Package:           {{ ssh_os_vars.client_package }}"
+      - "Service Name:                 {{ ssh_os_vars.service_name }}"
+      - "Server Installed:             {{ 'YES' if ssh_service_install_result.changed else 'NO' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - debug
+    - installation
+    - results
+    - english
+
+- name: "Display universal SSH installation results (Russian) / Отображение универсальных результатов установки SSH (русский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты универсальной установки SSH:"
+      - "============================================================================="
+      - "Семейство ОС:                 {{ ansible_os_family }}"
+      - "Дистрибутив:                  {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "SSH Сервер:                   {{ ssh_os_vars.server_package }}"
+      - "SSH Клиент:                   {{ ssh_os_vars.client_package }}"
+      - "Имя службы:                   {{ ssh_os_vars.service_name }}"
+      - "Сервер установлен:            {{ 'ДА' if ssh_server_install_result.changed else 'НЕТ' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - debug
+    - installation
+    - results
+    - russian
+
+# Create backup copies of existing SSH configuration files
+# Создание резервных копий существующих файлов конфигурации SSH
+- name: "Create backup copies of existing SSH configuration files / Создание резервных копий существующих файлов конфигурации SSH"
+  block:
+    - name: "Create SSH backup directory / Создать директорию для резервных копий SSH"
+      ansible.builtin.file:
+        path: "{{ ssh_backup_dir }}"
+        state: directory
+        mode: '0700'
+        owner: root
+        group: root
+      tags:
+        - backup
+        - ssh
+        - directory
+    
+    - name: "Backup SSH configuration files / Резервное копирование файлов конфигурации SSH"
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ ssh_backup_dir }}/{{ item | basename }}{{ ssh_backup_suffix }}"
+        remote_src: true
+        backup: no
+        mode: '0644'
+      loop:
+        - "{{ ssh_config_file }}"
+        - "{{ ssh_banner_file }}"
+        - "{{ ssh_greeting_file }}"
+      register: backup_result
+      tags:
+        - backup
+        - ssh
+        - files
+        - safety
+  rescue:
+    - name: "Backup operation failed - continuing without backup / Операция резервного копирования не удалась - продолжаем без резервного копирования"
+      ansible.builtin.debug:
+        msg: "Warning: Could not create backup copies. Continuing with configuration. / Предупреждение: Не удалось создать резервные копии. Продолжаем с конфигурацией."
+      register: backup_result
+      failed_when: false
+  when: ssh_backup_enabled | bool
+  become: true
+  tags:
+    - backup
+    - ssh
+    - files
+    - safety
+
+# Extract and process allowed and denied subnets
+# Извлечение и обработка разрешенных и запрещенных подсетей
+
+# Process allowed subnets / Обработка разрешенных подсетей
+- name: "Process allowed subnets / Обработка разрешенных подсетей"
+  include_tasks: process_allowed_subnets.yml
+  tags:
+    - allowed_subnets
+    - extraction
+    - subnets
+
+# Process denied subnets / Обработка запрещенных подсетей
+- name: "Process denied subnets / Обработка запрещенных подсетей"
+  include_tasks: process_denied_subnets.yml
+  tags:
+    - denied_subnets
+    - extraction
+    - subnets
+
+# Process not trusted subnets / Обработка недоверенных подсетей
+- name: "Process not trusted subnets / Обработка недоверенных подсетей"
+  include_tasks: process_not_trusted_subnets.yml
+  tags:
+    - not_trusted_subnets
+    - extraction
+    - subnets
+
+# Resolve subnet conflicts - prioritize denied and not trusted over allowed
+# Разрешение конфликтов подсетей - приоритет запрещенных и недоверенных над разрешенными
+- name: "Resolve subnet conflicts - prioritize denied over allowed / Разрешить конфликты подсетей - приоритет запрещенных над разрешенными"
+  ansible.builtin.set_fact:
+    final_allowed_subnets: "{{ final_allowed_subnets | difference(final_denied_subnets | default([])) }}"
+  when: 
+    - final_allowed_subnets is defined
+    - final_denied_subnets is defined
+    - final_denied_subnets | length > 0
+  tags:
+    - subnets
+    - conflict_resolution
+    - priority
+
+- name: "Resolve subnet conflicts - prioritize not trusted over allowed / Разрешить конфликты подсетей - приоритет недоверенных над разрешенными"
+  ansible.builtin.set_fact:
+    final_allowed_subnets: "{{ final_allowed_subnets | difference(final_not_trusted_subnets | default([])) }}"
+  when: 
+    - final_allowed_subnets is defined
+    - final_not_trusted_subnets is defined
+    - final_not_trusted_subnets | length > 0
+  tags:
+    - subnets
+    - conflict_resolution
+    - priority
+
+- name: "Display subnet conflict resolution results (English) / Отображение результатов разрешения конфликтов подсетей (английский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Subnet Conflict Resolution Results:"
+      - "============================================================================="
+      - "Original Allowed Subnets:     {{ (final_allowed_subnets | default([]) + final_denied_subnets | default([]) + final_not_trusted_subnets | default([])) | unique | length }}"
+      - "Final Allowed Subnets:        {{ final_allowed_subnets | length if final_allowed_subnets is defined else '0' }}"
+      - "Final Denied Subnets:         {{ final_denied_subnets | length if final_denied_subnets is defined else '0' }}"
+      - "Final Not Trusted Subnets:    {{ final_not_trusted_subnets | length if final_not_trusted_subnets is defined else '0' }}"
+      - "Conflicts Resolved:           {{ 'YES' if (final_allowed_subnets | default([]) + final_denied_subnets | default([]) + final_not_trusted_subnets | default([])) | unique | length != (final_allowed_subnets | default([]) | length + final_denied_subnets | default([]) | length + final_not_trusted_subnets | default([]) | length) else 'NO' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - debug
+    - subnets
+    - conflict_resolution
+    - english
+
+- name: "Display subnet conflict resolution results (Russian) / Отображение результатов разрешения конфликтов подсетей (русский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты разрешения конфликтов подсетей:"
+      - "============================================================================="
+      - "Исходные разрешенные подсети:  {{ (final_allowed_subnets | default([]) + final_denied_subnets | default([]) + final_not_trusted_subnets | default([])) | unique | length }}"
+      - "Финальные разрешенные подсети: {{ final_allowed_subnets | length if final_allowed_subnets is defined else '0' }}"
+      - "Финальные запрещенные подсети: {{ final_denied_subnets | length if final_denied_subnets is defined else '0' }}"
+      - "Финальные недоверенные подсети: {{ final_not_trusted_subnets | length if final_not_trusted_subnets is defined else '0' }}"
+      - "Конфликты разрешены:           {{ 'ДА' if (final_allowed_subnets | default([]) + final_denied_subnets | default([]) + final_not_trusted_subnets | default([])) | unique | length != (final_allowed_subnets | default([]) | length + final_denied_subnets | default([]) | length + final_not_trusted_subnets | default([]) | length) else 'НЕТ' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - debug
+    - subnets
+    - conflict_resolution
+    - russian
+
+# Create SSH banner file from template
+# Создать файл баннера SSH из шаблона
+- name: "Create SSH banner file from template / Создать файл баннера SSH из шаблона"
+  ansible.builtin.template:
+    src: ssh_banner.j2
+    dest: "{{ ssh_banner_file }}"
+    mode: '0644'
+    owner: root
+    group: root
+    backup: true
+  become: true
+  register: ssh_banner_result
+  tags:
+    - configuration
+    - ssh
+    - banner
+    - template
+
+# Display SSH banner creation results
+# Отображение результатов создания баннера SSH
+- name: "Display SSH banner creation results (English) / Отображение результатов создания баннера SSH (английский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SSH Banner Creation Results:"
+      - "============================================================================="
+      - "Banner File:                {{ ssh_banner_file }}"
+      - "Template Source:            ssh_banner.j2"
+      - "File Created:               {{ 'YES' if ssh_banner_result.changed else 'NO' }}"
+      - "File Mode:                  0644"
+      - "File Owner:                 root:root"
+      - "Backup Created:             {{ 'YES' if ssh_banner_result.backup_file is defined else 'NO' }}"
+      - "Dynamic Information:        FQDN, OS, SSH Port (static in banner)"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - debug
+    - banner
+    - template
+    - english
+
+- name: "Display SSH banner creation results (Russian) / Отображение результатов создания баннера SSH (русский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты создания баннера SSH:"
+      - "============================================================================="
+      - "Файл баннера:               {{ ssh_banner_file }}"
+      - "Источник шаблона:           ssh_banner.j2"
+      - "Файл создан:                {{ 'ДА' if ssh_banner_result.changed else 'НЕТ' }}"
+      - "Права доступа:              0644"
+      - "Владелец файла:             root:root"
+      - "Резервная копия создана:    {{ 'ДА' if ssh_banner_result.backup_file is defined else 'НЕТ' }}"
+      - "Динамическая информация:    FQDN, ОС, Порт SSH (статично в баннере)"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - debug
+    - banner
+    - template
+    - russian
+
+
+- name: "Create greeting profile script / Создать профильный скрипт приветствия"
+  ansible.builtin.copy:
+    src: dynamic_greeting.sh
+    dest: "{{ ssh_greeting_file }}"
+    mode: '0755'
+    owner: root
+    group: root
+    backup: true
+  become: true
+  register: greeting_profile_result
+  tags:
+    - configuration
+    - ssh
+    - script
+    - greeting
+
+# Display greeting profile script creation results
+# Отображение результатов создания профильного скрипта приветствия
+- name: "Display greeting profile script creation results (English) / Отображение результатов создания профильного скрипта приветствия (английский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Greeting Profile Script Creation Results:"
+      - "============================================================================="
+      - "Script File:                 {{ ssh_greeting_file }}"
+      - "Source File:                 dynamic_greeting.sh"
+      - "File Created:                {{ 'YES' if greeting_profile_result.changed else 'NO' }}"
+      - "File Mode:                   0755"
+      - "File Owner:                  root:root"
+      - "Backup Created:              {{ 'YES' if greeting_profile_result.backup_file is defined else 'NO' }}"
+      - "Script Type:                 Dynamic greeting script"
+      - "Execution:                   Profile.d integration"
+      - "SSH Integration:             Automatic on SSH login"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - debug
+    - greeting
+    - script
+    - english
+
+- name: "Display greeting profile script creation results (Russian) / Отображение результатов создания профильного скрипта приветствия (русский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты создания профильного скрипта приветствия:"
+      - "============================================================================="
+      - "Файл скрипта:                {{ ssh_greeting_file }}"
+      - "Исходный файл:               dynamic_greeting.sh"
+      - "Файл создан:                 {{ 'ДА' if greeting_profile_result.changed else 'НЕТ' }}"
+      - "Права доступа:               0755"
+      - "Владелец файла:              root:root"
+      - "Резервная копия создана:     {{ 'ДА' if greeting_profile_result.backup_file is defined else 'НЕТ' }}"
+      - "Тип скрипта:                 Динамический скрипт приветствия"
+      - "Выполнение:                  Интеграция с profile.d"
+      - "Интеграция SSH:              Автоматически при входе SSH"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - debug
+    - greeting
+    - script
+    - russian
+
+
+
+# Configure SSH from template (replaces 20+ lineinfile tasks)
+# Настроить SSH из шаблона (заменяет 20+ задач lineinfile)
+- name: "Configure SSH from template / Настроить SSH из шаблона"
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: "{{ ssh_config_file }}"
+    backup: true
+    owner: root
+    group: root
+    mode: '0600'
+    validate: 'sshd -t -f %s'  # Validate configuration before applying
+  become: true
+  register: ssh_config_result
+  notify: "restart sshd"
+  when: config_ssh | default(true)
+  tags:
+    - configuration
+    - ssh
+    - template
+
+# Display SSH configuration template preview
+# Отображение предварительного просмотра шаблона конфигурации SSH
+- name: "Display SSH configuration template preview (English) / Отображение предварительного просмотра шаблона конфигурации SSH (английский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SSH Configuration Template Preview:"
+      - "============================================================================="
+      - "Template Source:              sshd_config.j2"
+      - "Configuration File:           {{ ssh_config_file }}"
+      - "File Created/Modified:        {{ 'YES' if ssh_config_result.changed else 'NO' }}"
+      - "Backup Created:               {{ 'YES' if ssh_config_result.backup_file is defined else 'NO' }}"
+      - "Configuration Validated:      {{ 'YES' if ssh_config_result.changed else 'N/A' }}"
+      - "============================================================================="
+      - "Key Configuration Settings:"
+      - "============================================================================="
+      - "SSH Port:                     {{ ssh_port }}"
+      - "SSH Protocol:                 {{ ssh_security.protocol }}"
+      - "Password Authentication:      {{ ssh_security.password_authentication }}"
+      - "Pubkey Authentication:        {{ ssh_security.pubkey_authentication }}"
+      - "Permit Empty Passwords:       {{ ssh_security.permit_empty_passwords }}"
+      - "Permit Root Login:            {{ ssh_security.permit_root_login }}"
+      - "Max Auth Tries:               {{ ssh_security.max_auth_tries }}"
+      - "Login Grace Time:             {{ ssh_security.login_grace_time }}s"
+      - "Client Alive Interval:        {{ ssh_security.client_alive_interval }}s"
+      - "Client Alive Count Max:       {{ ssh_security.client_alive_count_max }}"
+      - "Log Level:                    {{ ssh_security.log_level }}"
+      - "Syslog Facility:              {{ ssh_security.syslog_facility }}"
+      - "Print Last Log:               {{ ssh_security.print_last_log }}"
+      - "============================================================================="
+      - "Advanced Settings:"
+      - "============================================================================="
+      - "Compression:                  {{ ssh_advanced.compression }}"
+      - "X11 Forwarding:               {{ 'yes' if ssh_advanced.x11_forwarding else 'no' }}"
+      - "Allow TCP Forwarding:         {{ 'yes' if ssh_advanced.allow_tcp_forwarding else 'no' }}"
+      - "Gateway Ports:                {{ 'yes' if ssh_advanced.gateway_ports else 'no' }}"
+      - "Allow Agent Forwarding:       {{ 'yes' if ssh_advanced.allow_agent_forwarding else 'no' }}"
+      - "Use Match Blocks:             {{ 'yes' if ssh_advanced.use_match_blocks else 'no' }}"
+      - "============================================================================="
+      - "Network Access Control:"
+      - "============================================================================="
+      - "Trusted Networks Password Auth: {{ 'yes' if ssh_access_control.trusted_networks_password_auth else 'no' }}"
+      - "Untrusted Networks Require Both: {{ 'yes' if ssh_access_control.untrusted_networks_require_both else 'no' }}"
+      - "Default Network Behavior:     {{ ssh_access_control.default_network_behavior }}"
+      - "Allowed Subnets:              {{ final_allowed_subnets | length if final_allowed_subnets is defined else '0' }} configured"
+      - "Denied Subnets:               {{ final_denied_subnets | length if final_denied_subnets is defined else '0' }} configured"
+      - "Users Configured:             {{ users_to_add | length if (users_to_add is defined and users_to_add | length > 0) else '0' }}"
+      - "============================================================================="
+      - "Cryptographic Settings:"
+      - "============================================================================="
+      - "Host Key Algorithms:          {{ ssh_security.host_key_algorithms | truncate(60) }}..."
+      - "KEX Algorithms:               {{ ssh_security.kex_algorithms | truncate(60) }}..."
+      - "Ciphers:                      {{ ssh_security.ciphers | truncate(60) }}..."
+      - "MACs:                         {{ ssh_security.macs | truncate(60) }}..."
+      - "============================================================================="
+      - "OS-Specific Settings:"
+      - "============================================================================="
+      - "OS Family:                    {{ ansible_os_family }}"
+      - "SSH Service Name:             {{ ssh_os_vars.service_name }}"
+      - "Server Package:               {{ ssh_os_vars.server_package }}"
+      - "Client Package:               {{ ssh_os_vars.client_package }}"
+      - "Package Manager:              {{ ssh_os_vars.package_manager }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - debug
+    - configuration
+    - template
+    - preview
+    - english
+
+- name: "Display SSH configuration template preview (Russian) / Отображение предварительного просмотра шаблона конфигурации SSH (русский)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Предварительный просмотр шаблона конфигурации SSH:"
+      - "============================================================================="
+      - "Источник шаблона:              sshd_config.j2"
+      - "Файл конфигурации:             {{ ssh_config_file }}"
+      - "Файл создан/изменен:           {{ 'ДА' if ssh_config_result.changed else 'НЕТ' }}"
+      - "Резервная копия создана:       {{ 'ДА' if ssh_config_result.backup_file is defined else 'НЕТ' }}"
+      - "Конфигурация проверена:        {{ 'ДА' if ssh_config_result.changed else 'Н/Д' }}"
+      - "============================================================================="
+      - "Ключевые настройки конфигурации:"
+      - "============================================================================="
+      - "Порт SSH:                      {{ ssh_port }}"
+      - "Протокол SSH:                  {{ ssh_security.protocol }}"
+      - "Аутентификация по паролю:      {{ ssh_security.password_authentication }}"
+      - "Аутентификация по ключу:       {{ ssh_security.pubkey_authentication }}"
+      - "Разрешить пустые пароли:       {{ ssh_security.permit_empty_passwords }}"
+      - "Разрешить вход root:           {{ ssh_security.permit_root_login }}"
+      - "Макс. попыток аутентификации:  {{ ssh_security.max_auth_tries }}"
+      - "Время ожидания входа:          {{ ssh_security.login_grace_time }}с"
+      - "Интервал активности клиента:   {{ ssh_security.client_alive_interval }}с"
+      - "Макс. проверок активности:     {{ ssh_security.client_alive_count_max }}"
+      - "Уровень логирования:           {{ ssh_security.log_level }}"
+      - "Удобство Syslog:               {{ ssh_security.syslog_facility }}"
+      - "Выводить последний вход:       {{ ssh_security.print_last_log }}"
+      - "============================================================================="
+      - "Расширенные настройки:"
+      - "============================================================================="
+      - "Сжатие:                        {{ ssh_advanced.compression }}"
+      - "Переадресация X11:             {{ 'да' if ssh_advanced.x11_forwarding else 'нет' }}"
+      - "Разрешить переадресацию TCP:   {{ 'да' if ssh_advanced.allow_tcp_forwarding else 'нет' }}"
+      - "Шлюзовые порты:                {{ 'да' if ssh_advanced.gateway_ports else 'нет' }}"
+      - "Разрешить переадресацию агента: {{ 'да' if ssh_advanced.allow_agent_forwarding else 'нет' }}"
+      - "Использовать блоки Match:      {{ 'да' if ssh_advanced.use_match_blocks else 'нет' }}"
+      - "============================================================================="
+      - "Контроль доступа к сети:"
+      - "============================================================================="
+      - "Пароль для доверенных сетей:   {{ 'да' if ssh_access_control.trusted_networks_password_auth else 'нет' }}"
+      - "Требовать оба для недоверенных: {{ 'да' if ssh_access_control.untrusted_networks_require_both else 'нет' }}"
+      - "Поведение по умолчанию:        {{ ssh_access_control.default_network_behavior }}"
+      - "Разрешенные подсети:           {{ final_allowed_subnets | length if final_allowed_subnets is defined else '0' }} настроено"
+      - "Запрещенные подсети:           {{ final_denied_subnets | length if final_denied_subnets is defined else '0' }} настроено"
+      - "Пользователи настроены:        {{ users_to_add | length if (users_to_add is defined and users_to_add | length > 0) else '0' }}"
+      - "============================================================================="
+      - "Криптографические настройки:"
+      - "============================================================================="
+      - "Алгоритмы ключей хоста:        {{ ssh_security.host_key_algorithms | truncate(60) }}..."
+      - "Алгоритмы KEX:                 {{ ssh_security.kex_algorithms | truncate(60) }}..."
+      - "Шифры:                         {{ ssh_security.ciphers | truncate(60) }}..."
+      - "MAC:                           {{ ssh_security.macs | truncate(60) }}..."
+      - "============================================================================="
+      - "Настройки ОС:"
+      - "============================================================================="
+      - "Семейство ОС:                  {{ ansible_os_family }}"
+      - "Имя службы SSH:                {{ ssh_os_vars.service_name }}"
+      - "Пакет сервера:                 {{ ssh_os_vars.server_package }}"
+      - "Пакет клиента:                 {{ ssh_os_vars.client_package }}"
+      - "Менеджер пакетов:              {{ ssh_os_vars.package_manager }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - debug
+    - configuration
+    - template
+    - preview
+    - russian
+
+# Ensure SSH service is enabled and started
+# Обеспечить запуск и автозапуск службы SSH
+- name: "Ensure SSH service is enabled and started / Обеспечить запуск и автозапуск службы SSH"
+  ansible.builtin.service:
+    name: "{{ ssh_os_vars.service_name }}"
+    state: started
+    enabled: true
+  register: ssh_service_result
+  become: true
+  tags:
+    - service
+    - ssh
+
+# Test SSH configuration
+# Тестировать конфигурацию SSH
+- name: "Test SSH configuration / Тестировать конфигурацию SSH"
+  ansible.builtin.command: sshd -t
+  register: ssh_config_test_result
+  changed_when: false
+  become: true
+  tags:
+    - testing
+    - ssh
+
+- name: "Display SSH configuration test results / Отобразить результаты тестирования конфигурации SSH"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SSH Configuration Test Results:"
+      - "============================================================================="
+      - "Configuration Test:      {{ 'PASSED' if ssh_config_test_result.rc == 0 else 'FAILED' }}"
+      - "Return Code:             {{ ssh_config_test_result.rc }}"
+      - "Output:                  {{ ssh_config_test_result.stdout }}"
+      - "Errors:                  {{ ssh_config_test_result.stderr }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - testing
+    - ssh
+
+# Restart SSH service if configuration was changed
+# Перезапустить службу SSH если конфигурация была изменена
+- name: "Restart SSH service if configuration was changed / Перезапустить службу SSH если конфигурация была изменена"
+  ansible.builtin.service:
+    name: "{{ ssh_os_vars.service_name }}"
+    state: restarted
+  become: true
+  register: ssh_restart_result
+  when: 
+    - ssh_config_result is changed or
+      ssh_banner_result is changed or
+      greeting_profile_result is changed
+  tags:
+    - service
+    - ssh
+    - restart
+
+# Display comprehensive final configuration summary
+# Отображение комплексного итогового сводного отчета конфигурации
+- name: "Display comprehensive final configuration summary / Отображение комплексного итогового сводного отчета конфигурации"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SSH CONFIGURATION COMPLETED SUCCESSFULLY!"
+      - "============================================================================="
+      - "Operating System:          {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "OS Family:                 {{ ansible_os_family }}"
+      - "SSH Port:                  {{ ssh_port }}"
+      - "SSH Protocol:              {{ ssh_protocol }}"
+      - "SSH Service Name:          {{ ssh_os_vars.service_name }}"
+      - "SSH Config File:           {{ ssh_config_file }}"
+      - "SSH Banner File:           {{ ssh_banner_file }}"
+      - "Password Authentication:   {{ ssh_security.password_authentication }}"
+      - "Pubkey Authentication:     {{ ssh_security.pubkey_authentication }}"
+      - "Permit Root Login:         {{ ssh_security.permit_root_login }}"
+      - "Max Auth Tries:            {{ ssh_security.max_auth_tries }}"
+      - "Login Grace Time:          {{ ssh_security.login_grace_time }}s"
+      - "Client Alive Interval:     {{ ssh_security.client_alive_interval }}s"
+      - "Client Alive Count Max:    {{ ssh_security.client_alive_count_max }}"
+      - "SSH Protocol Version:      {{ ssh_security.protocol }}"
+      - "Log Level:                 {{ ssh_security.log_level }}"
+      - "Syslog Facility:           {{ ssh_security.syslog_facility }}"
+      - "Trusted Networks Password Auth: {{ ssh_access_control.trusted_networks_password_auth }}"
+      - "Untrusted Networks Require Both: {{ ssh_access_control.untrusted_networks_require_both }}"
+      - "Default Network Behavior:  {{ ssh_access_control.default_network_behavior }}"
+      - "Configuration Mode:        {{ 'Direct subnets' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Users-based' }}"
+      - "Allowed Subnets:           {{ final_allowed_subnets | length }} configured"
+      - "Denied Subnets:            {{ final_denied_subnets | length }} configured"
+      - "Users Configured:          {{ users_to_add | length if (users_to_add is defined and users_to_add | length > 0) else '0' }}"
+      - "Backup Enabled:            {{ ssh_backup_enabled }}"
+      - "Validation Enabled:        {{ validate_configuration }}"
+      - "Debug Mode:                {{ debug_mode }}"
+      - "============================================================================="
+      - "Operation Results Summary:"
+      - "- SSH Configuration:       {{ 'SUCCESS' if ssh_config_result is defined and ssh_config_result.changed else 'UNCHANGED' }}"
+      - "- Service Configuration:   {{ 'SUCCESS' if ssh_service_result is defined and ssh_service_result.changed else 'SKIPPED' }}"
+      - "- Configuration Test:      {{ 'PASSED' if ssh_config_test_result is defined and ssh_config_test_result.rc == 0 else 'FAILED' }}"
+      - "- Service Restart:         {{ 'SUCCESS' if ssh_restart_result is defined and ssh_restart_result.changed else 'SKIPPED' }}"
+      - "- Backup Operations:       {{ 'SUCCESS' if backup_result is defined else 'SKIPPED' }}"
+      - "============================================================================="
+      - "Configuration files modified:"
+      - "- {{ ssh_config_file }}"
+      - "- {{ ssh_banner_file }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - summary
+    - ssh
+    - completion
+    - final

@@ -1,0 +1,156 @@
+---
+# =============================================================================
+# Example Playbook for SSH Configuration Role / Пример плейбука для роли конфигурации SSH
+# =============================================================================
+# This playbook demonstrates how to use the base.configure_ssh role
+# Этот плейбук демонстрирует как использовать роль base.configure_ssh
+# =============================================================================
+
+- name: "Configure SSH on target servers / Настроить SSH на целевых серверах"
+  hosts: all
+  become: true
+  vars:
+    # Enable SSH configuration / Включить конфигурацию SSH
+    config_ssh: true
+    
+    # SSH basic settings / Базовые настройки SSH  
+    ssh_port: 22
+    ssh_protocol: "tcp"
+    
+    # Debug settings / Настройки отладки
+    debug_mode: true
+    debug_lang: "both"
+    
+    # Security hardening / Усиление безопасности
+    ssh_security:
+      password_authentication: "no"     # Disable password auth for security
+      pubkey_authentication: "yes"      # Enable key-based auth
+      permit_empty_passwords: "no"      # Never allow empty passwords
+      permit_root_login: "no"           # Disable direct root login
+      max_auth_tries: 3
+      login_grace_time: 60
+      client_alive_interval: 300
+      client_alive_count_max: 2
+      protocol: 2
+      log_level: "INFO"
+      syslog_facility: "AUTH"
+      print_motd: "yes"
+      print_last_log: "yes"
+
+    # Network access control / Контроль доступа к сети
+    ssh_access_control:
+      trusted_networks_password_auth: false    # No password auth even for trusted networks
+      untrusted_networks_require_both: true    # Require both password and key
+      default_network_behavior: "restrictive"  # Default to restrictive
+
+    # Example: Direct subnet configuration / Пример: прямая конфигурация подсетей
+    allowed_subnets:
+      - "192.168.1.0/24"      # Local network
+      - "10.20.30.0/24"       # VPN network
+    
+    denied_subnets:
+      - "192.168.0.0/24"      # Untrusted local network
+    
+    # Advanced SSH settings / Расширенные настройки SSH
+    ssh_advanced:
+      compression: "delayed"
+      x11_forwarding: false
+      allow_tcp_forwarding: false
+      gateway_ports: false
+      allow_agent_forwarding: false
+      use_match_blocks: true
+
+    # Backup settings / Настройки резервного копирования
+    ssh_backup_enabled: true
+    ssh_backup_dir: "/etc/ssh/backup"
+    ssh_backup_count: 5
+
+    # Validation settings / Настройки валидации
+    validate_configuration: true
+    strict_validation: true
+
+  roles:
+    - role: configure_ssh
+      tags: 
+        - ssh
+        - security
+        - configuration
+
+# =============================================================================
+# Alternative Example: User-based configuration / Альтернативный пример: конфигурация на основе пользователей  
+# =============================================================================
+- name: "Configure SSH with user-based subnets / Настроить SSH с подсетями на основе пользователей"
+  hosts: user_managed_servers
+  become: true
+  vars:
+    config_ssh: true
+    debug_mode: true
+    
+    # User-based subnet configuration / Конфигурация подсетей на основе пользователей
+    users_to_add:
+      - username: "admin"
+        password: "SecureAdminPassword123!"
+        groups: ["sudo", "admin"]
+        is_sudoers: true
+        shell: "/bin/bash"
+        allowed_subnets:
+          - "192.168.1.0/24"
+          - "10.20.30.0/24"
+        denied_subnets:
+          - "192.168.0.0/24"
+        authorized_keys:
+          - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC... admin@workstation"
+      
+      - username: "developer"  
+        password: "SecureDevPassword123!"
+        groups: ["developers"]
+        is_sudoers: false
+        shell: "/bin/bash"
+        allowed_subnets:
+          - "192.168.1.100/32"  # Only from specific IP
+        denied_subnets: []
+        authorized_keys:
+          - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... dev@laptop"
+
+  roles:
+    - role: configure_ssh
+      tags:
+        - ssh
+        - users
+        - configuration
+
+# =============================================================================
+# Testing and Validation / Тестирование и валидация
+# =============================================================================  
+- name: "Test SSH configuration / Тестировать конфигурацию SSH"
+  hosts: all
+  become: true
+  tasks:
+    - name: "Test SSH service status / Тестировать статус службы SSH"
+      ansible.builtin.service_facts:
+      
+    - name: "Display SSH service status / Отобразить статус службы SSH"
+      ansible.builtin.debug:
+        msg: |
+          SSH Service Status:
+          - Service Name: {{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}
+          - Status: {{ ansible_facts.services[('ssh' if ansible_os_family == 'Debian' else 'sshd') + '.service'].state }}
+          - Enabled: {{ ansible_facts.services[('ssh' if ansible_os_family == 'Debian' else 'sshd') + '.service'].status }}
+      
+    - name: "Test SSH configuration syntax / Тестировать синтаксис конфигурации SSH"
+      ansible.builtin.command: sshd -t
+      register: sshd_test_result
+      changed_when: false
+      
+    - name: "Display SSH configuration test results / Отобразить результаты теста конфигурации SSH"
+      ansible.builtin.debug:
+        msg: |
+          SSH Configuration Test:
+          - Test Result: {{ 'PASSED' if sshd_test_result.rc == 0 else 'FAILED' }}
+          - Return Code: {{ sshd_test_result.rc }}
+          - Output: {{ sshd_test_result.stdout }}
+          - Errors: {{ sshd_test_result.stderr }}
+
+  tags:
+    - testing
+    - validation

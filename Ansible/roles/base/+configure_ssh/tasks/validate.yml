@@ -1,0 +1,303 @@
+---
+# =============================================================================
+# SSH Configuration Role - Parameter Validation / Роль конфигурации SSH - Валидация параметров
+# =============================================================================
+# This file contains comprehensive parameter validation for SSH configuration
+# Этот файл содержит комплексную валидацию параметров для конфигурации SSH
+# =============================================================================
+
+# Validate SSH port / Валидировать порт SSH
+- name: "Validate SSH port / Валидировать порт SSH"
+  ansible.builtin.assert:
+    that:
+      - ssh_port is number
+      - ssh_port >= 1
+      - ssh_port <= 65535
+    fail_msg: "SSH port must be a number between 1 and 65535 / Порт SSH должен быть числом от 1 до 65535"
+    success_msg: "SSH port validation passed / Валидация порта SSH прошла успешно"
+  tags:
+    - validation
+    - ssh
+
+# Validate SSH protocol / Валидировать протокол SSH
+- name: "Validate SSH protocol / Валидировать протокол SSH"
+  ansible.builtin.assert:
+    that:
+      - ssh_protocol in ['tcp', 'udp']
+    fail_msg: "SSH protocol must be either 'tcp' or 'udp' / Протокол SSH должен быть 'tcp' или 'udp'"
+    success_msg: "SSH protocol validation passed / Валидация протокола SSH прошла успешно"
+  tags:
+    - validation
+    - ssh
+
+# Validate SSH security settings / Валидировать настройки безопасности SSH
+- name: "Validate SSH security settings / Валидировать настройки безопасности SSH"
+  ansible.builtin.assert:
+    that:
+      - ssh_security.password_authentication in ['yes', 'no']
+      - ssh_security.pubkey_authentication in ['yes', 'no']
+      - ssh_security.permit_empty_passwords in ['yes', 'no']
+      - ssh_security.permit_root_login in ['yes', 'no', 'prohibit-password', 'forced-commands-only']
+      - ssh_security.max_auth_tries is number
+      - ssh_security.max_auth_tries >= 1
+      - ssh_security.max_auth_tries <= 10
+      - ssh_security.login_grace_time is number
+      - ssh_security.login_grace_time >= 30
+      - ssh_security.login_grace_time <= 300
+      - ssh_security.client_alive_interval is number
+      - ssh_security.client_alive_interval >= 60
+      - ssh_security.client_alive_interval <= 3600
+      - ssh_security.client_alive_count_max is number
+      - ssh_security.client_alive_count_max >= 1
+      - ssh_security.client_alive_count_max <= 10
+      - ssh_security.protocol in [1, 2]
+      - ssh_security.log_level in ['QUIET', 'FATAL', 'ERROR', 'INFO', 'VERBOSE', 'DEBUG', 'DEBUG1', 'DEBUG2', 'DEBUG3']
+      - ssh_security.syslog_facility in ['DAEMON', 'USER', 'AUTH', 'LOCAL0', 'LOCAL1', 'LOCAL2', 'LOCAL3', 'LOCAL4', 'LOCAL5', 'LOCAL6', 'LOCAL7']
+    fail_msg: "SSH security settings validation failed / Валидация настроек безопасности SSH не удалась"
+    success_msg: "SSH security settings validation passed / Валидация настроек безопасности SSH прошла успешно"
+  when: ssh_security is defined
+  tags:
+    - validation
+    - ssh
+    - security
+
+# Validate network access control settings / Валидировать настройки контроля доступа к сети
+- name: "Validate network access control settings / Валидировать настройки контроля доступа к сети"
+  ansible.builtin.assert:
+    that:
+      - ssh_access_control.trusted_networks_password_auth is boolean
+      - ssh_access_control.untrusted_networks_require_both is boolean
+      - ssh_access_control.default_network_behavior in ['permissive', 'restrictive']
+    fail_msg: "Network access control settings validation failed / Валидация настроек контроля доступа к сети не удалась"
+    success_msg: "Network access control settings validation passed / Валидация настроек контроля доступа к сети прошла успешно"
+  when: ssh_access_control is defined
+  tags:
+    - validation
+    - ssh
+    - network
+    - access_control
+
+# Validate configuration mode / Валидировать режим конфигурации
+- name: "Validate configuration mode / Валидировать режим конфигурации"
+  ansible.builtin.assert:
+    that:
+      - (allowed_subnets is defined and allowed_subnets | length > 0) or (denied_subnets is defined and denied_subnets | length > 0) or (not_trusted_subnets is defined and not_trusted_subnets | length > 0) or (users_to_add is defined and users_to_add | length > 0)
+    fail_msg: "Either allowed_subnets, denied_subnets, not_trusted_subnets or users_to_add must be defined and non-empty / Либо allowed_subnets, denied_subnets, not_trusted_subnets, либо users_to_add должны быть определены и не пусты"
+    success_msg: "Configuration mode validation passed / Валидация режима конфигурации прошла успешно"
+  tags:
+    - validation
+    - configuration
+    - mode
+
+# Validate subnet format if provided / Валидировать формат подсети если предоставлен
+- name: "Validate subnet formats / Валидировать форматы подсетей"
+  ansible.builtin.assert:
+    that:
+      - item is match('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid subnet format: {{ item }}. Expected format: x.x.x.x/xx / Неверный формат подсети: {{ item }}. Ожидаемый формат: x.x.x.x/xx"
+    success_msg: "Subnet format validation passed: {{ item }} / Валидация формата подсети прошла успешно: {{ item }}"
+  loop: "{{ (allowed_subnets | default([])) + (denied_subnets | default([])) + (not_trusted_subnets | default([])) }}"
+  when: (allowed_subnets | default([]) | length > 0) or (denied_subnets | default([]) | length > 0) or (not_trusted_subnets | default([]) | length > 0)
+  tags:
+    - validation
+    - subnets
+
+# Validate users_to_add structure / Валидировать структуру users_to_add
+- name: "Validate users_to_add structure / Валидировать структуру users_to_add"
+  ansible.builtin.assert:
+    that:
+      - item.username is defined
+      - item.username is string
+      - item.username | length > 0
+      - item.password is defined
+      - item.password is string
+      - item.password | length >= 8
+      - item.groups is defined
+      - item.groups is sequence
+      - item.is_sudoers is defined
+      - item.is_sudoers is boolean
+      - item.shell is defined
+      - item.shell is string
+      - item.allowed_subnets is defined
+      - item.allowed_subnets is sequence
+      - item.denied_subnets is defined
+      - item.denied_subnets is sequence
+      - item.not_trusted_subnets is defined
+      - item.not_trusted_subnets is sequence
+      - item.authorized_keys is defined
+      - item.authorized_keys is sequence
+    fail_msg: "Invalid user structure for user: {{ item.username | default('undefined') }}. Required fields: username, password (min 8 chars), groups, is_sudoers, shell, allowed_subnets, denied_subnets, not_trusted_subnets, authorized_keys / Неверная структура пользователя для пользователя: {{ item.username | default('undefined') }}. Обязательные поля: username, password (мин 8 символов), groups, is_sudoers, shell, allowed_subnets, denied_subnets, not_trusted_subnets, authorized_keys"
+    success_msg: "User structure validation passed for: {{ item.username }} / Валидация структуры пользователя прошла успешно для: {{ item.username }}"
+  loop: "{{ users_to_add | default([]) }}"
+  when: users_to_add is defined and users_to_add | length > 0
+  tags:
+    - validation
+    - users
+    - structure
+
+# Validate user allowed subnet formats / Валидировать форматы разрешенных подсетей пользователей
+- name: "Validate user allowed subnet formats / Валидировать форматы разрешенных подсетей пользователей"
+  ansible.builtin.assert:
+    that:
+      - subnet is match('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid allowed subnet format for user {{ item.0.username }}: {{ subnet }}. Expected format: x.x.x.x/xx / Неверный формат разрешенной подсети для пользователя {{ item.0.username }}: {{ subnet }}. Ожидаемый формат: x.x.x.x/xx"
+    success_msg: "User allowed subnet format validation passed for {{ item.0.username }}: {{ subnet }} / Валидация формата разрешенной подсети пользователя прошла успешно для {{ item.0.username }}: {{ subnet }}"
+  with_subelements:
+    - "{{ users_to_add | default([]) }}"
+    - allowed_subnets
+    - skip_missing: true
+  when: users_to_add is defined and users_to_add | length > 0
+  vars:
+    subnet: "{{ item.1 }}"
+  tags:
+    - validation
+    - users
+    - subnets
+    - allowed
+
+# Validate user denied subnet formats / Валидировать форматы запрещенных подсетей пользователей
+- name: "Validate user denied subnet formats / Валидировать форматы запрещенных подсетей пользователей"
+  ansible.builtin.assert:
+    that:
+      - subnet is match('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid denied subnet format for user {{ item.0.username }}: {{ subnet }}. Expected format: x.x.x.x/xx / Неверный формат запрещенной подсети для пользователя {{ item.0.username }}: {{ subnet }}. Ожидаемый формат: x.x.x.x/xx"
+    success_msg: "User denied subnet format validation passed for {{ item.0.username }}: {{ subnet }} / Валидация формата запрещенной подсети пользователя прошла успешно для {{ item.0.username }}: {{ subnet }}"
+  with_subelements:
+    - "{{ users_to_add | default([]) }}"
+    - denied_subnets
+    - skip_missing: true
+  when: users_to_add is defined and users_to_add | length > 0
+  vars:
+    subnet: "{{ item.1 }}"
+  tags:
+    - validation
+    - users
+    - subnets
+    - denied
+
+# Validate not trusted subnets format from users / Валидировать формат недоверенных подсетей от пользователей
+- name: "Validate not trusted subnets format from users / Валидировать формат недоверенных подсетей от пользователей"
+  ansible.builtin.assert:
+    that:
+      - subnet is match('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid not trusted subnet format for user {{ item.0.username }}: {{ subnet }}. Expected format: x.x.x.x/xx / Неверный формат недоверенной подсети для пользователя {{ item.0.username }}: {{ subnet }}. Ожидаемый формат: x.x.x.x/xx"
+    success_msg: "User not trusted subnet format validation passed for {{ item.0.username }}: {{ subnet }} / Валидация формата недоверенной подсети пользователя прошла успешно для {{ item.0.username }}: {{ subnet }}"
+  with_subelements:
+    - "{{ users_to_add | default([]) }}"
+    - not_trusted_subnets
+    - skip_missing: true
+  when: users_to_add is defined and users_to_add | length > 0
+  vars:
+    subnet: "{{ item.1 }}"
+  tags:
+    - validation
+    - users
+    - subnets
+    - not_trusted
+
+# Validate authorized keys format / Валидировать формат авторизованных ключей
+- name: "Validate authorized keys format / Валидировать формат авторизованных ключей"
+  ansible.builtin.assert:
+    that:
+      - item.1 is match('^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521|ssh-dss) ')
+    fail_msg: "Invalid authorized key format for user {{ item.0.username }}: {{ item.1[:50] }}... Expected format: ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp*|ssh-dss / Неверный формат авторизованного ключа для пользователя {{ item.0.username }}: {{ item.1[:50] }}... Ожидаемый формат: ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp*|ssh-dss"
+    success_msg: "Authorized key format validation passed for {{ item.0.username }}: {{ item.1[:50] }}... / Валидация формата авторизованного ключа прошла успешно для {{ item.0.username }}: {{ item.1[:50] }}..."
+  with_subelements:
+    - "{{ users_to_add | default([]) }}"
+    - authorized_keys
+  when: users_to_add is defined and users_to_add | length > 0
+  tags:
+    - validation
+    - users
+    - authorized_keys
+
+# Validate boolean parameters / Валидировать булевы параметры
+- name: "Validate boolean parameters / Валидировать булевы параметры"
+  ansible.builtin.assert:
+    that:
+      - debug_mode is boolean
+      - validate_configuration is boolean
+      - fail_on_validation_error is boolean
+      - strict_validation is boolean
+      - ssh_backup_enabled is boolean
+      - ssh_advanced.x11_forwarding is boolean
+      - ssh_advanced.allow_tcp_forwarding is boolean
+      - ssh_advanced.gateway_ports is boolean
+      - ssh_advanced.allow_agent_forwarding is boolean
+      - ssh_advanced.use_match_blocks is boolean
+    fail_msg: "Boolean parameters validation failed / Валидация булевых параметров не удалась"
+    success_msg: "Boolean parameters validation passed / Валидация булевых параметров прошла успешно"
+  when: ssh_advanced is defined
+  tags:
+    - validation
+    - boolean
+
+# Validate file paths / Валидировать пути к файлам
+- name: "Validate file paths / Валидировать пути к файлам"
+  ansible.builtin.assert:
+    that:
+      - ssh_config_file is string
+      - ssh_config_file | length > 0
+      - ssh_banner_file is string
+      - ssh_banner_file | length > 0
+      - ssh_backup_dir is string
+      - ssh_backup_dir | length > 0
+      - ssh_backup_suffix is string
+      - ssh_backup_suffix | length > 0
+    fail_msg: "File paths validation failed / Валидация путей к файлам не удалась"
+    success_msg: "File paths validation passed / Валидация путей к файлам прошла успешно"
+  tags:
+    - validation
+    - paths
+
+# Validate backup settings / Валидировать настройки резервного копирования
+- name: "Validate backup settings / Валидировать настройки резервного копирования"
+  ansible.builtin.assert:
+    that:
+      - ssh_backup_count is number
+      - ssh_backup_count >= 1
+      - ssh_backup_count <= 10
+    fail_msg: "Backup count must be a number between 1 and 10 / Количество резервных копий должно быть числом от 1 до 10"
+    success_msg: "Backup settings validation passed / Валидация настроек резервного копирования прошла успешно"
+  tags:
+    - validation
+    - backup
+
+# Display validation summary / Отображение сводки валидации
+- name: "Display validation summary / Отображение сводки валидации"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SSH Configuration Validation Summary:"
+      - "============================================================================="
+      - "SSH Port:                          {{ ssh_port }}"
+      - "SSH Protocol:                      {{ ssh_protocol }}"
+      - "Password Authentication:           {{ ssh_security.password_authentication }}"
+      - "Pubkey Authentication:             {{ ssh_security.pubkey_authentication }}"
+      - "Permit Root Login:                 {{ ssh_security.permit_root_login }}"
+      - "Max Auth Tries:                    {{ ssh_security.max_auth_tries }}"
+      - "Login Grace Time:                  {{ ssh_security.login_grace_time }}s"
+      - "Client Alive Interval:             {{ ssh_security.client_alive_interval }}s"
+      - "Client Alive Count Max:            {{ ssh_security.client_alive_count_max }}"
+      - "SSH Protocol Version:              {{ ssh_security.protocol }}"
+      - "Log Level:                         {{ ssh_security.log_level }}"
+      - "Syslog Facility:                   {{ ssh_security.syslog_facility }}"
+      - "Trusted Networks Password Auth:    {{ ssh_access_control.trusted_networks_password_auth }}"
+      - "Untrusted Networks Require Both:   {{ ssh_access_control.untrusted_networks_require_both }}"
+      - "Default Network Behavior:          {{ ssh_access_control.default_network_behavior }}"
+      - "Configuration Mode:                {{ 'Direct subnets' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Users-based' }}"
+      - "Allowed Subnets:                   {{ (allowed_subnets | length) if (allowed_subnets is defined) else 'N/A' }} configured"
+      - "Denied Subnets:                    {{ (denied_subnets | length) if (denied_subnets is defined) else 'N/A' }} configured"
+      - "Not Trusted Subnets:               {{ (not_trusted_subnets | length) if (not_trusted_subnets is defined) else 'N/A' }} configured"
+      - "Users to Add:                      {{ (users_to_add | length) if (users_to_add is defined) else 'N/A' }} configured"
+      - "Backup Enabled:                    {{ ssh_backup_enabled }}"
+      - "Validation Enabled:                {{ validate_configuration }}"
+      - "Debug Mode:                        {{ debug_mode }}"
+      - "============================================================================="
+      - "All validations passed successfully! / Все валидации прошли успешно!"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - validation
+    - summary

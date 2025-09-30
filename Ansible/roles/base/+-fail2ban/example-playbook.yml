@@ -1,0 +1,295 @@
+---
+# Example Playbook for Fail2ban Role / Пример Playbook для роли Fail2ban
+# =============================================================================
+# This playbook demonstrates how to use the fail2ban role with various
+# configurations and integrations.
+# 
+# Этот playbook демонстрирует, как использовать роль fail2ban с различными
+# конфигурациями и интеграциями.
+
+- name: "Install and Configure Fail2ban on Dashboard Server / Установка и настройка Fail2ban на сервере Dashboard"
+  hosts: dashboard
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    # Debug and Validation Settings / Настройки отладки и валидации
+    debug_mode: true
+    backup_enabled: true
+    validate_parameters: true
+    strict_validation: true
+    
+    # Fail2ban Installation Settings / Настройки установки Fail2ban
+    fail2ban_install: true
+    fail2ban_service_enabled: true
+    fail2ban_service_state: started
+    
+    # Fail2ban Configuration / Конфигурация Fail2ban
+    fail2ban_config:
+      loglevel: INFO
+      logtarget: /var/log/fail2ban.log
+      socket: /var/run/fail2ban/fail2ban.sock
+      pidfile: /var/run/fail2ban/fail2ban.pid
+      dbfile: /var/lib/fail2ban/fail2ban.sqlite3
+      dbpurgeage: 86400
+      ignoreip: []
+      bantime: 600
+      findtime: 600
+      maxretry: 3
+      action: iptables-multiport
+      action_mwl: iptables-multiport
+      action_mw: iptables-multiport
+      action_d: iptables-multiport
+    
+    # SSH Protection Settings / Настройки защиты SSH
+    ssh_protection:
+      enabled: true
+      port: "{{ ansible_ssh_port | default('22') }}"
+      protocol: tcp
+      maxretry: 3
+      bantime: 3600
+      findtime: 600
+      whitelist_enabled: true
+      whitelist_ips: []
+      whitelist_networks: []
+    
+    # User-based Protection Settings / Настройки защиты на основе пользователей
+    user_based_protection:
+      enabled: true
+      trusted_users: []
+      trusted_networks: []
+    
+    # Firewall Integration Settings / Настройки интеграции с файрволом
+    firewall_integration:
+      enabled: true
+      firewall_backend: auto
+      firewall_chain: INPUT
+    
+    # Email Notification Settings / Настройки уведомлений по электронной почте
+    email_notifications:
+      enabled: false
+      destemail: root@localhost
+      sender: fail2ban@localhost
+      action: "%%(action_mw)s"
+    
+    # Security Settings / Настройки безопасности
+    security_settings:
+      config_file_mode: '0644'
+      log_file_mode: '0640'
+      socket_file_mode: '0644'
+      selinux_enabled: false
+      selinux_context: system_u:object_r:fail2ban_exec_t:s0
+    
+    # Performance Settings / Настройки производительности
+    performance_settings:
+      max_memory: 256
+      max_threads: 4
+      db_max_connections: 10
+    
+    # Backup Settings / Настройки резервного копирования
+    backup_settings:
+      backup_dir: /etc/fail2ban/backup
+      backup_retention: 7
+      backup_compress: true
+    
+    # System Integration / Интеграция с системой
+    system_integration:
+      logrotate_enabled: true
+      logrotate_config: /etc/logrotate.d/fail2ban
+      systemd_enabled: true
+      systemd_override: true
+    
+    # Additional Jails / Дополнительные правила
+    additional_jails:
+      apache:
+        enabled: false
+        port: "http,https"
+        filter: apache-auth
+        logpath: /var/log/apache2/error.log
+        maxretry: 3
+        bantime: 600
+        findtime: 600
+      
+      nginx:
+        enabled: false
+        port: "http,https"
+        filter: nginx-http-auth
+        logpath: /var/log/nginx/error.log
+        maxretry: 3
+        bantime: 600
+        findtime: 600
+      
+      postfix:
+        enabled: false
+        port: smtp,465,submission
+        filter: postfix
+        logpath: /var/log/mail.log
+        maxretry: 3
+        bantime: 600
+        findtime: 600
+    
+    # Advanced Settings / Расширенные настройки
+    advanced_settings:
+      custom_filters: []
+      custom_actions: []
+      custom_jails: []
+  
+  pre_tasks:
+    - name: "Display playbook execution information / Отображение информации о выполнении playbook"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Fail2ban Role Playbook Execution / Выполнение Playbook роли Fail2ban:"
+          - "============================================================================="
+          - "Target Hosts:            {{ ansible_play_hosts | join(', ') }}"
+          - "Playbook:                {{ ansible_play_name }}"
+          - "Execution Time:          {{ ansible_date_time.iso8601 }}"
+          - "Debug Mode:              {{ debug_mode }}"
+          - "Backup Enabled:          {{ backup_enabled }}"
+          - "SSH Protection:          {{ ssh_protection.enabled }}"
+          - "User-based Protection:   {{ user_based_protection.enabled }}"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - pre-tasks
+  
+  roles:
+    - role: fail2ban
+      tags:
+        - fail2ban
+        - security
+        - ssh-protection
+  
+  post_tasks:
+    - name: "Extract trusted users from dashboard_users_to_add / Извлечение доверенных пользователей из dashboard_users_to_add"
+      ansible.builtin.set_fact:
+        extracted_trusted_users: "{{ dashboard_users_to_add | map(attribute='username') | list }}"
+      when: dashboard_users_to_add is defined
+      tags:
+        - post-tasks
+        - user-extraction
+    
+    - name: "Extract trusted networks from dashboard_users_to_add / Извлечение доверенных сетей из dashboard_users_to_add"
+      ansible.builtin.set_fact:
+        extracted_trusted_networks: "{{ dashboard_users_to_add | map(attribute='allowed_subnets') | flatten | unique }}"
+      when: dashboard_users_to_add is defined
+      tags:
+        - post-tasks
+        - network-extraction
+    
+    - name: "Update fail2ban configuration with extracted users / Обновление конфигурации fail2ban с извлеченными пользователями"
+      ansible.builtin.template:
+        src: jail.local.j2
+        dest: /etc/fail2ban/jail.local
+        mode: "{{ security_settings.config_file_mode }}"
+        owner: root
+        group: root
+        backup: "{{ backup_enabled }}"
+      vars:
+        user_based_protection:
+          enabled: true
+          trusted_users: "{{ extracted_trusted_users | default([]) }}"
+          trusted_networks: "{{ extracted_trusted_networks | default([]) }}"
+        ssh_protection:
+          enabled: true
+          whitelist_enabled: true
+          whitelist_networks: "{{ extracted_trusted_networks | default([]) }}"
+      notify: restart fail2ban
+      when: dashboard_users_to_add is defined
+      tags:
+        - post-tasks
+        - configuration-update
+    
+    - name: "Display final configuration summary / Отображение финальной сводки конфигурации"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Final Configuration Summary / Финальная сводка конфигурации:"
+          - "============================================================================="
+          - "Host:                    {{ inventory_hostname }}"
+          - "OS Family:               {{ ansible_os_family }}"
+          - "OS Distribution:         {{ ansible_distribution }}"
+          - "OS Version:              {{ ansible_distribution_version }}"
+          - "Fail2ban Installed:      {{ 'YES' if fail2ban_install else 'NO' }}"
+          - "SSH Protection:          {{ 'ENABLED' if ssh_protection.enabled else 'DISABLED' }}"
+          - "User-based Protection:   {{ 'ENABLED' if user_based_protection.enabled else 'DISABLED' }}"
+          - "Trusted Users:           {{ extracted_trusted_users | default([]) | join(', ') }}"
+          - "Trusted Networks:        {{ extracted_trusted_networks | default([]) | join(', ') }}"
+          - "Firewall Integration:    {{ 'ENABLED' if firewall_integration.enabled else 'DISABLED' }}"
+          - "Email Notifications:     {{ 'ENABLED' if email_notifications.enabled else 'DISABLED' }}"
+          - "Backup Enabled:          {{ 'YES' if backup_enabled else 'NO' }}"
+          - "Debug Mode:              {{ 'ENABLED' if debug_mode else 'DISABLED' }}"
+          - "============================================================================="
+          - "Playbook execution completed successfully / Выполнение playbook завершено успешно"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - post-tasks
+        - summary
+  
+  handlers:
+    - name: "restart fail2ban"
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: restarted
+        daemon_reload: yes
+      tags:
+        - handlers
+        - restart
+
+# Additional playbook for testing / Дополнительный playbook для тестирования
+- name: "Test Fail2ban Configuration / Тестирование конфигурации Fail2ban"
+  hosts: dashboard
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: "Test fail2ban configuration / Тестирование конфигурации fail2ban"
+      ansible.builtin.command: fail2ban-client -t
+      register: config_test_result
+      failed_when: false
+      changed_when: false
+      tags:
+        - testing
+        - configuration
+    
+    - name: "Display configuration test results / Отображение результатов тестирования конфигурации"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Configuration Test Results / Результаты тестирования конфигурации:"
+          - "============================================================================="
+          - "Test Status:              {{ 'SUCCESS' if config_test_result.rc == 0 else 'FAILED' }}"
+          - "Return Code:              {{ config_test_result.rc }}"
+          - "Output:                   {{ config_test_result.stdout_lines | join('\n') if config_test_result.stdout_lines else 'No output' }}"
+          - "Errors:                   {{ config_test_result.stderr_lines | join('\n') if config_test_result.stderr_lines else 'No errors' }}"
+          - "============================================================================="
+      tags:
+        - testing
+        - configuration
+    
+    - name: "Check fail2ban status / Проверка статуса fail2ban"
+      ansible.builtin.command: fail2ban-client status
+      register: status_result
+      failed_when: false
+      changed_when: false
+      tags:
+        - testing
+        - status
+    
+    - name: "Display fail2ban status / Отображение статуса fail2ban"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Fail2ban Status / Статус fail2ban:"
+          - "============================================================================="
+          - "Status:                   {{ 'ACTIVE' if status_result.rc == 0 else 'INACTIVE' }}"
+          - "Return Code:              {{ status_result.rc }}"
+          - "Output:                   {{ status_result.stdout_lines | join('\n') if status_result.stdout_lines else 'No output' }}"
+          - "Errors:                   {{ status_result.stderr_lines | join('\n') if status_result.stderr_lines else 'No errors' }}"
+          - "============================================================================="
+      tags:
+        - testing
+        - status

@@ -8,16 +8,28 @@
 
 # Install required packages for Debian/Ubuntu / Установка необходимых пакетов для Debian/Ubuntu
 - name: "Install required packages for Debian/Ubuntu / Установка необходимых пакетов для Debian/Ubuntu"
-  ansible.builtin.package:
-    name: "{{ item }}"
-    state: present
-    update_cache: true
-  loop:
-    - locales
-    - console-setup
-    - keyboard-configuration
-  register: debian_packages_result
-  failed_when: false
+  block:
+    - name: "Install Debian/Ubuntu packages / Установка пакетов Debian/Ubuntu"
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+        update_cache: true
+      loop:
+        - locales
+        - console-setup
+        - keyboard-configuration
+      register: debian_packages_result
+      tags:
+        - packages
+        - debian
+        - ubuntu
+        - installation
+  rescue:
+    - name: "Package installation failed / Установка пакетов не удалась"
+      ansible.builtin.debug:
+        msg: "Error: Could not install required packages. Some features may not work properly. / Ошибка: Не удалось установить необходимые пакеты. Некоторые функции могут работать неправильно."
+      register: debian_packages_result
+      failed_when: false
   tags:
     - packages
     - debian
@@ -49,14 +61,27 @@
 
 # Configure keyboard layout for Debian/Ubuntu systems / Настройка раскладки клавиатуры для систем Debian/Ubuntu
 - name: "Configure keyboard layout for Debian/Ubuntu / Настройка раскладки клавиатуры для Debian/Ubuntu"
-  ansible.builtin.debconf:
-    name: keyboard-configuration
-    question: "keyboard-configuration/layout"
-    value: "{{ keyboard_layout }}"
-    vtype: string
+  block:
+    - name: "Set keyboard layout / Установка раскладки клавиатуры"
+      ansible.builtin.debconf:
+        name: keyboard-configuration
+        question: "keyboard-configuration/layout"
+        value: "{{ keyboard_layout }}"
+        vtype: string
+      register: keyboard_layout_result
+      tags:
+        - keyboard
+        - debian
+        - ubuntu
+        - configuration
+        - layout
+  rescue:
+    - name: "Keyboard layout configuration failed / Настройка раскладки клавиатуры не удалась"
+      ansible.builtin.debug:
+        msg: "Error: Could not configure keyboard layout '{{ keyboard_layout }}'. / Ошибка: Не удалось настроить раскладку клавиатуры '{{ keyboard_layout }}'."
+      register: keyboard_layout_result
+      failed_when: false
   when: keyboard_layout != ""
-  register: keyboard_layout_result
-  failed_when: false
   tags:
     - keyboard
     - debian

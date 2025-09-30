@@ -1,0 +1,319 @@
+---
+# SUSE/openSUSE/SLES Specific Tasks / Специфичные задачи для SUSE/openSUSE/SLES
+# =============================================================================
+
+- name: "Display SUSE family information / Отображение информации о семействе SUSE"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SUSE Family Configuration / Конфигурация семейства SUSE:"
+      - "============================================================================="
+      - "Distribution:             {{ ansible_distribution }}"
+      - "Version:                  {{ ansible_distribution_version }}"
+      - "Package Manager:          {{ package_manager }}"
+      - "Service Manager:          {{ service_manager }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - os-specific
+
+- name: "Update package cache for SUSE family / Обновление кэша пакетов для семейства SUSE"
+  ansible.builtin.zypper:
+    update_cache: yes
+  register: suse_package_update_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - suse
+    - os-specific
+    - package-management
+
+- name: "Display package cache update results / Отображение результатов обновления кэша пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Cache Update Results / Результаты обновления кэша пакетов:"
+      - "============================================================================="
+      - "Package Manager:          {{ package_manager }}"
+      - "Update Status:            {{ 'SUCCESS' if suse_package_update_result is not failed else 'FAILED' }}"
+      - "Return Code:              {{ suse_package_update_result.rc | default('N/A') }}"
+      - "Changed:                  {{ suse_package_update_result.changed }}"
+      - "Output:                   {{ suse_package_update_result.stdout_lines | join('\n') if suse_package_update_result.stdout_lines is defined else 'No output' }}"
+      - "Errors:                   {{ suse_package_update_result.stderr_lines | join('\n') if suse_package_update_result.stderr_lines is defined else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - package-management
+
+- name: "Install fail2ban packages for SUSE family / Установка пакетов fail2ban для семейства SUSE"
+  ansible.builtin.zypper:
+    name: "{{ final_package_list }}"
+    state: present
+  register: suse_package_install_result
+  tags:
+    - suse
+    - os-specific
+    - package-installation
+
+- name: "Display package installation results / Отображение результатов установки пакетов"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Installation Results / Результаты установки пакетов:"
+      - "============================================================================="
+      - "Package Manager:          {{ package_manager }}"
+      - "Installation Status:      {{ 'SUCCESS' if suse_package_install_result is not failed else 'FAILED' }}"
+      - "Return Code:              {{ suse_package_install_result.rc | default('N/A') }}"
+      - "Changed:                  {{ suse_package_install_result.changed }}"
+      - "Installed Packages:       {{ final_package_list | join(', ') }}"
+      - "Output:                   {{ suse_package_install_result.stdout_lines | join('\n') if suse_package_install_result.stdout_lines is defined else 'No output' }}"
+      - "Errors:                   {{ suse_package_install_result.stderr_lines | join('\n') if suse_package_install_result.stderr_lines is defined else 'No errors' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - package-installation
+
+- name: "Check fail2ban service status for SUSE family / Проверка статуса службы fail2ban для семейства SUSE"
+  ansible.builtin.systemd:
+    name: fail2ban
+  register: suse_service_status
+  failed_when: false
+  changed_when: false
+  tags:
+    - suse
+    - os-specific
+    - service-management
+
+- name: "Display service status / Отображение статуса службы"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Service Status / Статус службы:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Status:                   {{ suse_service_status.status.ActiveState }}"
+      - "Enabled:                  {{ suse_service_status.status.UnitFileState }}"
+      - "Main PID:                 {{ suse_service_status.status.MainPID }}"
+      - "Memory Usage:             {{ suse_service_status.status.MemoryCurrent }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - service-management
+
+- name: "Enable fail2ban service for SUSE family / Включение службы fail2ban для семейства SUSE"
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: "{{ fail2ban_service_enabled }}"
+    state: "{{ fail2ban_service_state }}"
+    daemon_reload: yes
+  register: suse_service_enable_result
+  tags:
+    - suse
+    - os-specific
+    - service-management
+
+- name: "Display service enable results / Отображение результатов включения службы"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Service Enable Results / Результаты включения службы:"
+      - "============================================================================="
+      - "Service Name:             fail2ban"
+      - "Enabled:                  {{ fail2ban_service_enabled }}"
+      - "State:                    {{ fail2ban_service_state }}"
+      - "Changed:                  {{ suse_service_enable_result.changed }}"
+      - "Status:                   {{ 'SUCCESS' if suse_service_enable_result is not failed else 'FAILED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - service-management
+
+- name: "Check SuSEfirewall2 status for SUSE family / Проверка статуса SuSEfirewall2 для семейства SUSE"
+  ansible.builtin.command: SuSEfirewall2 status
+  register: suse_firewall_status_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - suse
+    - os-specific
+    - firewall
+
+- name: "Display SuSEfirewall2 status / Отображение статуса SuSEfirewall2"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SuSEfirewall2 Status / Статус SuSEfirewall2:"
+      - "============================================================================="
+      - "Firewall Status:          {{ suse_firewall_status_result.stdout.strip() if suse_firewall_status_result.stdout is defined else 'Unknown' }}"
+      - "Return Code:              {{ suse_firewall_status_result.rc | default('N/A') }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - firewall
+
+- name: "Check iptables status for SUSE family / Проверка статуса iptables для семейства SUSE"
+  ansible.builtin.command: iptables -L
+  register: suse_iptables_status_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - suse
+    - os-specific
+    - firewall
+
+- name: "Display iptables status / Отображение статуса iptables"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Iptables Status / Статус iptables:"
+      - "============================================================================="
+      - "Iptables Status:          {{ 'ACTIVE' if suse_iptables_status_result is not failed else 'INACTIVE' }}"
+      - "Return Code:              {{ suse_iptables_status_result.rc | default('N/A') }}"
+      - "Rules Count:              {{ suse_iptables_status_result.stdout_lines | length - 2 if suse_iptables_status_result.stdout_lines is defined else 0 }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - firewall
+
+- name: "Configure iptables for fail2ban integration / Настройка iptables для интеграции с fail2ban"
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: "{{ ssh_protection.protocol }}"
+    destination_port: "{{ ssh_protection.port }}"
+    jump: ACCEPT
+    comment: "SSH access for fail2ban"
+  when: 
+    - firewall_integration.enabled | bool
+    - firewall_integration.firewall_backend == 'iptables'
+    - suse_iptables_status_result is not failed
+  register: suse_iptables_ssh_rule_result
+  tags:
+    - suse
+    - os-specific
+    - firewall
+
+- name: "Display iptables configuration results / Отображение результатов конфигурации iptables"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Iptables Configuration Results / Результаты конфигурации iptables:"
+      - "============================================================================="
+      - "SSH Rule Added:           {{ 'SUCCESS' if suse_iptables_ssh_rule_result.changed else 'NO CHANGE' }}"
+      - "Port:                     {{ ssh_protection.port }}"
+      - "Protocol:                 {{ ssh_protection.protocol }}"
+      - "Chain:                    INPUT"
+      - "Action:                   ACCEPT"
+      - "Comment:                  SSH access for fail2ban"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - firewall
+
+- name: "Check AppArmor status for SUSE family / Проверка статуса AppArmor для семейства SUSE"
+  ansible.builtin.command: aa-status
+  register: apparmor_status_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - suse
+    - os-specific
+    - security
+
+- name: "Display AppArmor status / Отображение статуса AppArmor"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "AppArmor Status / Статус AppArmor:"
+      - "============================================================================="
+      - "AppArmor Status:          {{ 'ACTIVE' if apparmor_status_result is not failed else 'INACTIVE' }}"
+      - "Return Code:              {{ apparmor_status_result.rc | default('N/A') }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - security
+
+- name: "Check logrotate configuration for SUSE family / Проверка конфигурации logrotate для семейства SUSE"
+  ansible.builtin.stat:
+    path: /etc/logrotate.d/fail2ban
+  register: suse_logrotate_config_check
+  tags:
+    - suse
+    - os-specific
+    - log-management
+
+- name: "Display logrotate configuration status / Отображение статуса конфигурации logrotate"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Logrotate Configuration Status / Статус конфигурации logrotate:"
+      - "============================================================================="
+      - "Config File Exists:       {{ 'Yes' if suse_logrotate_config_check.stat.exists else 'No' }}"
+      - "Config File Path:         /etc/logrotate.d/fail2ban"
+      - "Logrotate Enabled:        {{ system_integration.logrotate_enabled }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - log-management
+
+- name: "Check YaST configuration for SUSE family / Проверка конфигурации YaST для семейства SUSE"
+  ansible.builtin.stat:
+    path: /etc/sysconfig/fail2ban
+  register: yast_config_check
+  tags:
+    - suse
+    - os-specific
+    - configuration
+
+- name: "Display YaST configuration status / Отображение статуса конфигурации YaST"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "YaST Configuration Status / Статус конфигурации YaST:"
+      - "============================================================================="
+      - "Config File Exists:       {{ 'Yes' if yast_config_check.stat.exists else 'No' }}"
+      - "Config File Path:         /etc/sysconfig/fail2ban"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - configuration
+
+- name: "Display SUSE family configuration summary / Отображение сводки конфигурации семейства SUSE"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "SUSE Family Configuration Summary / Сводка конфигурации семейства SUSE:"
+      - "============================================================================="
+      - "Package Installation:     {{ 'SUCCESS' if suse_package_install_result is not failed else 'FAILED' }}"
+      - "Service Management:       {{ 'SUCCESS' if suse_service_enable_result is not failed else 'FAILED' }}"
+      - "Iptables Integration:     {{ 'CONFIGURED' if suse_iptables_ssh_rule_result.changed else 'NO CHANGE' }}"
+      - "AppArmor Status:          {{ 'ACTIVE' if apparmor_status_result is not failed else 'INACTIVE' }}"
+      - "Logrotate Status:         {{ 'CONFIGURED' if suse_logrotate_config_check.stat.exists else 'NOT CONFIGURED' }}"
+      - "YaST Configuration:       {{ 'CONFIGURED' if yast_config_check.stat.exists else 'NOT CONFIGURED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - suse
+    - summary
