@@ -1,0 +1,217 @@
+---
+# Debian/Ubuntu specific tasks / Задачи для Debian/Ubuntu
+
+# Extract allowed and denied subnets from users configuration
+# Извлечение разрешенных и запрещенных подсетей из конфигурации пользователей
+- name: "Extract allowed subnets from users to add"
+  ansible.builtin.set_fact:
+    extracted_allowed_subnets: "{{ extracted_allowed_subnets | default([]) + item.allowed_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+  tags:
+    - extraction
+    - subnets
+
+- name: "Deduplicate extracted allowed subnets"
+  ansible.builtin.set_fact:
+    extracted_allowed_subnets: "{{ extracted_allowed_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+  tags:
+    - extraction
+    - subnets
+    - deduplication
+
+- name: "Extract denied subnets from users to add"
+  ansible.builtin.set_fact:
+    extracted_denied_subnets: "{{ extracted_denied_subnets | default([]) + item.denied_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - denied_subnets is not defined or denied_subnets | length == 0
+  tags:
+    - extraction
+    - subnets
+
+- name: "Deduplicate extracted denied subnets"
+  ansible.builtin.set_fact:
+    extracted_denied_subnets: "{{ extracted_denied_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - denied_subnets is not defined or denied_subnets | length == 0
+  tags:
+    - extraction
+    - subnets
+    - deduplication
+
+- name: "Set final allowed subnets list"
+  ansible.builtin.set_fact:
+    final_allowed_subnets: "{{ (allowed_subnets if (allowed_subnets is defined and allowed_subnets | length > 0) else extracted_allowed_subnets | default([])) | unique }}"
+  tags:
+    - extraction
+    - subnets
+    - deduplication
+
+- name: "Set final denied subnets list"
+  ansible.builtin.set_fact:
+    final_denied_subnets: "{{ (denied_subnets if (denied_subnets is defined and denied_subnets | length > 0) else extracted_denied_subnets | default([])) | unique }}"
+  tags:
+    - extraction
+    - subnets
+    - deduplication
+
+- name: "Install UFW package on Debian/Ubuntu"
+  ansible.builtin.apt:
+    name: "{{ firewall_package }}"
+    state: present
+    update_cache: "{{ package_cache_update }}"
+    cache_valid_time: "{{ package_cache_valid_time }}"
+  register: ufw_install_result
+  tags: ['installation', 'ufw', 'debian']
+
+- name: "Start and enable UFW service"
+  ansible.builtin.service:
+    name: "{{ firewall_service }}"
+    state: started
+    enabled: true
+  register: ufw_service_result
+  tags: ['service', 'ufw', 'debian']
+
+- name: "Reset UFW to ensure idempotency"
+  community.general.ufw:
+    state: reset
+  when: ufw_auto_reset | bool
+  become: true
+  register: ufw_reset_result
+  tags: ['configuration', 'ufw', 'debian', 'reset']
+
+- name: "Configure UFW logging level"
+  community.general.ufw:
+    logging: "{{ ufw_logging }}"
+  become: true
+  register: ufw_logging_result
+  tags: ['configuration', 'ufw', 'debian']
+
+- name: "Set UFW default incoming policy"
+  community.general.ufw:
+    direction: incoming
+    policy: "{{ ufw_default_incoming }}"
+  become: true
+  register: ufw_incoming_result
+  tags: ['configuration', 'ufw', 'debian']
+
+- name: "Set UFW default outgoing policy"
+  community.general.ufw:
+    direction: outgoing
+    policy: "{{ ufw_default_outgoing }}"
+  become: true
+  register: ufw_outgoing_result
+  tags: ['configuration', 'ufw', 'debian']
+
+- name: "Allow SSH access from allowed subnets"
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: "{{ ssh_protocol }}"
+    from_ip: "{{ item }}"
+    comment: "SSH access from {{ item }}"
+  loop: "{{ final_allowed_subnets }}"
+  when: final_allowed_subnets | length > 0
+  become: true
+  register: ssh_rules_result
+  tags: ['ssh', 'ufw', 'debian', 'subnets']
+
+- name: "Deny SSH access from denied subnets"
+  community.general.ufw:
+    rule: deny
+    port: "{{ ssh_port }}"
+    proto: "{{ ssh_protocol }}"
+    from_ip: "{{ item }}"
+    comment: "SSH access denied from {{ item }}"
+  loop: "{{ final_denied_subnets }}"
+  when: final_denied_subnets | length > 0
+  become: true
+  register: ssh_deny_rules_result
+  tags: ['ssh', 'ufw', 'debian', 'subnets', 'deny']
+
+- name: "Add custom UFW rules"
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    from_ip: "{{ item.from_ip | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_rules }}"
+  become: true
+  register: custom_rules_result
+  tags: ['custom_rules', 'ufw', 'debian']
+
+- name: "Configure SSH rate limiting"
+  community.general.ufw:
+    rule: limit
+    port: "{{ ssh_port }}"
+    proto: "{{ ssh_protocol }}"
+    comment: "SSH rate limiting ({{ ssh_rate_limit_attempts }} attempts per {{ ssh_rate_limit_time }}s)"
+  when: ssh_rate_limit | bool
+  become: true
+  register: ssh_rate_limit_result
+  tags: ['ssh', 'rate_limiting', 'ufw', 'debian']
+
+- name: "Disable IPv6 in UFW"
+  ansible.builtin.lineinfile:
+    path: "{{ ufw_default_file }}"
+    regexp: '^IPV6='
+    line: 'IPV6=no'
+    backup: true
+  when: not ufw_ipv6 | bool
+  become: true
+  register: ufw_ipv6_disable_result
+  tags: ['ipv6', 'ufw', 'debian']
+
+- name: "Enable UFW"
+  community.general.ufw:
+    state: enabled
+  become: true
+  register: ufw_enable_result
+  tags: ['enable', 'ufw', 'debian']
+
+- name: "Log UFW package installation (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "UFW Package Installation Status:"
+      - "============================================================================="
+      - "Package:                 {{ firewall_package }}"
+      - "Installation Status:     {{ 'SUCCESS' if ufw_install_result.changed else 'SKIPPED' }}"
+      - "Message:                 Package installed successfully"
+      - "Timestamp:               {{ ansible_date_time.iso8601 }}"
+      - "============================================================================="
+  when:
+    - ufw_install_result.changed
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags: ['debug', 'ufw', 'debian', 'logging']
+
+- name: "Log UFW package installation (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Статус установки пакета UFW:"
+      - "============================================================================="
+      - "Пакет:                   {{ firewall_package }}"
+      - "Статус установки:        {{ 'УСПЕШНО' if ufw_install_result.changed else 'ПРОПУЩЕНО' }}"
+      - "Сообщение:               Пакет успешно установлен"
+      - "Время:                   {{ ansible_date_time.iso8601 }}"
+      - "============================================================================="
+  when:
+    - ufw_install_result.changed
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags: ['debug', 'ufw', 'debian', 'logging']

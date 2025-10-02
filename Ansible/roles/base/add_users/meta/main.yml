@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  role_name: add_users
+  namespace: base
+  author: "Ansible Admin"
+  description: "EN: Role for adding users with sudo privileges and group management / RU: Роль для добавления пользователей с sudo привилегиями и управлением группами"
+  company: "Internal"
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions: ["20.04", "22.04", "24.04"]
+    - name: Debian
+      versions: ["11", "12"]
+    - name: EL
+      versions: ["8", "9"]
+    - name: opensuse
+      versions: ["15"]
+  galaxy_tags:
+    - users
+    - system
+    - security
+    - sudo
+    - groups
+dependencies: []

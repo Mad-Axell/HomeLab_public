@@ -1,0 +1,69 @@
+---
+# SUSE/openSUSE specific variables / Переменные для SUSE/openSUSE
+
+# Package management / Управление пакетами
+package_manager: zypper
+package_cache_update: true
+package_cache_valid_time: 3600
+
+# Firewall package / Пакет файрвола
+firewall_package: firewalld
+firewall_service: firewalld
+
+# Package names that differ on SUSE / Названия пакетов, которые отличаются на SUSE
+python_package: python3
+python_pip_package: python3-pip
+
+# Firewalld specific paths / Специфичные пути firewalld
+firewalld_config_dir: "/etc/firewalld"
+firewalld_config_file: "/etc/firewalld/firewalld.conf"
+firewalld_zones_dir: "/etc/firewalld/zones"
+firewalld_services_dir: "/etc/firewalld/services"
+firewalld_log_dir: "/var/log/firewalld"
+
+# Firewalld backup configuration / Конфигурация резервного копирования firewalld
+firewalld_backup_files:
+  - "/etc/firewalld/firewalld.conf"
+  - "/etc/firewalld/zones/public.xml"
+  - "/etc/firewalld/zones/{{ firewalld_default_zone }}.xml"
+
+# Service management / Управление службами
+service_manager: systemd
+service_enable_command: "systemctl enable"
+service_start_command: "systemctl start"
+service_restart_command: "systemctl restart"
+service_reload_command: "firewall-cmd --reload"
+service_status_command: "systemctl is-active"
+service_enabled_command: "systemctl is-enabled"
+
+# Firewall module / Модуль файрвола
+firewall_module: "ansible.posix.firewalld"
+
+# Default firewall rules for SUSE / Правила файрвола по умолчанию для SUSE
+default_firewall_rules:
+  - { port: '80', proto: 'tcp', comment: 'HTTP' }
+  - { port: '443', proto: 'tcp', comment: 'HTTPS' }
+  - { port: "{{ ssh_port }}", proto: "{{ ssh_protocol }}", comment: 'SSH' }
+
+# Firewalld specific settings / Специфичные настройки firewalld
+firewalld_auto_reset_supported: false
+firewalld_rate_limiting_supported: false
+firewalld_ipv6_config_supported: true
+
+# Firewalld zones / Зоны firewalld
+firewalld_default_zone: "public"
+firewalld_available_zones:
+  - "public"
+  - "internal"
+  - "external"
+  - "dmz"
+  - "work"
+  - "home"
+  - "trusted"
+  - "block"
+  - "drop"
+
+# Firewalld services / Службы firewalld
+firewalld_ssh_service: "ssh"
+firewalld_http_service: "http"
+firewalld_https_service: "https"

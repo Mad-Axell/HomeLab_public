@@ -1,0 +1,29 @@
+---
+# EN: Galaxy metadata for role / RU: Метаданные Galaxy для роли
+galaxy_info:
+  role_name: proxmox_import_config
+  namespace: mad_axell
+  author: "Mad-Axell"
+  description: "EN: Import and validate Proxmox configuration from secrets / RU: Импорт и валидация конфигурации Proxmox из секретов"
+  company: "Mad-Axell DevOps"
+  license: MIT
+  min_ansible_version: "2.14"
+  
+  platforms:
+    - name: Ubuntu
+      versions: ["20.04", "22.04", "24.04"]
+    - name: EL
+      versions: ["8", "9"]
+    - name: Debian
+      versions: ["11", "12"]
+  
+  galaxy_tags:
+    - proxmox
+    - lxc
+    - configuration
+    - import
+    - secrets
+    - validation
+
+dependencies: []
+

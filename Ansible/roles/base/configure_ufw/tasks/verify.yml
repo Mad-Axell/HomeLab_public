@@ -1,0 +1,147 @@
+---
+# Post-deployment verification tasks / Задачи проверки после развертывания
+
+- name: "Verify firewall service is active"
+  ansible.builtin.command: "{{ service_status_command }} {{ firewall_service }}"
+  register: firewall_service_active_check
+  changed_when: false
+  failed_when: false
+  tags: ['verify', 'service']
+
+- name: "Verify firewall service is enabled"
+  ansible.builtin.command: "{{ service_enabled_command }} {{ firewall_service }}"
+  register: firewall_service_enabled_check
+  changed_when: false
+  failed_when: false
+  tags: ['verify', 'service']
+
+- name: "Get firewall service detailed status"
+  ansible.builtin.command: "systemctl show {{ firewall_service }} --property=ActiveState,SubState,LoadState"
+  register: firewall_service_details
+  changed_when: false
+  failed_when: false
+  tags: ['verify', 'service']
+
+- name: "Verify UFW status (Debian family)"
+  ansible.builtin.command: ufw status verbose
+  register: ufw_status_check
+  changed_when: false
+  failed_when: false
+  when: ansible_os_family == 'Debian'
+  tags: ['verify', 'ufw']
+
+- name: "Verify firewalld status (RedHat/SUSE family)"
+  ansible.builtin.command: firewall-cmd --state
+  register: firewalld_status_check
+  changed_when: false
+  failed_when: false
+  when: ansible_os_family in ['RedHat', 'Suse']
+  tags: ['verify', 'firewalld']
+
+- name: "Verify SSH port is accessible"
+  ansible.builtin.wait_for:
+    port: "{{ ssh_port }}"
+    host: "{{ ansible_default_ipv4.address | default('127.0.0.1') }}"
+    timeout: 10
+    state: started
+  register: ssh_port_check
+  failed_when: false
+  tags: ['verify', 'ssh']
+
+- name: "Verify firewall configuration files exist"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: firewall_config_files
+  loop: "{{ firewall_backup_files | default([]) }}"
+  tags: ['verify', 'files']
+
+- name: "Display verification results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Post-Deployment Verification Summary:"
+      - "============================================================================="
+      - "Firewall Service:         {{ firewall_service }}"
+      - "Service Active:           {{ firewall_service_active_check.stdout | default('UNKNOWN') }}"
+      - "Service Enabled:          {{ firewall_service_enabled_check.stdout | default('UNKNOWN') }}"
+      - "Service Details:          {{ firewall_service_details.stdout | default('UNKNOWN') }}"
+      - "SSH Port:                 {{ ssh_port }}"
+      - "SSH Accessible:           {{ 'YES' if ssh_port_check is succeeded else 'NO' }}"
+      - "Configuration Files:      {{ firewall_config_files.results | selectattr('stat.exists') | list | length }} found"
+      - "Verification Status:      {{ 'SUCCESS' if (firewall_service_active_check.stdout == 'active' and firewall_service_enabled_check.stdout in ['enabled', 'static']) else 'WARNING' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags: ['verify', 'debug']
+
+- name: "Display verification results (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка проверки после развертывания:"
+      - "============================================================================="
+      - "Служба файрвола:          {{ firewall_service }}"
+      - "Служба активна:           {{ firewall_service_active_check.stdout | default('НЕИЗВЕСТНО') }}"
+      - "Служба включена:          {{ firewall_service_enabled_check.stdout | default('НЕИЗВЕСТНО') }}"
+      - "Детали службы:            {{ firewall_service_details.stdout | default('НЕИЗВЕСТНО') }}"
+      - "Порт SSH:                 {{ ssh_port }}"
+      - "SSH доступен:             {{ 'ДА' if ssh_port_check is succeeded else 'НЕТ' }}"
+      - "Файлы конфигурации:       {{ firewall_config_files.results | selectattr('stat.exists') | list | length }} найдено"
+      - "Статус проверки:          {{ 'УСПЕШНО' if (firewall_service_active_check.stdout == 'active' and firewall_service_enabled_check.stdout in ['enabled', 'static']) else 'ПРЕДУПРЕЖДЕНИЕ' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags: ['verify', 'debug']
+
+- name: "Display UFW status output (English)"
+  ansible.builtin.debug:
+    var: ufw_status_check.stdout_lines
+  when:
+    - ansible_os_family == 'Debian'
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+    - ufw_status_check.stdout_lines is defined
+  tags: ['verify', 'debug', 'ufw']
+
+- name: "Display UFW status output (Russian)"
+  ansible.builtin.debug:
+    msg: "UFW Status Output / Вывод статуса UFW:\n{{ ufw_status_check.stdout_lines | join('\n') }}"
+  when:
+    - ansible_os_family == 'Debian'
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+    - ufw_status_check.stdout_lines is defined
+  tags: ['verify', 'debug', 'ufw']
+
+- name: "Display firewalld status output (English)"
+  ansible.builtin.debug:
+    msg: "Firewalld Status: {{ firewalld_status_check.stdout | default('UNKNOWN') }}"
+  when:
+    - ansible_os_family in ['RedHat', 'Suse']
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags: ['verify', 'debug', 'firewalld']
+
+- name: "Display firewalld status output (Russian)"
+  ansible.builtin.debug:
+    msg: "Статус firewalld: {{ firewalld_status_check.stdout | default('НЕИЗВЕСТНО') }}"
+  when:
+    - ansible_os_family in ['RedHat', 'Suse']
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags: ['verify', 'debug', 'firewalld']
+
+- name: "Assert firewall service is properly configured"
+  ansible.builtin.assert:
+    that:
+      - firewall_service_active_check.stdout == "active"
+      - firewall_service_enabled_check.stdout in ["enabled", "static"]
+    fail_msg: |
+      Firewall service is not properly configured. Active: {{ firewall_service_active_check.stdout }}, Enabled: {{ firewall_service_enabled_check.stdout }}
+      Служба файрвола неправильно настроена. Активна: {{ firewall_service_active_check.stdout }}, Включена: {{ firewall_service_enabled_check.stdout }}
+    success_msg: |
+      Firewall service is properly configured and running
+      Служба файрвола правильно настроена и работает
+  tags: ['verify', 'assert']

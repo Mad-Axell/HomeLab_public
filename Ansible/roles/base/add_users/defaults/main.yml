@@ -1,0 +1,42 @@
+---
+# EN: Default configuration variables
+# RU: Переменные конфигурации по умолчанию
+
+# EN: Debug configuration / RU: Конфигурация отладки
+debug_mode: false                # Boolean. Enable detailed debug output / Логическое значение. Включить детальный вывод отладки
+debug_lang: 'both'               # String. Debug language: english/russian/both / Строка. Язык отладки: english/russian/both
+debug_show_passwords: false      # Boolean. Show passwords in debug (INSECURE) / Логическое значение. Показывать пароли в отладке (НЕБЕЗОПАСНО)
+
+# EN: User configuration / RU: Конфигурация пользователей
+users_to_add: []                 # List. Users to create or update / Список. Пользователи для создания или обновления
+  # Example configuration / Пример конфигурации:
+  # - username: test_user_1       # String. Username (lowercase, numbers, underscores) / Строка. Имя пользователя (строчные, цифры, подчеркивания)
+  #   password: "SecurePass123"   # String. Plain text password (will be hashed) / Строка. Пароль открытым текстом (будет захеширован)
+  #   groups: ["docker", "wheel"]  # List. User groups / Список. Группы пользователя
+  #   is_sudoers: true             # Boolean. Grant sudo privileges / Логическое значение. Предоставить sudo привилегии
+  #   uid: null                    # Integer. User ID (null for auto) / Целое число. ID пользователя (null для авто)
+  #   gid: null                    # Integer. Group ID (null for auto) / Целое число. ID группы (null для авто)
+  #   shell: /bin/bash             # String. User shell / Строка. Оболочка пользователя
+  #   create_home: true            # Boolean. Create home directory / Логическое значение. Создать домашнюю директорию
+  #   home: "/home/test_user_1"    # String. Home directory path / Строка. Путь домашней директории
+
+# EN: Global settings for user creation / RU: Глобальные настройки для создания пользователей
+add_users_create_home: true          # Boolean. Create home directory by default / Логическое значение. Создавать домашнюю директорию по умолчанию
+add_users_home_prefix: "/home"       # String. Home directory prefix / Строка. Префикс домашней директории
+add_users_default_shell: "/bin/bash" # String. Default shell for users / Строка. Оболочка по умолчанию для пользователей
+
+# EN: Password validation / RU: Валидация паролей
+add_users_validate_passwords: true   # Boolean. Enable password validation / Логическое значение. Включить валидацию паролей
+add_users_min_password_length: 8     # Integer. Minimum password length / Целое число. Минимальная длина пароля
+
+# EN: Rollback configuration / RU: Конфигурация отката
+enable_rollback: true                # Boolean. Enable automatic rollback on failure / Логическое значение. Включить автоматический откат при ошибке
+backup_config: true                  # Boolean. Create backup before changes / Логическое значение. Создавать резервную копию перед изменениями
+
+# EN: Performance tuning / RU: Настройка производительности
+retries: 3                           # Integer. Number of retries for failed tasks / Целое число. Количество повторов для неудачных задач
+retry_delay: 5                       # Integer. Delay between retries in seconds / Целое число. Задержка между повторами в секундах
+
+# EN: Verification / RU: Проверка
+verify_deployment: true              # Boolean. Enable post-deployment verification / Логическое значение. Включить проверку после развертывания
+verify_user_login: true              # Boolean. Verify users can login / Логическое значение. Проверить возможность входа пользователей

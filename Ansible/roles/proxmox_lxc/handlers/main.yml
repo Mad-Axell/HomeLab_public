@@ -1,13 +1,66 @@
 ---
-# handlers file for ansible-role-proxmox-create-lxc/
+# EN: Handlers file for proxmox_lxc role
+# RU: Файл обработчиков для роли proxmox_lxc
 
-- name: pve_lxc wait for connection
+# EN: Wait for LXC container connection
+# RU: Ожидание подключения к LXC контейнеру
+- name: "pve_lxc wait for connection"
   ansible.builtin.wait_for_connection:
     delay: 5
     sleep: 5
     timeout: "{{ pve_lxc_wait_for_connection_timeout | default(60) }}"
   remote_user: "{{ pve_lxc_wait_for_connection_remote_user | default('root') }}"
+  register: pve_lxc_wait_result
+  failed_when: false
   when:
     - pve_lxc_net_interfaces is defined
     - pve_lxc_net_interfaces | length > 0
     - pve_lxc_ip_address is defined
+  notify:
+    - display_connection_wait_results_english
+    - display_connection_wait_results_russian
+  tags:
+    - handlers
+    - connection
+
+# EN: Display connection wait results (English)
+# RU: Отображение результатов ожидания подключения (Английский)
+- name: "display_connection_wait_results_english"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Connection Wait Results:"
+      - "============================================================================="
+      - "Container Name:          {{ pve_hostname }}"
+      - "IP Address:              {{ pve_lxc_ip_address }}"
+      - "Timeout:                 {{ pve_lxc_wait_for_connection_timeout | default(60) }}s"
+      - "Remote User:             {{ pve_lxc_wait_for_connection_remote_user | default('root') }}"
+      - "Return Code:             {{ pve_lxc_wait_result.rc | default('N/A') }}"
+      - "Changed:                 {{ pve_lxc_wait_result.changed | default('N/A') }}"
+      - "Status:                  {{ 'SUCCESS' if pve_lxc_wait_result.rc == 0 else 'FAILED' }}"
+      - "============================================================================="
+  when: debug_mode | bool and debug_lang in ['english', 'both']
+  tags:
+    - debug
+    - handlers
+
+# EN: Display connection wait results (Russian)
+# RU: Отображение результатов ожидания подключения (Русский)
+- name: "display_connection_wait_results_russian"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты ожидания подключения:"
+      - "============================================================================="
+      - "Имя контейнера:          {{ pve_hostname }}"
+      - "IP адрес:                {{ pve_lxc_ip_address }}"
+      - "Тайм-аут:                {{ pve_lxc_wait_for_connection_timeout | default(60) }}с"
+      - "Удаленный пользователь:  {{ pve_lxc_wait_for_connection_remote_user | default('root') }}"
+      - "Код возврата:            {{ pve_lxc_wait_result.rc | default('Н/Д') }}"
+      - "Изменено:                {{ pve_lxc_wait_result.changed | default('Н/Д') }}"
+      - "Статус:                  {{ 'УСПЕШНО' if pve_lxc_wait_result.rc == 0 else 'ОШИБКА' }}"
+      - "============================================================================="
+  when: debug_mode | bool and debug_lang in ['russian', 'both']
+  tags:
+    - debug
+    - handlers

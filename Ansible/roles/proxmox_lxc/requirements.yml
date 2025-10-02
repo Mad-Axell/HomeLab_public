@@ -1,0 +1,43 @@
+---
+# ============================================================================
+# EN: Ansible Collections Requirements File
+# RU: Файл требований к коллекциям Ansible
+# ============================================================================
+#
+# EN: This file defines which Ansible collections are required for this role.
+#     Collections are packages of modules, plugins, and roles that extend
+#     Ansible functionality. This role requires community.general for
+#     Proxmox-specific modules (proxmox, proxmox_template, proxmox_vm_info).
+#
+# RU: Этот файл определяет, какие коллекции Ansible требуются для данной роли.
+#     Коллекции - это пакеты модулей, плагинов и ролей, расширяющих
+#     функциональность Ansible. Эта роль требует community.general для
+#     модулей Proxmox (proxmox, proxmox_template, proxmox_vm_info).
+#
+# ============================================================================
+# EN: REQUIRED - This file is MANDATORY for the role to work!
+# RU: ОБЯЗАТЕЛЬНО - Этот файл НЕОБХОДИМ для работы роли!
+# ============================================================================
+#
+# EN: Installation:
+# RU: Установка:
+#     ansible-galaxy collection install -r requirements.yml
+#
+# EN: Verification:
+# RU: Проверка:
+#     ansible-galaxy collection list
+# ============================================================================
+
+collections:
+  # EN: Community General Collection - Contains Proxmox modules
+  # RU: Коллекция Community General - Содержит модули Proxmox
+  - name: community.general
+    version: ">=8.0.0"
+    source: https://galaxy.ansible.com
+  
+  # EN: Ansible POSIX Collection - Provides additional system modules
+  # RU: Коллекция Ansible POSIX - Предоставляет дополнительные системные модули
+  - name: ansible.posix
+    version: ">=1.5.0"
+    source: https://galaxy.ansible.com
+

@@ -1,0 +1,239 @@
+---
+# =============================================================================
+# System Locale Configuration Role - Handlers
+# =============================================================================
+# This file contains handlers for locale configuration changes
+# Файл содержит обработчики для изменений конфигурации локализации
+# =============================================================================
+
+# Debian/Ubuntu locale reload handler / Обработчик перезагрузки локализации для Debian/Ubuntu
+- name: reload locale debian
+  ansible.builtin.command: "locale-gen"
+  register: locale_reload_result_debian
+  changed_when: locale_reload_result_debian.rc == 0
+  failed_when: false
+  when: ansible_os_family == "Debian"
+  listen: reload locale
+  throttle: 1  # Reload one host at a time / Перезагружать по одному хосту
+  tags:
+    - handlers
+    - locale
+    - debian
+    - ubuntu
+
+# RedHat/CentOS locale reload handler / Обработчик перезагрузки локализации для RedHat/CentOS
+- name: reload locale redhat
+  ansible.builtin.command: "localectl set-locale LANG={{ locale_primary }}"
+  register: locale_reload_result_redhat
+  changed_when: locale_reload_result_redhat.rc == 0
+  failed_when: false
+  when: ansible_os_family == "RedHat"
+  listen: reload locale
+  throttle: 1  # Reload one host at a time / Перезагружать по одному хосту
+  tags:
+    - handlers
+    - locale
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+
+# SUSE locale reload handler / Обработчик перезагрузки локализации для SUSE
+- name: reload locale suse
+  ansible.builtin.command: "localectl set-locale LANG={{ locale_primary }}"
+  register: locale_reload_result_suse
+  changed_when: locale_reload_result_suse.rc == 0
+  failed_when: false
+  when: ansible_os_family == "Suse"
+  listen: reload locale
+  throttle: 1  # Reload one host at a time / Перезагружать по одному хосту
+  tags:
+    - handlers
+    - locale
+    - suse
+    - opensuse
+    - sles
+
+# Display locale reload results (English) / Отображение результатов перезагрузки локализации
+- name: "Display locale reload results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Locale Configuration Reload Results:"
+      - "============================================================================="
+      - "OS Family:             {{ ansible_os_family }}"
+      - "Command:               {{ 'locale-gen' if ansible_os_family == 'Debian' else 'localectl set-locale' }}"
+      - "Return Code:           {{ (locale_reload_result_debian.rc | default(locale_reload_result_redhat.rc | default(locale_reload_result_suse.rc | default('N/A')))) }}"
+      - "Changed:               {{ (locale_reload_result_debian.changed | default(locale_reload_result_redhat.changed | default(locale_reload_result_suse.changed | default(false)))) }}"
+      - "Output:                {{ (locale_reload_result_debian.stdout | default(locale_reload_result_redhat.stdout | default(locale_reload_result_suse.stdout | default('N/A')))) }}"
+      - "Errors:                {{ (locale_reload_result_debian.stderr | default(locale_reload_result_redhat.stderr | default(locale_reload_result_suse.stderr | default('N/A')))) }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  listen: reload locale
+  tags:
+    - debug
+    - handlers
+
+- name: "Display locale reload results (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты перезагрузки конфигурации локализации:"
+      - "============================================================================="
+      - "Семейство ОС:          {{ ansible_os_family }}"
+      - "Команда:               {{ 'locale-gen' if ansible_os_family == 'Debian' else 'localectl set-locale' }}"
+      - "Код возврата:          {{ (locale_reload_result_debian.rc | default(locale_reload_result_redhat.rc | default(locale_reload_result_suse.rc | default('Н/Д')))) }}"
+      - "Изменено:              {{ (locale_reload_result_debian.changed | default(locale_reload_result_redhat.changed | default(locale_reload_result_suse.changed | default(false)))) }}"
+      - "Вывод:                 {{ (locale_reload_result_debian.stdout | default(locale_reload_result_redhat.stdout | default(locale_reload_result_suse.stdout | default('Н/Д')))) }}"
+      - "Ошибки:                {{ (locale_reload_result_debian.stderr | default(locale_reload_result_redhat.stderr | default(locale_reload_result_suse.stderr | default('Н/Д')))) }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  listen: reload locale
+  tags:
+    - debug
+    - handlers
+
+# Debian/Ubuntu console reload handler / Обработчик перезагрузки консоли для Debian/Ubuntu
+- name: reload console debian
+  ansible.builtin.command: "setupcon"
+  register: console_reload_result_debian
+  failed_when: false
+  changed_when: console_reload_result_debian.rc == 0
+  when: ansible_os_family == "Debian"
+  listen: reload console
+  tags:
+    - handlers
+    - console
+    - debian
+    - ubuntu
+
+# RedHat/CentOS console reload handler / Обработчик перезагрузки консоли для RedHat/CentOS
+- name: reload console redhat
+  ansible.builtin.command: "systemctl restart systemd-vconsole-setup"
+  register: console_reload_result_redhat
+  failed_when: false
+  changed_when: console_reload_result_redhat.rc == 0
+  when: ansible_os_family == "RedHat"
+  listen: reload console
+  tags:
+    - handlers
+    - console
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+
+# SUSE console reload handler / Обработчик перезагрузки консоли для SUSE
+- name: reload console suse
+  ansible.builtin.command: "systemctl restart systemd-vconsole-setup"
+  register: console_reload_result_suse
+  failed_when: false
+  changed_when: console_reload_result_suse.rc == 0
+  when: ansible_os_family == "Suse"
+  listen: reload console
+  tags:
+    - handlers
+    - console
+    - suse
+    - opensuse
+    - sles
+
+# Display console reload results (English) / Отображение результатов перезагрузки консоли
+- name: "Display console reload results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Console Configuration Reload Results:"
+      - "============================================================================="
+      - "OS Family:             {{ ansible_os_family }}"
+      - "Command:               {{ 'setupcon' if ansible_os_family == 'Debian' else 'systemctl restart systemd-vconsole-setup' }}"
+      - "Return Code:           {{ (console_reload_result_debian.rc | default(console_reload_result_redhat.rc | default(console_reload_result_suse.rc | default('N/A')))) }}"
+      - "Changed:               {{ (console_reload_result_debian.changed | default(console_reload_result_redhat.changed | default(console_reload_result_suse.changed | default(false)))) }}"
+      - "Output:                {{ (console_reload_result_debian.stdout | default(console_reload_result_redhat.stdout | default(console_reload_result_suse.stdout | default('N/A')))) }}"
+      - "Errors:                {{ (console_reload_result_debian.stderr | default(console_reload_result_redhat.stderr | default(console_reload_result_suse.stderr | default('N/A')))) }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  listen: reload console
+  tags:
+    - debug
+    - handlers
+
+- name: "Display console reload results (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты перезагрузки конфигурации консоли:"
+      - "============================================================================="
+      - "Семейство ОС:          {{ ansible_os_family }}"
+      - "Команда:               {{ 'setupcon' if ansible_os_family == 'Debian' else 'systemctl restart systemd-vconsole-setup' }}"
+      - "Код возврата:          {{ (console_reload_result_debian.rc | default(console_reload_result_redhat.rc | default(console_reload_result_suse.rc | default('Н/Д')))) }}"
+      - "Изменено:              {{ (console_reload_result_debian.changed | default(console_reload_result_redhat.changed | default(console_reload_result_suse.changed | default(false)))) }}"
+      - "Вывод:                 {{ (console_reload_result_debian.stdout | default(console_reload_result_redhat.stdout | default(console_reload_result_suse.stdout | default('Н/Д')))) }}"
+      - "Ошибки:                {{ (console_reload_result_debian.stderr | default(console_reload_result_redhat.stderr | default(console_reload_result_suse.stderr | default('Н/Д')))) }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  listen: reload console
+  tags:
+    - debug
+    - handlers
+
+# Reload timezone configuration / Перезагрузка конфигурации часового пояса
+- name: reload timezone handler
+  ansible.builtin.command: "timedatectl set-timezone {{ timezone }}"
+  register: timezone_reload_result
+  changed_when: timezone_reload_result.rc == 0
+  failed_when: false
+  listen: reload timezone
+  tags:
+    - handlers
+    - timezone
+
+# Display timezone reload results (English) / Отображение результатов перезагрузки часового пояса
+- name: "Display timezone reload results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Timezone Configuration Reload Results:"
+      - "============================================================================="
+      - "Command:               timedatectl set-timezone {{ timezone }}"
+      - "Return Code:           {{ timezone_reload_result.rc | default('N/A') }}"
+      - "Changed:               {{ timezone_reload_result.changed | default(false) }}"
+      - "Output:                {{ timezone_reload_result.stdout | default('N/A') }}"
+      - "Errors:                {{ timezone_reload_result.stderr | default('N/A') }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  listen: reload timezone
+  tags:
+    - debug
+    - handlers
+
+- name: "Display timezone reload results (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты перезагрузки конфигурации часового пояса:"
+      - "============================================================================="
+      - "Команда:               timedatectl set-timezone {{ timezone }}"
+      - "Код возврата:          {{ timezone_reload_result.rc | default('Н/Д') }}"
+      - "Изменено:              {{ timezone_reload_result.changed | default(false) }}"
+      - "Вывод:                 {{ timezone_reload_result.stdout | default('Н/Д') }}"
+      - "Ошибки:                {{ timezone_reload_result.stderr | default('Н/Д') }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  listen: reload timezone
+  tags:
+    - debug
+    - handlers
+

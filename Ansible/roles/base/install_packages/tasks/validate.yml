@@ -1,0 +1,165 @@
+---
+# Validation tasks for install_packages role
+# Задачи валидации для роли install_packages
+# This file contains parameter validation logic
+# Этот файл содержит логику валидации параметров
+
+- name: "Validate role parameters"
+  block:
+    - name: "Check if essential_packages is defined and is a list"
+      # Validate universal essential packages list format / Валидация формата универсального списка основных пакетов
+      ansible.builtin.assert:
+        that:
+          - essential_packages is defined
+          - essential_packages is iterable
+          - essential_packages is not string
+        fail_msg: "essential_packages must be defined as a list of universal package names"
+        success_msg: "essential_packages parameter is valid"
+
+    - name: "Check if package_cache_valid_time is a positive integer"
+      # Validate universal cache validity time parameter / Валидация универсального параметра времени валидности кэша
+      ansible.builtin.assert:
+        that:
+          - package_cache_valid_time is defined
+          - package_cache_valid_time is number
+          - package_cache_valid_time > 0
+        fail_msg: "package_cache_valid_time must be a positive number (seconds)"
+        success_msg: "package_cache_valid_time parameter is valid"
+
+    - name: "Check if package_update_cache is boolean"
+      # Validate universal cache update flag / Валидация универсального флага обновления кэша
+      ansible.builtin.assert:
+        that:
+          - package_update_cache is defined
+          - package_update_cache is boolean or package_update_cache is string
+        fail_msg: "package_update_cache must be a boolean value"
+        success_msg: "package_update_cache parameter is valid"
+
+    - name: "Check if package_upgrade_packages is boolean"
+      # Validate universal package upgrade flag / Валидация универсального флага обновления пакетов
+      ansible.builtin.assert:
+        that:
+          - package_upgrade_packages is defined
+          - package_upgrade_packages is boolean or package_upgrade_packages is string
+        fail_msg: "package_upgrade_packages must be a boolean value"
+        success_msg: "package_upgrade_packages parameter is valid"
+
+    - name: "Check if debug_mode is boolean"
+      # Validate debug mode flag / Валидация флага режима отладки
+      ansible.builtin.assert:
+        that:
+          - debug_mode is defined
+          - debug_mode is boolean or debug_mode is string
+        fail_msg: "debug_mode must be a boolean value"
+        success_msg: "debug_mode parameter is valid"
+
+    - name: "Check if optional_packages is defined and is a list"
+      # Validate universal optional packages list format / Валидация формата универсального списка дополнительных пакетов
+      ansible.builtin.assert:
+        that:
+          - optional_packages is defined
+          - optional_packages is iterable
+          - optional_packages is not string
+        fail_msg: "optional_packages must be defined as a list of universal package names"
+        success_msg: "optional_packages parameter is valid"
+
+    - name: "Check if package_install_timeout is a positive integer"
+      # Validate universal installation timeout parameter / Валидация универсального параметра таймаута установки
+      ansible.builtin.assert:
+        that:
+          - package_install_timeout is defined
+          - package_install_timeout is number
+          - package_install_timeout > 0
+          - package_install_timeout <= 3600
+        fail_msg: "package_install_timeout must be a positive number between 1 and 3600 seconds"
+        success_msg: "package_install_timeout parameter is valid"
+
+    - name: "Check if package_install_recommends is boolean"
+      # Validate universal install recommends flag / Валидация универсального флага установки рекомендуемых пакетов
+      ansible.builtin.assert:
+        that:
+          - package_install_recommends is defined
+          - package_install_recommends is boolean or package_install_recommends is string
+        fail_msg: "package_install_recommends must be a boolean value"
+        success_msg: "package_install_recommends parameter is valid"
+
+    - name: "Check if package_install_suggests is boolean"
+      # Validate universal install suggests flag / Валидация универсального флага установки предлагаемых пакетов
+      ansible.builtin.assert:
+        that:
+          - package_install_suggests is defined
+          - package_install_suggests is boolean or package_install_suggests is string
+        fail_msg: "package_install_suggests must be a boolean value"
+        success_msg: "package_install_suggests parameter is valid"
+
+    - name: "Validate universal essential package names format"
+      # Check individual universal essential package name validity / Проверка валидности отдельных универсальных имен основных пакетов
+      ansible.builtin.assert:
+        that:
+          - item is string
+          - item | length > 0
+          - not (item.startswith('-') or item.startswith('+'))
+        fail_msg: "Universal essential package name '{{ item }}' is invalid. Package names must be non-empty strings and cannot start with '-' or '+'"
+        success_msg: "Universal essential package name '{{ item }}' is valid"
+      loop: "{{ essential_packages }}"
+      when: essential_packages is defined and essential_packages | length > 0
+
+    - name: "Validate universal optional package names format"
+      # Check individual universal optional package name validity / Проверка валидности отдельных универсальных имен дополнительных пакетов
+      ansible.builtin.assert:
+        that:
+          - item is string
+          - item | length > 0
+          - not (item.startswith('-') or item.startswith('+'))
+        fail_msg: "Universal optional package name '{{ item }}' is invalid. Package names must be non-empty strings and cannot start with '-' or '+'"
+        success_msg: "Universal optional package name '{{ item }}' is valid"
+      loop: "{{ optional_packages }}"
+      when: optional_packages is defined and optional_packages | length > 0
+
+    - name: "Display validation summary (English)"
+      # Show validation results / Показать результаты валидации
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Parameter Validation Summary:"
+          - "============================================================================="
+          - "Operating System:          {{ ansible_os_family }}"
+          - "Package Manager:           {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
+          - "Universal Essential:       {{ essential_packages | length }} packages defined"
+          - "Universal Optional:        {{ optional_packages | length if optional_packages is defined else 0 }} packages defined"
+          - "Cache Valid Time:          {{ package_cache_valid_time }} seconds"
+          - "Update Cache:              {{ package_update_cache }}"
+          - "Upgrade Packages:          {{ package_upgrade_packages }}"
+          - "Install Timeout:           {{ package_install_timeout }} seconds"
+          - "Install Recommends:        {{ package_install_recommends }}"
+          - "Install Suggests:          {{ package_install_suggests }}"
+          - "Debug Mode:                {{ debug_mode }}"
+          - "============================================================================="
+      when: debug_lang | default('both') in ['english', 'both']
+
+    - name: "Display validation summary (Russian)"
+      # Show validation results / Показать результаты валидации
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Сводка валидации параметров:"
+          - "============================================================================="
+          - "Операционная система:            {{ ansible_os_family }}"
+          - "Менеджер пакетов:                {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
+          - "Универсальные основные:          {{ essential_packages | length }} пакетов определено"
+          - "Универсальные дополнительные:    {{ optional_packages | length if optional_packages is defined else 0 }} пакетов определено"
+          - "Время валидности кэша:           {{ package_cache_valid_time }} секунд"
+          - "Обновление кэша:                 {{ package_update_cache }}"
+          - "Обновление пакетов:              {{ package_upgrade_packages }}"
+          - "Таймаут установки:               {{ package_install_timeout }} секунд"
+          - "Установка рекомендуемых:         {{ package_install_recommends }}"
+          - "Установка предлагаемых:          {{ package_install_suggests }}"
+          - "Режим отладки:                   {{ debug_mode }}"
+          - "============================================================================="
+      when: debug_lang | default('both') in ['russian', 'both']
+
+  rescue:
+    - name: "Parameter validation failed"
+      # Handle validation errors / Обработка ошибок валидации
+      ansible.builtin.fail:
+        msg: "Role parameter validation failed. Please check the error messages above and correct the configuration. Ensure all required variables are properly defined and follow the expected format."

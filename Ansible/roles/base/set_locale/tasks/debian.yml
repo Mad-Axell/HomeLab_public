@@ -1,0 +1,314 @@
+---
+# =============================================================================
+# Debian/Ubuntu Specific Tasks / Специфичные задачи для Debian/Ubuntu
+# =============================================================================
+# This file contains tasks specific to Debian and Ubuntu systems
+# Файл содержит задачи, специфичные для систем Debian и Ubuntu
+# =============================================================================
+
+# Install required packages for Debian/Ubuntu / Установка необходимых пакетов для Debian/Ubuntu
+- name: "Install required packages for Debian/Ubuntu"
+  block:
+    - name: "Build package list for Debian/Ubuntu"
+      ansible.builtin.set_fact:
+        debian_packages_to_install: >-
+          {{
+            (universal_packages | map('extract', package_mappings.debian) | list) +
+            (package_mappings.debian.additional | default([]))
+          }}
+      tags:
+        - packages
+        - debian
+        - ubuntu
+        - preparation
+
+    - name: "Display packages to install for Debian/Ubuntu (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Debian/Ubuntu Packages to Install:"
+          - "============================================================================="
+          - "{{ debian_packages_to_install | join(', ') }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['english', 'both']
+      tags:
+        - debug
+        - packages
+        - debian
+
+    - name: "Display packages to install for Debian/Ubuntu (Russian)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Пакеты Debian/Ubuntu для установки:"
+          - "============================================================================="
+          - "{{ debian_packages_to_install | join(', ') }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['russian', 'both']
+      tags:
+        - debug
+        - packages
+        - debian
+
+    - name: "Install Debian/Ubuntu packages"
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+        update_cache: true
+      loop: "{{ debian_packages_to_install }}"
+      register: debian_packages_result
+      tags:
+        - packages
+        - debian
+        - ubuntu
+        - installation
+  rescue:
+    - name: "Package installation failed"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Debian/Ubuntu Package Installation Error:"
+          - "============================================================================="
+          - "Error: Could not install required packages."
+          - "Some features may not work properly."
+          - "Ошибка: Не удалось установить необходимые пакеты."
+          - "Некоторые функции могут работать неправильно."
+          - "============================================================================="
+      register: debian_packages_result
+      failed_when: false
+  tags:
+    - packages
+    - debian
+    - ubuntu
+    - installation
+
+# Display Debian/Ubuntu package installation results (English)
+- name: "Display Debian/Ubuntu package installation results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Debian/Ubuntu Package Installation Results:"
+      - "============================================================================="
+      - "Package:                {{ item.item }}"
+      - "Installation Status:    {{ 'SUCCESS' if item.changed else 'ALREADY INSTALLED' }}"
+      - "Changed:                {{ 'YES' if item.changed else 'NO' }}"
+      - "Return Code:            {{ item.rc | default('N/A') }}"
+      - "============================================================================="
+  loop: "{{ debian_packages_result.results | default([]) }}"
+  when: 
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+    - debian_packages_result is defined
+    - debian_packages_result.results is defined
+  tags:
+    - debug
+    - packages
+    - debian
+    - ubuntu
+
+- name: "Display Debian/Ubuntu package installation results (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты установки пакетов Debian/Ubuntu:"
+      - "============================================================================="
+      - "Пакет:                  {{ item.item }}"
+      - "Статус установки:       {{ 'УСПЕШНО' if item.changed else 'УЖЕ УСТАНОВЛЕН' }}"
+      - "Изменено:               {{ 'ДА' if item.changed else 'НЕТ' }}"
+      - "Код возврата:           {{ item.rc | default('Н/Д') }}"
+      - "============================================================================="
+  loop: "{{ debian_packages_result.results | default([]) }}"
+  when: 
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+    - debian_packages_result is defined
+    - debian_packages_result.results is defined
+  tags:
+    - debug
+    - packages
+    - debian
+    - ubuntu
+
+# Configure keyboard layout for Debian/Ubuntu systems / Настройка раскладки клавиатуры для систем Debian/Ubuntu
+- name: "Configure keyboard layout for Debian/Ubuntu"
+  block:
+    - name: "Set keyboard layout"
+      ansible.builtin.debconf:
+        name: keyboard-configuration
+        question: "keyboard-configuration/layout"
+        value: "{{ keyboard_layout }}"
+        vtype: string
+      register: keyboard_layout_result
+      tags:
+        - keyboard
+        - debian
+        - ubuntu
+        - configuration
+        - layout
+  rescue:
+    - name: "Keyboard layout configuration failed"
+      ansible.builtin.debug:
+        msg: "Error: Could not configure keyboard layout '{{ keyboard_layout }}'. / Ошибка: Не удалось настроить раскладку клавиатуры '{{ keyboard_layout }}'."
+      register: keyboard_layout_result
+      failed_when: false
+  when: keyboard_layout != ""
+  tags:
+    - keyboard
+    - debian
+    - ubuntu
+    - configuration
+    - layout
+
+# Configure keyboard variant for Debian/Ubuntu / Настройка варианта клавиатуры для Debian/Ubuntu
+- name: "Configure keyboard variant for Debian/Ubuntu"
+  ansible.builtin.debconf:
+    name: keyboard-configuration
+    question: "keyboard-configuration/variant"
+    value: "{{ keyboard_variant }}"
+    vtype: string
+  when: keyboard_variant != ""
+  register: keyboard_variant_result
+  failed_when: false
+  tags:
+    - keyboard
+    - debian
+    - ubuntu
+    - configuration
+    - variant
+
+# Configure keyboard options for Debian/Ubuntu / Настройка опций клавиатуры для Debian/Ubuntu
+- name: "Configure keyboard options for Debian/Ubuntu"
+  ansible.builtin.debconf:
+    name: keyboard-configuration
+    question: "keyboard-configuration/optionscode"
+    value: "{{ keyboard_options }}"
+    vtype: string
+  when: keyboard_options != ""
+  register: keyboard_options_result
+  failed_when: false
+  tags:
+    - keyboard
+    - debian
+    - ubuntu
+    - configuration
+    - options
+
+# Display keyboard configuration results for Debian/Ubuntu (English)
+- name: "Display keyboard configuration results for Debian/Ubuntu (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Debian/Ubuntu Keyboard Configuration Results:"
+      - "============================================================================="
+      - "Layout:                 {{ keyboard_layout }}"
+      - "Variant:                {{ keyboard_variant }}"
+      - "Options:                {{ keyboard_options }}"
+      - "Layout Changed:         {{ 'YES' if keyboard_layout_result.changed else 'NO' }}"
+      - "Variant Changed:        {{ 'YES' if keyboard_variant_result.changed else 'NO' }}"
+      - "Options Changed:        {{ 'YES' if keyboard_options_result.changed | default(false) else 'NO' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - debug
+    - keyboard
+    - debian
+    - ubuntu
+    - results
+
+- name: "Display keyboard configuration results for Debian/Ubuntu (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты настройки клавиатуры Debian/Ubuntu:"
+      - "============================================================================="
+      - "Раскладка:              {{ keyboard_layout }}"
+      - "Вариант:                {{ keyboard_variant }}"
+      - "Опции:                  {{ keyboard_options }}"
+      - "Раскладка изменена:     {{ 'ДА' if keyboard_layout_result.changed else 'НЕТ' }}"
+      - "Вариант изменен:        {{ 'ДА' if keyboard_variant_result.changed else 'НЕТ' }}"
+      - "Опции изменены:         {{ 'ДА' if keyboard_options_result.changed | default(false) else 'НЕТ' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - debug
+    - keyboard
+    - debian
+    - ubuntu
+    - results
+
+# Configure console font for Debian/Ubuntu / Настройка консольного шрифта для Debian/Ubuntu
+- name: "Configure console font for Debian/Ubuntu"
+  ansible.builtin.lineinfile:
+    path: /etc/default/console-setup
+    regexp: '^FONTFACE=.*$'
+    line: 'FONTFACE="{{ console_font }}"'
+    state: present
+    create: true
+    backup: "{{ backup_enabled }}"
+    mode: '0644'
+  when: console_font_manage
+  register: console_font_result
+  notify: reload console
+  failed_when: false
+  tags:
+    - console
+    - font
+    - debian
+    - ubuntu
+    - configuration
+    - display
+
+# Display console font configuration results for Debian/Ubuntu (English)
+- name: "Display console font configuration results for Debian/Ubuntu (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Debian/Ubuntu Console Font Configuration Results:"
+      - "============================================================================="
+      - "Font:                   {{ console_font }}"
+      - "Configuration Changed:  {{ 'YES' if console_font_result.changed else 'NO' }}"
+      - "File Path:              /etc/default/console-setup"
+      - "Operation Status:       {{ 'SUCCESS' if console_font_result.changed else 'NO CHANGE' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+    - console_font_result is defined
+  tags:
+    - debug
+    - console
+    - font
+    - debian
+    - ubuntu
+    - results
+
+- name: "Display console font configuration results for Debian/Ubuntu (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты настройки консольного шрифта Debian/Ubuntu:"
+      - "============================================================================="
+      - "Шрифт:                  {{ console_font }}"
+      - "Конфигурация изменена:  {{ 'ДА' if console_font_result.changed else 'НЕТ' }}"
+      - "Путь к файлу:           /etc/default/console-setup"
+      - "Статус операции:        {{ 'УСПЕШНО' if console_font_result.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+    - console_font_result is defined
+  tags:
+    - debug
+    - console
+    - font
+    - debian
+    - ubuntu
+    - results

@@ -1,0 +1,36 @@
+---
+# EN: RedHat/CentOS/RHEL specific variables  
+# RU: Переменные для RedHat/CentOS/RHEL
+
+# EN: Sudo group name / RU: Имя группы sudo
+sudo_group: wheel
+
+# EN: Package manager / RU: Менеджер пакетов
+package_manager: "{{ ansible_distribution_major_version | int >= 8 | ternary('dnf', 'yum') }}"
+
+# EN: System user/group files / RU: Системные файлы пользователей/групп
+passwd_file: /etc/passwd
+shadow_file: /etc/shadow
+group_file: /etc/group
+sudoers_dir: /etc/sudoers.d
+
+# EN: Shell configuration / RU: Конфигурация оболочек
+valid_shells:
+  - /bin/bash
+  - /bin/sh
+  - /bin/zsh
+  - /bin/fish
+  - /usr/bin/bash
+  - /usr/bin/sh
+  - /usr/bin/zsh
+  - /usr/bin/fish
+
+# EN: User ID ranges / RU: Диапазоны ID пользователей
+min_uid: 1000
+max_uid: 60000
+
+# EN: System-specific packages / RU: Системные пакеты
+required_packages:
+  - sudo
+  - passwd
+

@@ -1,0 +1,105 @@
+---
+# =============================================================================
+# Universal Package Mapping Logic
+# =============================================================================
+# This file contains logic to map universal package names to platform-specific names
+# and create the final package lists for installation.
+#
+# Этот файл содержит логику для сопоставления универсальных имен пакетов
+# с именами для конкретных платформ и создания финальных списков пакетов для установки.
+# =============================================================================
+
+- name: "Map universal packages to platform-specific names"
+  # Transform universal package names to platform-specific names / Преобразование универсальных имен пакетов в имена для конкретных платформ
+  block:
+    - ansible.builtin.set_fact:
+        platform_packages: "{{ platform_packages | default([]) + [package_mappings[ansible_os_family | lower][item] | default(item)] }}"
+      loop: "{{ essential_packages }}"
+      when: 
+        - package_mappings[ansible_os_family | lower] is defined
+        - item != 'build-essential' or (package_mappings[ansible_os_family | lower][item] is defined and not package_mappings[ansible_os_family | lower][item] is iterable)
+  
+  rescue:
+    - name: "Handle package mapping errors / Обработка ошибок сопоставления пакетов"
+      # Handle any errors that occur during package mapping / Обработка любых ошибок, возникающих при сопоставлении пакетов
+      ansible.builtin.fail:
+        msg: "Package mapping failed. Check package_mappings configuration and ensure all required packages are properly defined."
+
+- name: "Handle build-essential package mapping for RedHat"
+  # Special handling for build-essential which maps to multiple packages on RedHat / Специальная обработка build-essential который сопоставляется с несколькими пакетами на RedHat
+  ansible.builtin.set_fact:
+    platform_packages: "{{ platform_packages | default([]) + package_mappings[ansible_os_family | lower]['build-essential'] }}"
+  when: 
+    - ansible_os_family | lower == "redhat"
+    - package_mappings[ansible_os_family | lower]['build-essential'] is defined
+    - package_mappings[ansible_os_family | lower]['build-essential'] is iterable
+
+- name: "Add platform-specific additional packages"
+  # Add platform-specific additional packages to the list / Добавление дополнительных пакетов для конкретной платформы в список
+  ansible.builtin.set_fact:
+    platform_packages: "{{ platform_packages | default([]) + package_mappings[ansible_os_family | lower]['additional'] }}"
+  when: 
+    - package_mappings[ansible_os_family | lower]['additional'] is defined
+    - package_mappings[ansible_os_family | lower]['additional'] is iterable
+
+- name: "Initialize platform optional packages list"
+  # Initialize platform_optional_packages as empty list if not defined / Инициализация platform_optional_packages как пустого списка если не определен
+  ansible.builtin.set_fact:
+    platform_optional_packages: "{{ platform_optional_packages | default([]) }}"
+
+- name: "Map optional packages to platform-specific names"
+  # Transform optional package names to platform-specific names / Преобразование имен дополнительных пакетов в имена для конкретных платформ
+  ansible.builtin.set_fact:
+    platform_optional_packages: "{{ platform_optional_packages | default([]) + [package_mappings[ansible_os_family | lower][item] | default(item)] }}"
+  loop: "{{ optional_packages }}"
+  when: 
+    - optional_packages is defined
+    - optional_packages | length > 0
+    - package_mappings[ansible_os_family | lower] is defined
+
+- name: "Display package mapping results (English)"
+  # Show the final mapped package lists / Показать финальные сопоставленные списки пакетов
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Package Mapping Results:"
+      - "============================================================================="
+      - "Operating System:          {{ ansible_os_family }}"
+      - "Universal Essential:       {{ essential_packages | length }} packages"
+      - "Platform Essential:        {{ platform_packages | length }} packages"
+      - "Universal Optional:        {{ optional_packages | length if optional_packages is defined else 0 }} packages"
+      - "Platform Optional:         {{ platform_optional_packages | length if platform_optional_packages is defined else 0 }} packages"
+      - "Essential Packages:        {{ platform_packages }}"
+      - "Optional Packages:         {{ platform_optional_packages | default([]) }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+
+- name: "Display package mapping results (Russian)"
+  # Show the final mapped package lists / Показать финальные сопоставленные списки пакетов
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты сопоставления пакетов:"
+      - "============================================================================="
+      - "Операционная система:      {{ ansible_os_family }}"
+      - "Универсальные основные:    {{ essential_packages | length }} пакетов"
+      - "Платформенные основные:    {{ platform_packages | length }} пакетов"
+      - "Универсальные дополнительные: {{ optional_packages | length if optional_packages is defined else 0 }} пакетов"
+      - "Платформенные дополнительные: {{ platform_optional_packages | length if platform_optional_packages is defined else 0 }} пакетов"
+      - "Основные пакеты:           {{ platform_packages }}"
+      - "Дополнительные пакеты:     {{ platform_optional_packages | default([]) }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']
+
+- name: "Validate package mapping results"
+  # Ensure package mapping was successful / Обеспечение успешного сопоставления пакетов
+  ansible.builtin.assert:
+    that:
+      - platform_packages is defined
+      - platform_packages | length > 0
+    fail_msg: "Package mapping failed - no platform packages were generated"
+    success_msg: "Package mapping completed successfully"

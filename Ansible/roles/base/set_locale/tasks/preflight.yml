@@ -1,0 +1,97 @@
+---
+# =============================================================================
+# Preflight Checks Before Role Execution
+# Предварительные проверки перед выполнением роли
+# =============================================================================
+
+- name: Check Ansible version
+  ansible.builtin.assert:
+    that:
+      - ansible_version.full is version('2.14', '>=')
+    fail_msg: |
+      This role requires Ansible 2.14 or higher. Current version: {{ ansible_version.full }}
+      Эта роль требует Ansible 2.14 или выше. Текущая версия: {{ ansible_version.full }}
+    success_msg: |
+      Ansible version check passed: {{ ansible_version.full }}
+      Проверка версии Ansible пройдена: {{ ansible_version.full }}
+  tags: ['preflight', 'always']
+
+- name: Check OS compatibility
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in ['Debian', 'RedHat', 'Suse']
+    fail_msg: |
+      Unsupported OS family: {{ ansible_os_family | default('undefined') }}
+      Supported OS families: Debian, RedHat, Suse
+      
+      Неподдерживаемое семейство ОС: {{ ansible_os_family | default('undefined') }}
+      Поддерживаемые семейства ОС: Debian, RedHat, Suse
+    success_msg: |
+      OS compatibility check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      Проверка совместимости ОС пройдена: {{ ansible_distribution }} {{ ansible_distribution_version }}
+  tags: ['preflight', 'always']
+
+- name: Check required Python version
+  ansible.builtin.assert:
+    that:
+      - ansible_python_version is version('3.6', '>=')
+    fail_msg: |
+      Python 3.6+ is required. Current version: {{ ansible_python_version }}
+      Требуется Python 3.6+. Текущая версия: {{ ansible_python_version }}
+    success_msg: |
+      Python version check passed: {{ ansible_python_version }}
+      Проверка версии Python пройдена: {{ ansible_python_version }}
+  tags: ['preflight', 'always']
+
+- name: Check disk space
+  ansible.builtin.assert:
+    that:
+      - item.size_available > 104857600  # 100MB minimum
+    fail_msg: |
+      Insufficient disk space on {{ item.mount }}. Available: {{ item.size_available }} bytes
+      Недостаточно дискового пространства на {{ item.mount }}. Доступно: {{ item.size_available }} байт
+    success_msg: |
+      Disk space check passed for {{ item.mount }}
+      Проверка дискового пространства для {{ item.mount }} пройдена
+  loop: "{{ ansible_mounts }}"
+  when:
+    - item.mount in ['/']
+    - item.size_available is defined
+  tags: ['preflight']
+
+- name: Display preflight check results (English)
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Preflight Checks Completed Successfully:"
+      - "============================================================================="
+      - "Ansible Version:       {{ ansible_version.full }}"
+      - "Python Version:        {{ ansible_python_version }}"
+      - "OS Family:             {{ ansible_os_family }}"
+      - "OS Distribution:       {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Architecture:          {{ ansible_architecture }}"
+      - "All preflight checks passed - proceeding with role execution"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags: ['preflight', 'debug']
+
+- name: Display preflight check results (Russian)
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Предварительные проверки успешно завершены:"
+      - "============================================================================="
+      - "Версия Ansible:        {{ ansible_version.full }}"
+      - "Версия Python:         {{ ansible_python_version }}"
+      - "Семейство ОС:          {{ ansible_os_family }}"
+      - "Дистрибутив ОС:        {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Архитектура:           {{ ansible_architecture }}"
+      - "Все предварительные проверки пройдены - продолжаем выполнение роли"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags: ['preflight', 'debug']
+

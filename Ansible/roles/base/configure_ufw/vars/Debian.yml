@@ -1,0 +1,53 @@
+---
+# Debian/Ubuntu specific variables / Переменные для Debian/Ubuntu
+
+# Package management / Управление пакетами
+package_manager: apt
+package_cache_update: true
+package_cache_valid_time: 3600
+
+# Firewall package / Пакет файрвола
+firewall_package: ufw
+firewall_service: ufw
+
+# Package names that differ on Debian / Названия пакетов, которые отличаются на Debian
+python_package: python3
+python_pip_package: python3-pip
+
+# UFW specific paths / Специфичные пути UFW
+ufw_config_dir: "/etc/ufw"
+ufw_config_file: "/etc/ufw/ufw.conf"
+ufw_user_rules: "/etc/ufw/user.rules"
+ufw_user6_rules: "/etc/ufw/user6.rules"
+ufw_default_file: "/etc/default/ufw"
+ufw_log_dir: "/var/log/ufw"
+
+# UFW backup configuration / Конфигурация резервного копирования UFW
+ufw_backup_files:
+  - "/etc/ufw/ufw.conf"
+  - "/etc/ufw/user.rules"
+  - "/etc/ufw/user6.rules"
+  - "/etc/default/ufw"
+
+# Service management / Управление службами
+service_manager: systemd
+service_enable_command: "systemctl enable"
+service_start_command: "systemctl start"
+service_restart_command: "systemctl restart"
+service_reload_command: "systemctl reload"
+service_status_command: "systemctl is-active"
+service_enabled_command: "systemctl is-enabled"
+
+# Firewall module / Модуль файрвола
+firewall_module: "community.general.ufw"
+
+# Default firewall rules for Debian / Правила файрвола по умолчанию для Debian
+default_firewall_rules:
+  - { rule: 'allow', port: '80', proto: 'tcp', comment: 'HTTP' }
+  - { rule: 'allow', port: '443', proto: 'tcp', comment: 'HTTPS' }
+  - { rule: 'allow', port: "{{ ssh_port }}", proto: "{{ ssh_protocol }}", comment: 'SSH' }
+
+# UFW specific settings / Специфичные настройки UFW
+ufw_auto_reset_supported: true
+ufw_rate_limiting_supported: true
+ufw_ipv6_config_supported: true

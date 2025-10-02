@@ -1,0 +1,68 @@
+---
+galaxy_info:
+  author: System Administrator
+  description: Multi-platform package installation role supporting Debian, RedHat, and SUSE OS families with comprehensive validation, advanced debugging capabilities, and production-ready error handling. Supports Ubuntu, Debian, CentOS, RHEL, Rocky Linux, AlmaLinux, openSUSE, and SLES distributions.
+  company: Infrastructure Team
+  license: MIT
+  min_ansible_version: "2.9"
+  platforms:
+    # Debian family distributions (ansible_os_family: Debian)
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+        - trixie
+    # RedHat family distributions (ansible_os_family: RedHat)
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+    - name: CentOS
+      versions:
+        - 7
+    - name: Rocky
+      versions:
+        - 8
+        - 9
+    - name: AlmaLinux
+      versions:
+        - 8
+        - 9
+    # SUSE family distributions (ansible_os_family: Suse)
+    - name: openSUSE
+      versions:
+        - "15.3"
+        - "15.4"
+        - "15.5"
+        - "Tumbleweed"
+    - name: SLES
+      versions:
+        - "15.3"
+        - "15.4"
+        - "15.5"
+  galaxy_tags:
+    - system
+    - packages
+    - apt
+    - yum
+    - dnf
+    - zypper
+    - ubuntu
+    - debian
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+    - opensuse
+    - sles
+    - suse
+    - validation
+    - debugging
+    - multi-platform
+dependencies: []

@@ -1,0 +1,247 @@
+---
+# Validation tasks for add_users role
+# Задачи валидации для роли add_users
+
+# Display users_to_add variable in debug mode with comprehensive information
+# Отображение переменной users_to_add в режиме отладки с комплексной информацией
+- name: Display users_to_add variable content
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Input Variable Validation:"
+      - "============================================================================="
+      - "Variable:                 users_to_add"
+      - "Type:                     {{ users_to_add | type_debug }}"
+      - "Length:                   {{ users_to_add | length }}"
+      - "Validation Mode:          {{ 'STRICT' if add_users_validate_passwords else 'RELAXED' }}"
+      - "Password Validation:      {{ add_users_validate_passwords }}"
+      - "Min Password Length:      {{ add_users_min_password_length }}"
+      - "Default Shell:            {{ add_users_default_shell }}"
+      - "Create Home:              {{ add_users_create_home }}"
+      - "Home Prefix:              {{ add_users_home_prefix }}"
+      - "Security Note:            Passwords are hidden for security. Use debug_show_passwords=true to show them."
+      - "============================================================================="
+  when: debug_mode
+  tags:
+    - debug
+    - validation
+
+# Check if users_to_add variable is properly defined
+# Проверка правильности определения переменной users_to_add
+- name: Validate users_to_add variable is defined and not empty
+  ansible.builtin.fail:
+    msg: "users_to_add variable must be defined and not empty | Переменная users_to_add должна быть определена и не пуста"
+  when: users_to_add is not defined or users_to_add | length == 0
+  tags:
+    - validation
+    - always
+
+# Validate required user parameters
+# Валидация обязательных параметров пользователя
+- name: Validate required user parameters (username and password)
+  ansible.builtin.fail:
+    msg: "User '{{ item.username }}' is missing required parameter: {{ missing_param }} | Пользователь '{{ item.username }}' не имеет обязательного параметра: {{ missing_param }}"
+  loop: "{{ users_to_add }}"
+  when: >
+    item.username is not defined or
+    item.password is not defined or
+    item.username | length == 0 or
+    item.password | length == 0
+  vars:
+    missing_param: >-
+      {%- if item.username is not defined or item.username | length == 0 -%}
+      username
+      {%- elif item.password is not defined or item.password | length == 0 -%}
+      password
+      {%- endif -%}
+  tags:
+    - validation
+    - always
+
+# Check for reserved system usernames
+# Проверка зарезервированных системных имен пользователей
+- name: Validate usernames are not reserved system names
+  ansible.builtin.fail:
+    msg: "Username '{{ item.username }}' is reserved and cannot be used | Имя пользователя '{{ item.username }}' зарезервировано и не может быть использовано"
+  loop: "{{ users_to_add }}"
+  when: item.username in reserved_usernames
+  tags:
+    - validation
+    - always
+
+# Validate password strength requirements
+# Валидация требований к надежности пароля
+- name: Validate password meets minimum length requirements
+  ansible.builtin.fail:
+    msg: "Password for user '{{ item.username }}' is too short. Minimum length is {{ add_users_min_password_length }} characters | Пароль для пользователя '{{ item.username }}' слишком короткий. Минимальная длина {{ add_users_min_password_length }} символов"
+  loop: "{{ users_to_add }}"
+  when: add_users_validate_passwords and item.password | length < add_users_min_password_length
+  tags:
+    - validation
+    - always
+
+# Validate shell path is in allowed list
+# Валидация пути оболочки в списке разрешенных
+- name: Validate shell path is in allowed shells list
+  ansible.builtin.fail:
+    msg: "Shell '{{ item.shell | default(add_users_default_shell) }}' for user '{{ item.username }}' is not in the list of valid shells | Оболочка '{{ item.shell | default(add_users_default_shell) }}' для пользователя '{{ item.username }}' не в списке допустимых оболочек"
+  loop: "{{ users_to_add }}"
+  when: item.shell is defined and item.shell not in valid_shells
+  tags:
+    - validation
+    - always
+
+# Validate UID is within acceptable range
+# Валидация UID в допустимом диапазоне
+- name: Validate UID is within acceptable range for regular users
+  ansible.builtin.fail:
+    msg: "UID {{ item.uid }} for user '{{ item.username }}' is outside valid range ({{ min_uid }}-{{ max_uid }}) | UID {{ item.uid }} для пользователя '{{ item.username }}' вне допустимого диапазона ({{ min_uid }}-{{ max_uid }})"
+  loop: "{{ users_to_add }}"
+  when: item.uid is defined and (item.uid < min_uid or item.uid > max_uid)
+  tags:
+    - validation
+    - always
+
+# Validate username format follows system conventions
+# Валидация формата имени пользователя согласно системным соглашениям
+- name: Validate username format follows system naming conventions
+  ansible.builtin.fail:
+    msg: "Username '{{ item.username }}' contains invalid characters. Only lowercase letters, numbers, and underscores are allowed | Имя пользователя '{{ item.username }}' содержит недопустимые символы. Разрешены только строчные буквы, цифры и подчеркивания"
+  loop: "{{ users_to_add }}"
+  when: not (item.username | regex_search('^[a-z][a-z0-9_]*$'))
+  tags:
+    - validation
+    - always
+
+# Validate group names follow system conventions
+# Валидация имен групп согласно системным соглашениям
+- name: Validate group names follow system naming conventions
+  ansible.builtin.fail:
+    msg: "Group name '{{ item.1 }}' for user '{{ item.0.username }}' contains invalid characters. Only lowercase letters, numbers, and underscores are allowed | Имя группы '{{ item.1 }}' для пользователя '{{ item.0.username }}' содержит недопустимые символы. Разрешены только строчные буквы, цифры и подчеркивания"
+  with_subelements:
+    - "{{ users_to_add }}"
+    - groups
+    - flags:
+        skip_missing: True
+  when: not (item.1 | regex_search('^[a-z][a-z0-9_]*$'))
+  tags:
+    - validation
+    - always
+
+# Validate home directory path format
+# Валидация формата пути домашней директории
+- name: Validate home directory path is absolute
+  ansible.builtin.fail:
+    msg: "Home directory path '{{ item.home }}' for user '{{ item.username }}' is invalid. Must be an absolute path | Путь домашней директории '{{ item.home }}' для пользователя '{{ item.username }}' недопустим. Должен быть абсолютным путем"
+  loop: "{{ users_to_add }}"
+  when: item.home is defined and not item.home.startswith('/')
+  tags:
+    - validation
+    - always
+
+# Check for duplicate usernames in configuration
+# Проверка дублирующихся имен пользователей в конфигурации
+- name: Validate no duplicate usernames in configuration
+  ansible.builtin.fail:
+    msg: "Duplicate username '{{ duplicate_username }}' found in users_to_add list | Дублирующееся имя пользователя '{{ duplicate_username }}' найдено в списке users_to_add"
+  vars:
+    usernames: "{{ users_to_add | map(attribute='username') | list }}"
+    unique_usernames: "{{ usernames | unique | list }}"
+    duplicate_username: "{{ usernames | difference(unique_usernames) | first }}"
+  when: usernames | length != (usernames | unique | list | length)
+  tags:
+    - validation
+    - always
+
+# Calculate basic validation statistics
+# Вычисление базовой статистики валидации
+- name: Calculate validation statistics
+  ansible.builtin.set_fact:
+    validation_stats:
+      total_users: "{{ users_to_add | length }}"
+      users_with_sudo: "{{ users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length }}"
+      users_with_groups: "{{ users_to_add | selectattr('groups', 'defined') | list | length }}"
+      duplicate_usernames: "{{ (users_to_add | map(attribute='username') | list | length) - (users_to_add | map(attribute='username') | list | unique | length) }}"
+  tags:
+    - validation
+    - facts
+
+# Display comprehensive validation summary with detailed statistics
+# Отображение комплексной сводки валидации с детальной статистикой
+- name: Display comprehensive validation summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "User Validation Configuration Summary:"
+      - "============================================================================="
+      - "Password Validation:        {{ add_users_validate_passwords | ternary('ENABLED', 'DISABLED') }}"
+      - "Min Password Length:        {{ add_users_min_password_length }} characters"
+      - "Default Shell:              {{ add_users_default_shell }}"
+      - "Create Home Directory:      {{ add_users_create_home | ternary('YES', 'NO') }}"
+      - "Home Directory Prefix:      {{ add_users_home_prefix }}"
+      - "Valid Shells Count:         {{ valid_shells | length }}"
+      - "Reserved Names Count:       {{ reserved_usernames | length }}"
+      - "UID Range:                  {{ min_uid }} - {{ max_uid }}"
+      - "Debug Mode:                 {{ debug_mode }}"
+      - "============================================================================="
+      - "User Statistics:"
+      - "============================================================================="
+      - "Total Users to Process:     {{ validation_stats.total_users }}"
+      - "Users with Sudo Rights:     {{ validation_stats.users_with_sudo }}"
+      - "Users with Custom Groups:   {{ validation_stats.users_with_groups }}"
+      - "============================================================================="
+      - "Validation Results:"
+      - "============================================================================="
+      - "Duplicate Usernames:        {{ 'PASS' if validation_stats.duplicate_usernames == 0 else 'FAIL' }} ({{ validation_stats.duplicate_usernames }} duplicates found)"
+      - "============================================================================="
+  when: debug_mode
+  tags:
+    - debug
+    - validation
+    - summary
+
+# Display individual user validation details
+# Отображение деталей валидации отдельных пользователей
+- name: Display individual user validation details
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "User Validation Details: {{ item.username }}"
+      - "============================================================================="
+      - "Username Format:            {{ 'VALID' if item.username | regex_search('^[a-z][a-z0-9_]*$') else 'INVALID' }}"
+      - "Reserved Name Check:        {{ 'RESERVED' if item.username in reserved_usernames else 'ALLOWED' }}"
+      - "Password Length:            {{ 'VALID (' + (item.password | length | string) + ' chars)' if not add_users_validate_passwords else ('VALID (' + (item.password | length | string) + ' chars)' if item.password | length >= add_users_min_password_length else 'TOO SHORT (' + (item.password | length | string) + ' chars)') }}"
+      - "Shell Configuration:        {{ 'DEFAULT' if not item.shell is defined else ('VALID (' + item.shell + ')' if item.shell in valid_shells else 'INVALID (' + item.shell + ')') }}"
+      - "Home Directory:             {{ 'DEFAULT' if not item.home is defined else ('VALID (' + item.home + ')' if item.home.startswith('/') else 'INVALID (' + item.home + ')') }}"
+      - "UID Configuration:          {{ 'AUTO' if not item.uid is defined else ('VALID (' + (item.uid | string) + ')' if item.uid >= min_uid and item.uid <= max_uid else 'OUT OF RANGE (' + (item.uid | string) + ')') }}"
+      - "Group Memberships:          {{ 'None' if not item.groups is defined else (item.groups | length | string) + ' groups: ' + (item.groups | join(', ')) }}"
+      - "Sudo Privileges:            {{ 'YES' if item.is_sudoers | default(false) else 'NO' }}"
+      - "Validation Status:          {{ 'READY' if (item.username | regex_search('^[a-z][a-z0-9_]*$')) and (item.username not in reserved_usernames) and (not add_users_validate_passwords or item.password | length >= add_users_min_password_length) and (not item.shell is defined or item.shell in valid_shells) and (not item.home is defined or item.home.startswith('/')) and (not item.uid is defined or (item.uid >= min_uid and item.uid <= max_uid)) else 'ISSUES FOUND' }}"
+      - "============================================================================="
+  loop: "{{ users_to_add }}"
+  when: debug_mode
+  tags:
+    - debug
+    - validation
+    - details
+
+# Display final validation summary
+# Отображение финальной сводки валидации
+- name: Display final validation summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Validation Status:"
+      - "============================================================================="
+      - "Overall Status:             {{ 'VALIDATION COMPLETED' if validation_stats.duplicate_usernames == 0 else 'DUPLICATE NAMES DETECTED' }}"
+      - "Ready for Processing:       {{ 'YES' if validation_stats.duplicate_usernames == 0 else 'NO' }}"
+      - "Total Users Validated:      {{ validation_stats.total_users }}"
+      - "Users with Sudo Rights:     {{ validation_stats.users_with_sudo }}"
+      - "Users with Custom Groups:   {{ validation_stats.users_with_groups }}"
+      - "Duplicate Usernames:        {{ validation_stats.duplicate_usernames }}"
+      - "============================================================================="
+  when: debug_mode
+  tags:
+    - debug
+    - validation
+    - summary

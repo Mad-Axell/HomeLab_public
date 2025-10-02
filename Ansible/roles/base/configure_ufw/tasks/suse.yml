@@ -1,0 +1,207 @@
+---
+# SUSE/openSUSE specific tasks / Задачи для SUSE/openSUSE
+
+# Extract allowed and denied subnets from users configuration
+# Извлечение разрешенных и запрещенных подсетей из конфигурации пользователей
+- name: "Extract allowed subnets from users to add"
+  ansible.builtin.set_fact:
+    extracted_allowed_subnets: "{{ extracted_allowed_subnets | default([]) + item.allowed_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+  tags:
+    - extraction
+    - subnets
+
+- name: "Deduplicate extracted allowed subnets"
+  ansible.builtin.set_fact:
+    extracted_allowed_subnets: "{{ extracted_allowed_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+  tags:
+    - extraction
+    - subnets
+    - deduplication
+
+- name: "Extract denied subnets from users to add"
+  ansible.builtin.set_fact:
+    extracted_denied_subnets: "{{ extracted_denied_subnets | default([]) + item.denied_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - denied_subnets is not defined or denied_subnets | length == 0
+  tags:
+    - extraction
+    - subnets
+
+- name: "Deduplicate extracted denied subnets"
+  ansible.builtin.set_fact:
+    extracted_denied_subnets: "{{ extracted_denied_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - denied_subnets is not defined or denied_subnets | length == 0
+  tags:
+    - extraction
+    - subnets
+    - deduplication
+
+- name: "Set final allowed subnets list"
+  ansible.builtin.set_fact:
+    final_allowed_subnets: "{{ (allowed_subnets if (allowed_subnets is defined and allowed_subnets | length > 0) else extracted_allowed_subnets | default([])) | unique }}"
+  tags:
+    - extraction
+    - subnets
+    - deduplication
+
+- name: "Set final denied subnets list"
+  ansible.builtin.set_fact:
+    final_denied_subnets: "{{ (denied_subnets if (denied_subnets is defined and denied_subnets | length > 0) else extracted_denied_subnets | default([])) | unique }}"
+  tags:
+    - extraction
+    - subnets
+    - deduplication
+
+- name: "Install firewalld package on SUSE/openSUSE"
+  community.general.zypper:
+    name: "{{ firewall_package }}"
+    state: present
+  register: firewalld_install_result
+  tags: ['installation', 'firewalld', 'suse']
+
+- name: "Start and enable firewalld service"
+  ansible.builtin.service:
+    name: "{{ firewall_service }}"
+    state: started
+    enabled: true
+  register: firewalld_service_result
+  tags: ['service', 'firewalld', 'suse']
+
+- name: "Configure firewalld default zone"
+  ansible.posix.firewalld:
+    zone: "{{ firewalld_default_zone }}"
+    state: enabled
+    permanent: true
+    immediate: true
+  register: firewalld_zone_result
+  tags: ['configuration', 'firewalld', 'suse']
+
+- name: "Allow SSH service in firewalld"
+  ansible.posix.firewalld:
+    service: "{{ firewalld_ssh_service }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  register: firewalld_ssh_service_result
+  tags: ['ssh', 'firewalld', 'suse']
+
+- name: "Allow SSH from allowed subnets in firewalld"
+  ansible.posix.firewalld:
+    port: "{{ ssh_port }}/{{ ssh_protocol }}"
+    source: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop: "{{ final_allowed_subnets }}"
+  when: final_allowed_subnets | length > 0
+  register: firewalld_ssh_allow_result
+  tags: ['ssh', 'firewalld', 'suse', 'subnets']
+
+- name: "Deny SSH from denied subnets in firewalld"
+  ansible.posix.firewalld:
+    port: "{{ ssh_port }}/{{ ssh_protocol }}"
+    source: "{{ item }}"
+    permanent: true
+    state: disabled
+    immediate: true
+  loop: "{{ final_denied_subnets }}"
+  when: final_denied_subnets | length > 0
+  register: firewalld_ssh_deny_result
+  tags: ['ssh', 'firewalld', 'suse', 'subnets', 'deny']
+
+- name: "Add custom rules to firewalld"
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.proto }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop: "{{ ufw_rules }}"
+  register: firewalld_custom_rules_result
+  tags: ['custom_rules', 'firewalld', 'suse']
+
+- name: "Log firewalld package installation (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Firewalld Package Installation Status:"
+      - "============================================================================="
+      - "Package:                 {{ firewall_package }}"
+      - "Installation Status:     {{ 'SUCCESS' if firewalld_install_result.changed else 'SKIPPED' }}"
+      - "Message:                 Package installed successfully"
+      - "Timestamp:               {{ ansible_date_time.iso8601 }}"
+      - "============================================================================="
+  when:
+    - firewalld_install_result.changed
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags: ['debug', 'firewalld', 'suse', 'logging']
+
+- name: "Log firewalld package installation (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Статус установки пакета firewalld:"
+      - "============================================================================="
+      - "Пакет:                   {{ firewall_package }}"
+      - "Статус установки:        {{ 'УСПЕШНО' if firewalld_install_result.changed else 'ПРОПУЩЕНО' }}"
+      - "Сообщение:               Пакет успешно установлен"
+      - "Время:                   {{ ansible_date_time.iso8601 }}"
+      - "============================================================================="
+  when:
+    - firewalld_install_result.changed
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags: ['debug', 'firewalld', 'suse', 'logging']
+
+- name: "Display detailed firewalld configuration results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Firewalld Configuration Results:"
+      - "============================================================================="
+      - "Package Installation:   {{ 'SUCCESS' if firewalld_install_result.changed else 'SKIPPED' }}"
+      - "Service Status:         {{ 'SUCCESS' if firewalld_service_result.changed else 'SKIPPED' }}"
+      - "Default Zone:           {{ firewalld_default_zone }} {{ 'SUCCESS' if firewalld_zone_result.changed else 'SKIPPED' }}"
+      - "SSH Service:            {{ firewalld_ssh_service }} {{ 'SUCCESS' if firewalld_ssh_service_result.changed else 'SKIPPED' }}"
+      - "SSH Allowed Subnets:    {{ final_allowed_subnets | length }} configured {{ 'SUCCESS' if firewalld_ssh_allow_result is defined else 'SKIPPED' }}"
+      - "SSH Denied Subnets:     {{ final_denied_subnets | length }} configured {{ 'SUCCESS' if firewalld_ssh_deny_result is defined else 'SKIPPED' }}"
+      - "Custom Rules:           {{ ufw_rules | length }} configured {{ 'SUCCESS' if firewalld_custom_rules_result is defined else 'SKIPPED' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags: ['debug', 'firewalld', 'suse', 'results']
+
+- name: "Display detailed firewalld configuration results (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Результаты конфигурации firewalld:"
+      - "============================================================================="
+      - "Установка пакета:        {{ 'УСПЕШНО' if firewalld_install_result.changed else 'ПРОПУЩЕНО' }}"
+      - "Статус службы:          {{ 'УСПЕШНО' if firewalld_service_result.changed else 'ПРОПУЩЕНО' }}"
+      - "Зона по умолчанию:      {{ firewalld_default_zone }} {{ 'УСПЕШНО' if firewalld_zone_result.changed else 'ПРОПУЩЕНО' }}"
+      - "Служба SSH:             {{ firewalld_ssh_service }} {{ 'УСПЕШНО' if firewalld_ssh_service_result.changed else 'ПРОПУЩЕНО' }}"
+      - "Разрешенные подсети SSH: {{ final_allowed_subnets | length }} настроено {{ 'УСПЕШНО' if firewalld_ssh_allow_result is defined else 'ПРОПУЩЕНО' }}"
+      - "Запрещенные подсети SSH: {{ final_denied_subnets | length }} настроено {{ 'УСПЕШНО' if firewalld_ssh_deny_result is defined else 'ПРОПУЩЕНО' }}"
+      - "Пользовательские правила: {{ ufw_rules | length }} настроено {{ 'УСПЕШНО' if firewalld_custom_rules_result is defined else 'ПРОПУЩЕНО' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags: ['debug', 'firewalld', 'suse', 'results']

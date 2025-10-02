@@ -1,0 +1,670 @@
+---
+
+#########################################################
+### Proxmox Configuration Import Role ###
+### Роль импорта конфигурации Proxmox ###
+#########################################################
+
+
+# EN: Validate role arguments (NEW - Automatic in Ansible 2.14+)
+# RU: Валидация аргументов роли (НОВОЕ - Автоматически в Ansible 2.14+)
+- name: Validate role arguments
+  ansible.builtin.validate_argument_spec:
+    argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
+  tags: ['always', 'validate']
+
+# EN: Preflight checks / RU: Предварительные проверки
+- name: Preflight checks
+  ansible.builtin.include_tasks: preflight.yml
+  tags: ['preflight', 'always']
+
+- name: Display role execution start
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Proxmox Import Config Role Started"
+      - "============================================================================="
+      - "Role:                  proxmox_import_config"
+      - "Host Name:             {{ host_name }}"
+      - "Host Vars Prefix:      {{ host_vars }}"
+      - "Debug Mode:            {{ debug_mode }}"
+      - "Debug Language:        {{ debug_lang }}"
+      - "Debug Sensitive:       {{ debug_sensitive }}"
+      - "Validate Parameters:   {{ validate_parameters }}"
+      - "Ansible Version:       {{ ansible_version.full }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - always
+    - debug
+
+- name: Display role execution start russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Роль импорта конфигурации Proxmox запущена"
+      - "============================================================================="
+      - "Роль:                  proxmox_import_config"
+      - "Имя хоста:             {{ host_name }}"
+      - "Префикс переменных:    {{ host_vars }}"
+      - "Режим отладки:         {{ debug_mode }}"
+      - "Язык отладки:          {{ debug_lang }}"
+      - "Отладка паролей:       {{ debug_sensitive }}"
+      - "Валидация:             {{ validate_parameters }}"
+      - "Версия Ansible:        {{ ansible_version.full }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - always
+    - debug
+
+- name: Include validation tasks
+  ansible.builtin.include_tasks: validate.yml
+  when: validate_parameters | bool
+  tags:
+    - validation
+
+#########################################################
+### Import Secrets Block ###
+### Блок импорта секретов ###
+#########################################################
+
+- name: Import secrets and configuration
+  block:
+    - name: Import secrets from file
+      ansible.builtin.include_vars:
+        file: "{{ secrets_file_path }}"
+      register: secrets_import_result
+      tags:
+        - import
+        - secrets
+
+    - name: Display secrets file import status
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Secrets Import Status"
+          - "============================================================================="
+          - "File Path:             {{ secrets_file_path }}"
+          - "Import Status:         ✓ SUCCESS"
+          - "Variables Loaded:      {{ vars.keys() | list | length }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['english', 'both']
+      tags:
+        - import
+        - secrets
+        - debug
+
+    - name: Display secrets file import status russian
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Статус импорта секретов"
+          - "============================================================================="
+          - "Путь к файлу:          {{ secrets_file_path }}"
+          - "Статус импорта:        ✓ УСПЕШНО"
+          - "Загружено переменных:  {{ vars.keys() | list | length }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['russian', 'both']
+      tags:
+        - import
+        - secrets
+        - debug
+
+    - name: Overwrite variables from secrets
+      ansible.builtin.set_fact:
+        # Overwrite server variables / Перезапись переменных сервера
+        pve_node: "{{ vars[host_vars ~ '_pve_node'] }}"
+        pve_api_host: "{{ hostvars[vars[host_vars ~ '_pve_node']]['ansible_host'] }}"
+        pve_api_user: "{{ vars[host_vars ~ '_pve_api_user'] }}"
+        pve_api_password: "{{ vars[host_vars ~ '_pve_api_password'] }}"
+        # Overwrite LXC variables / Перезапись переменных LXC
+        pve_lxc_root_password: "{{ vars[host_vars ~ '_pve_lxc_root_password'] }}"
+        pve_lxc_root_authorized_pubkey: "{{ lookup('file', vars[host_vars ~ '_pve_lxc_root_authorized_pubkey']) }}"
+        # Overwrite user to be added variables / Перезапись переменных добавляемого пользователя
+        admin_name: "{{ vars[host_vars ~ '_admin_user'] }}"
+        admin_password: "{{ vars[host_vars ~ '_admin_password'] }}"
+      register: set_fact_result
+      no_log: true
+      tags:
+        - import
+        - secrets
+        - set_facts
+
+    - name: Display variables status without sensitive data
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Variables Status"
+          - "============================================================================="
+          - "PVE Node:              {{ pve_node }}"
+          - "PVE API Host:          {{ pve_api_host }}"
+          - "PVE API User:          {{ pve_api_user }}"
+          - "PVE API Password:      {{ '***HIDDEN***' }}"
+          - "LXC Root Password:     {{ '***HIDDEN***' }}"
+          - "LXC Root SSH Key:      {{ '***CONFIGURED***' if pve_lxc_root_authorized_pubkey is defined else '***NOT SET***' }}"
+          - "Admin User:            {{ admin_name }}"
+          - "Admin Password:        {{ '***HIDDEN***' }}"
+          - "============================================================================="
+          - "Status:                ✓ SUCCESS"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['english', 'both']
+      tags:
+        - import
+        - secrets
+        - debug
+
+    - name: Display variables status without sensitive data russian
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Статус переменных"
+          - "============================================================================="
+          - "PVE узел:              {{ pve_node }}"
+          - "PVE API хост:          {{ pve_api_host }}"
+          - "PVE API пользователь:  {{ pve_api_user }}"
+          - "PVE API пароль:        {{ '***СКРЫТ***' }}"
+          - "Пароль root LXC:       {{ '***СКРЫТ***' }}"
+          - "SSH ключ root LXC:     {{ '***НАСТРОЕН***' if pve_lxc_root_authorized_pubkey is defined else '***НЕ УСТАНОВЛЕН***' }}"
+          - "Админ пользователь:    {{ admin_name }}"
+          - "Админ пароль:          {{ '***СКРЫТ***' }}"
+          - "============================================================================="
+          - "Статус:                ✓ УСПЕШНО"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['russian', 'both']
+      tags:
+        - import
+        - secrets
+        - debug
+
+    - name: Display variables with sensitive data
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Variables with Sensitive Data"
+          - "============================================================================="
+          - "WARNING: Sensitive data exposed"
+          - "============================================================================="
+          - "PVE Node:              {{ pve_node }}"
+          - "PVE API Host:          {{ pve_api_host }}"
+          - "PVE API User:          {{ pve_api_user }}"
+          - "PVE API Password:      {{ pve_api_password }}"
+          - "LXC Root Password:     {{ pve_lxc_root_password }}"
+          - "Admin User:            {{ admin_name }}"
+          - "Admin Password:        {{ admin_password }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_sensitive | default(false)
+        - debug_lang | default('both') in ['english', 'both']
+      tags:
+        - import
+        - secrets
+        - debug
+        - sensitive
+
+    - name: Display variables with sensitive data russian
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Переменные с чувствительными данными"
+          - "============================================================================="
+          - "ВНИМАНИЕ: Чувствительные данные открыты"
+          - "============================================================================="
+          - "PVE узел:              {{ pve_node }}"
+          - "PVE API хост:          {{ pve_api_host }}"
+          - "PVE API пользователь:  {{ pve_api_user }}"
+          - "PVE API пароль:        {{ pve_api_password }}"
+          - "Пароль root LXC:       {{ pve_lxc_root_password }}"
+          - "Админ пользователь:    {{ admin_name }}"
+          - "Админ пароль:          {{ admin_password }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_sensitive | default(false)
+        - debug_lang | default('both') in ['russian', 'both']
+      tags:
+        - import
+        - secrets
+        - debug
+        - sensitive
+
+  rescue:
+    - name: Display secrets import error
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "ERROR: Secrets Import Failed"
+          - "============================================================================="
+          - "File Path:             {{ secrets_file_path }}"
+          - "Status:                ✗ FAILED"
+          - "Error:                 {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "============================================================================="
+          - "Please check:"
+          - "  1. File exists and is readable"
+          - "  2. File has valid YAML syntax"
+          - "  3. All required variables are present"
+          - "============================================================================="
+      when:
+        - debug_lang | default('both') in ['english', 'both']
+      tags:
+        - import
+        - secrets
+        - debug
+        - error
+
+    - name: Display secrets import error russian
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "ОШИБКА: Импорт секретов не удался"
+          - "============================================================================="
+          - "Путь к файлу:          {{ secrets_file_path }}"
+          - "Статус:                ✗ ОШИБКА"
+          - "Ошибка:                {{ ansible_failed_result.msg | default('Неизвестная ошибка') }}"
+          - "============================================================================="
+          - "Пожалуйста проверьте:"
+          - "  1. Файл существует и доступен для чтения"
+          - "  2. Файл имеет правильный синтаксис YAML"
+          - "  3. Все необходимые переменные присутствуют"
+          - "============================================================================="
+      when:
+        - debug_lang | default('both') in ['russian', 'both']
+      tags:
+        - import
+        - secrets
+        - debug
+        - error
+
+    - name: Fail with descriptive message
+      ansible.builtin.fail:
+        msg: "Failed to import secrets from {{ secrets_file_path }}. Check debug output for details. / Не удалось импортировать секреты из {{ secrets_file_path }}. Проверьте отладочный вывод для деталей."
+      tags:
+        - import
+        - secrets
+        - error
+
+#########################################################
+### Import Node Variables Block ###
+### Блок импорта переменных узла ###
+#########################################################
+
+- name: Import node variables
+  block:
+    - name: Display node variables file path
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Node Variables File"
+          - "============================================================================="
+          - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['english', 'both']
+      tags:
+        - import
+        - host_vars
+        - debug
+
+    - name: Display node variables file path russian
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Файл переменных узла"
+          - "============================================================================="
+          - "Путь к файлу:          {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['russian', 'both']
+      tags:
+        - import
+        - host_vars
+        - debug
+
+    - name: Import node variables from file
+      ansible.builtin.include_vars:
+        file: "{{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+      register: host_vars_import_result
+      tags:
+        - import
+        - host_vars
+
+    - name: Display node variables import status
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Node Variables Import Status"
+          - "============================================================================="
+          - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "Import Status:         ✓ SUCCESS"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['english', 'both']
+      tags:
+        - import
+        - host_vars
+        - debug
+
+    - name: Display node variables import status russian
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Статус импорта переменных узла"
+          - "============================================================================="
+          - "Путь к файлу:          {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "Статус импорта:        ✓ УСПЕШНО"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['russian', 'both']
+      tags:
+        - import
+        - host_vars
+        - debug
+
+  rescue:
+    - name: Display node variables import error
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "ERROR: Node Variables Import Failed"
+          - "============================================================================="
+          - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "Status:                ✗ FAILED"
+          - "Error:                 {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "============================================================================="
+          - "Please check:"
+          - "  1. File exists and is readable"
+          - "  2. File has valid YAML syntax"
+          - "  3. Host name is correct: {{ host_name }}"
+          - "============================================================================="
+      when:
+        - debug_lang | default('both') in ['english', 'both']
+      tags:
+        - import
+        - host_vars
+        - debug
+        - error
+
+    - name: Display node variables import error russian
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "ОШИБКА: Импорт переменных узла не удался"
+          - "============================================================================="
+          - "Путь к файлу:          {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "Статус:                ✗ ОШИБКА"
+          - "Ошибка:                {{ ansible_failed_result.msg | default('Неизвестная ошибка') }}"
+          - "============================================================================="
+          - "Пожалуйста проверьте:"
+          - "  1. Файл существует и доступен для чтения"
+          - "  2. Файл имеет правильный синтаксис YAML"
+          - "  3. Имя хоста правильное: {{ host_name }}"
+          - "============================================================================="
+      when:
+        - debug_lang | default('both') in ['russian', 'both']
+      tags:
+        - import
+        - host_vars
+        - debug
+        - error
+
+    - name: Fail with descriptive message
+      ansible.builtin.fail:
+        msg: "Failed to import node variables from {{ ansible_host_vars_dir }}/{{ host_name }}.yml. Check debug output for details. / Не удалось импортировать переменные узла из {{ ansible_host_vars_dir }}/{{ host_name }}.yml. Проверьте отладочный вывод для деталей."
+      tags:
+        - import
+        - host_vars
+        - error
+
+#########################################################
+### Final Summary ###
+### Финальная сводка ###
+#########################################################
+
+
+- name: Display final configuration summary without sensitive data
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Configuration Summary"
+      - "============================================================================="
+      - ""
+      - "--- Proxmox Server Configuration ---"
+      - "PVE Node:                    {{ pve_node | default('NOT SET') }}"
+      - "PVE API Host:                {{ pve_api_host | default('NOT SET') }}"
+      - "PVE API User:                {{ pve_api_user | default('NOT SET') }}"
+      - "PVE API Password:            {{ '✓ CONFIGURED' if pve_api_password is defined else '✗ NOT SET' }}"
+      - ""
+      - "--- LXC Container Configuration ---"
+      - "LXC Name:                    {{ pve_lxc_name | default('NOT SET') }}"
+      - "LXC VMID:                    {{ pve_lxc_vmid | default('NOT SET') }}"
+      - "LXC OS Template:             {{ pve_lxc_ostemplate_name | default('NOT SET') }}"
+      - "LXC Root Password:           {{ '✓ CONFIGURED' if pve_lxc_root_password is defined else '✗ NOT SET' }}"
+      - "LXC Root SSH Key:            {{ '✓ CONFIGURED' if pve_lxc_root_authorized_pubkey is defined else '✗ NOT SET' }}"
+      - ""
+      - "--- Network Configuration ---"
+      - "IP Address:                  {{ pve_lxc_ip_address | default('NOT SET') }}"
+      - "IP Mask:                     {{ pve_lxc_ip_mask | default('NOT SET') }}"
+      - "Gateway:                     {{ pve_lxc_ip_gateway | default('NOT SET') }}"
+      - "Nameserver:                  {{ pve_lxc_nameserver | default('NOT SET') }}"
+      - "Search Domain:               {{ pve_lxc_searchdomain | default('NOT SET') }}"
+      - ""
+      - "--- Admin User Configuration ---"
+      - "Admin Username:              {{ admin_name | default('NOT SET') }}"
+      - "Admin Password:              {{ '✓ CONFIGURED' if admin_password is defined else '✗ NOT SET' }}"
+      - ""
+      - "--- Container Description ---"
+      - "Description:                 {{ pve_lxc_description | default('NOT SET') }}"
+      - ""
+      - ""
+      - "============================================================================="
+      - "Import Status:               ✓ ALL CONFIGURATIONS LOADED SUCCESSFULLY"
+      - "============================================================================="
+      - ""
+      - "Ready to proceed with container deployment"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - summary
+    - debug
+    - always
+
+- name: Display final configuration summary without sensitive data russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Финальная сводка конфигурации"
+      - "============================================================================="
+      - ""
+      - "--- Конфигурация сервера Proxmox ---"
+      - "PVE узел:                    {{ pve_node | default('НЕ УСТАНОВЛЕН') }}"
+      - "PVE API хост:                {{ pve_api_host | default('НЕ УСТАНОВЛЕН') }}"
+      - "PVE API пользователь:        {{ pve_api_user | default('НЕ УСТАНОВЛЕН') }}"
+      - "PVE API пароль:              {{ '✓ НАСТРОЕН' if pve_api_password is defined else '✗ НЕ УСТАНОВЛЕН' }}"
+      - ""
+      - "--- Конфигурация LXC контейнера ---"
+      - "Имя LXC:                     {{ pve_lxc_name | default('НЕ УСТАНОВЛЕН') }}"
+      - "VMID LXC:                    {{ pve_lxc_vmid | default('НЕ УСТАНОВЛЕН') }}"
+      - "Шаблон ОС LXC:               {{ pve_lxc_ostemplate_name | default('НЕ УСТАНОВЛЕН') }}"
+      - "Пароль root LXC:             {{ '✓ НАСТРОЕН' if pve_lxc_root_password is defined else '✗ НЕ УСТАНОВЛЕН' }}"
+      - "SSH ключ root LXC:           {{ '✓ НАСТРОЕН' if pve_lxc_root_authorized_pubkey is defined else '✗ НЕ УСТАНОВЛЕН' }}"
+      - ""
+      - "--- Конфигурация сети ---"
+      - "IP адрес:                    {{ pve_lxc_ip_address | default('НЕ УСТАНОВЛЕН') }}"
+      - "IP маска:                    {{ pve_lxc_ip_mask | default('НЕ УСТАНОВЛЕН') }}"
+      - "Шлюз:                        {{ pve_lxc_ip_gateway | default('НЕ УСТАНОВЛЕН') }}"
+      - "DNS сервер:                  {{ pve_lxc_nameserver | default('НЕ УСТАНОВЛЕН') }}"
+      - "Домен поиска:                {{ pve_lxc_searchdomain | default('НЕ УСТАНОВЛЕН') }}"
+      - ""
+      - "--- Конфигурация администратора ---"
+      - "Админ пользователь:          {{ admin_name | default('НЕ УСТАНОВЛЕН') }}"
+      - "Админ пароль:                {{ '✓ НАСТРОЕН' if admin_password is defined else '✗ НЕ УСТАНОВЛЕН' }}"
+      - ""
+      - "--- Описание контейнера ---"
+      - "Описание:                    {{ pve_lxc_description | default('НЕ УСТАНОВЛЕН') }}"
+      - ""
+      - ""
+      - "============================================================================="
+      - "Статус импорта:              ✓ ВСЕ КОНФИГУРАЦИИ ЗАГРУЖЕНЫ УСПЕШНО"
+      - "============================================================================="
+      - ""
+      - "Готов к развертыванию контейнера"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - summary
+    - debug
+    - always
+
+- name: Display final configuration summary with sensitive data
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Configuration Summary (SENSITIVE DATA EXPOSED)"
+      - "============================================================================="
+      - "WARNING: Passwords and sensitive data are visible"
+      - "============================================================================="
+      - ""
+      - "--- Proxmox Server Configuration ---"
+      - "PVE Node:                    {{ pve_node | default('NOT SET') }}"
+      - "PVE API Host:                {{ pve_api_host | default('NOT SET') }}"
+      - "PVE API User:                {{ pve_api_user | default('NOT SET') }}"
+      - "PVE API Password:            {{ pve_api_password | default('NOT SET') }}"
+      - ""
+      - "--- LXC Container Configuration ---"
+      - "LXC Name:                    {{ pve_lxc_name | default('NOT SET') }}"
+      - "LXC VMID:                    {{ pve_lxc_vmid | default('NOT SET') }}"
+      - "LXC OS Template:             {{ pve_lxc_ostemplate_name | default('NOT SET') }}"
+      - "LXC Root Password:           {{ pve_lxc_root_password | default('NOT SET') }}"
+      - "LXC Root SSH Key:            {{ '✓ CONFIGURED (%s chars)' | format(pve_lxc_root_authorized_pubkey | length) if pve_lxc_root_authorized_pubkey is defined else 'NOT SET' }}"
+      - ""
+      - "--- Network Configuration ---"
+      - "IP Address:                  {{ pve_lxc_ip_address | default('NOT SET') }}"
+      - "IP Mask:                     {{ pve_lxc_ip_mask | default('NOT SET') }}"
+      - "Gateway:                     {{ pve_lxc_ip_gateway | default('NOT SET') }}"
+      - "Nameserver:                  {{ pve_lxc_nameserver | default('NOT SET') }}"
+      - "Search Domain:               {{ pve_lxc_searchdomain | default('NOT SET') }}"
+      - ""
+      - "--- Admin User Configuration ---"
+      - "Admin Username:              {{ admin_name | default('NOT SET') }}"
+      - "Admin Password:              {{ admin_password | default('NOT SET') }}"
+      - ""
+      - "--- Container Description ---"
+      - "Description:                 {{ pve_lxc_description | default('NOT SET') }}"
+      - ""
+      - "============================================================================="
+      - "Import Status:               ✓ ALL CONFIGURATIONS LOADED SUCCESSFULLY"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_sensitive | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - summary
+    - debug
+    - sensitive
+    - always
+
+- name: Display final configuration summary with sensitive data russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Финальная сводка конфигурации (ЧУВСТВИТЕЛЬНЫЕ ДАННЫЕ ОТКРЫТЫ)"
+      - "============================================================================="
+      - "ВНИМАНИЕ: Пароли и чувствительные данные видимы"
+      - "============================================================================="
+      - ""
+      - "--- Конфигурация сервера Proxmox ---"
+      - "PVE узел:                    {{ pve_node | default('НЕ УСТАНОВЛЕН') }}"
+      - "PVE API хост:                {{ pve_api_host | default('НЕ УСТАНОВЛЕН') }}"
+      - "PVE API пользователь:        {{ pve_api_user | default('НЕ УСТАНОВЛЕН') }}"
+      - "PVE API пароль:              {{ pve_api_password | default('НЕ УСТАНОВЛЕН') }}"
+      - ""
+      - "--- Конфигурация LXC контейнера ---"
+      - "Имя LXC:                     {{ pve_lxc_name | default('НЕ УСТАНОВЛЕН') }}"
+      - "VMID LXC:                    {{ pve_lxc_vmid | default('НЕ УСТАНОВЛЕН') }}"
+      - "Шаблон ОС LXC:               {{ pve_lxc_ostemplate_name | default('НЕ УСТАНОВЛЕН') }}"
+      - "Пароль root LXC:             {{ pve_lxc_root_password | default('НЕ УСТАНОВЛЕН') }}"
+      - "SSH ключ root LXC:           {{ '✓ НАСТРОЕН (%s символов)' | format(pve_lxc_root_authorized_pubkey | length) if pve_lxc_root_authorized_pubkey is defined else 'НЕ УСТАНОВЛЕН' }}"
+      - ""
+      - "--- Конфигурация сети ---"
+      - "IP адрес:                    {{ pve_lxc_ip_address | default('НЕ УСТАНОВЛЕН') }}"
+      - "IP маска:                    {{ pve_lxc_ip_mask | default('НЕ УСТАНОВЛЕН') }}"
+      - "Шлюз:                        {{ pve_lxc_ip_gateway | default('НЕ УСТАНОВЛЕН') }}"
+      - "DNS сервер:                  {{ pve_lxc_nameserver | default('НЕ УСТАНОВЛЕН') }}"
+      - "Домен поиска:                {{ pve_lxc_searchdomain | default('НЕ УСТАНОВЛЕН') }}"
+      - ""
+      - "--- Конфигурация администратора ---"
+      - "Админ пользователь:          {{ admin_name | default('НЕ УСТАНОВЛЕН') }}"
+      - "Админ пароль:                {{ admin_password | default('НЕ УСТАНОВЛЕН') }}"
+      - ""
+      - "--- Описание контейнера ---"
+      - "Описание:                    {{ pve_lxc_description | default('НЕ УСТАНОВЛЕН') }}"
+      - ""
+      - "============================================================================="
+      - "Статус импорта:              ✓ ВСЕ КОНФИГУРАЦИИ ЗАГРУЖЕНЫ УСПЕШНО"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_sensitive | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - summary
+    - debug
+    - sensitive
+    - always
+
+- name: Display role execution completed
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Proxmox Import Config Role Completed"
+      - "============================================================================="
+      - "Status:                ✓ SUCCESS"
+      - "All configurations have been loaded and are ready for use"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - always
+    - debug
+    - summary
+
+- name: Display role execution completed russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Роль импорта конфигурации Proxmox завершена"
+      - "============================================================================="
+      - "Статус:                ✓ УСПЕШНО"
+      - "Все конфигурации загружены и готовы к использованию"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - always
+    - debug
+    - summary
+

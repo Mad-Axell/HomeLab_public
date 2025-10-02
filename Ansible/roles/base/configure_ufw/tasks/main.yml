@@ -1,0 +1,256 @@
+---
+# =============================================================================
+# UFW Configuration Role - Main Tasks / Роль конфигурации UFW - Основные задачи
+# =============================================================================
+# This role configures firewall with security best practices for cross-platform
+# Linux systems. Supports UFW (Debian/Ubuntu) and firewalld (RedHat/SUSE).
+#
+# Эта роль настраивает файрвол с применением лучших практик безопасности
+# для кроссплатформенных Linux систем. Поддерживает UFW (Debian/Ubuntu) 
+# и firewalld (RedHat/SUSE).
+# =============================================================================
+
+# Gather comprehensive system information for platform-specific configuration
+# Сбор полной системной информации для платформо-специфичной конфигурации
+- name: "Gather comprehensive system facts for firewall configuration"
+  ansible.builtin.setup:
+    gather_subset:
+      - distribution
+      - os_family
+      - architecture
+      - kernel
+      - system
+      - hardware
+      - network
+  register: system_facts
+  failed_when: false
+  changed_when: false
+  tags:
+    - debug
+    - system
+    - facts
+    - gather
+
+# Include OS-specific variables / Подключение переменных ОС
+- name: "Include OS-specific variables"
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+  tags: ['always', 'variables']
+
+# Preflight checks / Предварительные проверки
+- name: "Preflight checks"
+  ansible.builtin.include_tasks: preflight.yml
+  tags: ['preflight', 'always']
+
+# Validate input parameters before configuration
+# Валидация входных параметров перед конфигурацией
+- name: "Include parameter validation tasks"
+  ansible.builtin.include_tasks: validate.yml
+  when: validate_configuration | bool
+  register: validation_result
+  tags:
+    - validation
+    - ufw
+
+# Display comprehensive system information for debugging
+# Отображение полной системной информации для отладки
+- name: "Display comprehensive system information for firewall configuration"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "System Information for Firewall Configuration:"
+      - "============================================================================="
+      - "Distribution:          {{ ansible_distribution }}"
+      - "Version:               {{ ansible_distribution_version }}"
+      - "Architecture:          {{ ansible_architecture }}"
+      - "Kernel:                {{ ansible_kernel }}"
+      - "Hostname:              {{ ansible_hostname }}"
+      - "FQDN:                  {{ ansible_fqdn }}"
+      - "OS Family:             {{ ansible_os_family }}"
+      - "Firewall Type:         {{ 'UFW' if ansible_os_family == 'Debian' else ('firewalld' if ansible_os_family in ['RedHat', 'Suse'] else 'UFW') }}"
+      - "SSH Port:              {{ ssh_port }}"
+      - "SSH Protocol:          {{ ssh_protocol }}"
+      - "Default Incoming:      {{ ufw_default_incoming }}"
+      - "Default Outgoing:      {{ ufw_default_outgoing }}"
+      - "Logging Level:         {{ ufw_logging }}"
+      - "IPv6 Support:          {{ 'enabled' if ufw_ipv6 | bool else 'disabled' }}"
+      - "Rate Limiting:         {{ 'enabled' if ssh_rate_limit | bool else 'disabled' }}"
+      - "Auto Reset:            {{ 'enabled' if ufw_auto_reset | bool else 'disabled' }}"
+      - "Backup Enabled:        {{ ufw_backup_enabled }}"
+      - "Validation Enabled:    {{ validate_configuration }}"
+      - "Debug Mode:            {{ debug_mode }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  register: system_info_display
+  tags:
+    - debug
+    - ufw
+    - system
+    - information
+
+- name: "Check if firewall package is installed"
+  ansible.builtin.package_facts:
+    manager: "{{ package_manager }}"
+  register: package_facts
+  failed_when: false
+  when: ansible_os_family in supported_os_families
+  tags:
+    - installation
+    - firewall
+
+# Create backup copies of existing firewall configuration files
+# Создание резервных копий существующих файлов конфигурации файрвола
+- name: "Create backup copies of existing firewall configuration files"
+  block:
+    - name: "Create firewall backup directory"
+      ansible.builtin.file:
+        path: "{{ ufw_backup_dir }}"
+        state: directory
+        mode: '0700'
+        owner: root
+        group: root
+      register: backup_dir_result
+      tags:
+        - backup
+        - firewall
+        - directory
+    
+    - name: "Backup firewall configuration files"
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ ufw_backup_dir }}/{{ item | basename }}{{ ufw_backup_suffix }}"
+        remote_src: true
+        backup: no
+        mode: '0644'
+      loop: "{{ firewall_backup_files | default([]) }}"
+      register: backup_result
+      tags:
+        - backup
+        - firewall
+        - files
+        - safety
+  rescue:
+    - name: "Backup operation failed - continuing without backup"
+      ansible.builtin.debug:
+        msg: "Warning: Could not create backup copies. Continuing with configuration. / Предупреждение: Не удалось создать резервные копии. Продолжаем с конфигурацией."
+      register: backup_result
+      failed_when: false
+  when: ufw_backup_enabled | bool
+  become: true
+  tags:
+    - backup
+    - firewall
+    - files
+    - safety
+
+# Display detailed backup operation results
+# Отображение детальных результатов операции резервного копирования
+- name: "Display detailed backup operation results"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Backup Operation Results:"
+      - "============================================================================="
+      - "Backup Directory:       {{ ufw_backup_dir }}"
+      - "Directory Created:      {{ 'YES' if backup_dir_result is defined and backup_dir_result.changed else 'NO' }}"
+      - "Source File:            {{ item.src }}"
+      - "Backup File:            {{ item.dest }}"
+      - "Operation Status:       {{ 'SUCCESS' if item.changed else 'SKIPPED' }}"
+      - "File Exists:            {{ 'YES' if item.src is file else 'NO' }}"
+      - "Backup Created:         {{ 'YES' if item.changed else 'NO' }}"
+      - "============================================================================="
+  loop: "{{ backup_result.results | default([]) }}"
+  no_log: true
+  when: 
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+    - ufw_backup_enabled | bool
+    - backup_result is defined
+  tags:
+    - debug
+    - backup
+    - results
+
+# Install and configure firewall based on OS family
+# Установка и настройка файрвола в зависимости от семейства ОС
+- name: "Install and configure firewall for Debian/Ubuntu"
+  ansible.builtin.include_tasks: debian.yml
+  when: ansible_os_family == "Debian"
+  tags: ['installation', 'configuration', 'debian']
+
+- name: "Install and configure firewall for RedHat/CentOS"
+  ansible.builtin.include_tasks: redhat.yml
+  when: ansible_os_family == "RedHat"
+  tags: ['installation', 'configuration', 'redhat']
+
+- name: "Install and configure firewall for SUSE/openSUSE"
+  ansible.builtin.include_tasks: suse.yml
+  when: ansible_os_family == "Suse"
+  tags: ['installation', 'configuration', 'suse']
+
+# Final configuration summary / Итоговая сводка конфигурации
+
+# Display final configuration summary / Отображение итоговой сводки конфигурации
+
+- name: "Display comprehensive final configuration summary (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "FIREWALL CONFIGURATION COMPLETED SUCCESSFULLY!"
+      - "============================================================================="
+      - "Operating System:          {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "OS Family:                 {{ ansible_os_family }}"
+      - "Firewall Type:             {{ 'UFW' if ansible_os_family == 'Debian' else ('firewalld' if ansible_os_family in ['RedHat', 'Suse'] else 'Unknown') }}"
+      - "SSH Port:                  {{ ssh_port }}"
+      - "SSH Protocol:              {{ ssh_protocol }}"
+      - "Default Incoming:          {{ ufw_default_incoming }}"
+      - "Default Outgoing:          {{ ufw_default_outgoing }}"
+      - "Logging Level:             {{ ufw_logging }}"
+      - "IPv6 Support:              {{ 'enabled' if ufw_ipv6 | bool else 'disabled' }}"
+      - "Rate Limiting:             {{ 'enabled' if ssh_rate_limit | bool else 'disabled' }}"
+      - "Auto Reset:                {{ 'enabled' if ufw_auto_reset | bool else 'disabled' }}"
+      - "Configuration Mode:        {{ 'Direct subnets' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Users-based' }}"
+      - "Allowed Subnets:           {{ final_allowed_subnets | length }} configured"
+      - "Denied Subnets:            {{ final_denied_subnets | length }} configured"
+      - "Custom Rules:              {{ ufw_rules | length }} configured"
+      - "Users Configured:          {{ users_to_add | length if (users_to_add is defined and users_to_add | length > 0) else '0' }}"
+      - "Backup Enabled:            {{ ufw_backup_enabled }}"
+      - "Validation Enabled:        {{ validate_configuration }}"
+      - "Debug Mode:                {{ debug_mode }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags: ['summary', 'completion', 'final']
+
+- name: "Display comprehensive final configuration summary (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "КОНФИГУРАЦИЯ ФАЙРВОЛА УСПЕШНО ЗАВЕРШЕНА!"
+      - "============================================================================="
+      - "Операционная система:      {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Семейство ОС:             {{ ansible_os_family }}"
+      - "Тип файрвола:             {{ 'UFW' if ansible_os_family == 'Debian' else ('firewalld' if ansible_os_family in ['RedHat', 'Suse'] else 'Неизвестно') }}"
+      - "Порт SSH:                 {{ ssh_port }}"
+      - "Протокол SSH:             {{ ssh_protocol }}"
+      - "Входящие по умолчанию:    {{ ufw_default_incoming }}"
+      - "Исходящие по умолчанию:   {{ ufw_default_outgoing }}"
+      - "Уровень логирования:      {{ ufw_logging }}"
+      - "Поддержка IPv6:           {{ 'включена' if ufw_ipv6 | bool else 'отключена' }}"
+      - "Ограничение скорости:     {{ 'включено' if ssh_rate_limit | bool else 'отключено' }}"
+      - "Автосброс:                {{ 'включен' if ufw_auto_reset | bool else 'отключен' }}"
+      - "Режим конфигурации:       {{ 'Прямые подсети' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'На основе пользователей' }}"
+      - "Разрешенные подсети:      {{ final_allowed_subnets | length }} настроено"
+      - "Запрещенные подсети:      {{ final_denied_subnets | length }} настроено"
+      - "Пользовательские правила: {{ ufw_rules | length }} настроено"
+      - "Пользователи настроены:   {{ users_to_add | length if (users_to_add is defined and users_to_add | length > 0) else '0' }}"
+      - "Резервное копирование:    {{ ufw_backup_enabled }}"
+      - "Валидация включена:       {{ validate_configuration }}"
+      - "Режим отладки:            {{ debug_mode }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags: ['summary', 'completion', 'final']

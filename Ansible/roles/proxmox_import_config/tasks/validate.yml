@@ -1,0 +1,335 @@
+---
+
+#########################################################
+### Parameter Validation Tasks ###
+### Задачи валидации параметров ###
+#########################################################
+
+- name: Display validation start
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Starting Parameter Validation"
+      - "============================================================================="
+      - "Host Name:             {{ host_name }}"
+      - "Host Vars Prefix:      {{ host_vars }}"
+      - "Secrets File:          {{ secrets_file_path }}"
+      - "Host Vars Directory:   {{ ansible_host_vars_dir }}"
+      - "Inventory File:        {{ ansible_inventory_file }}"
+      - "Strict Validation:     {{ strict_validation }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - validation
+    - debug
+
+- name: Display validation start russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Начало валидации параметров"
+      - "============================================================================="
+      - "Имя хоста:             {{ host_name }}"
+      - "Префикс переменных:    {{ host_vars }}"
+      - "Файл секретов:         {{ secrets_file_path }}"
+      - "Директория host_vars:  {{ ansible_host_vars_dir }}"
+      - "Файл инвентори:        {{ ansible_inventory_file }}"
+      - "Строгая валидация:     {{ strict_validation }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - validation
+    - debug
+
+- name: Validate required parameters
+  ansible.builtin.assert:
+    that:
+      - host_name is defined
+      - host_name | length > 0
+      - host_vars is defined
+      - host_vars | length > 0
+      - secrets_file_path is defined
+      - ansible_host_vars_dir is defined
+    success_msg: "Required parameters validation passed / Валидация обязательных параметров пройдена ✓"
+    fail_msg: "Required parameters validation failed / Валидация обязательных параметров не пройдена ✗"
+  when: validate_parameters | bool
+  tags:
+    - validation
+
+- name: Check secrets file existence
+  ansible.builtin.stat:
+    path: "{{ secrets_file_path }}"
+  register: secrets_file_stat
+  delegate_to: localhost
+  tags:
+    - validation
+    - files
+
+- name: Display secrets file check result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Secrets File Check"
+      - "============================================================================="
+      - "File Path:             {{ secrets_file_path }}"
+      - "File Exists:           {{ secrets_file_stat.stat.exists }} {{ '✓' if secrets_file_stat.stat.exists else '✗' }}"
+      - "File Readable:         {{ secrets_file_stat.stat.readable | default(false) }} {{ '✓' if secrets_file_stat.stat.readable | default(false) else '✗' }}"
+      - "File Size:             {{ secrets_file_stat.stat.size | default(0) }} bytes"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - validation
+    - debug
+    - files
+
+- name: Display secrets file check result russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Проверка файла секретов"
+      - "============================================================================="
+      - "Путь к файлу:          {{ secrets_file_path }}"
+      - "Файл существует:       {{ secrets_file_stat.stat.exists }} {{ '✓' if secrets_file_stat.stat.exists else '✗' }}"
+      - "Файл читаемый:         {{ secrets_file_stat.stat.readable | default(false) }} {{ '✓' if secrets_file_stat.stat.readable | default(false) else '✗' }}"
+      - "Размер файла:          {{ secrets_file_stat.stat.size | default(0) }} байт"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - validation
+    - debug
+    - files
+
+- name: Assert secrets file exists
+  ansible.builtin.assert:
+    that:
+      - secrets_file_stat.stat.exists
+      - secrets_file_stat.stat.readable
+    success_msg: "Secrets file exists and is readable / Файл секретов существует и доступен для чтения ✓"
+    fail_msg: "Secrets file does not exist or is not readable at {{ secrets_file_path }} / Файл секретов не существует или не доступен для чтения {{ secrets_file_path }} ✗"
+  when: validate_parameters | bool
+  tags:
+    - validation
+    - files
+
+- name: Check host_vars file existence
+  ansible.builtin.stat:
+    path: "{{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+  register: host_vars_file_stat
+  delegate_to: localhost
+  tags:
+    - validation
+    - files
+
+- name: Display host_vars file check result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Host Variables File Check"
+      - "============================================================================="
+      - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+      - "File Exists:           {{ host_vars_file_stat.stat.exists }} {{ '✓' if host_vars_file_stat.stat.exists else '✗' }}"
+      - "File Readable:         {{ host_vars_file_stat.stat.readable | default(false) }} {{ '✓' if host_vars_file_stat.stat.readable | default(false) else '✗' }}"
+      - "File Size:             {{ host_vars_file_stat.stat.size | default(0) }} bytes"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - validation
+    - debug
+    - files
+
+- name: Display host_vars file check result russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Проверка файла переменных хоста"
+      - "============================================================================="
+      - "Путь к файлу:          {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+      - "Файл существует:       {{ host_vars_file_stat.stat.exists }} {{ '✓' if host_vars_file_stat.stat.exists else '✗' }}"
+      - "Файл читаемый:         {{ host_vars_file_stat.stat.readable | default(false) }} {{ '✓' if host_vars_file_stat.stat.readable | default(false) else '✗' }}"
+      - "Размер файла:          {{ host_vars_file_stat.stat.size | default(0) }} байт"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - validation
+    - debug
+    - files
+
+- name: Assert host_vars file exists
+  ansible.builtin.assert:
+    that:
+      - host_vars_file_stat.stat.exists
+      - host_vars_file_stat.stat.readable
+    success_msg: "Host variables file exists and is readable / Файл переменных хоста существует и доступен для чтения ✓"
+    fail_msg: "Host variables file does not exist or is not readable at {{ ansible_host_vars_dir }}/{{ host_name }}.yml / Файл переменных хоста не существует или не доступен для чтения {{ ansible_host_vars_dir }}/{{ host_name }}.yml ✗"
+  when: validate_parameters | bool
+  tags:
+    - validation
+    - files
+
+- name: Check inventory file existence
+  ansible.builtin.stat:
+    path: "{{ ansible_inventory_file }}"
+  register: inventory_file_stat
+  delegate_to: localhost
+  tags:
+    - validation
+    - inventory
+
+- name: Display inventory file check result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Inventory File Check"
+      - "============================================================================="
+      - "File Path:             {{ ansible_inventory_file }}"
+      - "File Exists:           {{ inventory_file_stat.stat.exists }} {{ '✓' if inventory_file_stat.stat.exists else '✗' }}"
+      - "File Readable:         {{ inventory_file_stat.stat.readable | default(false) }} {{ '✓' if inventory_file_stat.stat.readable | default(false) else '✗' }}"
+      - "File Size:             {{ inventory_file_stat.stat.size | default(0) }} bytes"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - validation
+    - debug
+    - inventory
+
+- name: Display inventory file check result russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Проверка файла инвентори"
+      - "============================================================================="
+      - "Путь к файлу:          {{ ansible_inventory_file }}"
+      - "Файл существует:       {{ inventory_file_stat.stat.exists }} {{ '✓' if inventory_file_stat.stat.exists else '✗' }}"
+      - "Файл читаемый:         {{ inventory_file_stat.stat.readable | default(false) }} {{ '✓' if inventory_file_stat.stat.readable | default(false) else '✗' }}"
+      - "Размер файла:          {{ inventory_file_stat.stat.size | default(0) }} байт"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - validation
+    - debug
+    - inventory
+
+- name: Check if host exists in inventory
+  ansible.builtin.command:
+    cmd: "grep -E '^[[:space:]]*{{ host_name }}:' {{ ansible_inventory_file }}"
+  register: host_in_inventory
+  delegate_to: localhost
+  failed_when: false
+  changed_when: false
+  tags:
+    - validation
+    - inventory
+
+- name: Display host in inventory check result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Host in Inventory Check"
+      - "============================================================================="
+      - "Host Name:             {{ host_name }}"
+      - "Found in Inventory:    {{ host_in_inventory.rc == 0 }} {{ '✓' if host_in_inventory.rc == 0 else '✗' }}"
+      - "Matched Lines:         {{ host_in_inventory.stdout_lines | length }}"
+      - "{% if host_in_inventory.stdout_lines | length > 0 %}Matched Entry:         {{ host_in_inventory.stdout_lines[0] }}{% endif %}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - validation
+    - debug
+    - inventory
+
+- name: Display host in inventory check result russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Проверка хоста в инвентори"
+      - "============================================================================="
+      - "Имя хоста:             {{ host_name }}"
+      - "Найден в инвентори:    {{ host_in_inventory.rc == 0 }} {{ '✓' if host_in_inventory.rc == 0 else '✗' }}"
+      - "Совпадающих строк:     {{ host_in_inventory.stdout_lines | length }}"
+      - "{% if host_in_inventory.stdout_lines | length > 0 %}Совпадающая запись:    {{ host_in_inventory.stdout_lines[0] }}{% endif %}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - validation
+    - debug
+    - inventory
+
+- name: Assert host exists in inventory
+  ansible.builtin.assert:
+    that:
+      - host_in_inventory.rc == 0
+      - host_in_inventory.stdout_lines | length > 0
+    success_msg: "Host '{{ host_name }}' found in inventory / Хост '{{ host_name }}' найден в инвентори ✓"
+    fail_msg: "Host '{{ host_name }}' not found in inventory file {{ ansible_inventory_file }} / Хост '{{ host_name }}' не найден в файле инвентори {{ ansible_inventory_file }} ✗"
+  when:
+    - validate_parameters | bool
+    - inventory_file_stat.stat.exists
+  tags:
+    - validation
+    - inventory
+
+- name: Display validation summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Validation Summary"
+      - "============================================================================="
+      - "Required Parameters:   {{ '✓ PASSED' if (host_name is defined and host_vars is defined) else '✗ FAILED' }}"
+      - "Secrets File:          {{ '✓ EXISTS' if secrets_file_stat.stat.exists else '✗ MISSING' }}"
+      - "Host Vars File:        {{ '✓ EXISTS' if host_vars_file_stat.stat.exists else '✗ MISSING' }}"
+      - "Inventory File:        {{ '✓ EXISTS' if inventory_file_stat.stat.exists else '✗ MISSING' }}"
+      - "Host in Inventory:     {{ '✓ FOUND' if host_in_inventory.rc == 0 else '✗ NOT FOUND' }}"
+      - "Validation Mode:       {{ 'STRICT' if strict_validation else 'NORMAL' }}"
+      - "============================================================================="
+      - "Overall Status:        {{ '✓ ALL CHECKS PASSED' if (secrets_file_stat.stat.exists and host_vars_file_stat.stat.exists) else '✗ SOME CHECKS FAILED' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - validation
+    - debug
+    - summary
+
+- name: Display validation summary russian
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка валидации"
+      - "============================================================================="
+      - "Обязательные параметры:{{ '✓ ПРОЙДЕНО' if (host_name is defined and host_vars is defined) else '✗ ОШИБКА' }}"
+      - "Файл секретов:         {{ '✓ СУЩЕСТВУЕТ' if secrets_file_stat.stat.exists else '✗ ОТСУТСТВУЕТ' }}"
+      - "Файл host_vars:        {{ '✓ СУЩЕСТВУЕТ' if host_vars_file_stat.stat.exists else '✗ ОТСУТСТВУЕТ' }}"
+      - "Файл инвентори:        {{ '✓ СУЩЕСТВУЕТ' if inventory_file_stat.stat.exists else '✗ ОТСУТСТВУЕТ' }}"
+      - "Хост в инвентори:      {{ '✓ НАЙДЕН' if host_in_inventory.rc == 0 else '✗ НЕ НАЙДЕН' }}"
+      - "Режим валидации:       {{ 'СТРОГИЙ' if strict_validation else 'ОБЫЧНЫЙ' }}"
+      - "============================================================================="
+      - "Общий статус:          {{ '✓ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ' if (secrets_file_stat.stat.exists and host_vars_file_stat.stat.exists) else '✗ НЕКОТОРЫЕ ПРОВЕРКИ НЕ ПРОШЛИ' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - validation
+    - debug
+    - summary

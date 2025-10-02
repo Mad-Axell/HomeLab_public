@@ -1,0 +1,55 @@
+# ============================================================================
+# EN: Python Dependencies for Proxmox LXC Role
+# RU: Python зависимости для роли Proxmox LXC
+# ============================================================================
+#
+# EN: This file lists Python packages required for this role to function.
+#     These packages are needed on the Ansible control node and/or managed hosts.
+#     The role automatically installs python3-proxmoxer on target hosts,
+#     so this file is primarily for documentation and development purposes.
+#
+# RU: Этот файл перечисляет пакеты Python, необходимые для работы этой роли.
+#     Эти пакеты нужны на управляющем узле Ansible и/или управляемых хостах.
+#     Роль автоматически устанавливает python3-proxmoxer на целевых хостах,
+#     поэтому этот файл в первую очередь для документации и разработки.
+#
+# ============================================================================
+# EN: OPTIONAL - The role installs required packages automatically!
+# RU: ОПЦИОНАЛЬНО - Роль устанавливает требуемые пакеты автоматически!
+# ============================================================================
+#
+# EN: Use cases for this file:
+#     1. Development environment setup
+#     2. Building execution environments (with ansible-builder)
+#     3. Documentation of dependencies
+#
+# RU: Случаи использования этого файла:
+#     1. Настройка окружения разработки
+#     2. Сборка execution environments (с ansible-builder)
+#     3. Документация зависимостей
+#
+# EN: Installation (if needed manually):
+# RU: Установка (если нужна вручную):
+#     pip install -r requirements.txt
+# ============================================================================
+
+# EN: Core Ansible (minimum version requirement)
+# RU: Базовый Ansible (минимальная требуемая версия)
+ansible>=2.14.0
+
+# EN: Proxmox API client library (CRITICAL for Proxmox modules)
+# RU: Библиотека клиента Proxmox API (КРИТИЧНА для модулей Proxmox)
+proxmoxer>=2.0.0
+
+# EN: HTTP requests library (dependency of proxmoxer)
+# RU: Библиотека HTTP запросов (зависимость proxmoxer)
+requests>=2.28.0
+
+# EN: JSON query support (for complex data filtering in playbooks)
+# RU: Поддержка JSON запросов (для сложной фильтрации данных в playbook)
+jmespath>=1.0.0
+
+# EN: Network address manipulation (for IP address validation and calculations)
+# RU: Манипуляция сетевыми адресами (для валидации IP и вычислений)
+netaddr>=0.8.0
+
