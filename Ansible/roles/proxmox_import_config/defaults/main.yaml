@@ -1,0 +1,57 @@
+---
+
+#########################################################
+### Debug and Validation Settings ###
+### Настройки отладки и валидации ###
+#########################################################
+
+# Enable debug output / Включить отладочный вывод
+debug_mode: true
+
+# Enable sensitive debug output (passwords in plain text) / Включить отладочный вывод с паролями
+debug_sensitive: false
+
+# Enable configuration backups / Включить резервное копирование конфигураций
+backup_enabled: true
+
+# Enable parameter validation / Включить валидацию параметров
+validate_parameters: true
+
+# Enable strict validation / Включить строгую валидацию
+strict_validation: true
+
+
+#########################################################
+### Host Configuration ###
+### Конфигурация хоста ###
+#########################################################
+
+# Host name for loading host_vars / Имя хоста для загрузки host_vars
+host_name: "some-server"
+
+# Prefix for variables in secrets.yaml / Префикс для переменных в secrets.yaml
+host_vars: "some_server"
+
+
+#########################################################
+### Configurable Paths Section ###
+### Секция настраиваемых путей ###
+#########################################################
+
+# Base directory for Ansible configuration / Базовая директория для конфигурации Ansible
+ansible_base_dir: "/etc/ansible"
+
+# Directory for host variables / Директория для переменных хоста
+ansible_host_vars_dir: "{{ ansible_base_dir }}/host_vars"
+
+# Directory for secrets and vault files / Директория для секретов и vault-файлов
+ansible_vars_dir: "{{ ansible_base_dir }}/VARS"
+
+# Path to secrets file / Путь к файлу секретов
+secrets_file_path: "{{ ansible_vars_dir }}/secrets.yaml"
+
+# Path to inventory file / Путь к файлу инвентори
+ansible_inventory_file: "{{ ansible_base_dir }}/hosts.yml"
+
+
+

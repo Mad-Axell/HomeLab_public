@@ -1,0 +1,393 @@
+---
+
+#########################################################
+### Parameter Validation Tasks ###
+### Задачи валидации параметров ###
+#########################################################
+
+- name: Display validation start
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Starting Parameter Validation"
+      - "============================================================================="
+      - "Host Name:             {{ host_name }}"
+      - "Host Vars Prefix:      {{ host_vars }}"
+      - "Secrets File:          {{ secrets_file_path }}"
+      - "Host Vars Directory:   {{ ansible_host_vars_dir }}"
+      - "Inventory File:        {{ ansible_inventory_file }}"
+      - "Strict Validation:     {{ strict_validation }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - validation
+    - debug
+
+
+- name: Validate required parameters
+  ansible.builtin.assert:
+    that:
+      - host_name is defined
+      - host_name | length > 0
+      - host_vars is defined
+      - host_vars | length > 0
+      - secrets_file_path is defined
+      - ansible_host_vars_dir is defined
+    success_msg: "Required parameters validation passed / Валидация обязательных параметров пройдена ✓"
+    fail_msg: "Required parameters validation failed / Валидация обязательных параметров не пройдена ✗"
+  when: validate_parameters | bool
+  tags:
+    - validation
+
+- name: Check secrets file existence
+  ansible.builtin.stat:
+    path: "{{ secrets_file_path }}"
+  register: secrets_file_stat
+  delegate_to: localhost
+  tags:
+    - validation
+    - files
+
+- name: Display secrets file check result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Secrets File Check"
+      - "============================================================================="
+      - "File Path:             {{ secrets_file_path }}"
+      - "File Exists:           {{ secrets_file_stat.stat.exists }} {{ '✓' if secrets_file_stat.stat.exists else '✗' }}"
+      - "File Readable:         {{ secrets_file_stat.stat.readable | default(false) }} {{ '✓' if secrets_file_stat.stat.readable | default(false) else '✗' }}"
+      - "File Size:             {{ secrets_file_stat.stat.size | default(0) }} bytes"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - validation
+    - debug
+    - files
+
+
+- name: Assert secrets file exists
+  ansible.builtin.assert:
+    that:
+      - secrets_file_stat.stat.exists
+      - secrets_file_stat.stat.readable
+    success_msg: "Secrets file exists and is readable / Файл секретов существует и доступен для чтения ✓"
+    fail_msg: "Secrets file does not exist or is not readable at {{ secrets_file_path }} / Файл секретов не существует или не доступен для чтения {{ secrets_file_path }} ✗"
+  when: validate_parameters | bool
+  tags:
+    - validation
+    - files
+
+- name: Check host_vars file existence
+  ansible.builtin.stat:
+    path: "{{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+  register: host_vars_file_stat
+  delegate_to: localhost
+  tags:
+    - validation
+    - files
+
+- name: Display host_vars file check result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Host Variables File Check"
+      - "============================================================================="
+      - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+      - "File Exists:           {{ host_vars_file_stat.stat.exists }} {{ '✓' if host_vars_file_stat.stat.exists else '✗' }}"
+      - "File Readable:         {{ host_vars_file_stat.stat.readable | default(false) }} {{ '✓' if host_vars_file_stat.stat.readable | default(false) else '✗' }}"
+      - "File Size:             {{ host_vars_file_stat.stat.size | default(0) }} bytes"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - validation
+    - debug
+    - files
+
+
+- name: Assert host_vars file exists
+  ansible.builtin.assert:
+    that:
+      - host_vars_file_stat.stat.exists
+      - host_vars_file_stat.stat.readable
+    success_msg: "Host variables file exists and is readable / Файл переменных хоста существует и доступен для чтения ✓"
+    fail_msg: "Host variables file does not exist or is not readable at {{ ansible_host_vars_dir }}/{{ host_name }}.yml / Файл переменных хоста не существует или не доступен для чтения {{ ansible_host_vars_dir }}/{{ host_name }}.yml ✗"
+  when: validate_parameters | bool
+  tags:
+    - validation
+    - files
+
+- name: Check inventory file existence
+  ansible.builtin.stat:
+    path: "{{ ansible_inventory_file }}"
+  register: inventory_file_stat
+  delegate_to: localhost
+  tags:
+    - validation
+    - inventory
+
+- name: Display inventory file check result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Inventory File Check"
+      - "============================================================================="
+      - "File Path:             {{ ansible_inventory_file }}"
+      - "File Exists:           {{ inventory_file_stat.stat.exists }} {{ '✓' if inventory_file_stat.stat.exists else '✗' }}"
+      - "File Readable:         {{ inventory_file_stat.stat.readable | default(false) }} {{ '✓' if inventory_file_stat.stat.readable | default(false) else '✗' }}"
+      - "File Size:             {{ inventory_file_stat.stat.size | default(0) }} bytes"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - validation
+    - debug
+    - inventory
+
+
+- name: Check if host exists in inventory
+  ansible.builtin.command:
+    cmd: "grep -E '^[[:space:]]*{{ host_name }}:' {{ ansible_inventory_file }}"
+  register: host_in_inventory
+  delegate_to: localhost
+  failed_when: false
+  changed_when: false
+  tags:
+    - validation
+    - inventory
+
+- name: Display host in inventory check result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Host in Inventory Check"
+      - "============================================================================="
+      - "Host Name:             {{ host_name }}"
+      - "Found in Inventory:    {{ host_in_inventory.rc == 0 }} {{ '✓' if host_in_inventory.rc == 0 else '✗' }}"
+      - "Matched Lines:         {{ host_in_inventory.stdout_lines | length }}"
+      - "{% if host_in_inventory.stdout_lines | length > 0 %}Matched Entry:         {{ host_in_inventory.stdout_lines[0] }}{% endif %}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - validation
+    - debug
+    - inventory
+
+
+- name: Assert host exists in inventory
+  ansible.builtin.assert:
+    that:
+      - host_in_inventory.rc == 0
+      - host_in_inventory.stdout_lines | length > 0
+    success_msg: "Host '{{ host_name }}' found in inventory / Хост '{{ host_name }}' найден в инвентори ✓"
+    fail_msg: "Host '{{ host_name }}' not found in inventory file {{ ansible_inventory_file }} / Хост '{{ host_name }}' не найден в файле инвентори {{ ansible_inventory_file }} ✗"
+  when:
+    - validate_parameters | bool
+    - inventory_file_stat.stat.exists
+  tags:
+    - validation
+    - inventory
+
+- name: Display validation summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Validation Summary"
+      - "============================================================================="
+      - "Required Parameters:   {{ '✓ PASSED' if (host_name is defined and host_vars is defined) else '✗ FAILED' }}"
+      - "Secrets File:          {{ '✓ EXISTS' if secrets_file_stat.stat.exists else '✗ MISSING' }}"
+      - "Host Vars File:        {{ '✓ EXISTS' if host_vars_file_stat.stat.exists else '✗ MISSING' }}"
+      - "Inventory File:        {{ '✓ EXISTS' if inventory_file_stat.stat.exists else '✗ MISSING' }}"
+      - "Host in Inventory:     {{ '✓ FOUND' if host_in_inventory.rc == 0 else '✗ NOT FOUND' }}"
+      - "Validation Mode:       {{ 'STRICT' if strict_validation else 'NORMAL' }}"
+      - "============================================================================="
+      - "Overall Status:        {{ '✓ ALL CHECKS PASSED' if (secrets_file_stat.stat.exists and host_vars_file_stat.stat.exists) else '✗ SOME CHECKS FAILED' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - validation
+    - debug
+    - summary
+
+
+#########################################################
+### Advanced Validation Tasks ###
+### Задачи расширенной валидации ###
+#########################################################
+
+- name: Validate YAML syntax of secrets file
+  # Validate YAML syntax of secrets file
+  # Валидация синтаксиса YAML файла секретов
+  ansible.builtin.command:
+    cmd: "python3 -c 'import yaml; yaml.safe_load(open(\"{{ secrets_file_path }}\"))'"
+  register: secrets_yaml_validation
+  delegate_to: localhost
+  failed_when: false
+  changed_when: false
+  when:
+    - validate_parameters | bool
+    - secrets_file_stat.stat.exists
+  tags:
+    - validation
+    - yaml
+    - secrets
+
+- name: Display secrets YAML validation result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Secrets YAML Validation"
+      - "============================================================================="
+      - "File Path:             {{ secrets_file_path }}"
+      - "YAML Valid:            {{ secrets_yaml_validation.rc == 0 }} {{ '✓' if secrets_yaml_validation.rc == 0 else '✗' }}"
+      - "{% if secrets_yaml_validation.rc != 0 %}Error:                 {{ secrets_yaml_validation.stderr }}{% endif %}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - validation
+    - debug
+    - yaml
+
+
+- name: Assert secrets YAML syntax is valid
+  ansible.builtin.assert:
+    that:
+      - secrets_yaml_validation.rc == 0
+    success_msg: "Secrets file YAML syntax is valid / Синтаксис YAML файла секретов корректен ✓"
+    fail_msg: "Secrets file YAML syntax is invalid: {{ secrets_yaml_validation.stderr }} / Синтаксис YAML файла секретов некорректен: {{ secrets_yaml_validation.stderr }} ✗"
+  when:
+    - validate_parameters | bool
+    - secrets_file_stat.stat.exists
+    - strict_validation | default(false)
+  tags:
+    - validation
+    - yaml
+    - secrets
+
+- name: Validate YAML syntax of host variables file
+  # Validate YAML syntax of host variables file
+  # Валидация синтаксиса YAML файла переменных хоста
+  ansible.builtin.command:
+    cmd: "python3 -c 'import yaml; yaml.safe_load(open(\"{{ ansible_host_vars_dir }}/{{ host_name }}.yml\"))'"
+  register: host_vars_yaml_validation
+  delegate_to: localhost
+  failed_when: false
+  changed_when: false
+  when:
+    - validate_parameters | bool
+    - host_vars_file_stat.stat.exists
+  tags:
+    - validation
+    - yaml
+    - host_vars
+
+- name: Display host variables YAML validation result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Host Variables YAML Validation"
+      - "============================================================================="
+      - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+      - "YAML Valid:            {{ host_vars_yaml_validation.rc == 0 }} {{ '✓' if host_vars_yaml_validation.rc == 0 else '✗' }}"
+      - "{% if host_vars_yaml_validation.rc != 0 %}Error:                 {{ host_vars_yaml_validation.stderr }}{% endif %}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - validation
+    - debug
+    - yaml
+
+
+- name: Assert host variables YAML syntax is valid
+  ansible.builtin.assert:
+    that:
+      - host_vars_yaml_validation.rc == 0
+    success_msg: "Host variables file YAML syntax is valid / Синтаксис YAML файла переменных хоста корректен ✓"
+    fail_msg: "Host variables file YAML syntax is invalid: {{ host_vars_yaml_validation.stderr }} / Синтаксис YAML файла переменных хоста некорректен: {{ host_vars_yaml_validation.stderr }} ✗"
+  when:
+    - validate_parameters | bool
+    - host_vars_file_stat.stat.exists
+    - strict_validation | default(false)
+  tags:
+    - validation
+    - yaml
+    - host_vars
+
+- name: Validate required secrets variables structure
+  # Validate required secrets variables structure
+  # Валидация структуры обязательных переменных секретов
+  ansible.builtin.include_vars:
+    file: "{{ secrets_file_path }}"
+  register: secrets_vars_validation
+  delegate_to: localhost
+  when:
+    - validate_parameters | bool
+    - secrets_file_stat.stat.exists
+    - secrets_yaml_validation.rc == 0
+  tags:
+    - validation
+    - structure
+    - secrets
+
+- name: Check required secrets variables exist
+  ansible.builtin.assert:
+    that:
+      - vars[host_vars ~ '_pve_node'] is defined
+      - vars[host_vars ~ '_pve_api_user'] is defined
+      - vars[host_vars ~ '_pve_api_password'] is defined
+      - vars[host_vars ~ '_pve_lxc_root_password'] is defined
+      - vars[host_vars ~ '_admin_user'] is defined
+      - vars[host_vars ~ '_admin_password'] is defined
+    success_msg: "All required secrets variables are present / Все обязательные переменные секретов присутствуют ✓"
+    fail_msg: "Missing required secrets variables for prefix '{{ host_vars }}' / Отсутствуют обязательные переменные секретов для префикса '{{ host_vars }}' ✗"
+  when:
+    - validate_parameters | bool
+    - secrets_file_stat.stat.exists
+    - secrets_yaml_validation.rc == 0
+    - strict_validation | default(false)
+  tags:
+    - validation
+    - structure
+    - secrets
+
+- name: Log validation results
+  # Log validation results
+  # Логирование результатов валидации
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "VALIDATION_RESULTS",
+      "service_name": "proxmox_import_config",
+      "status": "COMPLETED",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "task": "validation_results",
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Validation process completed",
+      "metadata": {
+        "validation_mode": "strict" if strict_validation else "normal",
+        "secrets_file_valid": secrets_yaml_validation.rc == 0,
+        "host_vars_file_valid": host_vars_yaml_validation.rc == 0,
+        "secrets_file_exists": secrets_file_stat.stat.exists,
+        "host_vars_file_exists": host_vars_file_stat.stat.exists,
+        "inventory_file_exists": inventory_file_stat.stat.exists,
+        "host_in_inventory": host_in_inventory.rc == 0,
+        "required_parameters_present": host_name is defined and host_vars is defined
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when: log_file is defined
+  tags:
+    - validation
+    - logging

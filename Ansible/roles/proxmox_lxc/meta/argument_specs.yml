@@ -1,0 +1,483 @@
+---
+# EN: Argument specifications for role input validation
+# RU: Спецификации аргументов для валидации входных параметров роли
+argument_specs:
+  main:
+    short_description: "EN: Proxmox LXC container management role / RU: Роль управления LXC контейнерами Proxmox"
+    description: |
+      EN: This role provides automated creation and management of LXC containers in Proxmox Virtual Environment (PVE).
+      It supports container creation, template management, network configuration, and resource allocation.
+      RU: Данная роль обеспечивает автоматизированное создание и управление LXC контейнерами в Proxmox Virtual Environment (PVE).
+      Поддерживает создание контейнеров, управление шаблонами, настройку сети и выделение ресурсов.
+    author:
+      - "Mad-Axell [mad.axell@gmail.com]"
+    
+    options:
+      # Debug and Validation Settings
+      debug_mode:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable detailed debug output
+          RU: Включить детальный вывод отладки
+        choices: [true, false]
+      
+      debug_show_passwords:
+        type: bool
+        required: false
+        default: false
+        description: |
+          EN: Show passwords in debug mode (INSECURE)
+          RU: Показывать пароли в режиме отладки (НЕБЕЗОПАСНО)
+        choices: [true, false]
+      
+      validate_parameters:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable parameter validation
+          RU: Включить валидацию параметров
+        choices: [true, false]
+      
+      strict_validation:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable strict validation mode
+          RU: Включить режим строгой валидации
+        choices: [true, false]
+      
+      # Proxmox API Connection
+      pve_api_host:
+        type: str
+        required: true
+        description: |
+          EN: FQDN or IP of the Proxmox API endpoint
+          RU: FQDN или IP адрес Proxmox API
+      
+      pve_node:
+        type: str
+        required: true
+        description: |
+          EN: Proxmox node hostname where LXC container will be created
+          RU: Имя узла Proxmox где будет создан LXC контейнер
+      
+      pve_api_user:
+        type: str
+        required: false
+        description: |
+          EN: User to connect to Proxmox API (required if not using token auth)
+          RU: Пользователь для подключения к Proxmox API (требуется если не используется токен)
+      
+      pve_api_password:
+        type: str
+        required: false
+        no_log: true
+        description: |
+          EN: Password for Proxmox API user (required if not using token auth)
+          RU: Пароль пользователя Proxmox API (требуется если не используется токен)
+      
+      pve_api_token_id:
+        type: str
+        required: false
+        description: |
+          EN: Proxmox API token ID (required if not using user/password auth)
+          RU: ID токена Proxmox API (требуется если не используется пользователь/пароль)
+      
+      pve_api_token_secret:
+        type: str
+        required: false
+        no_log: true
+        description: |
+          EN: Proxmox API token secret (required if not using user/password auth)
+          RU: Секрет токена Proxmox API (требуется если не используется пользователь/пароль)
+      
+      pve_validate_certs:
+        type: bool
+        required: false
+        default: false
+        description: |
+          EN: Validate SSL certificates when connecting to Proxmox API
+          RU: Проверять SSL сертификаты при подключении к Proxmox API
+      
+      pve_default_behavior:
+        type: str
+        required: false
+        default: 'compatibility'
+        choices: ['compatibility', 'no_defaults']
+        description: |
+          EN: Proxmox module default behavior setting
+          RU: Настройка поведения модуля Proxmox по умолчанию
+      
+      # Container Configuration
+      pve_hostname:
+        type: str
+        required: true
+        description: |
+          EN: Hostname for the LXC container
+          RU: Имя хоста для LXC контейнера
+      
+      pve_lxc_vmid:
+        type: int
+        required: false
+        description: |
+          EN: VM ID for the container (auto-assigned if not specified)
+          RU: VM ID контейнера (автоматически назначается если не указан)
+      
+      pve_lxc_description:
+        type: str
+        required: false
+        description: |
+          EN: Description for the container
+          RU: Описание контейнера
+      
+      pve_lxc_root_password:
+        type: str
+        required: true
+        no_log: true
+        description: |
+          EN: Root password for the container
+          RU: Пароль root для контейнера
+      
+      pve_lxc_root_authorized_pubkey:
+        type: str
+        required: false
+        description: |
+          EN: SSH public key for root user
+          RU: SSH публичный ключ для пользователя root
+      
+      # OS Template Configuration
+      pve_lxc_ostemplate_name:
+        type: str
+        required: false
+        description: |
+          EN: Name of the OS template
+          RU: Имя шаблона ОС
+      
+      pve_lxc_ostemplate_url:
+        type: str
+        required: false
+        description: |
+          EN: URL to download OS template if not present
+          RU: URL для загрузки шаблона ОС если отсутствует
+      
+      pve_lxc_ostemplate_src:
+        type: str
+        required: false
+        description: |
+          EN: Local path to OS template source
+          RU: Локальный путь к источнику шаблона ОС
+      
+      pve_lxc_ostemplate_src_dest:
+        type: str
+        required: false
+        description: |
+          EN: Destination path for downloaded template
+          RU: Путь назначения для загруженного шаблона
+      
+      pve_lxc_ostemplate_storage:
+        type: str
+        required: false
+        default: 'local'
+        description: |
+          EN: Storage name for OS templates
+          RU: Имя хранилища для шаблонов ОС
+      
+      pve_lxc_ostemplate_content_type:
+        type: str
+        required: false
+        default: 'vztmpl'
+        description: |
+          EN: Content type for OS template
+          RU: Тип содержимого для шаблона ОС
+      
+      pve_lxc_ostemplate_timeout:
+        type: int
+        required: false
+        default: 60
+        description: |
+          EN: Timeout for template operations in seconds
+          RU: Таймаут операций с шаблоном в секундах
+      
+      pve_lxc_ostemplate_force:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Force template upload even if it exists
+          RU: Принудительная загрузка шаблона даже если он существует
+      
+      pve_lxc_ostemplate_state:
+        type: str
+        required: false
+        default: 'present'
+        description: |
+          EN: Desired state of the template
+          RU: Желаемое состояние шаблона
+      
+      # Resource Configuration
+      pve_lxc_cpu_cores:
+        type: int
+        required: false
+        description: |
+          EN: Number of CPU cores
+          RU: Количество ядер CPU
+      
+      pve_lxc_cpu_limit:
+        type: int
+        required: false
+        description: |
+          EN: CPU limit
+          RU: Лимит CPU
+      
+      pve_lxc_cpu_units:
+        type: int
+        required: false
+        description: |
+          EN: CPU units (weight)
+          RU: CPU units (вес)
+      
+      pve_lxc_memory:
+        type: int
+        required: false
+        description: |
+          EN: Memory size in MB
+          RU: Размер памяти в МБ
+      
+      pve_lxc_swap:
+        type: int
+        required: false
+        description: |
+          EN: Swap size in MB
+          RU: Размер swap в МБ
+      
+      pve_lxc_disk:
+        type: int
+        required: false
+        description: |
+          EN: Disk size in GB
+          RU: Размер диска в ГБ
+      
+      pve_lxc_storage:
+        type: str
+        required: false
+        default: 'local-lvm'
+        description: |
+          EN: Storage name for container disk
+          RU: Имя хранилища для диска контейнера
+      
+      # Container Behavior
+      pve_onboot:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Start container on node boot
+          RU: Запускать контейнер при загрузке узла
+      
+      pve_lxc_unprivileged:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Create unprivileged container
+          RU: Создать непривилегированный контейнер
+      
+      pve_lxc_force:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Force container operations
+          RU: Принудительные операции с контейнером
+      
+      pve_lxc_timeout:
+        type: int
+        required: false
+        default: 30
+        description: |
+          EN: Timeout for container operations in seconds
+          RU: Таймаут операций с контейнером в секундах
+      
+      # Network Configuration
+      pve_lxc_nameserver:
+        type: str
+        required: false
+        description: |
+          EN: DNS nameserver(s)
+          RU: DNS сервер(ы)
+      
+      pve_lxc_searchdomain:
+        type: str
+        required: false
+        description: |
+          EN: DNS search domain
+          RU: DNS домен поиска
+      
+      pve_lxc_ip_address:
+        type: str
+        required: false
+        description: |
+          EN: IP address for the container
+          RU: IP адрес контейнера
+      
+      pve_lxc_net_interfaces:
+        type: list
+        required: false
+        default: []
+        description: |
+          EN: List of network interfaces configuration
+          RU: Список конфигураций сетевых интерфейсов
+      
+      # Advanced Configuration
+      pve_lxc_features:
+        type: list
+        required: false
+        description: |
+          EN: Container features (nesting, keyctl, etc.)
+          RU: Функции контейнера (nesting, keyctl и т.д.)
+      
+      pve_lxc_hookscript:
+        type: str
+        required: false
+        description: |
+          EN: Hook script path
+          RU: Путь к hook скрипту
+      
+      pve_lxc_mounts:
+        type: list
+        required: false
+        default: []
+        description: |
+          EN: List of additional mount points
+          RU: Список дополнительных точек монтирования
+      
+      pve_lxc_additional_configurations:
+        type: list
+        required: false
+        default: []
+        description: |
+          EN: Additional configurations to add to container.conf
+          RU: Дополнительные конфигурации для добавления в container.conf
+      
+      proxmox_config_dir:
+        type: str
+        required: false
+        default: '/etc/pve'
+        description: |
+          EN: Proxmox configuration directory
+          RU: Директория конфигурации Proxmox
+      
+      proxmox_template_cache_dir:
+        type: str
+        required: false
+        description: |
+          EN: Template cache directory path
+          RU: Путь к директории кэша шаблонов
+      
+      # Additional network configuration
+      pve_lxc_tech:
+        type: str
+        required: false
+        description: |
+          EN: Technical hostname for network configuration lookup
+          RU: Техническое имя хоста для поиска сетевой конфигурации
+      
+      pve_lxc_name:
+        type: str
+        required: false
+        description: |
+          EN: Container name for configuration lookup
+          RU: Имя контейнера для поиска конфигурации
+      
+      pve_lxc_mac_address:
+        type: str
+        required: false
+        description: |
+          EN: MAC address for container network interface (auto-generated if empty)
+          RU: MAC адрес для сетевого интерфейса контейнера (автогенерируется если пустой)
+      
+      pve_lxc_ip_mask:
+        type: str
+        required: false
+        description: |
+          EN: IP subnet mask for container network interface
+          RU: Маска подсети IP для сетевого интерфейса контейнера
+      
+      pve_lxc_description_extend:
+        type: str
+        required: false
+        description: |
+          EN: Additional description text for container
+          RU: Дополнительный текст описания для контейнера
+      
+      # Performance and Rollback
+      backup_enabled:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable configuration backups
+          RU: Включить резервное копирование конфигураций
+      
+      enable_rollback:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable automatic rollback on failure
+          RU: Включить автоматический откат при ошибке
+      
+      async_timeout:
+        type: int
+        required: false
+        default: 300
+        description: |
+          EN: Async task timeout in seconds
+          RU: Таймаут асинхронных задач в секундах
+      
+      retries:
+        type: int
+        required: false
+        default: 3
+        description: |
+          EN: Number of retries for failed tasks
+          RU: Количество повторов для неудачных задач
+      
+      retry_delay:
+        type: int
+        required: false
+        default: 5
+        description: |
+          EN: Delay between retries in seconds
+          RU: Задержка между повторами в секундах
+      
+      # Logging configuration
+      log_file:
+        type: str
+        required: false
+        default: "/var/log/ansible-proxmox-lxc.log"
+        description: |
+          EN: Path to structured log file for role operations
+          RU: Путь к файлу структурированного лога для операций роли
+      
+      # Connection Settings
+      pve_lxc_wait_for_connection_timeout:
+        type: int
+        required: false
+        default: 60
+        description: |
+          EN: Timeout for waiting for container connection in seconds
+          RU: Таймаут ожидания подключения к контейнеру в секундах
+      
+      pve_lxc_wait_for_connection_remote_user:
+        type: str
+        required: false
+        default: 'root'
+        description: |
+          EN: Remote user for connection check
+          RU: Удаленный пользователь для проверки подключения
+

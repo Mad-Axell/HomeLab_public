@@ -1,0 +1,56 @@
+---
+galaxy_info:
+  role_name: proxmox_lxc
+  namespace: local
+  author: Mad-Axell [mad.axell@gmail.com]
+  description: Ansible role for automated creation and management of LXC containers in Proxmox Virtual Environment (PVE)
+  
+  # Company name (optional)
+  company: Internal Infrastructure Team
+  
+  # License of the role (optional)
+  license: MIT
+  
+  # Minimum Ansible version required
+  min_ansible_version: "2.14"
+  
+  # Platforms supported by the role
+  platforms:
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+    - name: Proxmox VE
+      versions:
+        - 7
+        - 8
+  
+  # Galaxy tags for better discoverability
+  galaxy_tags:
+    - proxmox
+    - lxc
+    - containers
+    - virtualization
+    - infrastructure
+    - automation
+    - pve
+    - cloud
+    - devops
+  
+  # Categories
+  categories:
+    - cloud
+    - system
+    - virtualization
+
+# Dependencies (other roles that should be applied before this role)
+dependencies: []
+
+# Collection dependencies
+collections:
+  - community.general
+

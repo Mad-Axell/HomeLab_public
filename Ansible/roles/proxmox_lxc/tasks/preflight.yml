@@ -1,0 +1,91 @@
+---
+# EN: Preflight checks before role execution
+# RU: Предварительные проверки перед выполнением роли
+
+# EN: Check Ansible version
+# RU: Проверка версии Ansible
+- name: Check Ansible version
+  ansible.builtin.assert:
+    that:
+      - ansible_version.full is version('2.14', '>=')
+    fail_msg: |
+      EN: This role requires Ansible 2.14 or higher. Current version: {{ ansible_version.full }}
+      RU: Эта роль требует Ansible 2.14 или выше. Текущая версия: {{ ansible_version.full }}
+    success_msg: |
+      EN: Ansible version check passed: {{ ansible_version.full }}
+      RU: Проверка версии Ansible пройдена: {{ ansible_version.full }}
+  tags: ['preflight', 'always']
+
+# EN: Check Python version
+# RU: Проверка версии Python
+- name: Check Python version
+  ansible.builtin.assert:
+    that:
+      - ansible_python_version is version('3.8', '>=')
+    fail_msg: |
+      EN: Python 3.8+ is required. Current version: {{ ansible_python_version }}
+      RU: Требуется Python 3.8+. Текущая версия: {{ ansible_python_version }}
+    success_msg: |
+      EN: Python version check passed: {{ ansible_python_version }}
+      RU: Проверка версии Python пройдена: {{ ansible_python_version }}
+  tags: ['preflight', 'always']
+
+# EN: Check required Python modules
+# RU: Проверка необходимых модулей Python
+- name: Check required Python modules
+  ansible.builtin.command: python3 -c "import proxmoxer"
+  register: python_module_check
+  changed_when: false
+  failed_when: false
+  tags: ['preflight']
+
+- name: Warn if Python modules are missing
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "WARNING: Python module 'proxmoxer' not found"
+      - "ВНИМАНИЕ: Python модуль 'proxmoxer' не найден"
+      - "The role will attempt to install it automatically"
+      - "Роль попытается установить его автоматически"
+      - "============================================================================="
+  when: python_module_check.rc != 0
+  tags: ['preflight']
+
+# EN: Check disk space
+# RU: Проверка свободного места на диске
+- name: Check disk space on root partition
+  ansible.builtin.assert:
+    that:
+      - item.size_available > 1073741824  # 1GB minimum
+    fail_msg: |
+      EN: Insufficient disk space on {{ item.mount }}. Available: {{ (item.size_available / 1024 / 1024 / 1024) | round(2) }}GB, Required: 1GB
+      RU: Недостаточно места на диске {{ item.mount }}. Доступно: {{ (item.size_available / 1024 / 1024 / 1024) | round(2) }}ГБ, Требуется: 1ГБ
+    success_msg: |
+      EN: Disk space check passed on {{ item.mount }}: {{ (item.size_available / 1024 / 1024 / 1024) | round(2) }}GB available
+      RU: Проверка места на диске пройдена {{ item.mount }}: {{ (item.size_available / 1024 / 1024 / 1024) | round(2) }}ГБ доступно
+  loop: "{{ ansible_mounts }}"
+  when:
+    - item.mount == '/'
+  tags: ['preflight']
+
+# EN: Display preflight checks summary
+# RU: Отображение сводки предварительных проверок
+- name: Display preflight checks summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Preflight Checks Summary:"
+      - "============================================================================="
+      - "Ansible Version:       {{ ansible_version.full }} ✓"
+      - "Python Version:        {{ ansible_python_version }} ✓"
+      - "Control Node:          {{ ansible_controller | default('N/A') }}"
+      - "Target Node:           {{ pve_node }}"
+      - "API Host:              {{ pve_api_host }}"
+      - "============================================================================="
+      - "All preflight checks passed successfully!"
+      - "============================================================================="
+  when:
+    - debug_mode | default(true)
+  tags: ['preflight', 'debug']
+
+

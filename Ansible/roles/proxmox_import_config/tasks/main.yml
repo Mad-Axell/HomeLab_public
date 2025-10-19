@@ -1,0 +1,597 @@
+---
+
+#########################################################
+### Proxmox Configuration Import Role ###
+### Роль импорта конфигурации Proxmox ###
+#########################################################
+
+# EN: Gather minimal facts for logging and system information
+# RU: Сбор минимальных фактов для логирования и системной информации
+- name: Gather minimal facts
+  ansible.builtin.setup:
+    filter:
+      - ansible_date_time
+      - ansible_user_id
+      - inventory_hostname
+      - ansible_play_name
+      - ansible_os_family
+      - ansible_distribution
+      - ansible_distribution_version
+  when: ansible_date_time is not defined
+  tags: ['always', 'facts']
+
+# EN: Validate role arguments (NEW - Automatic in Ansible 2.14+)
+# RU: Валидация аргументов роли (НОВОЕ - Автоматически в Ansible 2.14+)
+- name: Validate role arguments
+  ansible.builtin.validate_argument_spec:
+    argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
+  tags: ['always', 'validate']
+
+# EN: Preflight checks / RU: Предварительные проверки
+- name: Preflight checks
+  ansible.builtin.include_tasks: preflight.yml
+  tags: ['preflight', 'always']
+
+- name: Display role execution start
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Proxmox Import Config Role Started"
+      - "============================================================================="
+      - "Role:                  proxmox_import_config"
+      - "Host Name:             {{ host_name }}"
+      - "Host Vars Prefix:      {{ host_vars }}"
+      - "Debug Mode:            {{ debug_mode }}"
+      - "Debug Sensitive:       {{ debug_sensitive }}"
+      - "Validate Parameters:   {{ validate_parameters }}"
+      - "Ansible Version:       {{ ansible_version.full }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - always
+    - debug
+
+
+- name: Include validation tasks
+  ansible.builtin.include_tasks: validate.yml
+  when: validate_parameters | bool
+  tags:
+    - validation
+
+#########################################################
+### Import Secrets Block ###
+### Блок импорта секретов ###
+#########################################################
+
+- name: Import secrets and configuration
+  block:
+    - name: Import secrets from file
+      ansible.builtin.include_vars:
+        file: "{{ secrets_file_path }}"
+      register: secrets_import_result
+      tags:
+        - import
+        - secrets
+
+    - name: Log secrets import operation
+      # Log secrets import operation
+      # Логирование операции импорта секретов
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "SECRETS_IMPORT",
+          "service_name": "proxmox_import_config",
+          "status": "SUCCESS",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": "secrets_import",
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Secrets file imported successfully",
+          "metadata": {
+            "secrets_file_path": secrets_file_path,
+            "variables_loaded": vars.keys() | list | length,
+            "host_vars_prefix": host_vars
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - import
+        - secrets
+        - logging
+
+    - name: Display secrets file import status
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Secrets Import Status"
+          - "============================================================================="
+          - "File Path:             {{ secrets_file_path }}"
+          - "Import Status:         ✓ SUCCESS"
+          - "Variables Loaded:      {{ vars.keys() | list | length }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+      tags:
+        - import
+        - secrets
+        - debug
+
+
+    - name: Overwrite variables from secrets
+      ansible.builtin.set_fact:
+        # Overwrite server variables / Перезапись переменных сервера
+        pve_node: "{{ vars[host_vars ~ '_pve_node'] }}"
+        pve_api_host: "{{ hostvars[vars[host_vars ~ '_pve_node']]['ansible_host'] }}"
+        pve_api_user: "{{ vars[host_vars ~ '_pve_api_user'] }}"
+        pve_api_password: "{{ vars[host_vars ~ '_pve_api_password'] }}"
+        # Overwrite LXC variables / Перезапись переменных LXC
+        pve_lxc_root_password: "{{ vars[host_vars ~ '_pve_lxc_root_password'] }}"
+        pve_lxc_root_authorized_pubkey: "{{ lookup('file', vars[host_vars ~ '_pve_lxc_root_authorized_pubkey']) }}"
+        # Overwrite user to be added variables / Перезапись переменных добавляемого пользователя
+        admin_name: "{{ vars[host_vars ~ '_admin_user'] }}"
+        admin_password: "{{ vars[host_vars ~ '_admin_password'] }}"
+      register: set_fact_result
+      no_log: true
+      tags:
+        - import
+        - secrets
+        - set_facts
+
+    - name: Log variables configuration
+      # Log variables configuration
+      # Логирование конфигурации переменных
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "VARIABLES_CONFIG",
+          "service_name": "proxmox_import_config",
+          "status": "SUCCESS",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": "secrets_import",
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Variables configured from secrets",
+          "metadata": {
+            "pve_node": pve_node | default("not_set"),
+            "pve_api_host": pve_api_host | default("not_set"),
+            "pve_api_user": pve_api_user | default("not_set"),
+            "admin_name": admin_name | default("not_set"),
+            "variables_configured": 7,
+            "ssh_key_configured": pve_lxc_root_authorized_pubkey is defined
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - import
+        - secrets
+        - set_facts
+        - logging
+
+    - name: Display variables status without sensitive data
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Variables Status"
+          - "============================================================================="
+          - "PVE Node:              {{ pve_node }}"
+          - "PVE API Host:          {{ pve_api_host }}"
+          - "PVE API User:          {{ pve_api_user }}"
+          - "PVE API Password:      {{ '***HIDDEN***' }}"
+          - "LXC Root Password:     {{ '***HIDDEN***' }}"
+          - "LXC Root SSH Key:      {{ '***CONFIGURED***' if pve_lxc_root_authorized_pubkey is defined else '***NOT SET***' }}"
+          - "Admin User:            {{ admin_name }}"
+          - "Admin Password:        {{ '***HIDDEN***' }}"
+          - "============================================================================="
+          - "Status:                ✓ SUCCESS"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+      tags:
+        - import
+        - secrets
+        - debug
+
+
+    - name: Display variables with sensitive data
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Variables with Sensitive Data"
+          - "============================================================================="
+          - "WARNING: Sensitive data exposed"
+          - "============================================================================="
+          - "PVE Node:              {{ pve_node }}"
+          - "PVE API Host:          {{ pve_api_host }}"
+          - "PVE API User:          {{ pve_api_user }}"
+          - "PVE API Password:      {{ pve_api_password }}"
+          - "LXC Root Password:     {{ pve_lxc_root_password }}"
+          - "Admin User:            {{ admin_name }}"
+          - "Admin Password:        {{ admin_password }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - debug_sensitive | default(false)
+      tags:
+        - import
+        - secrets
+        - debug
+        - sensitive
+
+
+  rescue:
+    - name: Display secrets import error
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "ERROR: Secrets Import Failed"
+          - "============================================================================="
+          - "File Path:             {{ secrets_file_path }}"
+          - "Status:                ✗ FAILED"
+          - "Error:                 {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "============================================================================="
+          - "Please check:"
+          - "  1. File exists and is readable"
+          - "  2. File has valid YAML syntax"
+          - "  3. All required variables are present"
+          - "============================================================================="
+      when:
+      tags:
+        - import
+        - secrets
+        - debug
+        - error
+
+
+    - name: Log secrets import error
+      # Log secrets import error
+      # Логирование ошибки импорта секретов
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "ERROR",
+          "event_type": "SECRETS_IMPORT_FAILURE",
+          "service_name": "proxmox_import_config",
+          "status": "FAILED",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": ansible_failed_task.name | default("unknown"),
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Failed to import secrets from file",
+          "metadata": {
+            "secrets_file_path": secrets_file_path,
+            "error_message": ansible_failed_result.msg | default("Unknown error"),
+            "error_type": ansible_failed_result.exception | default("Unknown"),
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - import
+        - secrets
+        - error
+        - logging
+
+    - name: Fail with descriptive message
+      ansible.builtin.fail:
+        msg: "Failed to import secrets from {{ secrets_file_path }}. Check debug output for details. / Не удалось импортировать секреты из {{ secrets_file_path }}. Проверьте отладочный вывод для деталей."
+      tags:
+        - import
+        - secrets
+        - error
+
+#########################################################
+### Import Node Variables Block ###
+### Блок импорта переменных узла ###
+#########################################################
+
+- name: Import node variables
+  block:
+    - name: Display node variables file path
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Node Variables File"
+          - "============================================================================="
+          - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+      tags:
+        - import
+        - host_vars
+        - debug
+
+
+    - name: Import node variables from file
+      ansible.builtin.include_vars:
+        file: "{{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+      register: host_vars_import_result
+      tags:
+        - import
+        - host_vars
+
+    - name: Log host variables import operation
+      # Log host variables import operation
+      # Логирование операции импорта переменных хоста
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "HOST_VARS_IMPORT",
+          "service_name": "proxmox_import_config",
+          "status": "SUCCESS",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": "secrets_import",
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Host variables imported successfully",
+          "metadata": {
+            "host_vars_file": ansible_host_vars_dir + "/" + host_name + ".yml",
+            "host_name": host_name,
+            "variables_loaded": vars.keys() | list | length
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - import
+        - host_vars
+        - logging
+
+    - name: Display node variables import status
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Node Variables Import Status"
+          - "============================================================================="
+          - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "Import Status:         ✓ SUCCESS"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+      tags:
+        - import
+        - host_vars
+        - debug
+
+
+  rescue:
+    - name: Display node variables import error
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "ERROR: Node Variables Import Failed"
+          - "============================================================================="
+          - "File Path:             {{ ansible_host_vars_dir }}/{{ host_name }}.yml"
+          - "Status:                ✗ FAILED"
+          - "Error:                 {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "============================================================================="
+          - "Please check:"
+          - "  1. File exists and is readable"
+          - "  2. File has valid YAML syntax"
+          - "  3. Host name is correct: {{ host_name }}"
+          - "============================================================================="
+      when:
+      tags:
+        - import
+        - host_vars
+        - debug
+        - error
+
+
+    - name: Log host variables import error
+      # Log host variables import error
+      # Логирование ошибки импорта переменных хоста
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "ERROR",
+          "event_type": "HOST_VARS_IMPORT_FAILURE",
+          "service_name": "proxmox_import_config",
+          "status": "FAILED",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": ansible_failed_task.name | default("unknown"),
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Failed to import host variables from file",
+          "metadata": {
+            "host_vars_file": ansible_host_vars_dir + "/" + host_name + ".yml",
+            "host_name": host_name,
+            "error_message": ansible_failed_result.msg | default("Unknown error"),
+            "error_type": ansible_failed_result.exception | default("Unknown"),
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - import
+        - host_vars
+        - error
+        - logging
+
+    - name: Fail with descriptive message
+      ansible.builtin.fail:
+        msg: "Failed to import node variables from {{ ansible_host_vars_dir }}/{{ host_name }}.yml. Check debug output for details. / Не удалось импортировать переменные узла из {{ ansible_host_vars_dir }}/{{ host_name }}.yml. Проверьте отладочный вывод для деталей."
+      tags:
+        - import
+        - host_vars
+        - error
+
+
+#########################################################
+### Final Summary ###
+### Финальная сводка ###
+#########################################################
+
+
+- name: Display final configuration summary without sensitive data
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Configuration Summary"
+      - "============================================================================="
+      - ""
+      - "--- Proxmox Server Configuration ---"
+      - "PVE Node:                    {{ pve_node | default('NOT SET') }}"
+      - "PVE API Host:                {{ pve_api_host | default('NOT SET') }}"
+      - "PVE API User:                {{ pve_api_user | default('NOT SET') }}"
+      - "PVE API Password:            {{ '✓ CONFIGURED' if pve_api_password is defined else '✗ NOT SET' }}"
+      - ""
+      - "--- LXC Container Configuration ---"
+      - "LXC Name:                    {{ pve_lxc_name | default('NOT SET') }}"
+      - "LXC VMID:                    {{ pve_lxc_vmid | default('NOT SET') }}"
+      - "LXC OS Template:             {{ pve_lxc_ostemplate_name | default('NOT SET') }}"
+      - "LXC Root Password:           {{ '✓ CONFIGURED' if pve_lxc_root_password is defined else '✗ NOT SET' }}"
+      - "LXC Root SSH Key:            {{ '✓ CONFIGURED' if pve_lxc_root_authorized_pubkey is defined else '✗ NOT SET' }}"
+      - ""
+      - "--- Network Configuration ---"
+      - "IP Address:                  {{ pve_lxc_ip_address | default('NOT SET') }}"
+      - "IP Mask:                     {{ pve_lxc_ip_mask | default('NOT SET') }}"
+      - "Gateway:                     {{ pve_lxc_ip_gateway | default('NOT SET') }}"
+      - "Nameserver:                  {{ pve_lxc_nameserver | default('NOT SET') }}"
+      - "Search Domain:               {{ pve_lxc_searchdomain | default('NOT SET') }}"
+      - ""
+      - "--- Admin User Configuration ---"
+      - "Admin Username:              {{ admin_name | default('NOT SET') }}"
+      - "Admin Password:              {{ '✓ CONFIGURED' if admin_password is defined else '✗ NOT SET' }}"
+      - ""
+      - "--- Container Description ---"
+      - "Description:                 {{ pve_lxc_description | default('NOT SET') }}"
+      - ""
+      - ""
+      - "============================================================================="
+      - "Import Status:               ✓ ALL CONFIGURATIONS LOADED SUCCESSFULLY"
+      - "============================================================================="
+      - ""
+      - "Ready to proceed with container deployment"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - summary
+    - debug
+    - always
+
+
+- name: Display final configuration summary with sensitive data
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Final Configuration Summary (SENSITIVE DATA EXPOSED)"
+      - "============================================================================="
+      - "WARNING: Passwords and sensitive data are visible"
+      - "============================================================================="
+      - ""
+      - "--- Proxmox Server Configuration ---"
+      - "PVE Node:                    {{ pve_node | default('NOT SET') }}"
+      - "PVE API Host:                {{ pve_api_host | default('NOT SET') }}"
+      - "PVE API User:                {{ pve_api_user | default('NOT SET') }}"
+      - "PVE API Password:            {{ pve_api_password | default('NOT SET') }}"
+      - ""
+      - "--- LXC Container Configuration ---"
+      - "LXC Name:                    {{ pve_lxc_name | default('NOT SET') }}"
+      - "LXC VMID:                    {{ pve_lxc_vmid | default('NOT SET') }}"
+      - "LXC OS Template:             {{ pve_lxc_ostemplate_name | default('NOT SET') }}"
+      - "LXC Root Password:           {{ pve_lxc_root_password | default('NOT SET') }}"
+      - "LXC Root SSH Key:            {{ '✓ CONFIGURED (%s chars)' | format(pve_lxc_root_authorized_pubkey | length) if pve_lxc_root_authorized_pubkey is defined else 'NOT SET' }}"
+      - ""
+      - "--- Network Configuration ---"
+      - "IP Address:                  {{ pve_lxc_ip_address | default('NOT SET') }}"
+      - "IP Mask:                     {{ pve_lxc_ip_mask | default('NOT SET') }}"
+      - "Gateway:                     {{ pve_lxc_ip_gateway | default('NOT SET') }}"
+      - "Nameserver:                  {{ pve_lxc_nameserver | default('NOT SET') }}"
+      - "Search Domain:               {{ pve_lxc_searchdomain | default('NOT SET') }}"
+      - ""
+      - "--- Admin User Configuration ---"
+      - "Admin Username:              {{ admin_name | default('NOT SET') }}"
+      - "Admin Password:              {{ admin_password | default('NOT SET') }}"
+      - ""
+      - "--- Container Description ---"
+      - "Description:                 {{ pve_lxc_description | default('NOT SET') }}"
+      - ""
+      - "============================================================================="
+      - "Import Status:               ✓ ALL CONFIGURATIONS LOADED SUCCESSFULLY"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_sensitive | default(false)
+  tags:
+    - summary
+    - debug
+    - sensitive
+    - always
+
+
+- name: Display role execution completed
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Proxmox Import Config Role Completed"
+      - "============================================================================="
+      - "Status:                ✓ SUCCESS"
+      - "All configurations have been loaded and are ready for use"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags:
+    - always
+    - debug
+    - summary
+
+
+- name: Log role completion
+  # Log role completion
+  # Логирование завершения роли
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "ROLE_COMPLETION",
+      "service_name": "proxmox_import_config",
+      "status": "SUCCESS",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "task": "role_completion",
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Role execution completed successfully",
+      "metadata": {
+        "host_name": host_name,
+        "host_vars_prefix": host_vars,
+        "secrets_imported": true,
+        "host_vars_imported": true,
+        "variables_configured": 7,
+        "execution_time": ansible_date_time.epoch,
+        "debug_mode": debug_mode | default(false),
+        "validation_enabled": validate_parameters | default(true)
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when: log_file is defined
+  tags:
+    - always
+    - logging
+    - summary
+

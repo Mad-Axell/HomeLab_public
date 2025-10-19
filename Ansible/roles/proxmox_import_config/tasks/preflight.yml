@@ -1,0 +1,49 @@
+---
+# EN: Preflight checks before role execution
+# RU: Предварительные проверки перед выполнением роли
+
+- name: Check Ansible version
+  ansible.builtin.assert:
+    that:
+      - ansible_version.full is version('2.14', '>=')
+    fail_msg: |
+      EN: This role requires Ansible 2.14 or higher. Current version: {{ ansible_version.full }}
+      RU: Эта роль требует Ansible 2.14 или выше. Текущая версия: {{ ansible_version.full }}
+    success_msg: |
+      EN: Ansible version check passed: {{ ansible_version.full }}
+      RU: Проверка версии Ansible пройдена: {{ ansible_version.full }}
+  tags: ['preflight']
+
+- name: Get Python version
+  ansible.builtin.command: python3 --version
+  register: python_version_result
+  changed_when: false
+  tags: ['preflight']
+
+- name: Check Python version
+  ansible.builtin.assert:
+    that:
+      - python_version_result.stdout.split()[1] is version('3.8', '>=')
+    fail_msg: |
+      EN: Python 3.8+ is required. Current version: {{ python_version_result.stdout }}
+      RU: Требуется Python 3.8+. Текущая версия: {{ python_version_result.stdout }}
+    success_msg: |
+      EN: Python version check passed: {{ python_version_result.stdout }}
+      RU: Проверка версии Python пройдена: {{ python_version_result.stdout }}
+  tags: ['preflight']
+
+- name: Display preflight checks summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Preflight Checks Summary:"
+      - "============================================================================="
+      - "Ansible Version:       {{ ansible_version.full }} ✓"
+      - "Python Version:        {{ python_version_result.stdout }} ✓"
+      - "Control Node:          {{ ansible_controller | default('N/A') }}"
+      - "============================================================================="
+      - "All preflight checks passed successfully!"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+  tags: ['preflight', 'debug']

@@ -1,0 +1,80 @@
+---
+
+#########################################################
+### Debug and Validation Settings ###
+### Настройки отладки и валидации ###
+#########################################################
+
+# EN: Enable debug output / RU: Включить отладочный вывод
+debug_mode: false  # Boolean. Enable detailed debug output / Логическое значение. Включить детальный вывод отладки
+
+
+# EN: Enable sensitive debug output (passwords in plain text) / RU: Включить отладочный вывод с паролями
+debug_sensitive: false  # Boolean. Show passwords in debug (INSECURE) / Логическое значение. Показывать пароли в отладке (НЕБЕЗОПАСНО)
+
+# EN: Enable parameter validation / RU: Включить валидацию параметров
+validate_parameters: true  # Boolean. Enable validation / Логическое значение. Включить валидацию
+
+# EN: Enable strict validation / RU: Включить строгую валидацию
+strict_validation: true  # Boolean. Enable strict validation / Логическое значение. Включить строгую валидацию
+
+
+#########################################################
+### Host Configuration ###
+### Конфигурация хоста ###
+#########################################################
+
+# EN: Host name for loading host_vars / RU: Имя хоста для загрузки host_vars
+host_name: "some-server"  # String. Host name / Строка. Имя хоста
+
+# EN: Prefix for variables in secrets.yaml / RU: Префикс для переменных в secrets.yaml
+host_vars: "some_server"  # String. Variable prefix / Строка. Префикс переменных
+
+
+#########################################################
+### Configurable Paths Section ###
+### Секция настраиваемых путей ###
+#########################################################
+
+# EN: Base directory for Ansible configuration / RU: Базовая директория для конфигурации Ansible
+ansible_base_dir: "/etc/ansible"  # String. Base directory path / Строка. Путь к базовой директории
+
+# EN: Directory for host variables / RU: Директория для переменных хоста
+ansible_host_vars_dir: "{{ ansible_base_dir }}/host_vars"  # String. Host vars directory / Строка. Директория переменных хоста
+
+# EN: Directory for secrets and vault files / RU: Директория для секретов и vault-файлов
+ansible_vars_dir: "{{ ansible_base_dir }}/VARS"  # String. Vars directory / Строка. Директория переменных
+
+# EN: Path to secrets file / RU: Путь к файлу секретов
+secrets_file_path: "{{ ansible_vars_dir }}/secrets.yaml"  # String. Secrets file path / Строка. Путь к файлу секретов
+
+# EN: Path to inventory file / RU: Путь к файлу инвентори
+ansible_inventory_file: "{{ ansible_base_dir }}/hosts.yml"  # String. Inventory file path / Строка. Путь к файлу инвентори
+
+
+#########################################################
+### Rollback and Performance Configuration ###
+### Конфигурация отката и производительности ###
+#########################################################
+
+# EN: Enable automatic rollback on failure / RU: Включить автоматический откат при ошибке
+enable_rollback: true  # Boolean. Enable rollback / Логическое значение. Включить откат
+
+# EN: Async task timeout in seconds / RU: Таймаут асинхронных задач в секундах
+async_timeout: 300  # Integer. Timeout in seconds / Целое число. Таймаут в секундах
+
+# EN: Number of retries for failed tasks / RU: Количество повторов для неудачных задач
+retries: 3  # Integer. Number of retries / Целое число. Количество повторов
+
+# EN: Delay between retries in seconds / RU: Задержка между повторами в секундах
+retry_delay: 5  # Integer. Delay in seconds / Целое число. Задержка в секундах
+
+
+#########################################################
+### Logging Configuration ###
+### Конфигурация логирования ###
+#########################################################
+
+# EN: Path to log file for structured logging / RU: Путь к файлу лога для структурированного логирования
+log_file: "/var/log/ansible-changes.log"  # String. Log file path / Строка. Путь к файлу лога
+

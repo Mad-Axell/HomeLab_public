@@ -1,0 +1,51 @@
+---
+# OS-specific variables for SUSE family (openSUSE, SLES)
+# Переменные специфичные для семейства SUSE (openSUSE, SLES)
+
+# Package management
+# Управление пакетами
+package_manager: "zypper"               # String. Package manager for SUSE family
+                                        # Строка. Менеджер пакетов для семейства SUSE
+python_package: "python3"               # String. Python package name
+                                        # Строка. Название пакета Python
+python_pip_package: "python3-pip"       # String. Python pip package name
+                                        # Строка. Название пакета Python pip
+python_proxmoxer_package: "python3-proxmoxer"  # String. Python proxmoxer package name
+                                                # Строка. Название пакета Python proxmoxer
+
+# Service management
+# Управление сервисами
+service_manager: "systemd"              # String. Service manager for SUSE family
+                                        # Строка. Менеджер сервисов для семейства SUSE
+
+# Paths
+# Пути
+proxmox_config_path: "/etc/pve"         # String. Proxmox configuration path
+                                        # Строка. Путь конфигурации Proxmox
+template_cache_path: "/var/lib/vz/template/cache"  # String. Template cache path
+                                                    # Строка. Путь кэша шаблонов
+log_path: "/var/log"                    # String. System log path
+                                        # Строка. Путь системных логов
+
+# Network configuration
+# Конфигурация сети
+network_config_path: "/etc/sysconfig/network"  # String. Network configuration path
+                                               # Строка. Путь конфигурации сети
+resolv_conf_path: "/etc/resolv.conf"    # String. DNS configuration path
+                                        # Строка. Путь конфигурации DNS
+
+# Container defaults
+# Значения контейнеров по умолчанию
+container_default_ostype: "opensuse"    # String. Default OS type for containers
+                                        # Строка. Тип ОС по умолчанию для контейнеров
+container_default_arch: "amd64"         # String. Default architecture
+                                        # Строка. Архитектура по умолчанию
+
+# Template defaults
+# Значения шаблонов по умолчанию
+template_default_os: "opensuse"         # String. Default template OS
+                                        # Строка. ОС шаблона по умолчанию
+template_default_version: "15"          # String. Default template version
+                                        # Строка. Версия шаблона по умолчанию
+template_default_variant: "standard"    # String. Default template variant
+                                        # Строка. Вариант шаблона по умолчанию

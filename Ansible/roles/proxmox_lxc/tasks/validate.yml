@@ -1,0 +1,186 @@
+---
+# EN: Parameter validation tasks
+# RU: Задачи валидации параметров
+
+- name: "Display system information (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "System Information:"
+      - "============================================================================="
+      - "OS Family:               {{ ansible_os_family }}"
+      - "Distribution:            {{ ansible_distribution }}"
+      - "Version:                 {{ ansible_distribution_version }}"
+      - "Architecture:            {{ ansible_architecture }}"
+      - "Hostname:                {{ ansible_hostname }}"
+      - "Debug Mode:              {{ debug_mode }}"
+      - "Strict Validation:       {{ strict_validation }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - validation
+    - system
+
+
+# EN: Validate Proxmox API connection parameters
+# RU: Валидация параметров подключения к API Proxmox
+- name: "Validate Proxmox API connection parameters"
+  ansible.builtin.assert:
+    that:
+      - pve_api_host is defined
+      - pve_node is defined
+      - pve_api_user is defined or pve_api_token_id is defined
+      - pve_api_password is defined or pve_api_token_secret is defined
+    success_msg: "Proxmox API parameters are valid / Параметры API Proxmox корректны"
+    fail_msg: "Missing required Proxmox API parameters / Отсутствуют обязательные параметры API Proxmox"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - api
+
+# EN: Test Proxmox API connectivity
+# RU: Проверка подключения к API Proxmox
+- name: "Test Proxmox API connectivity"
+  ansible.builtin.uri:
+    url: "https://{{ pve_api_host }}:8006/api2/json/version"
+    method: GET
+    validate_certs: "{{ pve_validate_certs | default(false) }}"
+    status_code: [200, 401, 403]
+  register: api_connectivity_test
+  retries: "{{ retries | default(3) }}"
+  delay: "{{ retry_delay | default(5) }}"
+  until: api_connectivity_test.status in [200, 401, 403]
+  failed_when: false
+  when: strict_validation | bool
+  tags:
+    - validation
+    - api
+    - connectivity
+
+- name: "Display API connectivity test results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Proxmox API Connectivity Test:"
+      - "============================================================================="
+      - "API Host:                {{ pve_api_host }}"
+      - "API URL:                 https://{{ pve_api_host }}:8006/api2/json/version"
+      - "Status Code:             {{ api_connectivity_test.status | default('N/A') }}"
+      - "Reachable:               {{ 'YES' if api_connectivity_test.status in [200, 401, 403] else 'NO' }}"
+      - "Note:                    Status 401/403 is OK - API is reachable but requires authentication"
+      - "Status:                  {{ 'SUCCESS' if api_connectivity_test.status in [200, 401, 403] else 'FAILED' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_mode | bool
+    - strict_validation | bool
+    - api_connectivity_test is defined
+  tags:
+    - debug
+    - validation
+    - api
+
+
+# EN: Fail if API is not reachable
+# RU: Завершение с ошибкой если API недоступен
+- name: "Fail if API is not reachable"
+  ansible.builtin.fail:
+    msg: "Proxmox API is not reachable at {{ pve_api_host }}. Check network connectivity and firewall rules. / API Proxmox недоступен по адресу {{ pve_api_host }}. Проверьте сетевое подключение и правила брандмауэра."
+  when:
+    - strict_validation | bool
+    - api_connectivity_test is defined
+    - api_connectivity_test.status not in [200, 401, 403]
+  tags:
+    - validation
+    - api
+
+# EN: Validate container parameters
+# RU: Валидация параметров контейнера
+- name: "Validate container parameters"
+  ansible.builtin.assert:
+    that:
+      - pve_hostname is defined
+      - pve_lxc_ostemplate_name is defined
+      - pve_lxc_root_password is defined
+    success_msg: "Container parameters are valid / Параметры контейнера корректны"
+    fail_msg: "Missing required container parameters / Отсутствуют обязательные параметры контейнера"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - container
+
+# EN: Validate network parameters
+# RU: Валидация сетевых параметров
+- name: "Validate network parameters"
+  ansible.builtin.assert:
+    that:
+      - pve_lxc_ip_address is defined or pve_lxc_net_interfaces is defined
+    success_msg: "Network parameters are valid / Сетевые параметры корректны"
+    fail_msg: "Missing required network parameters / Отсутствуют обязательные сетевые параметры"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - network
+
+# EN: Validate resource parameters
+# RU: Валидация параметров ресурсов
+- name: "Validate resource parameters"
+  ansible.builtin.assert:
+    that:
+      - (pve_lxc_cpu_cores is not defined) or (pve_lxc_cpu_cores > 0)
+      - (pve_lxc_memory is not defined) or (pve_lxc_memory > 0)
+      - (pve_lxc_disk is not defined) or (pve_lxc_disk > 0)
+    success_msg: "Resource parameters are valid / Параметры ресурсов корректны"
+    fail_msg: "Invalid resource parameters (must be positive numbers if defined) / Некорректные параметры ресурсов (должны быть положительными числами, если определены)"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - resources
+
+- name: "Display resource parameters note (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Resource Parameters Note:"
+      - "============================================================================="
+      - "NOTE: Resource parameters (CPU, Memory, Disk) are typically defined in"
+      - "      host_vars and will be loaded from there automatically."
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_mode | bool
+    - (pve_lxc_cpu_cores is not defined or pve_lxc_memory is not defined or pve_lxc_disk is not defined)
+  tags:
+    - debug
+    - validation
+    - resources
+
+
+- name: "Display validation summary (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Parameter Validation Summary:"
+      - "============================================================================="
+      - "API Host:                 {{ pve_api_host }} {{ '✓' if pve_api_host is defined else '✗' }}"
+      - "Node:                     {{ pve_node }} {{ '✓' if pve_node is defined else '✗' }}"
+      - "API User:                 {{ pve_api_user | default('Not set') }} {{ '✓' if pve_api_user is defined else '✗' }}"
+      - "API Token ID:             {{ pve_api_token_id | default('Not set') }} {{ '✓' if pve_api_token_id is defined else '✗' }}"
+      - "API Password:             {{ 'Set' if pve_api_password is defined else 'Not set' }} {{ '✓' if pve_api_password is defined else '✗' }}"
+      - "API Token Secret:         {{ 'Set' if pve_api_token_secret is defined else 'Not set' }} {{ '✓' if pve_api_token_secret is defined else '✗' }}"
+      - "Container Hostname:       {{ pve_hostname }} {{ '✓' if pve_hostname is defined else '✗' }}"
+      - "OS Template:              {{ pve_lxc_ostemplate_name }} {{ '✓' if pve_lxc_ostemplate_name is defined else '✗' }}"
+      - "Root Password:            {{ 'Set' if pve_lxc_root_password is defined else 'Not set' }} {{ '✓' if pve_lxc_root_password is defined else '✗' }}"
+      - "IP Address:               {{ pve_lxc_ip_address | default('Not set') }} {{ '✓' if pve_lxc_ip_address is defined else '✗' }}"
+      - "CPU Cores:                {{ pve_lxc_cpu_cores | default('Not set') }} {{ '✓' if pve_lxc_cpu_cores is defined and pve_lxc_cpu_cores > 0 else '✗' }}"
+      - "Memory:                   {{ pve_lxc_memory | default('Not set') }}MB {{ '✓' if pve_lxc_memory is defined and pve_lxc_memory > 0 else '✗' }}"
+      - "Disk Size:                {{ pve_lxc_disk | default('Not set') }}GB {{ '✓' if pve_lxc_disk is defined and pve_lxc_disk > 0 else '✗' }}"
+      - "Strict Validation:        {{ strict_validation }}"
+      - "Status:                   {{ 'SUCCESS' if strict_validation else 'SKIPPED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - validation
+

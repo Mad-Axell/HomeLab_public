@@ -1,0 +1,131 @@
+---
+# EN: Argument specifications for role input validation
+# RU: Спецификации аргументов для валидации входных параметров роли
+argument_specs:
+  main:
+    short_description: "EN: Proxmox configuration import role / RU: Роль импорта конфигурации Proxmox"
+    description: |
+      EN: This role imports and validates configuration variables for Proxmox LXC container
+      deployment from centralized secret storage and host-specific variable files.
+      RU: Данная роль импортирует и валидирует конфигурационные переменные для развертывания
+      LXC контейнеров Proxmox из централизованного хранилища секретов и файлов переменных хостов.
+    author:
+      - "Mad-Axell <devops@mad-axell.com>"
+    
+    options:
+      host_name:
+        type: str
+        required: true
+        description: |
+          EN: Host name for loading host_vars (must match host_vars file name without .yml extension)
+          RU: Имя хоста для загрузки host_vars (должно совпадать с именем файла host_vars без расширения .yml)
+        
+      host_vars:
+        type: str
+        required: true
+        description: |
+          EN: Prefix for variables in secrets.yaml (used to construct variable names)
+          RU: Префикс для переменных в secrets.yaml (используется для построения имен переменных)
+      
+      debug_mode:
+        type: bool
+        required: false
+        default: false
+        description: |
+          EN: Enable detailed debug output
+          RU: Включить детальный вывод отладки
+        choices: [true, false]
+      
+      
+      debug_sensitive:
+        type: bool
+        required: false
+        default: false
+        description: |
+          EN: Enable sensitive debug output - shows passwords in plain text (INSECURE)
+          RU: Включить отладочный вывод с паролями в открытом виде (НЕБЕЗОПАСНО)
+        choices: [true, false]
+      
+      validate_parameters:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable parameter validation
+          RU: Включить валидацию параметров
+        choices: [true, false]
+      
+      strict_validation:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable strict validation mode
+          RU: Включить режим строгой валидации
+        choices: [true, false]
+
+      ansible_base_dir:
+        type: str
+        required: false
+        default: "/etc/ansible"
+        description: |
+          EN: Base directory for Ansible configuration
+          RU: Базовая директория для конфигурации Ansible
+      
+      ansible_host_vars_dir:
+        type: str
+        required: false
+        default: "{{ ansible_base_dir }}/host_vars"
+        description: |
+          EN: Directory for host variables
+          RU: Директория для переменных хоста
+      
+      ansible_vars_dir:
+        type: str
+        required: false
+        default: "{{ ansible_base_dir }}/VARS"
+        description: |
+          EN: Directory for secrets and vault files
+          RU: Директория для секретов и vault-файлов
+      
+      secrets_file_path:
+        type: str
+        required: false
+        default: "{{ ansible_vars_dir }}/secrets.yaml"
+        description: |
+          EN: Path to secrets file
+          RU: Путь к файлу секретов
+      
+      ansible_inventory_file:
+        type: str
+        required: false
+        default: "{{ ansible_base_dir }}/hosts.yml"
+        description: |
+          EN: Path to inventory file
+          RU: Путь к файлу инвентори
+      
+      
+      async_timeout:
+        type: int
+        required: false
+        default: 300
+        description: |
+          EN: Async task timeout in seconds
+          RU: Таймаут асинхронных задач в секундах
+      
+      retries:
+        type: int
+        required: false
+        default: 3
+        description: |
+          EN: Number of retries for failed tasks
+          RU: Количество повторов для неудачных задач
+      
+      retry_delay:
+        type: int
+        required: false
+        default: 5
+        description: |
+          EN: Delay between retries in seconds
+          RU: Задержка между повторами в секундах
+

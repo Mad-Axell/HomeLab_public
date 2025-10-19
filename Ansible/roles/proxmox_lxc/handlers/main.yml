@@ -1,0 +1,90 @@
+---
+# EN: Handlers file for proxmox_lxc role
+# RU: Файл обработчиков для роли proxmox_lxc
+
+# EN: Wait for LXC container connection
+# RU: Ожидание подключения к LXC контейнеру
+- name: "Debug connection wait conditions"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Connection Wait Conditions Debug:"
+      - "============================================================================="
+      - "pve_lxc_net_interfaces defined: {{ pve_lxc_net_interfaces is defined }}"
+      - "pve_lxc_net_interfaces length: {{ pve_lxc_net_interfaces | length if pve_lxc_net_interfaces is defined else 'N/A' }}"
+      - "pve_lxc_ip_address defined: {{ pve_lxc_ip_address is defined }}"
+      - "pve_lxc_ip_address value: {{ pve_lxc_ip_address | default('N/A') }}"
+      - "pve_lxc_ip_address != omit: {{ pve_lxc_ip_address != omit if pve_lxc_ip_address is defined else 'N/A' }}"
+      - "pve_lxc_ip_address length: {{ pve_lxc_ip_address | length if pve_lxc_ip_address is defined and pve_lxc_ip_address != omit else 'N/A' }}"
+      - "Will wait for connection: {{ (pve_lxc_net_interfaces is defined and pve_lxc_net_interfaces | length > 0 and pve_lxc_ip_address is defined and pve_lxc_ip_address != omit and pve_lxc_ip_address | length > 0) }}"
+      - "============================================================================="
+  when: debug_mode | default(true)
+  tags:
+    - debug
+    - handlers
+    - connection
+
+- name: "pve_lxc wait for connection"
+  ansible.builtin.wait_for_connection:
+    delay: 5
+    sleep: 5
+    timeout: "{{ pve_lxc_wait_for_connection_timeout | default(60) }}"
+  remote_user: "{{ pve_lxc_wait_for_connection_remote_user | default('root') }}"
+  register: pve_lxc_wait_result
+  failed_when: false
+  when:
+    - pve_lxc_net_interfaces is defined
+    - pve_lxc_net_interfaces | length > 0
+    - pve_lxc_ip_address is defined
+    - pve_lxc_ip_address != omit
+    - pve_lxc_ip_address | length > 0
+  notify:
+    - display_connection_wait_results_english
+    - display_connection_wait_results_russian
+  tags:
+    - handlers
+    - connection
+
+# EN: Display message when connection wait is skipped
+# RU: Отображение сообщения когда ожидание подключения пропускается
+- name: "Display connection wait skipped message"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Connection Wait SKIPPED:"
+      - "============================================================================="
+      - "Container Name:          {{ pve_hostname }}"
+      - "Reason:                  IP address not properly configured or network interfaces not defined"
+      - "IP Address:              {{ pve_lxc_ip_address | default('Not defined') }}"
+      - "Network Interfaces:      {{ pve_lxc_net_interfaces | default('Not defined') }}"
+      - "Note:                    Container may still be accessible via other means"
+      - "============================================================================="
+  when: 
+    - debug_mode | default(true)
+    - not (pve_lxc_net_interfaces is defined and pve_lxc_net_interfaces | length > 0 and pve_lxc_ip_address is defined and pve_lxc_ip_address != omit and pve_lxc_ip_address | length > 0)
+  tags:
+    - debug
+    - handlers
+    - connection
+
+# EN: Display connection wait results (English)
+# RU: Отображение результатов ожидания подключения (Английский)
+- name: "display_connection_wait_results_english"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Connection Wait Results:"
+      - "============================================================================="
+      - "Container Name:          {{ pve_hostname }}"
+      - "IP Address:              {{ pve_lxc_ip_address }}"
+      - "Timeout:                 {{ pve_lxc_wait_for_connection_timeout | default(60) }}s"
+      - "Remote User:             {{ pve_lxc_wait_for_connection_remote_user | default('root') }}"
+      - "Return Code:             {{ pve_lxc_wait_result.rc | default('N/A') }}"
+      - "Changed:                 {{ pve_lxc_wait_result.changed | default('N/A') }}"
+      - "Status:                  {{ 'SUCCESS' if pve_lxc_wait_result.rc == 0 else 'FAILED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - handlers
+

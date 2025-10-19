@@ -1,0 +1,866 @@
+---
+
+# EN: Validate role arguments (Automatic in Ansible 2.11+)
+# RU: Валидация аргументов роли (Автоматически в Ansible 2.11+)
+- name: "Validate role arguments"
+  ansible.builtin.validate_argument_spec:
+    argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
+  tags: ['always', 'validate']
+
+# EN: Include parameter validation
+# RU: Включение валидации параметров
+# EN: Include parameter validation tasks
+# RU: Включение задач валидации параметров
+- name: "Include parameter validation tasks"
+  ansible.builtin.include_tasks: validate.yml
+  when: validate_parameters | bool
+  tags:
+    - validation
+    - always
+
+- name: "Display Proxmox API configuration (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Proxmox API Configuration:"
+      - "============================================================================="
+      - "API Host:                 {{ pve_api_host }}"
+      - "Node:                     {{ pve_node }}"
+      - "API User:                 {{ pve_api_user | default('Not set') }}"
+      - "API Token ID:             {{ pve_api_token_id | default('Not set') }}"
+      - "API Password:             {{ pve_api_password if debug_show_passwords | bool else ('Set' if pve_api_password is defined else 'Not set') }}"
+      - "API Token Secret:         {{ pve_api_token_secret if debug_show_passwords | bool else ('Set' if pve_api_token_secret is defined else 'Not set') }}"
+      - "Validate Certs:           {{ pve_validate_certs | default('Not set') }}"
+      - "Default Behavior:         {{ pve_default_behavior }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - api
+
+
+# EN: Install required Python packages
+# RU: Установка необходимых пакетов Python
+- name: "Install required Python packages"
+  block:
+    # EN: Install Python dependencies
+    # RU: Установка зависимостей Python
+    - name: "Install Python dependencies"
+      ansible.builtin.package:
+        name:
+          - python3
+          - python3-pip
+          - python3-proxmoxer
+        state: present
+      register: python_packages_result
+      retries: "{{ retries | default(3) }}"
+      delay: "{{ retry_delay | default(5) }}"
+      until: python_packages_result is succeeded
+      tags:
+        - packages
+        - dependencies
+
+    - name: "Display package installation results (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Python Packages Installation:"
+          - "============================================================================="
+          - "Packages:                python3, python3-pip, python3-proxmoxer"
+          - "Changed:                 {{ python_packages_result.changed }}"
+          - "Status:                  {{ 'SUCCESS' if python_packages_result is succeeded else 'FAILED' }}"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - packages
+
+
+    # EN: Log package installation to structured log file
+    # RU: Логирование установки пакетов в структурированный файл лога
+    - name: "Log package installation to structured log file"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "PACKAGE_INSTALL",
+          "service_name": "proxmox_lxc",
+          "packages": ["python3", "python3-pip", "python3-proxmoxer"],
+          "changed": python_packages_result.changed,
+          "status": python_packages_result is succeeded | ternary("SUCCESS", "FAILED"),
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": "Log package installation to structured log file",
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Python packages installation completed",
+          "metadata": {
+            "package_manager": "apt",
+            "os_family": ansible_os_family,
+            "os_version": ansible_distribution_version,
+            "retries_used": retries | default(3),
+            "retry_delay": retry_delay | default(5)
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - logging
+        - packages
+
+  rescue:
+    - name: "Display package installation error (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Package Installation Error:"
+          - "============================================================================="
+          - "Error:                   {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "Status:                  FAILED"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - error
+
+
+    # EN: Log package installation error to structured log file
+    # RU: Логирование ошибки установки пакетов в структурированный файл лога
+    - name: "Log package installation error to structured log file"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "ERROR",
+          "event_type": "PACKAGE_INSTALL_FAILURE",
+          "service_name": "proxmox_lxc",
+          "packages": ["python3", "python3-pip", "python3-proxmoxer"],
+          "error_message": ansible_failed_result.msg | default("Unknown error"),
+          "error_type": ansible_failed_result.exception | default("Unknown"),
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": ansible_failed_task.name | default("unknown"),
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Python packages installation failed",
+          "metadata": {
+            "package_manager": "apt",
+            "os_family": ansible_os_family,
+            "os_version": ansible_distribution_version,
+            "retries_attempted": retries | default(3),
+            "retry_delay": retry_delay | default(5)
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - logging
+        - error
+
+    # EN: Fail after displaying error
+    # RU: Завершение с ошибкой
+    - name: "Fail after displaying error"
+      ansible.builtin.fail:
+        msg: "Package installation failed. Check debug output for details. / Установка пакетов завершилась с ошибкой. Проверьте отладочный вывод для деталей."
+
+# EN: Get VM information
+# RU: Получение информации о ВМ
+- name: "Get VM information"
+  community.general.proxmox_vm_info:
+    api_host: "{{ pve_api_host }}"
+    node: "{{ pve_node }}"
+    api_user: "{{ pve_api_user | default(omit) }}"
+    api_password: "{{ pve_api_password | default(omit) }}"
+    vmid: "{{ pve_lxc_vmid | default(omit) }}"
+  register: pve_vms_info
+  tags:
+    - info
+    - vmid
+
+# EN: Get VM_ID info
+# RU: Получение информации о VM_ID
+- name: "Get VM_ID info"
+  ansible.builtin.set_fact:
+    pve_vmid_info: "{{ pve_vms_info.proxmox_vms | default([]) | map(attribute='vmid') | default([]) | join(',') }}"
+  tags:
+    - info
+    - vmid
+
+- name: "Display VMID information (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "VMID Information:"
+      - "============================================================================="
+      - "Existing VMIDs:          {{ pve_vmid_info if pve_vmid_info | length > 0 else 'None' }}"
+      - "Container exists:        {{ 'YES' if pve_vmid_info | length > 0 else 'NO' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - vmid
+
+
+# EN: Check VM exists
+# RU: Проверка существования ВМ
+- name: "Check VM exists"
+  ansible.builtin.set_fact:
+    pve_lxc_state: present
+  when: pve_vmid_info|length == 0
+  tags:
+    - state
+    - vmid
+
+# EN: Check VM started
+# RU: Проверка запуска ВМ
+- name: "Check VM started"
+  ansible.builtin.set_fact:
+    pve_lxc_state: started
+  when: pve_vmid_info|length > 0
+  tags:
+    - state
+    - vmid
+
+- name: "Display LXC state (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "LXC Container State:"
+      - "============================================================================="
+      - "Target State:            {{ pve_lxc_state }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - state
+
+
+# EN: Check OS template exists
+# RU: Проверка существования шаблона ОС
+- name: "Check OS template exists"
+  ansible.builtin.stat:
+    path: "{{ pve_lxc_ostemplate_src }}"
+  register: pve_lxc_ostemplate_exists
+  tags:
+    - template
+    - check
+
+- name: "Display template check results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "OS Template Check:"
+      - "============================================================================="
+      - "Template Path:           {{ pve_lxc_ostemplate_src }}"
+      - "Template Exists:         {{ 'YES' if pve_lxc_ostemplate_exists.stat.exists else 'NO' }}"
+      - "Download Required:       {{ 'YES' if not pve_lxc_ostemplate_exists.stat.exists else 'NO' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - template
+
+
+# EN: Download the container template if needed
+# RU: Загрузка шаблона контейнера при необходимости
+- name: "Download the container template if needed"
+  block:
+    # EN: Download template from URL
+    # RU: Загрузка шаблона из URL
+    - name: "Download template from URL"
+      ansible.builtin.get_url:
+        url: "{{ pve_lxc_ostemplate_url }}"
+        dest: "{{ pve_lxc_ostemplate_src_dest }}"
+      register: pve_lxc_ostemplate_downloaded
+      retries: "{{ retries | default(3) }}"
+      delay: "{{ retry_delay | default(5) }}"
+      until: pve_lxc_ostemplate_downloaded is succeeded
+      when: not pve_lxc_ostemplate_exists.stat.exists
+      tags:
+        - template
+        - download
+
+    - name: "Display template download results (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Template Download Results:"
+          - "============================================================================="
+          - "Template URL:            {{ pve_lxc_ostemplate_url }}"
+          - "Destination:             {{ pve_lxc_ostemplate_downloaded.dest | default('N/A') }}"
+          - "Changed:                 {{ pve_lxc_ostemplate_downloaded.changed | default('N/A') }}"
+          - "Status:                  {{ 'SUCCESS' if pve_lxc_ostemplate_downloaded is succeeded else 'SKIPPED' }}"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_mode | bool
+        - not pve_lxc_ostemplate_exists.stat.exists
+      tags:
+        - debug
+        - template
+
+
+  rescue:
+    - name: "Display template download error (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Template Download Error:"
+          - "============================================================================="
+          - "Error:                   {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "Template URL:            {{ pve_lxc_ostemplate_url }}"
+          - "Status:                  FAILED"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - error
+
+
+    # EN: Fail after displaying error
+    # RU: Завершение с ошибкой
+    - name: "Fail after displaying error"
+      ansible.builtin.fail:
+        msg: "Template download failed. Check debug output for details. / Загрузка шаблона завершилась с ошибкой. Проверьте отладочный вывод для деталей."
+
+
+# EN: Add LXC container template to node
+# RU: Добавление шаблона LXC контейнера на узел
+- name: "Add LXC container template to node"
+  block:
+    # EN: Upload container template
+    # RU: Загрузка шаблона контейнера
+    - name: "Upload container template"
+      community.general.proxmox_template:
+        node: "{{ pve_node }}"
+        api_host: "{{ pve_api_host }}"
+        api_user: "{{ pve_api_user | default(omit) }}"
+        api_password: "{{ pve_api_password | default(omit) }}"
+        api_token_id: "{{ pve_api_token_id | default(omit) }}"
+        api_token_secret: "{{ pve_api_token_secret | default(omit) }}"
+        template: "{{ pve_lxc_ostemplate_name | default(omit) }}"
+        src: "{{ pve_lxc_ostemplate_src if(pve_lxc_ostemplate_src is defined) else ( pve_lxc_ostemplate_downloaded.dest if(pve_lxc_ostemplate_downloaded.dest is defined) ) | default(omit) }}"
+        storage: "{{ pve_lxc_ostemplate_storage | default(omit) }}"
+        content_type: "{{ pve_lxc_ostemplate_content_type | default(omit) }}"
+        timeout: "{{ pve_lxc_ostemplate_timeout | default(omit) }}"
+        force: "{{ pve_lxc_ostemplate_force | default(omit) }}"
+        validate_certs: "{{ pve_validate_certs | default(omit) }}"
+        state: "{{ pve_lxc_ostemplate_state  | default(omit) }}"
+      register: pve_lxc_template_result
+      retries: "{{ retries | default(3) }}"
+      delay: "{{ retry_delay | default(5) }}"
+      until: pve_lxc_template_result is succeeded
+      tags:
+        - template
+        - upload
+
+    - name: "Display template upload results (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Template Upload Results:"
+          - "============================================================================="
+          - "Template:                {{ pve_lxc_ostemplate_name }}"
+          - "Storage:                 {{ pve_lxc_ostemplate_storage | default('local') }}"
+          - "Node:                    {{ pve_node }}"
+          - "Changed:                 {{ pve_lxc_template_result.changed }}"
+          - "Status:                  {{ 'SUCCESS' if pve_lxc_template_result is succeeded else 'FAILED' }}"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - template
+
+
+  rescue:
+    - name: "Display template upload error (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Template Upload Error:"
+          - "============================================================================="
+          - "Error:                   {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "Template:                {{ pve_lxc_ostemplate_name }}"
+          - "Node:                    {{ pve_node }}"
+          - "Status:                  FAILED"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - error
+
+
+    # EN: Fail after displaying error
+    # RU: Завершение с ошибкой
+    - name: "Fail after displaying error"
+      ansible.builtin.fail:
+        msg: "Template upload failed. Check debug output for details. / Загрузка шаблона на узел завершилась с ошибкой. Проверьте отладочный вывод для деталей."
+
+
+- name: "Display container configuration (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Container Configuration:"
+      - "============================================================================="
+      - "Default Behavior:         {{ pve_default_behavior }}"
+      - "Nameserver:               {{ pve_lxc_nameserver | default('Not set') }}"
+      - "Search Domain:            {{ pve_lxc_searchdomain | default('Not set') }}"
+      - "VMID:                     {{ pve_lxc_vmid | default('Auto-assigned') }}"
+      - "Hostname:                 {{ pve_hostname }}"
+      - "OS Template:              {{ pve_lxc_ostemplate_name }}"
+      - "Root Password:            {{ pve_lxc_root_password if debug_show_passwords | bool else ('Set' if pve_lxc_root_password is defined else 'Not set') }}"
+      - "CPU Cores:                {{ pve_lxc_cpu_cores | default('Not set') }}"
+      - "Memory:                   {{ pve_lxc_memory | default('Not set') }}MB"
+      - "Disk Size:                {{ pve_lxc_disk | default('Not set') }}GB"
+      - "IP Address:               {{ pve_lxc_ip_address | default('Not set') }}"
+      - "Status:                   SUCCESS"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - container
+
+
+
+
+# EN: Create LXC container with error handling
+# RU: Создание LXC контейнера с обработкой ошибок
+- name: "Create LXC container with error handling"
+  block:
+    # EN: Create the container
+    # RU: Создание контейнера
+    - name: "Create the container"
+      community.general.proxmox:
+        vmid: "{{ pve_lxc_vmid | default(omit) }}"
+        node: "{{ pve_node }}"
+        api_user: "{{ pve_api_user | default(omit) }}"
+        api_password: "{{ pve_api_password | default(omit) }}"
+        api_token_id: "{{ pve_api_token_id | default(omit) }}"
+        api_token_secret: "{{ pve_api_token_secret | default(omit) }}"
+        pubkey: "{{ pve_lxc_root_authorized_pubkey | default(omit) }}"
+        api_host: "{{ pve_api_host }}"
+        password: "{{ pve_lxc_root_password }}"
+        hostname: "{{ pve_hostname }}"
+        description: "{{ pve_lxc_description }}"
+        ostemplate: "{{ pve_lxc_ostemplate_storage | default('local') }}:{{ pve_lxc_ostemplate_content_type | default('vztmpl') }}/{{ pve_lxc_ostemplate_name if(pve_lxc_ostemplate_name is defined) else ( pve_lxc_ostemplate_url | urlsplit('path') | basename ) }}"
+        validate_certs: "{{ pve_validate_certs | default(omit) }}"
+        hookscript: "{{ pve_lxc_hookscript | default(omit) }}"
+        cores: "{{ pve_lxc_cpu_cores | default(omit) }}"
+        cpus: "{{ pve_lxc_cpu_limit | default(omit) }}"
+        cpuunits: "{{ pve_lxc_cpu_units | default(omit) }}"
+        memory: "{{ pve_lxc_memory | default(omit) }}"
+        swap: "{{ pve_lxc_swap | default(omit) }}"
+        disk: "{{ pve_lxc_storage | default(omit) }}:{{ pve_lxc_disk | default(omit) }}"
+        onboot: "{{ pve_onboot | default(omit) }}"
+        unprivileged: "{{ pve_lxc_unprivileged | default(omit) }}"
+        nameserver: "{{ pve_lxc_nameserver | default(omit) }}"
+        searchdomain: "{{ pve_lxc_searchdomain | default(omit) }}"
+        mounts: >-
+          {   {%- for item in pve_lxc_mounts -%}
+                "{{ item.id }}":"{{ item.storage|default('local-lvm') }}:{{ item.size|default(32) }},mp={{ item.mount_point|default('/mnt/mp0') }},{% if item.acl is defined %}{% if (item.acl) %}acl=1{% else %}acl=0{% endif %},{% endif %}{% if item.quota is defined and item.quota %}quota=1,{% endif %}{% if item.read_only is defined and item.read_only %}ro=1,{% endif %}{% if item.backup is defined and item.backup %}backup=1,{% endif %}{% if item.skip_replication is defined and item.skip_replication %}replicate=0{% endif %}",
+              {%- endfor -%}  }
+        netif: >-
+          {   {%- for item in pve_lxc_net_interfaces -%}
+                "{{ item.id }}":"name={{ item.name }},bridge={{ item.bridge }},{% if (item.hwaddr is defined) %}hwaddr={{ item.hwaddr }},{% endif %}{% if (item.ip4 is defined) %}ip={{ item.ip4 }}{% endif %}{% if (item.netmask4 is defined) %}/{{ item.netmask4 }},{% else %},{% endif %}{% if (item.gw4 is defined) %}gw={{ item.gw4 }},{% endif %}{% if (item.ip6 is defined) %}ip6={{ item.ip6 }}{% endif %}{% if (item.netmask6 is defined) %}/{{ item.netmask6 }},{% else %},{% endif %}{% if (item.gw6 is defined) %}gw6={{ item.gw6 }},{% endif %}{% if (item.firewall is defined and item.firewall) %}firewall=1,{% endif %}{% if (item.rate_limit is defined) %}rate={{ item.rate_limit }},{% else %},{% endif %}{% if (item.vlan_tag is defined) %}tag={{ item.vlan_tag }}{% endif %}",
+              {%- endfor -%} 
+          }
+        features: "{{ pve_lxc_features | default(omit) }}"
+        timeout: "{{ pve_lxc_timeout | default(omit) }}"
+        force: "{{ pve_lxc_force | default(true) }}"
+        state: "{{ pve_lxc_state }}"
+      register: pve_lxc_container_created
+      no_log: true
+      tags:
+        - container
+        - creation
+
+    # EN: Log container creation to structured log file
+    # RU: Логирование создания контейнера в структурированный файл лога
+    - name: "Log container creation to structured log file"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "CONTAINER_CREATION",
+          "service_name": "proxmox_lxc",
+          "container_name": pve_hostname,
+          "vmid": pve_lxc_vmid | default("auto-assigned"),
+          "changed": pve_lxc_container_created.changed,
+          "status": pve_lxc_container_created is succeeded | ternary("SUCCESS", "FAILED"),
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": "Log container creation to structured log file",
+          "correlation_id": ansible_date_time.epoch,
+          "message": "LXC container creation completed",
+          "metadata": {
+            "api_host": pve_api_host,
+            "node": pve_node,
+            "template": pve_lxc_ostemplate_name,
+            "cpu_cores": pve_lxc_cpu_cores | default("not_set"),
+            "memory": pve_lxc_memory | default("not_set"),
+            "disk_size": pve_lxc_disk | default("not_set"),
+            "ip_address": pve_lxc_ip_address | default("not_set"),
+            "unprivileged": pve_lxc_unprivileged | default(true),
+            "onboot": pve_onboot | default(true)
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - logging
+        - container
+
+  rescue:
+    - name: "Display container creation error (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Container Creation Error:"
+          - "============================================================================="
+          - "Error:                   {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "Container Name:          {{ pve_hostname }}"
+          - "VMID:                    {{ pve_lxc_vmid | default('Auto-assigned') }}"
+          - "API Host:                {{ pve_api_host }}"
+          - "Node:                    {{ pve_node }}"
+          - "Status:                  FAILED"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - error
+
+
+    # EN: Log container creation error to structured log file
+    # RU: Логирование ошибки создания контейнера в структурированный файл лога
+    - name: "Log container creation error to structured log file"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "ERROR",
+          "event_type": "CONTAINER_CREATION_FAILURE",
+          "service_name": "proxmox_lxc",
+          "container_name": pve_hostname,
+          "vmid": pve_lxc_vmid | default("auto-assigned"),
+          "error_message": ansible_failed_result.msg | default("Unknown error"),
+          "error_type": ansible_failed_result.exception | default("Unknown"),
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "task": ansible_failed_task.name | default("unknown"),
+          "correlation_id": ansible_date_time.epoch,
+          "message": "LXC container creation failed",
+          "metadata": {
+            "api_host": pve_api_host,
+            "node": pve_node,
+            "template": pve_lxc_ostemplate_name,
+            "cpu_cores": pve_lxc_cpu_cores | default("not_set"),
+            "memory": pve_lxc_memory | default("not_set"),
+            "disk_size": pve_lxc_disk | default("not_set"),
+            "ip_address": pve_lxc_ip_address | default("not_set"),
+            "unprivileged": pve_lxc_unprivileged | default(true),
+            "onboot": pve_onboot | default(true)
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when: log_file is defined
+      tags:
+        - logging
+        - error
+
+    # EN: Fail after displaying error
+    # RU: Завершение с ошибкой
+    - name: "Fail after displaying error"
+      ansible.builtin.fail:
+        msg: "Container creation failed. Check debug output for details. / Создание контейнера завершилось с ошибкой. Проверьте отладочный вывод для деталей."
+
+# EN: Extract the container VMID
+# RU: Извлечение VMID контейнера
+- name: "Extract the container VMID"
+  block:
+    # EN: Get container VMID
+    # RU: Получение VMID контейнера
+    - name: "Get container VMID"
+      ansible.builtin.shell: |
+        set -o pipefail
+        pvesh get nodes/{{ pve_node }}/lxc --output-format=json 2>/dev/null | sed 's/},{/}\n{/g' | grep -w "{{ pve_hostname }}" | grep -Po '("vmid":")\K[[:digit:]]+(?=")'
+      args:
+        executable: /bin/bash
+      changed_when: false
+      delegate_to: "{{ pve_api_host }}"
+      register: pve_lxc_extracted_vmid
+      when:
+        - pve_lxc_vmid is not defined
+        - pve_lxc_container_created is succeeded
+      tags:
+        - vmid
+        - extraction
+
+    - name: "Display extracted VMID (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Extracted VMID:"
+          - "============================================================================="
+          - "Container Name:          {{ pve_hostname }}"
+          - "VMID:                    {{ pve_lxc_extracted_vmid.stdout }}"
+          - "Status:                  SUCCESS"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_mode | bool
+        - pve_lxc_extracted_vmid is defined
+        - pve_lxc_extracted_vmid.stdout is defined
+      tags:
+        - debug
+        - vmid
+
+
+  rescue:
+    - name: "Display VMID extraction error (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "VMID Extraction Error:"
+          - "============================================================================="
+          - "Error:                   {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "Container Name:          {{ pve_hostname }}"
+          - "Status:                  FAILED"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - error
+
+
+    # EN: Fail after displaying error
+    # RU: Завершение с ошибкой
+    - name: "Fail after displaying error"
+      ansible.builtin.fail:
+        msg: "VMID extraction failed. Check debug output for details. / Извлечение VMID завершилось с ошибкой. Проверьте отладочный вывод для деталей."
+
+# EN: Set variable with the corresponding VMID for the container
+# RU: Установка переменной с соответствующим VMID контейнера
+- name: "Set variable with the corresponding VMID for the container"
+  ansible.builtin.set_fact:
+    pve_lxc_inferred_vmid: "{{ pve_lxc_vmid if (pve_lxc_vmid is defined) else pve_lxc_extracted_vmid.stdout | default(pve_lxc_vmid) }}"
+  tags:
+    - vmid
+    - facts
+
+# EN: Apply additional configurations to container
+# RU: Применение дополнительных конфигураций к контейнеру
+- name: "Apply additional configurations to container"
+  block:
+    # EN: Additional configurations directly on the container .conf file
+    # RU: Дополнительные конфигурации напрямую в файле .conf контейнера
+    - name: "Additional configurations directly on the container .conf file"
+      ansible.builtin.lineinfile:
+        unsafe_writes: yes # Otherwise Proxmox denies permission
+        path: "{{ proxmox_config_dir | default('/etc/pve') }}/nodes/{{ pve_node }}/lxc/{{ pve_lxc_inferred_vmid }}.conf"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: "{{ item.state | default(omit) }}"
+      loop: "{{ pve_lxc_additional_configurations }}"
+      register: pve_lxc_additional_configurations_result
+      tags:
+        - config
+        - additional
+
+    - name: "Display additional configurations results (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Additional Configurations Results:"
+          - "============================================================================="
+          - "Container VMID:          {{ pve_lxc_inferred_vmid }}"
+          - "Config File:             {{ proxmox_config_dir | default('/etc/pve') }}/nodes/{{ pve_node }}/lxc/{{ pve_lxc_inferred_vmid }}.conf"
+          - "Changed:                 {{ pve_lxc_additional_configurations_result.changed }}"
+          - "Reboot Required:         {{ 'YES' if pve_lxc_additional_configurations_result is changed else 'NO' }}"
+          - "Status:                  SUCCESS"
+          - "============================================================================="
+      when: debug_mode | bool
+      tags:
+        - debug
+        - config
+
+
+    # EN: Reboot container if configuration file was modified
+    # RU: Перезагрузка контейнера если файл конфигурации был изменен
+    - name: "Reboot container if configuration file was modified"
+      community.general.proxmox:
+        node: "{{ pve_node }}"
+        api_host: "{{ pve_api_host }}"
+        api_user: "{{ pve_api_user | default(omit) }}"
+        api_password: "{{ pve_api_password | default(omit) }}"
+        api_token_id: "{{ pve_api_token_id | default(omit) }}"
+        api_token_secret: "{{ pve_api_token_secret | default(omit) }}"
+        vmid: "{{ pve_lxc_inferred_vmid }}"
+        state: stopped
+      when: pve_lxc_additional_configurations_result is changed
+      tags:
+        - container
+        - reboot
+
+  when: pve_lxc_additional_configurations is defined
+
+- name: "Display container creation status (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Container Creation Status:"
+      - "============================================================================="
+      - "Container Name:          {{ pve_hostname }}"
+      - "VMID:                    {{ pve_lxc_inferred_vmid | default('N/A') }}"
+      - "Changed:                 {{ pve_lxc_container_created.changed | default('N/A') }}"
+      - "Failed:                  {{ pve_lxc_container_created.failed | default('N/A') }}"
+      - "Status:                  {{ 'SUCCESS' if pve_lxc_container_created is succeeded else 'FAILED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - container
+
+
+# EN: Ensure the container is turned on
+# RU: Убедиться, что контейнер включен
+- name: "Debug container start conditions"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Container Start Conditions Debug:"
+      - "============================================================================="
+      - "pve_lxc_container_created defined:      {{ pve_lxc_container_created is defined }}"
+      - "pve_lxc_container_created succeeded:    {{ 'SUCCESS' if (pve_lxc_container_created is defined and pve_lxc_container_created is succeeded) else 'N/A' }}"
+      - "pve_lxc_inferred_vmid:                  {{ pve_lxc_inferred_vmid | default('Not defined') }}"
+      - "Will start container:                   {{ 'YES' if ((pve_lxc_container_created is not defined) or (pve_lxc_container_created is succeeded)) else 'NO' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - container
+    - start
+
+- name: "Ensure the container is turned on"
+  community.general.proxmox:
+    node: "{{ pve_node }}"
+    api_host: "{{ pve_api_host }}"
+    api_user: "{{ pve_api_user | default(omit) }}"
+    api_password: "{{ pve_api_password | default(omit) }}"
+    api_token_id: "{{ pve_api_token_id | default(omit) }}"
+    api_token_secret: "{{ pve_api_token_secret | default(omit) }}"
+    vmid: "{{ pve_lxc_inferred_vmid }}"
+    state: started
+  register: pve_lxc_container_started
+  notify: pve_lxc wait for connection
+  when: 
+    - ((pve_lxc_container_created is not defined) or (pve_lxc_container_created is succeeded))
+  tags:
+    - container
+    - start
+
+# EN: Collect operation results
+# RU: Сбор результатов операций
+- name: "Collect operation results"
+  ansible.builtin.set_fact:
+    operation_results:
+      validation: "{{ 'ENABLED' if validate_parameters else 'DISABLED' }}"
+      python_packages: "{{ 'SUCCESS' if python_packages_result is defined and python_packages_result is succeeded else 'SKIPPED' }}"
+      template_check: "{{ 'EXISTS' if pve_lxc_ostemplate_exists is defined and pve_lxc_ostemplate_exists.stat.exists else 'DOWNLOADED' if pve_lxc_ostemplate_downloaded is defined and pve_lxc_ostemplate_downloaded is succeeded else 'N/A' }}"
+      template_upload: "{{ 'SUCCESS' if pve_lxc_template_result is defined and pve_lxc_template_result is succeeded else 'SKIPPED' }}"
+      container_creation: "{{ 'SUCCESS' if pve_lxc_container_created is defined and pve_lxc_container_created is succeeded else 'FAILED' }}"
+      container_started: "{{ 'SUCCESS' if pve_lxc_container_started is defined and pve_lxc_container_started is succeeded else 'SKIPPED' }}"
+      additional_config: "{{ 'APPLIED' if pve_lxc_additional_configurations_result is defined and pve_lxc_additional_configurations_result is changed else 'NO CHANGES' if pve_lxc_additional_configurations is defined else 'SKIPPED' }}"
+      vmid_extracted: "{{ 'YES' if pve_lxc_extracted_vmid is defined and pve_lxc_extracted_vmid.stdout is defined else 'N/A' }}"
+  tags:
+    - summary
+    - results
+
+- name: "Display final operation summary (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Proxmox LXC Role Execution Summary:"
+      - "============================================================================="
+      - "CONTAINER INFORMATION:"
+      - "  Container Name:        {{ pve_hostname }}"
+      - "  VMID:                  {{ pve_lxc_inferred_vmid | default('N/A') }}"
+      - "  Template:              {{ pve_lxc_ostemplate_name }}"
+      - "  CPU Cores:             {{ pve_lxc_cpu_cores | default('N/A') }}"
+      - "  Memory:                {{ pve_lxc_memory | default('N/A') }}MB"
+      - "  Disk Size:             {{ pve_lxc_disk | default('N/A') }}GB"
+      - "  IP Address:            {{ pve_lxc_ip_address | default('N/A') }}"
+      - "-----------------------------------------------------------------------------"
+      - "OPERATION RESULTS:"
+      - "  Validation:            {{ operation_results.validation }}"
+      - "  Python Packages:       {{ operation_results.python_packages }}"
+      - "  Template Check:        {{ operation_results.template_check }}"
+      - "  Template Upload:       {{ operation_results.template_upload }}"
+      - "  Container Creation:    {{ operation_results.container_creation }}"
+      - "  Container Started:     {{ operation_results.container_started }}"
+      - "  Additional Config:     {{ operation_results.additional_config }}"
+      - "  VMID Extracted:        {{ operation_results.vmid_extracted }}"
+      - "-----------------------------------------------------------------------------"
+      - "DEBUG SETTINGS:"
+      - "  Debug Mode:            {{ debug_mode }}"
+      - "  Show Passwords:        {{ debug_show_passwords }}"
+      - "  Strict Validation:     {{ strict_validation }}"
+      - "============================================================================="
+      - "Overall Status:          {{ 'SUCCESS' if operation_results.container_creation == 'SUCCESS' else 'FAILED' }}"
+      - "============================================================================="
+  when: debug_mode | bool
+  tags:
+    - debug
+    - summary
+
+
+# EN: Log final role execution summary to structured log file
+# RU: Логирование итоговой сводки выполнения роли в структурированный файл лога
+- name: "Log final role execution summary to structured log file"
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "ROLE_EXECUTION_SUMMARY",
+      "service_name": "proxmox_lxc",
+      "container_name": pve_hostname,
+      "vmid": pve_lxc_inferred_vmid | default("N/A"),
+      "overall_status": operation_results.container_creation == "SUCCESS" | ternary("SUCCESS", "FAILED"),
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "task": "Log final role execution summary to structured log file",
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Proxmox LXC role execution completed",
+      "metadata": {
+        "validation": operation_results.validation,
+        "python_packages": operation_results.python_packages,
+        "template_check": operation_results.template_check,
+        "template_upload": operation_results.template_upload,
+        "container_creation": operation_results.container_creation,
+        "container_started": operation_results.container_started,
+        "additional_config": operation_results.additional_config,
+        "vmid_extracted": operation_results.vmid_extracted,
+        "debug_mode": debug_mode,
+        "strict_validation": strict_validation,
+        "api_host": pve_api_host,
+        "node": pve_node,
+        "template": pve_lxc_ostemplate_name,
+        "execution_time": ansible_date_time.epoch
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when: log_file is defined
+  tags:
+    - logging
+    - summary

@@ -1,0 +1,62 @@
+---
+# Static variables for proxmox_lxc role
+# Статические переменные для роли proxmox_lxc
+
+# Proxmox-specific constants
+# Константы специфичные для Proxmox
+proxmox_api_port: 8006                    # Integer. Proxmox API port
+                                        # Целое число. Порт API Proxmox
+proxmox_api_scheme: "https"              # String. Proxmox API scheme
+                                        # Строка. Схема API Proxmox
+proxmox_api_path: "/api2/json"           # String. Proxmox API path
+                                        # Строка. Путь API Proxmox
+
+# LXC container defaults
+# Значения по умолчанию для LXC контейнеров
+lxc_default_bridge: "vmbr0"              # String. Default bridge for containers
+                                        # Строка. Мост по умолчанию для контейнеров
+lxc_default_storage: "local-lvm"         # String. Default storage for containers
+                                        # Строка. Хранилище по умолчанию для контейнеров
+lxc_default_template_storage: "local"    # String. Default storage for templates
+                                        # Строка. Хранилище по умолчанию для шаблонов
+
+# Network defaults
+# Сетевые значения по умолчанию
+network_default_mask: "24"               # String. Default network mask
+                                        # Строка. Маска сети по умолчанию
+network_default_firewall: true           # Boolean. Default firewall setting
+                                        # Логическое значение. Настройка брандмауэра по умолчанию
+
+# Container behavior defaults
+# Значения поведения контейнера по умолчанию
+container_default_unprivileged: true     # Boolean. Default unprivileged setting
+                                        # Логическое значение. Настройка непривилегированности по умолчанию
+container_default_onboot: true           # Boolean. Default onboot setting
+                                        # Логическое значение. Настройка автозапуска по умолчанию
+container_default_force: true            # Boolean. Default force setting
+                                        # Логическое значение. Настройка принудительности по умолчанию
+
+# Template defaults
+# Значения шаблонов по умолчанию
+template_default_content_type: "vztmpl"  # String. Default template content type
+                                        # Строка. Тип содержимого шаблона по умолчанию
+template_default_timeout: 60             # Integer. Default template operation timeout
+                                        # Целое число. Таймаут операций с шаблоном по умолчанию
+template_default_force: true             # Boolean. Default template force setting
+                                        # Логическое значение. Настройка принудительности шаблона по умолчанию
+
+# Performance defaults
+# Значения производительности по умолчанию
+performance_default_timeout: 30          # Integer. Default operation timeout
+                                        # Целое число. Таймаут операций по умолчанию
+performance_default_retries: 3           # Integer. Default retry count
+                                        # Целое число. Количество повторов по умолчанию
+performance_default_retry_delay: 5       # Integer. Default retry delay
+                                        # Целое число. Задержка повторов по умолчанию
+
+# Logging defaults
+# Значения логирования по умолчанию
+logging_default_file: "/var/log/ansible-proxmox-lxc.log"  # String. Default log file path
+                                                          # Строка. Путь к файлу лога по умолчанию
+logging_default_mode: "0644"             # String. Default log file mode
+                                        # Строка. Права доступа к файлу лога по умолчанию
