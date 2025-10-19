@@ -1,0 +1,210 @@
+---
+# =============================================================================
+# RedHat/CentOS Specific Tasks / Специфичные задачи для RedHat/CentOS
+# =============================================================================
+# This file contains tasks specific to RedHat, CentOS, Rocky Linux and AlmaLinux systems
+# Файл содержит задачи, специфичные для систем RedHat, CentOS, Rocky Linux и AlmaLinux
+# =============================================================================
+
+# Install required packages for RedHat/CentOS / Установка необходимых пакетов для RedHat/CentOS
+- name: "Install required packages for RedHat/CentOS"
+  block:
+    - name: "Build package list for RedHat/CentOS"
+      ansible.builtin.set_fact:
+        redhat_packages_to_install: >-
+          {{
+            (universal_packages | map('extract', package_mappings.redhat) | list) +
+            (package_mappings.redhat.additional | default([]))
+          }}
+
+    - name: "Display packages to install for RedHat/CentOS"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "RedHat/CentOS Packages to Install:"
+          - "============================================================================="
+          - "{{ redhat_packages_to_install | join(', ') }}"
+          - "============================================================================="
+      when: debug_mode | bool
+
+    - name: "Install RedHat/CentOS packages"
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ redhat_packages_to_install }}"
+      register: redhat_packages_result
+  rescue:
+    - name: "Log package installation failure (structured JSON)"
+      # Log package installation failure
+      # Логирование ошибки установки пакетов
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "ERROR",
+          "event_type": "PACKAGE_INSTALL_FAILED",
+          "packages": redhat_packages_to_install,
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Package installation failed",
+          "metadata": {
+            "rollback_enabled": enable_rollback | default(true),
+            "os_family": ansible_os_family,
+            "os_version": ansible_distribution_version,
+            "package_manager": "yum/dnf",
+            "error_type": "PACKAGE_INSTALL_ERROR"
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when:
+        - log_file is defined
+        - enable_rollback | default(true)
+
+    - name: "Package installation failed"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "RedHat/CentOS Package Installation Error:"
+          - "============================================================================="
+          - "Error: Could not install required packages."
+          - "Some features may not work properly."
+          - "Ошибка: Не удалось установить необходимые пакеты."
+          - "Некоторые функции могут работать неправильно."
+          - "============================================================================="
+      register: redhat_packages_result
+      failed_when: false
+
+# Display RedHat/CentOS package installation results / Отображение результатов установки пакетов RedHat/CentOS
+- name: "Display RedHat/CentOS package installation results"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "RedHat/CentOS Package Installation Results:"
+      - "============================================================================="
+      - "Package:                {{ item.item }}"
+      - "Installation Status:    {{ 'SUCCESS' if item.changed else 'ALREADY INSTALLED' }}"
+      - "Changed:                {{ 'YES' if item.changed else 'NO' }}"
+      - "Return Code:            {{ item.rc | default('N/A') }}"
+      - "============================================================================="
+  loop: "{{ redhat_packages_result.results | default([]) }}"
+  no_log: true
+  when: 
+    - debug_mode | bool
+    - redhat_packages_result is defined
+    - redhat_packages_result.results is defined
+
+# Configure keyboard layout for RedHat/CentOS systems / Настройка раскладки клавиатуры для систем RedHat/CentOS
+- name: "Configure keyboard layout for RedHat/CentOS"
+  block:
+    - name: "Set keyboard layout"
+      ansible.builtin.command: "localectl set-keymap {{ keyboard_layout }}"
+      register: keyboard_layout_result
+      changed_when: keyboard_layout_result.rc == 0
+  rescue:
+    - name: "Keyboard layout configuration failed"
+      ansible.builtin.debug:
+        msg: "Error: Could not configure keyboard layout '{{ keyboard_layout }}'. / Ошибка: Не удалось настроить раскладку клавиатуры '{{ keyboard_layout }}'."
+      register: keyboard_layout_result
+      failed_when: false
+  when: keyboard_layout != ""
+
+# Configure keyboard variant for RedHat/CentOS / Настройка варианта клавиатуры для RedHat/CentOS
+- name: "Configure keyboard variant for RedHat/CentOS"
+  ansible.builtin.command: "localectl set-x11-keymap {{ keyboard_layout }} {{ keyboard_variant }}"
+  when: keyboard_variant != ""
+  register: keyboard_variant_result
+  failed_when: false
+  changed_when: keyboard_variant_result.rc == 0
+
+# Configure keyboard options for RedHat/CentOS / Настройка опций клавиатуры для RedHat/CentOS
+- name: "Configure keyboard options for RedHat/CentOS"
+  ansible.builtin.command: "localectl set-x11-keymap {{ keyboard_layout }} {{ keyboard_variant }} {{ keyboard_options }}"
+  when: keyboard_options != ""
+  register: keyboard_options_result
+  failed_when: false
+  changed_when: keyboard_options_result.rc == 0
+
+# Display keyboard configuration results for RedHat/CentOS / Отображение результатов настройки клавиатуры для RedHat/CentOS
+- name: "Display keyboard configuration results for RedHat/CentOS"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "RedHat/CentOS Keyboard Configuration Results:"
+      - "============================================================================="
+      - "Layout:                 {{ keyboard_layout }}"
+      - "Variant:                {{ keyboard_variant }}"
+      - "Options:                {{ keyboard_options }}"
+      - "Layout Changed:         {{ 'YES' if keyboard_layout_result.changed else 'NO' }}"
+      - "Variant Changed:        {{ 'YES' if keyboard_variant_result.changed else 'NO' }}"
+      - "Options Changed:        {{ 'YES' if keyboard_options_result.changed else 'NO' }}"
+      - "Layout Return Code:     {{ keyboard_layout_result.rc | default('N/A') }}"
+      - "Variant Return Code:    {{ keyboard_variant_result.rc | default('N/A') }}"
+      - "Options Return Code:    {{ keyboard_options_result.rc | default('N/A') }}"
+      - "============================================================================="
+  when: debug_mode | bool
+
+# Configure console font for RedHat/CentOS / Настройка консольного шрифта для RedHat/CentOS
+- name: "Configure console font for RedHat/CentOS"
+  ansible.builtin.lineinfile:
+    path: /etc/vconsole.conf
+    regexp: '^FONT=.*$'
+    line: 'FONT="{{ console_font }}"'
+    state: present
+    create: true
+    backup: "{{ backup_enabled }}"
+    mode: '0644'
+  when: console_font_manage
+  register: console_font_result
+  notify: reload console
+  failed_when: false
+
+# Display console font configuration results for RedHat/CentOS / Отображение результатов настройки консольного шрифта для RedHat/CentOS
+- name: "Display console font configuration results for RedHat/CentOS"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "RedHat/CentOS Console Font Configuration Results:"
+      - "============================================================================="
+      - "Font:                   {{ console_font }}"
+      - "Configuration Changed:  {{ 'YES' if console_font_result.changed else 'NO' }}"
+      - "File Path:              /etc/vconsole.conf"
+      - "Operation Status:       {{ 'SUCCESS' if console_font_result.changed else 'NO CHANGE' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - console_font_result is defined
+
+# Configure system locale using localectl for RedHat/CentOS / Настройка системной локали с помощью localectl для RedHat/CentOS
+- name: "Configure system locale using localectl for RedHat/CentOS"
+  block:
+    - name: "Set system locale"
+      ansible.builtin.command: "localectl set-locale {{ locale_primary }}"
+      register: redhat_locale_result
+      changed_when: redhat_locale_result.rc == 0
+      notify: reload locale
+  rescue:
+    - name: "System locale configuration failed"
+      ansible.builtin.debug:
+        msg: "Error: Could not configure system locale '{{ locale_primary }}'. / Ошибка: Не удалось настроить системную локаль '{{ locale_primary }}'."
+      register: redhat_locale_result
+      failed_when: false
+
+# Display RedHat/CentOS locale configuration results / Отображение результатов настройки локали для RedHat/CentOS
+- name: "Display RedHat/CentOS locale configuration results"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "RedHat/CentOS Locale Configuration Results:"
+      - "============================================================================="
+      - "Primary Locale:         {{ locale_primary }}"
+      - "Configuration Changed:  {{ 'YES' if redhat_locale_result.changed else 'NO' }}"
+      - "Return Code:            {{ redhat_locale_result.rc | default('N/A') }}"
+      - "Output:                 {{ redhat_locale_result.stdout | default('N/A') }}"
+      - "Errors:                 {{ redhat_locale_result.stderr | default('N/A') }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - redhat_locale_result is defined

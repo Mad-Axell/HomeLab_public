@@ -1,0 +1,248 @@
+---
+# =============================================================================
+# Argument Specifications for Role Input Validation
+# Спецификации аргументов для валидации входных параметров роли
+# =============================================================================
+
+argument_specs:
+  main:
+    short_description: "System locale configuration role"
+    description: |
+      This role installs and configures system locale, timezone, keyboard layout 
+      and console font with support for multiple operating systems.
+      
+      Роль устанавливает и настраивает системную локализацию, часовой пояс,
+      раскладку клавиатуры и консольный шрифт с поддержкой множественных ОС.
+    author:
+      - "Mad-Axell"
+    
+    options:
+      # Debug and backup settings / Настройки отладки и резервного копирования
+      debug_mode:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable detailed debug output.
+          Включить детальный отладочный вывод.
+        
+      debug_lang:
+        type: str
+        required: false
+        default: 'both'
+        choices: ['english', 'russian', 'both']
+        description: |
+          Language for debug messages: english, russian, or both.
+          Язык отладочных сообщений: english, russian или both.
+        
+      debug_show_passwords:
+        type: bool
+        required: false
+        default: false
+        description: |
+          Show passwords in debug output (INSECURE - use only for testing).
+          Показывать пароли в отладочном выводе (НЕБЕЗОПАСНО - только для тестирования).
+      
+      backup_enabled:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable backup of configuration files before changes.
+          Включить резервное копирование файлов конфигурации перед изменениями.
+        
+      backup_suffix:
+        type: str
+        required: false
+        default: ".backup"
+        description: |
+          Suffix for backup files.
+          Суффикс для файлов резервных копий.
+      
+      # Timezone configuration / Конфигурация часового пояса
+      timezone:
+        type: str
+        required: false
+        default: "Europe/Moscow"
+        description: |
+          System timezone (e.g., UTC, Europe/Moscow, America/New_York).
+          Системный часовой пояс (например, UTC, Europe/Moscow, America/New_York).
+        
+      timezone_manage:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Whether to manage timezone configuration.
+          Управлять ли конфигурацией часового пояса.
+      
+      # Locale configuration / Конфигурация локализации
+      locale_language:
+        type: str
+        required: false
+        default: "en_US"
+        description: |
+          Primary locale language code (e.g., en_US, ru_RU, de_DE).
+          Код основного языка локализации (например, en_US, ru_RU, de_DE).
+        
+      locale_encoding:
+        type: str
+        required: false
+        default: "UTF-8"
+        description: |
+          Locale encoding (typically UTF-8).
+          Кодировка локализации (обычно UTF-8).
+        
+      locale_primary:
+        type: str
+        required: false
+        default: "en_US.UTF-8"
+        description: |
+          Primary system locale (format: language_COUNTRY.ENCODING).
+          Основная системная локализация (формат: язык_СТРАНА.КОДИРОВКА).
+        
+      locale_additional:
+        type: list
+        required: false
+        default:
+          - "ru_RU.UTF-8"
+        elements: str
+        description: |
+          Additional locales to generate for multi-language support.
+          Дополнительные локализации для многоязычной поддержки.
+        
+      locale_variables:
+        type: dict
+        required: false
+        description: |
+          System locale environment variables.
+          Системные переменные окружения локализации.
+      
+      # Console font configuration / Конфигурация консольного шрифта
+      console_font:
+        type: str
+        required: false
+        default: "Lat2-Terminus16"
+        description: |
+          Console font name (e.g., Lat2-Terminus16, Uni3-Terminus14).
+          Название консольного шрифта (например, Lat2-Terminus16, Uni3-Terminus14).
+        
+      console_font_manage:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Whether to manage console font configuration.
+          Управлять ли конфигурацией консольного шрифта.
+      
+      # Keyboard configuration / Конфигурация клавиатуры
+      keyboard_layout:
+        type: str
+        required: false
+        default: "us"
+        description: |
+          Keyboard layout (e.g., us, ru, de, fr).
+          Раскладка клавиатуры (например, us, ru, de, fr).
+        
+      keyboard_variant:
+        type: str
+        required: false
+        default: ""
+        description: |
+          Keyboard variant (e.g., dvorak, phonetic, nodeadkeys).
+          Вариант клавиатуры (например, dvorak, phonetic, nodeadkeys).
+        
+      keyboard_options:
+        type: str
+        required: false
+        default: ""
+        description: |
+          Additional keyboard options.
+          Дополнительные опции клавиатуры.
+      
+      # Validation settings / Настройки валидации
+      validate_parameters:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable parameter validation before configuration.
+          Включить валидацию параметров перед конфигурацией.
+        
+      strict_validation:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable strict validation mode with comprehensive checks.
+          Включить строгий режим валидации с комплексными проверками.
+      
+      # Universal Package Mapping / Универсальный маппинг пакетов
+      supported_os_families:
+        type: list
+        required: false
+        default:
+          - Debian
+          - RedHat
+          - Suse
+        elements: str
+        description: |
+          Supported OS families for this role.
+          Поддерживаемые семейства ОС для этой роли.
+        
+      universal_packages:
+        type: list
+        required: false
+        elements: str
+        description: |
+          Universal package list for mapping to OS-specific packages.
+          Универсальный список пакетов для маппинга на OS-специфичные пакеты.
+        
+      package_mappings:
+        type: dict
+        required: false
+        description: |
+          Package mappings for different OS families.
+          Маппинг пакетов для различных семейств ОС.
+      
+      # Validation patterns / Паттерны валидации
+      valid_locale_pattern:
+        type: str
+        required: false
+        default: '^[a-z]{2}_[A-Z]{2}\.[A-Z0-9-]+$'
+        description: |
+          Regular expression pattern for locale validation.
+          Регулярное выражение для валидации локализации.
+        
+      valid_timezone_pattern:
+        type: str
+        required: false
+        default: '^[A-Za-z0-9/_-]+$'
+        description: |
+          Regular expression pattern for timezone validation.
+          Регулярное выражение для валидации часового пояса.
+        
+      valid_keyboard_layouts:
+        type: list
+        required: false
+        elements: str
+        description: |
+          List of valid keyboard layouts.
+          Список допустимых раскладок клавиатуры.
+        
+      valid_keyboard_variants:
+        type: list
+        required: false
+        elements: str
+        description: |
+          List of valid keyboard variants.
+          Список допустимых вариантов клавиатуры.
+        
+      valid_console_fonts:
+        type: list
+        required: false
+        elements: str
+        description: |
+          List of valid console fonts.
+          Список допустимых консольных шрифтов.
+

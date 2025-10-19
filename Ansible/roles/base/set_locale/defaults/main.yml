@@ -1,0 +1,239 @@
+
+---
+
+# Debug and backup settings
+debug_mode: true
+debug_show_passwords: false     # Boolean. Show passwords in debug (INSECURE) / Логическое значение. Показывать пароли в отладке (НЕБЕЗОПАСНО)
+backup_enabled: true
+backup_suffix: ".backup"
+
+# Timezone configuration
+timezone: "Europe/Moscow" ##"UTC"
+timezone_manage: true
+
+# Primary locale configuration
+locale_language: "en_US"
+locale_encoding: "UTF-8"
+locale_primary: "{{ locale_language }}.{{ locale_encoding }}"
+
+# Additional locales to generate (useful for multi-language environments)
+locale_additional:
+  - "ru_RU.UTF-8"
+
+# System locale variables
+locale_variables:
+  LANG: "{{ locale_primary }}"
+  LANGUAGE: "{{ locale_language }}"
+  LC_ALL: "{{ locale_primary }}"
+  LC_COLLATE: "{{ locale_primary }}"
+  LC_CTYPE: "{{ locale_primary }}"
+  LC_MESSAGES: "{{ locale_primary }}"
+  LC_MONETARY: "{{ locale_primary }}"
+  LC_NUMERIC: "{{ locale_primary }}"
+  LC_TIME: "{{ locale_primary }}"
+
+# Console font configuration
+console_font: "Lat2-Terminus16"
+console_font_manage: true
+
+# Keyboard configuration
+keyboard_layout: "us"
+keyboard_variant: ""
+keyboard_options: ""
+
+# Validation settings
+validate_parameters: true
+strict_validation: true
+
+# Logging controls
+# Управление логированием
+log_file: "/var/log/ansible-changes.log"  # String. Path to log file for changes
+                                          # Строка. Путь к файлу лога изменений
+
+# Rollback controls
+# Управление откатом
+enable_rollback: true               # Boolean. Auto-rollback on failure
+                                    # Логическое значение. Автоматический откат при ошибке
+
+# =============================================================================
+# Universal Package Mapping / Универсальный маппинг пакетов
+# =============================================================================
+# Supported OS families / Поддерживаемые семейства ОС
+supported_os_families:
+  - Debian
+  - RedHat
+  - Suse
+
+# Universal packages list / Универсальный список пакетов
+universal_packages:
+  - locales
+  - console_setup
+  - keyboard_config
+
+# Package mappings for different OS families / Маппинг пакетов для разных семейств ОС
+package_mappings:
+  debian:
+    locales: locales
+    console_setup: console-setup
+    keyboard_config: keyboard-configuration
+    additional: []
+  redhat:
+    locales: glibc-locale-source
+    console_setup: kbd
+    keyboard_config: kbd
+    additional:
+      - glibc-langpack-en
+  suse:
+    locales: glibc-locale
+    console_setup: kbd
+    keyboard_config: kbd
+    additional:
+      - glibc-i18ndata
+
+# Validation patterns
+valid_locale_pattern: '^[a-z]{2}_[A-Z]{2}\.[A-Z0-9-]+$'
+valid_timezone_pattern: '^[A-Za-z0-9/_-]+$'
+
+# Valid keyboard layouts for Debian/Ubuntu
+valid_keyboard_layouts:
+  - us
+  - ru
+  - de
+  - fr
+  - es
+  - it
+  - pt
+  - nl
+  - sv
+  - no
+  - da
+  - fi
+  - pl
+  - cs
+  - hu
+  - tr
+  - ja
+  - ko
+  - zh
+  - ar
+  - he
+
+# Valid keyboard variants
+valid_keyboard_variants:
+  - ""
+  - dvorak
+  - phonetic
+  - nodeadkeys
+  - deadkeys
+  - mac
+  - altgr-intl
+  - euro
+  - euro2
+
+# Valid console fonts (common for all supported platforms)
+# Валидные консольные шрифты (общие для всех поддерживаемых платформ)
+valid_console_fonts:
+  - Lat2-Terminus16
+  - Lat2-Terminus14
+  - Lat2-Terminus12
+  - Lat2-Terminus10
+  - Lat15-Terminus16
+  - Lat15-Terminus14
+  - Lat15-Terminus12
+  - Lat15-Terminus10
+  - Lat7-Terminus16
+  - Lat7-Terminus14
+  - Lat7-Terminus12
+  - Lat7-Terminus10
+  - Uni1-Terminus16
+  - Uni1-Terminus14
+  - Uni1-Terminus12
+  - Uni1-Terminus10
+  - Uni2-Terminus16
+  - Uni2-Terminus14
+  - Uni2-Terminus12
+  - Uni2-Terminus10
+  - Uni3-Terminus16
+  - Uni3-Terminus14
+  - Uni3-Terminus12
+  - Uni3-Terminus10
+  - CyrSlav-Terminus16
+  - CyrSlav-Terminus14
+  - CyrSlav-Terminus12
+  - CyrSlav-Terminus10
+  - Grk-Terminus16
+  - Grk-Terminus14
+  - Grk-Terminus12
+  - Grk-Terminus10
+  - ArmPit-Terminus16
+  - ArmPit-Terminus14
+  - ArmPit-Terminus12
+  - ArmPit-Terminus10
+  - Arab-Terminus16
+  - Arab-Terminus14
+  - Arab-Terminus12
+  - Arab-Terminus10
+  - Heb-Terminus16
+  - Heb-Terminus14
+  - Heb-Terminus12
+  - Heb-Terminus10
+  - Thai-Terminus16
+  - Thai-Terminus14
+  - Thai-Terminus12
+  - Thai-Terminus10
+  - Lao-Terminus16
+  - Lao-Terminus14
+  - Lao-Terminus12
+  - Lao-Terminus10
+  - Lat2-TerminusBold16
+  - Lat2-TerminusBold14
+  - Lat2-TerminusBold12
+  - Lat2-TerminusBold10
+  - Lat15-TerminusBold16
+  - Lat15-TerminusBold14
+  - Lat15-TerminusBold12
+  - Lat15-TerminusBold10
+  - Lat7-TerminusBold16
+  - Lat7-TerminusBold14
+  - Lat7-TerminusBold12
+  - Lat7-TerminusBold10
+  - Uni1-TerminusBold16
+  - Uni1-TerminusBold14
+  - Uni1-TerminusBold12
+  - Uni1-TerminusBold10
+  - Uni2-TerminusBold16
+  - Uni2-TerminusBold14
+  - Uni2-TerminusBold12
+  - Uni2-TerminusBold10
+  - Uni3-TerminusBold16
+  - Uni3-TerminusBold14
+  - Uni3-TerminusBold12
+  - Uni3-TerminusBold10
+  - CyrSlav-TerminusBold16
+  - CyrSlav-TerminusBold14
+  - CyrSlav-TerminusBold12
+  - CyrSlav-TerminusBold10
+  - Grk-TerminusBold16
+  - Grk-TerminusBold14
+  - Grk-TerminusBold12
+  - Grk-TerminusBold10
+  - ArmPit-TerminusBold16
+  - ArmPit-TerminusBold14
+  - ArmPit-TerminusBold12
+  - ArmPit-TerminusBold10
+  - Arab-TerminusBold16
+  - Arab-TerminusBold14
+  - Arab-TerminusBold12
+  - Arab-TerminusBold10
+  - Heb-TerminusBold16
+  - Heb-TerminusBold14
+  - Heb-TerminusBold12
+  - Heb-TerminusBold10
+  - Thai-TerminusBold16
+  - Thai-TerminusBold14
+  - Thai-TerminusBold12
+  - Thai-TerminusBold10
+  - Lao-TerminusBold16
+  - Lao-TerminusBold14
+  - Lao-TerminusBold12
+  - Lao-TerminusBold10

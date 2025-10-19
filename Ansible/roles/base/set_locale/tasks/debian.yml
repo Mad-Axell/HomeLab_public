@@ -1,0 +1,289 @@
+---
+# =============================================================================
+# Debian/Ubuntu Specific Tasks
+# Специфичные задачи для Debian/Ubuntu
+# =============================================================================
+# This file contains tasks specific to Debian and Ubuntu systems
+# Файл содержит задачи, специфичные для систем Debian и Ubuntu
+# =============================================================================
+
+# Install required packages for Debian/Ubuntu
+# Установка необходимых пакетов для Debian/Ubuntu
+- name: "Install required packages for Debian/Ubuntu"
+  block:
+    - name: "Build package list for Debian/Ubuntu"
+      ansible.builtin.set_fact:
+        debian_packages_to_install: >-
+          {{
+            (universal_packages | map('extract', package_mappings.debian) | list) +
+            (package_mappings.debian.additional | default([]))
+          }}
+
+    - name: "Display packages to install for Debian/Ubuntu (English)"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Debian/Ubuntu Packages to Install:"
+          - "============================================================================="
+          - "{{ debian_packages_to_install | join(', ') }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+
+
+    - name: "Install Debian/Ubuntu packages"
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+        update_cache: true
+      loop: "{{ debian_packages_to_install }}"
+      register: debian_packages_result
+  rescue:
+    - name: "Log package installation failure (structured JSON)"
+      # Log package installation failure
+      # Логирование ошибки установки пакетов
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "ERROR",
+          "event_type": "PACKAGE_INSTALL_FAILED",
+          "packages": debian_packages_to_install,
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Package installation failed",
+          "metadata": {
+            "rollback_enabled": enable_rollback | default(true),
+            "os_family": ansible_os_family,
+            "os_version": ansible_distribution_version,
+            "package_manager": "apt",
+            "error_type": "PACKAGE_INSTALL_ERROR"
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when:
+        - log_file is defined
+        - enable_rollback | default(true)
+
+    - name: "Package installation failed"
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Debian/Ubuntu Package Installation Error:"
+          - "============================================================================="
+          - "Error: Could not install required packages."
+          - "Some features may not work properly."
+          - "============================================================================="
+      register: debian_packages_result
+      failed_when: false
+
+# Display Debian/Ubuntu package installation results
+# Отображение результатов установки пакетов для Debian/Ubuntu
+- name: "Display Debian/Ubuntu package installation results"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Debian/Ubuntu Package Installation Results:"
+      - "============================================================================="
+      - "Package:                {{ item.item }}"
+      - "Installation Status:    {{ 'SUCCESS' if item.changed else 'ALREADY INSTALLED' }}"
+      - "Changed:                {{ 'YES' if item.changed else 'NO' }}"
+      - "Return Code:            {{ item.rc | default('N/A') }}"
+      - "============================================================================="
+  loop: "{{ debian_packages_result.results | default([]) }}"
+  when: 
+    - debug_mode | default(false)
+    - debian_packages_result is defined
+    - debian_packages_result.results is defined
+
+
+# Configure keyboard layout for Debian/Ubuntu systems
+# Настройка раскладки клавиатуры для систем Debian/Ubuntu
+- name: "Configure keyboard layout for Debian/Ubuntu"
+  block:
+    - name: "Set keyboard layout"
+      ansible.builtin.debconf:
+        name: keyboard-configuration
+        question: "keyboard-configuration/layout"
+        value: "{{ keyboard_layout }}"
+        vtype: string
+      register: keyboard_layout_result
+  rescue:
+    - name: "Log keyboard configuration failure (structured JSON)"
+      # Log keyboard configuration failure
+      # Логирование ошибки конфигурации клавиатуры
+      ansible.builtin.lineinfile:
+        path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "ERROR",
+          "event_type": "KEYBOARD_CONFIG_FAILED",
+          "keyboard_layout": keyboard_layout,
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Keyboard configuration failed",
+          "metadata": {
+            "rollback_enabled": enable_rollback | default(true),
+            "os_family": ansible_os_family,
+            "os_version": ansible_distribution_version,
+            "config_method": "debconf",
+            "error_type": "KEYBOARD_CONFIG_ERROR"
+          }
+        } | to_json }}'
+        create: true
+        mode: '0644'
+      when:
+        - log_file is defined
+        - enable_rollback | default(true)
+
+    - name: "Keyboard layout configuration failed"
+      ansible.builtin.debug:
+        msg: "Error: Could not configure keyboard layout '{{ keyboard_layout }}'."
+      register: keyboard_layout_result
+      failed_when: false
+  when: keyboard_layout != ""
+
+# Configure keyboard variant for Debian/Ubuntu
+# Настройка варианта клавиатуры для Debian/Ubuntu
+- name: "Configure keyboard variant for Debian/Ubuntu"
+  ansible.builtin.debconf:
+    name: keyboard-configuration
+    question: "keyboard-configuration/variant"
+    value: "{{ keyboard_variant }}"
+    vtype: string
+  when: keyboard_variant != ""
+  register: keyboard_variant_result
+  failed_when: false
+
+# Configure keyboard options for Debian/Ubuntu
+# Настройка опций клавиатуры для Debian/Ubuntu
+- name: "Configure keyboard options for Debian/Ubuntu"
+  ansible.builtin.debconf:
+    name: keyboard-configuration
+    question: "keyboard-configuration/optionscode"
+    value: "{{ keyboard_options }}"
+    vtype: string
+  when: keyboard_options != ""
+  register: keyboard_options_result
+  failed_when: false
+
+# Display keyboard configuration results for Debian/Ubuntu
+# Отображение результатов настройки клавиатуры для Debian/Ubuntu
+- name: "Display keyboard configuration results for Debian/Ubuntu"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Debian/Ubuntu Keyboard Configuration Results:"
+      - "============================================================================="
+      - "Layout:                 {{ keyboard_layout }}"
+      - "Variant:                {{ keyboard_variant }}"
+      - "Options:                {{ keyboard_options }}"
+      - "Layout Changed:         {{ 'YES' if keyboard_layout_result.changed else 'NO' }}"
+      - "Variant Changed:        {{ 'YES' if keyboard_variant_result.changed else 'NO' }}"
+      - "Options Changed:        {{ 'YES' if keyboard_options_result.changed | default(false) else 'NO' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+
+
+# Configure console font for Debian/Ubuntu
+# Настройка консольного шрифта для Debian/Ubuntu
+- name: "Configure console font for Debian/Ubuntu"
+  ansible.builtin.lineinfile:
+    path: /etc/default/console-setup
+    regexp: '^FONTFACE=.*$'
+    line: 'FONTFACE="{{ console_font }}"'
+    state: present
+    create: true
+    backup: "{{ backup_enabled }}"
+    mode: '0644'
+  when: console_font_manage
+  register: console_font_result
+  notify: reload console
+  failed_when: false
+
+# Display console font configuration results for Debian/Ubuntu
+#  Отображение результатов настройки консольного шрифта для Debian/Ubuntu
+- name: "Display console font configuration results for Debian/Ubuntu"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Debian/Ubuntu Console Font Configuration Results:"
+      - "============================================================================="
+      - "Font:                   {{ console_font }}"
+      - "Configuration Changed:  {{ 'YES' if console_font_result.changed else 'NO' }}"
+      - "File Path:              /etc/default/console-setup"
+      - "Operation Status:       {{ 'SUCCESS' if console_font_result.changed else 'NO CHANGE' }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | default(false)
+    - console_font_result is defined
+
+
+# Log keyboard configuration changes (structured JSON)
+# Логирование изменений конфигурации клавиатуры (структурированный JSON)
+- name: "Log keyboard configuration changes"
+  # Log keyboard configuration changes
+  # Логирование изменений конфигурации клавиатуры
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "KEYBOARD_CONFIGURED",
+      "keyboard_layout": keyboard_layout,
+      "keyboard_variant": keyboard_variant,
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Keyboard configuration applied",
+      "metadata": {
+        "previous_layout": current_system_keymap | default("unknown"),
+        "changed": keyboard_layout_result.changed | default(false),
+        "os_family": ansible_os_family,
+        "os_version": ansible_distribution_version
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when:
+    - log_file is defined
+    - keyboard_layout_result is defined
+    - keyboard_layout_result.changed | default(false)
+
+# Log console font configuration changes (structured JSON)
+# Логирование изменений конфигурации консольного шрифта (структурированный JSON)
+- name: "Log console font configuration changes"
+  # Log console font configuration changes
+  # Логирование изменений конфигурации консольного шрифта
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "CONSOLE_FONT_CONFIGURED",
+      "console_font": console_font,
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Console font configuration applied",
+      "metadata": {
+        "changed": console_font_result.changed | default(false),
+        "os_family": ansible_os_family,
+        "os_version": ansible_distribution_version,
+        "config_file": "/etc/default/console-setup"
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when:
+    - log_file is defined
+    - console_font_result is defined
+    - console_font_result.changed | default(false)

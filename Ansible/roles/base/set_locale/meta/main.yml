@@ -1,0 +1,76 @@
+---
+# =============================================================================
+# System Locale Configuration Role - Metadata
+# =============================================================================
+# This file contains metadata information about the role
+# Файл содержит метаданные о роли
+# =============================================================================
+
+galaxy_info:
+  # Role information / Информация о роли
+  role_name: set_locale
+  namespace: base
+  author: "Mad-Axell [mad.axell@gmail.com]"
+  description: |
+    Configures system locale, timezone, keyboard layout and console font
+    for Debian/Ubuntu and RedHat/CentOS systems with comprehensive validation
+    and debugging capabilities.
+    
+    Настраивает системную локализацию, часовой пояс, раскладку клавиатуры
+    и консольный шрифт для систем Debian/Ubuntu и RedHat/CentOS с комплексной
+    валидацией и возможностями отладки.
+  
+  company: "Internal Infrastructure / Внутренняя инфраструктура"
+  license: "MIT"
+  min_ansible_version: "2.14"
+  
+  # Supported platforms / Поддерживаемые платформы
+  platforms:
+    - name: "Debian"
+      versions:
+        - "9"
+        - "10"
+        - "11"
+        - "12"
+    - name: "Ubuntu"
+      versions:
+        - "18.04"
+        - "20.04"
+        - "22.04"
+        - "24.04"
+    - name: "EL"
+      versions:
+        - "7"
+        - "8"
+        - "9"
+    - name: "Rocky"
+      versions:
+        - "8"
+        - "9"
+    - name: "AlmaLinux"
+      versions:
+        - "8"
+        - "9"
+  
+  # Required collections / Требуемые коллекции
+  collections:
+    - community.general
+    - ansible.builtin
+  
+  # Galaxy tags / Теги Galaxy
+  galaxy_tags:
+    - system
+    - locale
+    - timezone
+    - keyboard
+    - console
+    - configuration
+    - debian
+    - ubuntu
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+
+# Dependencies / Зависимости
+dependencies: []

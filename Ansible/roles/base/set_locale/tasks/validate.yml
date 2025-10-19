@@ -1,0 +1,234 @@
+---
+# =============================================================================
+# Parameter Validation Tasks / Задачи валидации параметров
+# =============================================================================
+# This file contains validation tasks for locale configuration parameters
+# Файл содержит задачи валидации параметров конфигурации локализации
+# =============================================================================
+
+# Display comprehensive system information for validation (English)
+# Отображение комплексной системной информации для валидации
+- name: "Display system information for validation (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "System Information for Validation:"
+      - "============================================================================="
+      - "Operating System:      {{ ansible_distribution }}"
+      - "OS Version:            {{ ansible_distribution_version }}"
+      - "OS Family:             {{ ansible_os_family }}"
+      - "OS Major Version:      {{ ansible_distribution_major_version }}"
+      - "Architecture:          {{ ansible_architecture }}"
+      - "Kernel:                {{ ansible_kernel }}"
+      - "Python Version:        {{ ansible_python_version }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - debug
+    - validation
+    - system
+
+- name: "Display system information for validation (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Системная информация для валидации:"
+      - "============================================================================="
+      - "Операционная система:  {{ ansible_distribution }}"
+      - "Версия ОС:             {{ ansible_distribution_version }}"
+      - "Семейство ОС:          {{ ansible_os_family }}"
+      - "Мажорная версия ОС:    {{ ansible_distribution_major_version }}"
+      - "Архитектура:           {{ ansible_architecture }}"
+      - "Ядро:                  {{ ansible_kernel }}"
+      - "Версия Python:         {{ ansible_python_version }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - debug
+    - validation
+    - system
+
+# Validate OS family compatibility / Валидация совместимости семейства ОС
+- name: "Validate OS family compatibility"
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family is defined
+      - ansible_os_family in supported_os_families
+    success_msg: "OS family {{ ansible_os_family }} is supported / Семейство ОС {{ ansible_os_family }} поддерживается"
+    fail_msg: |
+      Unsupported OS family: {{ ansible_os_family | default('undefined') }}
+      Supported OS families: {{ supported_os_families | join(', ') }}
+      
+      Неподдерживаемое семейство ОС: {{ ansible_os_family | default('undefined') }}
+      Поддерживаемые семейства ОС: {{ supported_os_families | join(', ') }}
+  tags:
+    - validation
+    - os
+    - compatibility
+
+# Validate locale format / Валидация формата локали
+- name: "Validate locale format"
+  ansible.builtin.assert:
+    that:
+      - locale_primary is match(valid_locale_pattern)
+      - locale_language is defined
+      - locale_encoding is defined
+    success_msg: "Locale format validation passed / Валидация формата локали пройдена"
+    fail_msg: "Invalid locale format. Expected format: ll_CC.ENCODING (e.g., en_US.UTF-8) / Неверный формат локали. Ожидаемый формат: ll_CC.ENCODING (например, en_US.UTF-8)"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - locale
+
+# Validate timezone format / Валидация формата часового пояса
+- name: "Validate timezone format"
+  ansible.builtin.assert:
+    that:
+      - timezone is defined
+      - timezone != ""
+      - timezone is match(valid_timezone_pattern)
+    success_msg: "Timezone format validation passed / Валидация формата часового пояса пройдена"
+    fail_msg: "Invalid timezone format. Use format like 'Europe/Moscow' or 'UTC' / Неверный формат часового пояса. Используйте формат типа 'Europe/Moscow' или 'UTC'"
+  when: 
+    - strict_validation | bool
+    - timezone_manage | bool
+  tags:
+    - validation
+    - timezone
+
+# Validate keyboard layout for Debian systems / Валидация раскладки клавиатуры для систем Debian
+- name: "Validate keyboard layout for Debian systems"
+  ansible.builtin.assert:
+    that:
+      - keyboard_layout in valid_keyboard_layouts
+    success_msg: "Keyboard layout validation passed for Debian / Валидация раскладки клавиатуры для Debian пройдена"
+    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for Debian. Valid options: {{ valid_keyboard_layouts | join(', ') }} / Неверная раскладка клавиатуры '{{ keyboard_layout }}' для Debian. Допустимые варианты: {{ valid_keyboard_layouts | join(', ') }}"
+  when: 
+    - strict_validation | bool
+    - ansible_os_family == "Debian"
+    - keyboard_layout != ""
+  tags:
+    - validation
+    - keyboard
+    - debian
+
+# Validate keyboard layout for RedHat systems / Валидация раскладки клавиатуры для систем RedHat
+- name: "Validate keyboard layout for RedHat systems"
+  ansible.builtin.assert:
+    that:
+      - keyboard_layout in valid_keyboard_layouts
+    success_msg: "Keyboard layout validation passed for RedHat / Валидация раскладки клавиатуры для RedHat пройдена"
+    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for RedHat. Valid options: {{ valid_keyboard_layouts | join(', ') }} / Неверная раскладка клавиатуры '{{ keyboard_layout }}' для RedHat. Допустимые варианты: {{ valid_keyboard_layouts | join(', ') }}"
+  when: 
+    - strict_validation | bool
+    - ansible_os_family == "RedHat"
+    - keyboard_layout != ""
+  tags:
+    - validation
+    - keyboard
+    - redhat
+
+# Validate keyboard layout for SUSE systems / Валидация раскладки клавиатуры для систем SUSE
+- name: "Validate keyboard layout for SUSE systems"
+  ansible.builtin.assert:
+    that:
+      - keyboard_layout in valid_keyboard_layouts
+    success_msg: "Keyboard layout validation passed for SUSE / Валидация раскладки клавиатуры для SUSE пройдена"
+    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for SUSE. Valid options: {{ valid_keyboard_layouts | join(', ') }} / Неверная раскладка клавиатуры '{{ keyboard_layout }}' для SUSE. Допустимые варианты: {{ valid_keyboard_layouts | join(', ') }}"
+  when: 
+    - strict_validation | bool
+    - ansible_os_family == "Suse"
+    - keyboard_layout != ""
+  tags:
+    - validation
+    - keyboard
+    - suse
+
+# Validate keyboard variant for Debian systems / Валидация варианта клавиатуры для систем Debian
+- name: "Validate keyboard variant for Debian systems"
+  ansible.builtin.assert:
+    that:
+      - keyboard_variant in valid_keyboard_variants
+    success_msg: "Keyboard variant validation passed / Валидация варианта клавиатуры пройдена"
+    fail_msg: "Invalid keyboard variant '{{ keyboard_variant }}'. Valid options: {{ valid_keyboard_variants | join(', ') }} / Неверный вариант клавиатуры '{{ keyboard_variant }}'. Допустимые варианты: {{ valid_keyboard_variants | join(', ') }}"
+  when: 
+    - strict_validation | bool
+    - ansible_os_family == "Debian"
+    - keyboard_variant != ""
+  tags:
+    - validation
+    - keyboard
+
+# Validate console font / Валидация консольного шрифта
+- name: "Validate console font"
+  ansible.builtin.assert:
+    that:
+      - console_font in valid_console_fonts
+    success_msg: "Console font validation passed / Валидация консольного шрифта пройдена"
+    fail_msg: "Invalid console font '{{ console_font }}'. Valid options: {{ valid_console_fonts | join(', ') }} / Неверный консольный шрифт '{{ console_font }}'. Допустимые варианты: {{ valid_console_fonts | join(', ') }}"
+  when: 
+    - strict_validation | bool
+    - console_font_manage | bool
+  tags:
+    - validation
+    - console
+
+# Validate additional locales format / Валидация формата дополнительных локалей
+- name: "Validate additional locales format"
+  ansible.builtin.assert:
+    that:
+      - item is match(valid_locale_pattern)
+    success_msg: "Additional locale '{{ item }}' format validation passed / Валидация формата дополнительной локали '{{ item }}' пройдена"
+    fail_msg: "Invalid additional locale format '{{ item }}'. Expected format: ll_CC.ENCODING (e.g., en_US.UTF-8) / Неверный формат дополнительной локали '{{ item }}'. Ожидаемый формат: ll_CC.ENCODING (например, en_US.UTF-8)"
+  loop: "{{ locale_additional }}"
+  when: strict_validation | bool
+  tags:
+    - validation
+    - locale
+
+# Display validation summary (English) / Отображение сводки валидации
+- name: "Display validation summary (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Parameter Validation Summary:"
+      - "============================================================================="
+      - "OS Family:             {{ ansible_os_family }} {{ '✓' if ansible_os_family in supported_os_families else '✗' }}"
+      - "Locale Primary:        {{ locale_primary }} {{ '✓' if locale_primary is match(valid_locale_pattern) else '✗' }}"
+      - "Timezone:              {{ timezone }} {{ '✓' if timezone is defined and timezone != '' and timezone is match(valid_timezone_pattern) else '✗' }}"
+      - "Keyboard Layout:       {{ keyboard_layout }} {{ '✓' if keyboard_layout in valid_keyboard_layouts else '✗' }}"
+      - "Console Font:          {{ console_font }} {{ '✓' if console_font in valid_console_fonts else '✗' }}"
+      - "Additional Locales:    {{ locale_additional | length }} configured {{ '✓' if locale_additional | length > 0 and (locale_additional | select('match', valid_locale_pattern) | list | length) == (locale_additional | length) else '✗' }}"
+      - "Strict Validation:     {{ strict_validation }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['english', 'both']
+  tags:
+    - debug
+    - validation
+
+- name: "Display validation summary (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка валидации параметров:"
+      - "============================================================================="
+      - "Семейство ОС:          {{ ansible_os_family }} {{ '✓' if ansible_os_family in supported_os_families else '✗' }}"
+      - "Основная локаль:       {{ locale_primary }} {{ '✓' if locale_primary is match(valid_locale_pattern) else '✗' }}"
+      - "Часовой пояс:          {{ timezone }} {{ '✓' if timezone is defined and timezone != '' and timezone is match(valid_timezone_pattern) else '✗' }}"
+      - "Раскладка клавиатуры:  {{ keyboard_layout }} {{ '✓' if keyboard_layout in valid_keyboard_layouts else '✗' }}"
+      - "Консольный шрифт:      {{ console_font }} {{ '✓' if console_font in valid_console_fonts else '✗' }}"
+      - "Дополнительные локали: {{ locale_additional | length }} настроено {{ '✓' if locale_additional | length > 0 and (locale_additional | select('match', valid_locale_pattern) | list | length) == (locale_additional | length) else '✗' }}"
+      - "Строгая валидация:     {{ strict_validation }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - debug_lang | default('both') in ['russian', 'both']
+  tags:
+    - debug
+    - validation
