@@ -1,8 +1,9 @@
-# base/set_locale - System Locale Configuration Role
+# base/set_locale
+
+System locale configuration role for Ansible.
 
 ## Description
-
-This Ansible role configures system locale, timezone, keyboard layout and console font for Linux systems. It provides comprehensive support for Debian/Ubuntu, RedHat/CentOS, and SUSE families with extensive validation, debugging capabilities, and structured logging.
+This Ansible role provides comprehensive system locale configuration for Linux systems, supporting Debian/Ubuntu, RedHat/CentOS, and SUSE families. The role ensures proper locale, timezone, keyboard layout, and console font configuration with extensive validation, structured logging, and automatic rollback capabilities.
 
 ## Features
 
@@ -14,8 +15,9 @@ This Ansible role configures system locale, timezone, keyboard layout and consol
 - **Debug Mode**: Detailed output for troubleshooting
 - **Idempotent**: Safe to run multiple times
 - **Modular Design**: OS-specific tasks for optimal compatibility
-- **Primary Locale Generation**: Ensures primary locale is generated before configuration
-- **Multi-language Support**: Configures additional locales for internationalization
+- **System Facts Gathering**: Automatic collection of system information
+- **Optimized Performance**: Unified handlers and bulk package installation
+- **Modular Components**: Reusable debug and rollback components
 
 ## Requirements
 
@@ -53,7 +55,7 @@ This Ansible role configures system locale, timezone, keyboard layout and consol
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `timezone` | str | `"Europe/Moscow"` | System timezone (e.g., UTC, Europe/Moscow) |
+| `timezone` | str | `"Europe/Moscow"` | System timezone |
 | `timezone_manage` | bool | `true` | Whether to manage timezone configuration |
 
 ### Locale Configuration
@@ -62,8 +64,8 @@ This Ansible role configures system locale, timezone, keyboard layout and consol
 |----------|------|---------|-------------|
 | `locale_language` | str | `"en_US"` | Primary locale language code |
 | `locale_encoding` | str | `"UTF-8"` | Locale encoding |
-| `locale_primary` | str | `"en_US.UTF-8"` | Primary system locale |
-| `locale_additional` | list | `["ru_RU.UTF-8"]` | Additional locales for multi-language support |
+| `locale_primary` | str | `"{{ locale_language }}.{{ locale_encoding }}"` | Primary system locale |
+| `locale_additional` | list | `["ru_RU.UTF-8", "en_GB.UTF-8"]` | Additional locales to generate |
 | `locale_variables` | dict | See defaults | System locale environment variables |
 
 ### Console Font Configuration
@@ -71,14 +73,14 @@ This Ansible role configures system locale, timezone, keyboard layout and consol
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `console_font` | str | `"Lat2-Terminus16"` | Console font name |
-| `console_font_manage` | bool | `true` | Whether to manage console font |
+| `console_font_manage` | bool | `true` | Whether to manage console font configuration |
 
 ### Keyboard Configuration
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `keyboard_layout` | str | `"us"` | Keyboard layout (e.g., us, ru, de) |
-| `keyboard_variant` | str | `""` | Keyboard variant (e.g., dvorak, phonetic) |
+| `keyboard_layout` | str | `"us"` | Keyboard layout |
+| `keyboard_variant` | str | `""` | Keyboard variant |
 | `keyboard_options` | str | `""` | Additional keyboard options |
 
 ### Validation Settings
@@ -88,43 +90,29 @@ This Ansible role configures system locale, timezone, keyboard layout and consol
 | `validate_parameters` | bool | `true` | Enable parameter validation |
 | `strict_validation` | bool | `true` | Enable strict validation mode |
 
-### Performance and Logging
+### Logging and Rollback Controls
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `log_file` | str | `"/var/log/ansible-changes.log"` | Path to log file for changes |
-| `async_timeout` | int | `300` | Async task timeout (seconds) |
-| `retries` | int | `3` | Retry count for failed tasks |
-| `retry_delay` | int | `5` | Delay between retries (seconds) |
 | `enable_rollback` | bool | `true` | Auto-rollback on failure |
+
+### Handler Commands
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `locale_reload_commands` | dict | See defaults | OS-specific locale reload commands |
+| `console_reload_commands` | dict | See defaults | OS-specific console reload commands |
 
 ## Dependencies
 
-None.
+None. This role is designed to be independent and self-contained.
 
 ## Example Playbook
-
-### Basic Usage
 
 ```yaml
 ---
 - name: Configure system locale
-  hosts: all
-  become: yes
-  roles:
-    - role: base/set_locale
-      vars:
-        locale_primary: "en_US.UTF-8"
-        timezone: "UTC"
-        keyboard_layout: "us"
-        console_font: "Lat2-Terminus16"
-```
-
-### Advanced Configuration
-
-```yaml
----
-- name: Configure system locale with advanced settings
   hosts: all
   become: yes
   roles:
@@ -138,108 +126,119 @@ None.
         
         # Timezone
         timezone: "Europe/Moscow"
+        timezone_manage: true
         
         # Keyboard
         keyboard_layout: "us"
-        keyboard_variant: "dvorak"
+        keyboard_variant: ""
+        keyboard_options: ""
         
-        # Console
+        # Console font
         console_font: "Lat2-Terminus16"
+        console_font_manage: true
         
         # Debug and logging
         debug_mode: true
-        log_file: "/var/log/locale-changes.log"
+        log_file: "/var/log/ansible-locale-changes.log"
         
         # Validation
-        strict_validation: true
         validate_parameters: true
+        strict_validation: true
+        
+        # Backup and rollback
+        backup_enabled: true
+        enable_rollback: true
 ```
 
-### Multi-OS Configuration
+## Advanced Configuration
+
+### Custom Locale Variables
 
 ```yaml
----
-- name: Configure locale for different OS families
-  hosts: all
-  become: yes
-  roles:
-    - role: base/set_locale
-      vars:
-        locale_primary: "en_US.UTF-8"
-        timezone: "UTC"
-        keyboard_layout: "us"
-      when: ansible_os_family in ['Debian', 'RedHat', 'Suse']
+locale_variables:
+  LANG: "{{ locale_primary }}"
+  LANGUAGE: "{{ locale_language }}"
+  LC_ALL: "{{ locale_primary }}"
+  LC_COLLATE: "{{ locale_primary }}"
+  LC_CTYPE: "{{ locale_primary }}"
+  LC_MESSAGES: "{{ locale_primary }}"
+  LC_MONETARY: "{{ locale_primary }}"
+  LC_NUMERIC: "{{ locale_primary }}"
+  LC_TIME: "{{ locale_primary }}"
 ```
 
-## Locale Generation Process
+### OS-Specific Package Mapping
 
-The role implements a comprehensive locale generation process for Debian/Ubuntu systems:
-
-### Primary Locale Generation
-1. **Automatic Generation**: The role automatically generates the primary locale (`locale_primary`) using `community.general.locale_gen`
-2. **Pre-configuration**: Primary locale is generated before setting system locale variables
-3. **Error Handling**: If generation fails, the role logs the error and continues with available locales
-4. **Idempotent**: Safe to run multiple times - won't regenerate existing locales
-
-### Additional Locales
-1. **Multi-language Support**: Configures additional locales from `locale_additional` list
-2. **Batch Processing**: Generates all additional locales in a single operation
-3. **Validation**: Ensures all locales are properly formatted before generation
-
-### Process Flow
-```
-1. Validate locale parameters
-2. Generate primary locale (Debian/Ubuntu only)
-3. Generate additional locales
-4. Configure system locale variables
-5. Set timezone and keyboard layout
-6. Apply console font settings
+```yaml
+package_mappings:
+  debian:
+    locales: locales
+    console_setup: console-setup
+    keyboard_config: keyboard-configuration
+    additional: []
+  redhat:
+    locales: glibc-locale-source
+    console_setup: kbd
+    keyboard_config: kbd
+    additional:
+      - glibc-langpack-en
+  suse:
+    locales: glibc-locale
+    console_setup: kbd
+    keyboard_config: kbd
+    additional:
+      - glibc-i18ndata
 ```
 
-## Structured Logging
+### Handler Commands Configuration
 
-The role implements structured JSON logging for all configuration changes. Log entries include:
+```yaml
+locale_reload_commands:
+  Debian: "locale-gen"
+  RedHat: "localectl set-locale LANG={{ locale_primary }}"
+  Suse: "localectl set-locale LANG={{ locale_primary }}"
 
-```json
-{
-  "timestamp": "2024-01-15T10:30:45.123456Z",
-  "level": "INFO",
-  "event_type": "PRIMARY_LOCALE_GENERATED",
-  "locale_primary": "en_US.UTF-8",
-  "user": "ansible_user",
-  "host": "target_host",
-  "playbook": "locale_setup",
-  "correlation_id": "1705312245",
-  "message": "Primary locale generated successfully",
-  "metadata": {
-    "changed": true,
-    "os_family": "Debian",
-    "os_version": "12",
-    "generation_method": "locale_gen"
-  }
-}
+console_reload_commands:
+  Debian: "setupcon"
+  RedHat: "systemctl restart systemd-vconsole-setup"
+  Suse: "systemctl restart systemd-vconsole-setup"
 ```
 
-### Error Logging Example
-```json
-{
-  "timestamp": "2024-01-15T10:30:45.123456Z",
-  "level": "ERROR",
-  "event_type": "PRIMARY_LOCALE_GEN_FAILED",
-  "locale_primary": "en_US.UTF-8",
-  "user": "ansible_user",
-  "host": "target_host",
-  "playbook": "locale_setup",
-  "correlation_id": "1705312245",
-  "message": "Primary locale generation failed",
-  "metadata": {
-    "rollback_enabled": true,
-    "os_family": "Debian",
-    "os_version": "12",
-    "error_type": "PRIMARY_LOCALE_GENERATION_ERROR"
-  }
-}
+## Role Structure
+
 ```
+roles/base/set_locale/
+├── defaults/main.yml          # Default variables
+├── handlers/main.yml          # Universal handlers
+├── meta/
+│   ├── main.yml              # Role metadata
+│   └── argument_specs.yml    # Input validation specs
+├── tasks/
+│   ├── main.yml              # Main role tasks
+│   ├── preflight.yml         # Pre-flight checks
+│   ├── validate.yml          # Parameter validation
+│   ├── debug.yml             # Common debug messages
+│   ├── rollback.yml          # Common rollback logic
+│   ├── debian.yml            # Debian/Ubuntu specific tasks
+│   ├── redhat.yml            # RedHat/CentOS specific tasks
+│   └── suse.yml              # SUSE specific tasks
+├── README.md                 # Brief overview
+├── README_eng.md            # Complete English documentation
+└── README_rus.md            # Complete Russian documentation
+```
+
+## Task Flow
+
+1. **System Facts Gathering**: Collect system information
+2. **Pre-flight Checks**: Validate Ansible version, OS compatibility, Python version, disk space
+3. **Parameter Validation**: Validate locale format, timezone format, keyboard layouts, console fonts
+4. **Backup Creation**: Create backups of existing configuration files
+5. **Primary Locale Generation**: Generate primary locale
+6. **Additional Locales**: Generate additional locales for multi-language support
+7. **Locale Variables Configuration**: Configure system locale environment variables
+8. **Timezone Configuration**: Set system timezone
+9. **OS-Specific Tasks**: Execute OS-specific configuration tasks
+10. **Final Summary**: Display comprehensive configuration summary
 
 ## Error Handling
 
@@ -277,6 +276,31 @@ The role validates inputs using regex patterns:
 - **Timezone Pattern**: `^[A-Za-z0-9/_-]+$`
 - **Keyboard Layouts**: Predefined list of valid layouts
 - **Console Fonts**: Predefined list of valid fonts
+
+## Structured Logging
+
+The role implements comprehensive structured logging with JSON format:
+
+```json
+{
+  "timestamp": "2024-01-15T10:30:45.123456Z",
+  "level": "INFO",
+  "event_type": "LOCALE_CONFIGURATION",
+  "user": "ansible_user",
+  "host": "target_host",
+  "playbook": "locale_setup",
+  "correlation_id": 1705312245,
+  "message": "Locale configuration applied",
+  "metadata": {
+    "locale_primary": "en_US.UTF-8",
+    "timezone": "Europe/Moscow",
+    "keyboard_layout": "us",
+    "console_font": "Lat2-Terminus16",
+    "os_family": "Debian",
+    "os_version": "12"
+  }
+}
+```
 
 ## License
 
