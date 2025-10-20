@@ -106,7 +106,7 @@
   rescue:
     - name: "Keyboard layout configuration failed"
       ansible.builtin.debug:
-        msg: "Error: Could not configure keyboard layout '{{ keyboard_layout }}'. / Ошибка: Не удалось настроить раскладку клавиатуры '{{ keyboard_layout }}'."
+        msg: "Error: Could not configure keyboard layout '{{ keyboard_layout }}'."
       register: keyboard_layout_result
       failed_when: false
   when: keyboard_layout != ""
@@ -188,7 +188,7 @@
   rescue:
     - name: "System locale configuration failed"
       ansible.builtin.debug:
-        msg: "Error: Could not configure system locale '{{ locale_primary }}'. / Ошибка: Не удалось настроить системную локаль '{{ locale_primary }}'."
+        msg: "Error: Could not configure system locale '{{ locale_primary }}'."
       register: redhat_locale_result
       failed_when: false
 

@@ -10,7 +10,7 @@ This Ansible role configures system locale, timezone, keyboard layout and consol
 - **Comprehensive Validation**: Pre-flight checks and parameter validation
 - **Structured Logging**: JSON-formatted logs for integration with log aggregators
 - **Automatic Rollback**: Backup and restore capabilities on failure
-- **Bilingual Support**: English and Russian documentation and debug output
+- **Bilingual Support**: English and Russian documentation
 - **Debug Mode**: Detailed output for troubleshooting
 - **Idempotent**: Safe to run multiple times
 - **Modular Design**: OS-specific tasks for optimal compatibility
@@ -46,8 +46,6 @@ This Ansible role configures system locale, timezone, keyboard layout and consol
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `debug_mode` | bool | `true` | Enable detailed debug output |
-| `debug_lang` | str | `'both'` | Debug language: `english`, `russian`, or `both` |
-| `debug_show_passwords` | bool | `false` | Show passwords in debug (INSECURE) |
 | `backup_enabled` | bool | `true` | Enable backup of configuration files |
 | `backup_suffix` | str | `".backup"` | Suffix for backup files |
 
@@ -150,7 +148,6 @@ None.
         
         # Debug and logging
         debug_mode: true
-        debug_lang: "both"
         log_file: "/var/log/locale-changes.log"
         
         # Validation
@@ -281,60 +278,6 @@ The role validates inputs using regex patterns:
 - **Keyboard Layouts**: Predefined list of valid layouts
 - **Console Fonts**: Predefined list of valid fonts
 
-## Debug Output
-
-Enable debug mode for detailed output:
-
-```yaml
-vars:
-  debug_mode: true
-  debug_lang: "both"  # or "english" or "russian"
-```
-
-Debug output includes:
-- System information
-- Package installation results
-- Configuration changes
-- Validation results
-- Operation summaries
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Invalid Locale Format**
-   - Ensure locale follows format: `ll_CC.ENCODING` (e.g., `en_US.UTF-8`)
-
-2. **Locale Not Generated (Debian/Ubuntu)**
-   - The role automatically generates primary locale using `locale_gen`
-   - Check `/etc/locale.gen` for uncommented locale entries
-   - Verify locale is available in system locale list
-
-3. **Timezone Not Found**
-   - Verify timezone exists in `/usr/share/zoneinfo/`
-
-4. **Keyboard Layout Not Supported**
-   - Check valid layouts in `valid_keyboard_layouts` list
-
-5. **Permission Denied**
-   - Ensure role runs with `become: yes`
-
-### Debug Commands
-
-```bash
-# Check current locale
-localectl status
-
-# Check timezone
-timedatectl status
-
-# Check keyboard layout
-localectl status
-
-# View log file
-tail -f /var/log/ansible-changes.log
-```
-
 ## License
 
 MIT
@@ -342,26 +285,3 @@ MIT
 ## Author
 
 Mad-Axell [mad.axell@gmail.com]
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## Changelog
-
-### Version 1.1.0
-- Added primary locale generation for Debian/Ubuntu systems
-- Enhanced error handling with structured JSON logging for locale generation
-- Improved rollback capabilities for locale configuration
-- Updated documentation with locale generation details
-
-### Version 1.0.0
-- Initial release
-- Cross-platform support for Debian, RedHat, and SUSE families
-- Comprehensive validation and error handling
-- Structured JSON logging
-- Bilingual documentation and debug output

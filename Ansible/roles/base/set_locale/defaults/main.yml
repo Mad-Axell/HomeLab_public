@@ -3,7 +3,6 @@
 
 # Debug and backup settings
 debug_mode: true
-debug_show_passwords: false     # Boolean. Show passwords in debug (INSECURE) / Логическое значение. Показывать пароли в отладке (НЕБЕЗОПАСНО)
 backup_enabled: true
 backup_suffix: ".backup"
 
@@ -19,6 +18,7 @@ locale_primary: "{{ locale_language }}.{{ locale_encoding }}"
 # Additional locales to generate (useful for multi-language environments)
 locale_additional:
   - "ru_RU.UTF-8"
+  - "en_GB.UTF-8"
 
 # System locale variables
 locale_variables:

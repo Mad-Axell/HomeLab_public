@@ -9,27 +9,6 @@
 # и консольного шрифта для систем Debian/Ubuntu и RedHat/CentOS.
 # =============================================================================
 
-# Gather comprehensive system information for platform-specific configuration
-# Сбор полной системной информации для платформо-специфичной конфигурации
-- name: "Gather comprehensive system facts for firewall configuration"
-  ansible.builtin.setup:
-    gather_subset:
-      - distribution
-      - os_family
-      - architecture
-      - kernel
-      - system
-      - hardware
-      - network
-  register: system_facts
-  failed_when: false
-  changed_when: false
-  tags:
-    - debug
-    - system
-    - facts
-    - gather
-
 # Preflight checks before role execution / Предварительные проверки перед выполнением роли
 - name: "Preflight checks before role execution"
   ansible.builtin.include_tasks: preflight.yml
@@ -73,7 +52,6 @@
       - "============================================================================="
   when:
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
   register: system_info_display
   tags:
     - debug
@@ -81,30 +59,6 @@
     - system
     - information
 
-- name: "Display comprehensive system information for locale configuration (Russian)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Системная информация для конфигурации локализации:"
-      - "============================================================================="
-      - "Дистрибутив:           {{ ansible_distribution }}"
-      - "Версия:                {{ ansible_distribution_version }}"
-      - "Архитектура:           {{ ansible_architecture }}"
-      - "Ядро:                  {{ ansible_kernel }}"
-      - "Имя хоста:             {{ ansible_hostname }}"
-      - "FQDN:                  {{ ansible_fqdn }}"
-      - "Основная локаль:       {{ locale_primary }}"
-      - "Часовой пояс:          {{ timezone }}"
-      - "Раскладка клавиатуры:  {{ keyboard_layout }}"
-      - "Консольный шрифт:      {{ console_font }}"
-      - "Резерв. копирование:   {{ backup_enabled }}"
-      - "Валидация включена:    {{ validate_parameters }}"
-      - "Режим отладки:         {{ debug_mode }}"
-      - "Строгая валидация:     {{ strict_validation }}"
-      - "============================================================================="
-  when:
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
   tags:
     - debug
     - locale
@@ -136,7 +90,7 @@
   rescue:
     - name: "Backup operation failed - continuing without backup"
       ansible.builtin.debug:
-        msg: "Warning: Could not create backup copies. Continuing with configuration. / Предупреждение: Не удалось создать резервные копии. Продолжаем с конфигурацией."
+        msg: "Warning: Could not create backup copies. Continuing with configuration."
       register: backup_result
       failed_when: false
   when: backup_enabled | bool
@@ -163,7 +117,6 @@
   loop: "{{ backup_result.results | default([]) }}"
   when: 
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
     - backup_enabled | default(true)
     - backup_result is defined
   tags:
@@ -171,24 +124,6 @@
     - backup
     - results
 
-- name: "Display detailed backup operation results (Russian)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Результаты операции резервного копирования:"
-      - "============================================================================="
-      - "Исходный файл:         {{ item.src }}"
-      - "Файл резервной копии:  {{ item.dest }}"
-      - "Статус операции:       {{ 'УСПЕШНО' if item.changed else 'ПРОПУЩЕНО' }}"
-      - "Файл существует:       {{ 'ДА' if item.src is file else 'НЕТ' }}"
-      - "Резервная копия:       {{ 'ДА' if item.changed else 'НЕТ' }}"
-      - "============================================================================="
-  loop: "{{ backup_result.results | default([]) }}"
-  when: 
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
-    - backup_enabled | default(true)
-    - backup_result is defined
   tags:
     - debug
     - backup
@@ -237,7 +172,7 @@
 
     - name: "Primary locale generation failed - continuing with available locales"
       ansible.builtin.debug:
-        msg: "Warning: Could not generate primary locale '{{ locale_primary }}'. Continuing with available locales. / Предупреждение: Не удалось сгенерировать основную локаль '{{ locale_primary }}'. Продолжаем с доступными локалями."
+        msg: "Warning: Could not generate primary locale '{{ locale_primary }}'. Continuing with available locales."
       register: primary_locale_gen_result
       failed_when: false
 
@@ -256,26 +191,9 @@
       - "============================================================================="
   when: 
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
     - primary_locale_gen_result is defined
     - ansible_os_family == "Debian"
 
-- name: "Display primary locale generation results (Russian)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Результаты генерации основной локали:"
-      - "============================================================================="
-      - "Основная локаль:        {{ locale_primary }}"
-      - "Статус генерации:       {{ 'УСПЕШНО' if primary_locale_gen_result.changed else 'УЖЕ СГЕНЕРИРОВАНА' }}"
-      - "Изменено:              {{ 'ДА' if primary_locale_gen_result.changed else 'НЕТ' }}"
-      - "Семейство ОС:          {{ ansible_os_family }}"
-      - "============================================================================="
-  when: 
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
-    - primary_locale_gen_result is defined
-    - ansible_os_family == "Debian"
 
 # Generate additional locales for multi-language support
 # Генерация дополнительных локалей для многоязычной поддержки
@@ -339,7 +257,7 @@
 
     - name: "Locale generation failed - continuing with available locales"
       ansible.builtin.debug:
-        msg: "Warning: Could not generate some locales. Continuing with available locales. / Предупреждение: Не удалось сгенерировать некоторые локали. Продолжаем с доступными локалями."
+        msg: "Warning: Could not generate some locales. Continuing with available locales."
       register: locale_gen_result
       failed_when: false
   tags:
@@ -417,7 +335,7 @@
 
     - name: "Locale variables configuration failed"
       ansible.builtin.debug:
-        msg: "Error: Could not configure locale variables. Check permissions and file access. / Ошибка: Не удалось настроить переменные локализации. Проверьте права доступа и доступ к файлам."
+        msg: "Error: Could not configure locale variables. Check permissions and file access."
       register: locale_vars_result
       failed_when: false
   tags:
@@ -443,7 +361,6 @@
   loop: "{{ locale_vars_result.results | default([]) }}"
   when: 
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
     - locale_vars_result is defined
   tags:
     - debug
@@ -451,23 +368,6 @@
     - variables
     - results
 
-- name: "Display detailed locale variables configuration results (Russian)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Результаты настройки переменных локализации:"
-      - "============================================================================="
-      - "Переменная:            {{ item.item.key }}"
-      - "Значение:              {{ item.item.value }}"
-      - "Конфигурация изменена: {{ 'ДА' if item.changed else 'НЕТ' }}"
-      - "Путь к файлу:          /etc/default/locale"
-      - "Статус операции:       {{ 'УСПЕШНО' if item.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
-      - "============================================================================="
-  loop: "{{ locale_vars_result.results | default([]) }}"
-  when: 
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
-    - locale_vars_result is defined
   tags:
     - debug
     - locale
@@ -519,7 +419,7 @@
 
     - name: "Timezone configuration failed"
       ansible.builtin.debug:
-        msg: "Error: Could not configure timezone '{{ timezone }}'. Check if timezone is valid. / Ошибка: Не удалось настроить часовой пояс '{{ timezone }}'. Проверьте, что часовой пояс действителен."
+        msg: "Error: Could not configure timezone '{{ timezone }}'. Check if timezone is valid."
       register: timezone_result
       failed_when: false
   when: timezone_manage | bool
@@ -598,69 +498,8 @@
       - "{% if ansible_os_family == 'Debian' %}- /etc/default/console-setup{% elif ansible_os_family in ['RedHat', 'Suse'] %}- /etc/vconsole.conf{% endif %}"
       - "{% if ansible_os_family == 'Debian' %}- /etc/default/keyboard{% endif %}"
       - "============================================================================="
-      - "Next Steps:"
-      - "1. Reboot the system to apply all changes (recommended)"
-      - "2. Or re-login to activate new locale settings"
-      - "3. Verify locale with: localectl status"
-      - "4. Check timezone with: timedatectl status"
-      - "============================================================================="
   when:
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
-  tags:
-    - summary
-    - locale
-    - completion
-    - final
-
-- name: "Display comprehensive final configuration summary (Russian)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "НАСТРОЙКА ЛОКАЛИЗАЦИИ УСПЕШНО ЗАВЕРШЕНА!"
-      - "============================================================================="
-      - "Операционная система:  {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      - "Семейство ОС:          {{ ansible_os_family }}"
-      - "Архитектура:           {{ ansible_architecture }}"
-      - "Основная локаль:       {{ locale_primary }}"
-      - "Часовой пояс:          {{ timezone }}"
-      - "Раскладка клавиатуры:  {{ keyboard_layout }}"
-      - "Консольный шрифт:      {{ console_font }}"
-      - "Дополн. локали:        {{ locale_additional | length }} настроено"
-      - "============================================================================="
-      - "Настройки конфигурации:"
-      - "- Резерв. копирование: {{ backup_enabled }}"
-      - "- Валидация включена:  {{ validate_parameters }}"
-      - "- Режим отладки:       {{ debug_mode }}"
-      - "- Строгая валидация:   {{ strict_validation }}"
-      - "============================================================================="
-      - "Сводка результатов операций:"
-      - "- Совместимость ОС:    {{ '✓ УСПЕШНО' if ansible_os_family in supported_os_families else '✗ НЕУДАЧНО' }}"
-      - "- Валидация параметров: {{ '✓ УСПЕШНО' if validation_result is defined else '⊗ ПРОПУЩЕНО' }}"
-      - "- Генерация осн. локали: {{ '✓ УСПЕШНО' if primary_locale_gen_result is defined and primary_locale_gen_result.changed else '⊗ ПРОПУЩЕНО' }}"
-      - "- Генерация доп. локалей: {{ '✓ УСПЕШНО' if locale_gen_result is defined and locale_gen_result is success else '⊗ ПРОПУЩЕНО' }}"
-      - "- Переменные локали:   {{ '✓ УСПЕШНО' if locale_vars_result is defined and locale_vars_result.changed else '⊗ БЕЗ ИЗМЕНЕНИЙ' }}"
-      - "- Конфиг. часов. пояса: {{ '✓ УСПЕШНО' if timezone_result is defined and timezone_result.changed else '⊗ ПРОПУЩЕНО' }}"
-      - "- Установка пакетов:   {{ '✓ УСПЕШНО' if (debian_packages_result is defined and ansible_os_family == 'Debian') or (redhat_packages_result is defined and ansible_os_family == 'RedHat') or (suse_packages_result is defined and ansible_os_family == 'Suse') else '⊗ ПРОПУЩЕНО' }}"
-      - "- Настройка клавиатуры: {{ '✓ УСПЕШНО' if keyboard_layout_result is defined else '⊗ ПРОПУЩЕНО' }}"
-      - "- Установка шрифта:    {{ '✓ УСПЕШНО' if console_font_result is defined and console_font_result.changed else '⊗ ПРОПУЩЕНО' }}"
-      - "============================================================================="
-      - "Модифицированные файлы конфигурации:"
-      - "- /etc/default/locale"
-      - "- /etc/environment"
-      - "{% if ansible_os_family == 'Debian' %}- /etc/locale.gen{% endif %}"
-      - "{% if ansible_os_family == 'Debian' %}- /etc/default/console-setup{% elif ansible_os_family in ['RedHat', 'Suse'] %}- /etc/vconsole.conf{% endif %}"
-      - "{% if ansible_os_family == 'Debian' %}- /etc/default/keyboard{% endif %}"
-      - "============================================================================="
-      - "Следующие шаги:"
-      - "1. Перезагрузите систему для применения всех изменений (рекомендуется)"
-      - "2. Или перелогиньтесь для активации новых настроек локализации"
-      - "3. Проверьте локаль командой: localectl status"
-      - "4. Проверьте часовой пояс командой: timedatectl status"
-      - "============================================================================="
-  when:
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
   tags:
     - summary
     - locale

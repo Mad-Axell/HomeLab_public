@@ -26,23 +26,6 @@ argument_specs:
           Enable detailed debug output.
           Включить детальный отладочный вывод.
         
-      debug_lang:
-        type: str
-        required: false
-        default: 'both'
-        choices: ['english', 'russian', 'both']
-        description: |
-          Language for debug messages: english, russian, or both.
-          Язык отладочных сообщений: english, russian или both.
-        
-      debug_show_passwords:
-        type: bool
-        required: false
-        default: false
-        description: |
-          Show passwords in debug output (INSECURE - use only for testing).
-          Показывать пароли в отладочном выводе (НЕБЕЗОПАСНО - только для тестирования).
-      
       backup_enabled:
         type: bool
         required: false

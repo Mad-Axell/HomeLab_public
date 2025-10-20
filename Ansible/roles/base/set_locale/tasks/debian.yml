@@ -184,7 +184,6 @@
       - "Variant:                {{ keyboard_variant }}"
       - "Options:                {{ keyboard_options }}"
       - "Layout Changed:         {{ 'YES' if keyboard_layout_result.changed else 'NO' }}"
-      - "Variant Changed:        {{ 'YES' if keyboard_variant_result.changed else 'NO' }}"
       - "Options Changed:        {{ 'YES' if keyboard_options_result.changed | default(false) else 'NO' }}"
       - "============================================================================="
   when:
@@ -244,7 +243,6 @@
       "correlation_id": ansible_date_time.epoch,
       "message": "Keyboard configuration applied",
       "metadata": {
-        "previous_layout": current_system_keymap | default("unknown"),
         "changed": keyboard_layout_result.changed | default(false),
         "os_family": ansible_os_family,
         "os_version": ansible_distribution_version

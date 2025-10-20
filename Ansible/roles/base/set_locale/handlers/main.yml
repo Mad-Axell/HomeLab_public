@@ -55,7 +55,7 @@
     - sles
 
 # Display locale reload results (English) / Отображение результатов перезагрузки локализации
-- name: "Display locale reload results (English)"
+- name: "Display locale reload results"
   ansible.builtin.debug:
     msg:
       - "============================================================================="
@@ -70,28 +70,6 @@
       - "============================================================================="
   when:
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
-  listen: reload locale
-  tags:
-    - debug
-    - handlers
-
-- name: "Display locale reload results (Russian)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Результаты перезагрузки конфигурации локализации:"
-      - "============================================================================="
-      - "Семейство ОС:          {{ ansible_os_family }}"
-      - "Команда:               {{ 'locale-gen' if ansible_os_family == 'Debian' else 'localectl set-locale' }}"
-      - "Код возврата:          {{ (locale_reload_result_debian.rc | default(locale_reload_result_redhat.rc | default(locale_reload_result_suse.rc | default('Н/Д')))) }}"
-      - "Изменено:              {{ (locale_reload_result_debian.changed | default(locale_reload_result_redhat.changed | default(locale_reload_result_suse.changed | default(false)))) }}"
-      - "Вывод:                 {{ (locale_reload_result_debian.stdout | default(locale_reload_result_redhat.stdout | default(locale_reload_result_suse.stdout | default('Н/Д')))) }}"
-      - "Ошибки:                {{ (locale_reload_result_debian.stderr | default(locale_reload_result_redhat.stderr | default(locale_reload_result_suse.stderr | default('Н/Д')))) }}"
-      - "============================================================================="
-  when:
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
   listen: reload locale
   tags:
     - debug
@@ -158,28 +136,6 @@
       - "============================================================================="
   when:
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
-  listen: reload console
-  tags:
-    - debug
-    - handlers
-
-- name: "Display console reload results (Russian)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Результаты перезагрузки конфигурации консоли:"
-      - "============================================================================="
-      - "Семейство ОС:          {{ ansible_os_family }}"
-      - "Команда:               {{ 'setupcon' if ansible_os_family == 'Debian' else 'systemctl restart systemd-vconsole-setup' }}"
-      - "Код возврата:          {{ (console_reload_result_debian.rc | default(console_reload_result_redhat.rc | default(console_reload_result_suse.rc | default('Н/Д')))) }}"
-      - "Изменено:              {{ (console_reload_result_debian.changed | default(console_reload_result_redhat.changed | default(console_reload_result_suse.changed | default(false)))) }}"
-      - "Вывод:                 {{ (console_reload_result_debian.stdout | default(console_reload_result_redhat.stdout | default(console_reload_result_suse.stdout | default('Н/Д')))) }}"
-      - "Ошибки:                {{ (console_reload_result_debian.stderr | default(console_reload_result_redhat.stderr | default(console_reload_result_suse.stderr | default('Н/Д')))) }}"
-      - "============================================================================="
-  when:
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
   listen: reload console
   tags:
     - debug
@@ -211,27 +167,6 @@
       - "============================================================================="
   when:
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
-  listen: reload timezone
-  tags:
-    - debug
-    - handlers
-
-- name: "Display timezone reload results (Russian)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Результаты перезагрузки конфигурации часового пояса:"
-      - "============================================================================="
-      - "Команда:               timedatectl set-timezone {{ timezone }}"
-      - "Код возврата:          {{ timezone_reload_result.rc | default('Н/Д') }}"
-      - "Изменено:              {{ timezone_reload_result.changed | default(false) }}"
-      - "Вывод:                 {{ timezone_reload_result.stdout | default('Н/Д') }}"
-      - "Ошибки:                {{ timezone_reload_result.stderr | default('Н/Д') }}"
-      - "============================================================================="
-  when:
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
   listen: reload timezone
   tags:
     - debug
