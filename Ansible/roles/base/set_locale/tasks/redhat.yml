@@ -29,9 +29,8 @@
 
     - name: "Install RedHat/CentOS packages"
       ansible.builtin.package:
-        name: "{{ item }}"
+        name: "{{ redhat_packages_to_install }}"
         state: present
-      loop: "{{ redhat_packages_to_install }}"
       register: redhat_packages_result
   rescue:
     - name: "Log package installation failure (structured JSON)"

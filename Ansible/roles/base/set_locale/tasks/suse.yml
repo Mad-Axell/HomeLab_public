@@ -29,9 +29,8 @@
 
     - name: "Install SUSE packages"
       ansible.builtin.package:
-        name: "{{ item }}"
+        name: "{{ suse_packages_to_install }}"
         state: present
-      loop: "{{ suse_packages_to_install }}"
       register: suse_packages_result
   rescue:
     - name: "Log package installation failure (structured JSON)"
