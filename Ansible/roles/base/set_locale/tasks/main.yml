@@ -9,7 +9,18 @@
 # и консольного шрифта для систем Debian/Ubuntu и RedHat/CentOS.
 # =============================================================================
 
-# Preflight checks before role execution / Предварительные проверки перед выполнением роли
+# Gather system facts
+#Сбор системной информации
+- name: "Gather system facts"
+  ansible.builtin.setup:
+    gather_subset:
+      - all
+  tags:
+    - facts
+    - always
+
+# Preflight checks before role execution
+#Предварительные проверки перед выполнением роли
 - name: "Preflight checks before role execution"
   ansible.builtin.include_tasks: preflight.yml
   tags:
@@ -50,15 +61,8 @@
       - "Debug Mode:            {{ debug_mode }}"
       - "Strict Validation:     {{ strict_validation }}"
       - "============================================================================="
-  when:
-    - debug_mode | default(false)
+  when: debug_mode | default(false)
   register: system_info_display
-  tags:
-    - debug
-    - locale
-    - system
-    - information
-
   tags:
     - debug
     - locale
@@ -119,11 +123,6 @@
     - debug_mode | default(false)
     - backup_enabled | default(true)
     - backup_result is defined
-  tags:
-    - debug
-    - backup
-    - results
-
   tags:
     - debug
     - backup
@@ -362,12 +361,6 @@
   when: 
     - debug_mode | default(false)
     - locale_vars_result is defined
-  tags:
-    - debug
-    - locale
-    - variables
-    - results
-
   tags:
     - debug
     - locale

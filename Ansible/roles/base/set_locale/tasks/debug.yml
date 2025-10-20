@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# Common Debug Messages / Общие debug-сообщения
+# =============================================================================
+# This file contains common debug messages used across the role
+# Файл содержит общие debug-сообщения, используемые в роли
+# =============================================================================
+
+# Display system information / Отображение системной информации
+- name: "Display system information"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "System Information:"
+      - "============================================================================="
+      - "Distribution:          {{ ansible_distribution }}"
+      - "Version:               {{ ansible_distribution_version }}"
+      - "Architecture:          {{ ansible_architecture }}"
+      - "Kernel:                {{ ansible_kernel }}"
+      - "Hostname:              {{ ansible_hostname }}"
+      - "FQDN:                  {{ ansible_fqdn }}"
+      - "Primary Locale:        {{ locale_primary }}"
+      - "Timezone:              {{ timezone }}"
+      - "Keyboard Layout:       {{ keyboard_layout }}"
+      - "Console Font:          {{ console_font }}"
+      - "Backup Enabled:        {{ backup_enabled }}"
+      - "Validation Enabled:    {{ validate_parameters }}"
+      - "Debug Mode:            {{ debug_mode }}"
+      - "Strict Validation:     {{ strict_validation }}"
+      - "============================================================================="
+  when: debug_mode | default(false)
+  tags:
+    - debug
+    - system
+    - information
+
+# Display operation results / Отображение результатов операций
+- name: "Display operation results"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "{{ operation_name | default('Operation') }} Results:"
+      - "============================================================================="
+      - "{{ operation_details | default('No details available') }}"
+      - "============================================================================="
+  when: debug_mode | default(false)
+  tags:
+    - debug
+    - results

@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# Common Rollback Logic / Общая логика отката
+# =============================================================================
+# This file contains common rollback logic used across the role
+# Файл содержит общую логику отката, используемую в роли
+# =============================================================================
+
+# Restore configuration files from backup / Восстановление файлов конфигурации из резервной копии
+- name: "Restore configuration files from backup"
+  ansible.builtin.copy:
+    src: "{{ item }}{{ backup_suffix }}"
+    dest: "{{ item }}"
+    remote_src: true
+    mode: '0644'
+  loop: "{{ files_to_restore | default([]) }}"
+  when:
+    - enable_rollback | default(true)
+    - backup_result is defined
+    - backup_result.results is defined
+    - item + backup_suffix is file
+  register: rollback_result
+  failed_when: false
+
+# Log rollback attempt / Логирование попытки отката
+- name: "Log rollback attempt"
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "WARN",
+      "event_type": "ROLLBACK_ATTEMPTED",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Rollback attempted",
+      "metadata": {
+        "rollback_enabled": enable_rollback | default(true),
+        "rollback_successful": rollback_result.changed | default(false),
+        "files_restored": files_to_restore | default([]),
+        "os_family": ansible_os_family,
+        "os_version": ansible_distribution_version
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when:
+    - log_file is defined
+    - enable_rollback | default(true)

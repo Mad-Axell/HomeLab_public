@@ -22,13 +22,7 @@
       - "Kernel:                {{ ansible_kernel }}"
       - "Python Version:        {{ ansible_python_version }}"
       - "============================================================================="
-  when:
-    - debug_mode | default(false)
-  tags:
-    - debug
-    - validation
-    - system
-
+  when: debug_mode | default(false)
   tags:
     - debug
     - validation
@@ -79,53 +73,20 @@
     - validation
     - timezone
 
-# Validate keyboard layout for Debian systems / Валидация раскладки клавиатуры для систем Debian
-- name: "Validate keyboard layout for Debian systems"
+# Validate keyboard layout for all systems / Валидация раскладки клавиатуры для всех систем
+- name: "Validate keyboard layout"
   ansible.builtin.assert:
     that:
       - keyboard_layout in valid_keyboard_layouts
-    success_msg: "Keyboard layout validation passed for Debian"
-    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for Debian. Valid options: {{ valid_keyboard_layouts | join(', ') }}"
+    success_msg: "Keyboard layout validation passed for {{ ansible_os_family }}"
+    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for {{ ansible_os_family }}. Valid options: {{ valid_keyboard_layouts | join(', ') }}"
   when: 
     - strict_validation | bool
-    - ansible_os_family == "Debian"
+    - ansible_os_family in supported_os_families
     - keyboard_layout != ""
   tags:
     - validation
     - keyboard
-    - debian
-
-# Validate keyboard layout for RedHat systems / Валидация раскладки клавиатуры для систем RedHat
-- name: "Validate keyboard layout for RedHat systems"
-  ansible.builtin.assert:
-    that:
-      - keyboard_layout in valid_keyboard_layouts
-    success_msg: "Keyboard layout validation passed for RedHat"
-    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for RedHat. Valid options: {{ valid_keyboard_layouts | join(', ') }}"
-  when: 
-    - strict_validation | bool
-    - ansible_os_family == "RedHat"
-    - keyboard_layout != ""
-  tags:
-    - validation
-    - keyboard
-    - redhat
-
-# Validate keyboard layout for SUSE systems / Валидация раскладки клавиатуры для систем SUSE
-- name: "Validate keyboard layout for SUSE systems"
-  ansible.builtin.assert:
-    that:
-      - keyboard_layout in valid_keyboard_layouts
-    success_msg: "Keyboard layout validation passed for SUSE"
-    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for SUSE. Valid options: {{ valid_keyboard_layouts | join(', ') }}"
-  when: 
-    - strict_validation | bool
-    - ansible_os_family == "Suse"
-    - keyboard_layout != ""
-  tags:
-    - validation
-    - keyboard
-    - suse
 
 # Validate keyboard variant for Debian systems / Валидация варианта клавиатуры для систем Debian
 - name: "Validate keyboard variant for Debian systems"

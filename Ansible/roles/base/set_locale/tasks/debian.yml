@@ -33,10 +33,9 @@
 
     - name: "Install Debian/Ubuntu packages"
       ansible.builtin.package:
-        name: "{{ item }}"
+        name: "{{ debian_packages_to_install }}"
         state: present
         update_cache: true
-      loop: "{{ debian_packages_to_install }}"
       register: debian_packages_result
   rescue:
     - name: "Log package installation failure (structured JSON)"

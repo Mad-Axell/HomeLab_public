@@ -237,3 +237,17 @@ valid_console_fonts:
   - Lao-TerminusBold14
   - Lao-TerminusBold12
   - Lao-TerminusBold10
+
+# =============================================================================
+# Handler Commands / Команды обработчиков
+# =============================================================================
+# Commands for different OS families / Команды для разных семейств ОС
+locale_reload_commands:
+  Debian: "locale-gen"
+  RedHat: "localectl set-locale LANG={{ locale_primary }}"
+  Suse: "localectl set-locale LANG={{ locale_primary }}"
+
+console_reload_commands:
+  Debian: "setupcon"
+  RedHat: "systemctl restart systemd-vconsole-setup"
+  Suse: "systemctl restart systemd-vconsole-setup"
