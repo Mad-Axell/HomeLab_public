@@ -17,12 +17,6 @@ argument_specs:
         type: bool
         default: false
         required: false
-      debug_lang:
-        description: "Language for debug messages"
-        type: str
-        default: 'both'
-        required: false
-        choices: ['english', 'russian', 'both']
       validate_parameters:
         description: "Enable parameter validation before role execution"
         type: bool

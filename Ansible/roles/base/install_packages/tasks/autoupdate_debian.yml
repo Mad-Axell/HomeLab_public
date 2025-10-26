@@ -7,13 +7,15 @@
 #
 # Этот файл настраивает unattended-upgrades для автоматических обновлений
 # безопасности на системах Debian/Ubuntu с проверкой GPG и обновлениями только безопасности.
-# =============================================================================
+# =============================================================================  # Configure unattended-upgrades for automatic security updates
+  # Настройка unattended-upgrades для автоматических обновлений безопасности
+
 
 - name: "Configure automatic security updates for Debian/Ubuntu"
-  # Configure unattended-upgrades for automatic security updates / Настройка unattended-upgrades для автоматических обновлений безопасности
-  block:
+  block:      # Show initialization message
+      # Показать сообщение об инициализации
+
     - name: "Display automatic updates configuration initialization (English)"
-      # Show initialization message / Показать сообщение об инициализации
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -26,41 +28,36 @@
           - "Auto-remove Packages:     {{ autoupdates_autoremove }}"
           - "============================================================================="
       when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display automatic updates configuration initialization (Russian)"
-      # Show initialization message / Показать сообщение об инициализации
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Настройка автоматических обновлений безопасности для Debian/Ubuntu"
-          - "============================================================================="
-          - "Автообновления включены:  {{ autoupdates_enabled }}"
-          - "Только безопасность:      {{ security_updates_only }}"
-          - "Проверка GPG:             {{ gpg_require_signed }}"
-          - "Перезагрузка при необходимости: {{ reboot_if_required }}"
-          - "Автоудаление пакетов:     {{ autoupdates_autoremove }}"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
+        - debug_mode | bool      # Install unattended-upgrades package for automatic updates
+      # Установка пакета unattended-upgrades для автоматических обновлений
 
     - name: "Install unattended-upgrades package"
-      # Install unattended-upgrades package for automatic updates / Установка пакета unattended-upgrades для автоматических обновлений
       ansible.builtin.apt:
         name: unattended-upgrades
         state: present
         update_cache: true
       register: unattended_install
+
+    # Log unattended-upgrades installation
+    # Логирование установки unattended-upgrades
+    - name: "Log unattended-upgrades installation"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | PACKAGE_INSTALL | UNATTENDED_UPGRADES | {{ ansible_hostname }} | {{ 'SUCCESS' if unattended_install.changed else 'NO_CHANGE' }} | {{ unattended_install.changed | default(false) }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: unattended_install is defined
       become: true
       tags:
         - packages
         - security
-        - autoupdate
+        - autoupdate      # Install apt-listchanges for detailed update information
+      # Установка apt-listchanges для детальной информации об обновлениях
+
 
     - name: "Install apt-listchanges for update notifications"
-      # Install apt-listchanges for detailed update information / Установка apt-listchanges для детальной информации об обновлениях
       ansible.builtin.apt:
         name: apt-listchanges
         state: present
@@ -69,10 +66,11 @@
       failed_when: false
       tags:
         - packages
-        - security
+        - security      # Check that all repositories have valid GPG keys
+      # Проверка наличия валидных GPG ключей для всех репозиториев
+
 
     - name: "Verify GPG keys for all configured repositories"
-      # Check that all repositories have valid GPG keys / Проверка наличия валидных GPG ключей для всех репозиториев
       ansible.builtin.command: apt-key list
       register: apt_keys_list
       changed_when: false
@@ -80,10 +78,11 @@
       become: true
       tags:
         - security
-        - gpg
+        - gpg      # Show GPG keys status
+      # Показать статус GPG ключей
+
 
     - name: "Display GPG keys verification status (English)"
-      # Show GPG keys status / Показать статус GPG ключей
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -94,42 +93,38 @@
           - "Verification Status:      {{ 'PASSED' if apt_keys_list.rc == 0 else 'FAILED' }}"
           - "============================================================================="
       when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display GPG keys verification status (Russian)"
-      # Show GPG keys status / Показать статус GPG ключей
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Проверка GPG ключей:"
-          - "============================================================================="
-          - "GPG ключи найдены:        {{ 'ДА' if apt_keys_list.rc == 0 else 'НЕТ' }}"
-          - "Количество ключей:        {{ apt_keys_list.stdout_lines | select('match', '^pub\\s+') | list | length }}"
-          - "Статус проверки:          {{ 'УСПЕШНО' if apt_keys_list.rc == 0 else 'НЕУДАЧНО' }}"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
+        - debug_mode | bool      # Ensure APT only accepts signed packages
+      # Обеспечить принятие APT только подписанных пакетов
 
     - name: "Configure APT to require signed packages"
-      # Ensure APT only accepts signed packages / Обеспечить принятие APT только подписанных пакетов
       ansible.builtin.lineinfile:
         path: /etc/apt/apt.conf.d/99security
         line: 'APT::Get::AllowUnauthenticated "false";'
         create: true
         mode: '0644'
+      register: apt_security_config
+
+    # Log APT security configuration
+    # Логирование конфигурации безопасности APT
+    - name: "Log APT security configuration"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | CONFIG_CHANGE | APT_SECURITY | {{ ansible_hostname }} | {{ 'SUCCESS' if apt_security_config.changed else 'NO_CHANGE' }} | GPG verification enabled"
+        create: yes
+        mode: '0644'
         owner: root
         group: root
-      become: true
-      when: gpg_require_signed | bool
+      when: 
+        - apt_security_config is defined
+        - gpg_require_signed | bool
       tags:
         - security
         - gpg
-        - configuration
+        - configuration      # Configure unattended-upgrades to install security updates only
+      # Настройка unattended-upgrades для установки только обновлений безопасности
+
 
     - name: "Configure unattended-upgrades for security updates only"
-      # Configure unattended-upgrades to install security updates only / Настройка unattended-upgrades для установки только обновлений безопасности
       ansible.builtin.template:
         src: 50unattended-upgrades.j2
         dest: /etc/apt/apt.conf.d/50unattended-upgrades
@@ -142,8 +137,21 @@
         - configuration
         - security
 
+    # Log unattended-upgrades configuration
+    # Логирование конфигурации unattended-upgrades
+    - name: "Log unattended-upgrades configuration"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | CONFIG_CHANGE | UNATTENDED_UPGRADES | {{ ansible_hostname }} | {{ 'SUCCESS' if unattended_config.changed else 'NO_CHANGE' }} | Security updates: {{ security_updates_only }}, Reboot: {{ reboot_if_required }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: unattended_config is defined      # Configure when automatic updates should run
+      # Настройка времени запуска автоматических обновлений
+
+
     - name: "Configure automatic updates schedule"
-      # Configure when automatic updates should run / Настройка времени запуска автоматических обновлений
       ansible.builtin.template:
         src: 20auto-upgrades.j2
         dest: /etc/apt/apt.conf.d/20auto-upgrades
@@ -156,8 +164,21 @@
         - configuration
         - security
 
+    # Log automatic updates schedule configuration
+    # Логирование конфигурации расписания автоматических обновлений
+    - name: "Log automatic updates schedule configuration"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | CONFIG_CHANGE | AUTO_UPGRADES_SCHEDULE | {{ ansible_hostname }} | {{ 'SUCCESS' if auto_upgrades_config.changed else 'NO_CHANGE' }} | Schedule enabled: {{ autoupdates_schedule_enabled }}, Download only: {{ autoupdates_download_only }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: auto_upgrades_config is defined      # Ensure unattended-upgrades service is enabled and running
+      # Обеспечить включение и запуск службы unattended-upgrades
+
+
     - name: "Enable and start unattended-upgrades service"
-      # Ensure unattended-upgrades service is enabled and running / Обеспечить включение и запуск службы unattended-upgrades
       ansible.builtin.systemd:
         name: unattended-upgrades
         enabled: true
@@ -169,18 +190,32 @@
         - service
         - security
 
+    # Log unattended-upgrades service management
+    # Логирование управления сервисом unattended-upgrades
+    - name: "Log unattended-upgrades service management"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | SERVICE_MANAGE | UNATTENDED_UPGRADES | {{ ansible_hostname }} | {{ 'SUCCESS' if unattended_service.changed else 'NO_CHANGE' }} | Enabled: true, State: started"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: unattended_service is defined      # Test configuration for syntax errors
+      # Проверка конфигурации на синтаксические ошибки
+
+
     - name: "Verify unattended-upgrades configuration"
-      # Test configuration for syntax errors / Проверка конфигурации на синтаксические ошибки
       ansible.builtin.command: unattended-upgrade --dry-run --debug
       register: unattended_test
       changed_when: false
       failed_when: false
       become: true
       tags:
-        - validation
+        - validation      # Show configuration results
+      # Показать результаты конфигурации
+
 
     - name: "Display unattended-upgrades configuration results (English)"
-      # Show configuration results / Показать результаты конфигурации
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -195,30 +230,11 @@
           - "============================================================================="
       when: 
         - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display unattended-upgrades configuration results (Russian)"
-      # Show configuration results / Показать результаты конфигурации
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Результаты настройки автоматических обновлений безопасности:"
-          - "============================================================================="
-          - "Пакет установлен:         {{ 'ДА' if unattended_install.changed else 'УЖЕ УСТАНОВЛЕН' }}"
-          - "Конфигурация обновлена:   {{ 'ДА' if unattended_config.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
-          - "Расписание настроено:     {{ 'ДА' if auto_upgrades_config.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
-          - "Статус службы:            {{ 'РАБОТАЕТ' if unattended_service.changed or unattended_service.state == 'started' else 'НЕИЗВЕСТНО' }}"
-          - "Тест сухого запуска:      {{ 'УСПЕШНО' if unattended_test.rc == 0 else 'ПРЕДУПРЕЖДЕНИЕ' }}"
-          - "Статус конфигурации:      УСПЕХ"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
-
   when: autoupdates_enabled | bool
-  rescue:
+  rescue:      # Handle any errors that occur during configuration
+      # Обработка любых ошибок, возникающих при конфигурации
+
     - name: "Handle automatic updates configuration errors"
-      # Handle any errors that occur during configuration / Обработка любых ошибок, возникающих при конфигурации
       ansible.builtin.debug:
         msg: "Warning: Failed to configure automatic security updates. Manual configuration may be required."
 

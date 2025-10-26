@@ -12,24 +12,41 @@
 # Execute Zypper package cache management and repository synchronization
 # Выполнение управления кэшем пакетов Zypper и синхронизации репозиториев
 - name: "Execute Zypper package cache management and repository synchronization"
-  block:
+  block:      # Refresh package repository information
+      # Обновление информации о репозиториях пакетов
+
     - name: "Refresh Zypper package cache"
-      # Refresh package repository information / Обновление информации о репозиториях пакетов
       community.general.zypper:
         update_cache: "{{ package_update_cache }}"
       register: zypper_update_result
       when: package_update_cache | bool
 
+    # Log package cache update operation
+    # Логирование операции обновления кэша пакетов
+    - name: "Log Zypper package cache update"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | CACHE_UPDATE | ZYPPER | {{ ansible_hostname }} | {{ 'SUCCESS' if zypper_update_result.changed else 'NO_CHANGE' }} | {{ zypper_update_result.changed | default(false) }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: 
+        - package_update_cache | bool
+        - zypper_update_result is defined      # Verify repository availability
+      # Проверка доступности репозиториев
+
+
     - name: "Check available Zypper repositories"
-      # Verify repository availability / Проверка доступности репозиториев
       ansible.builtin.command: zypper repos
       register: zypper_repositories
       failed_when: false
       changed_when: false
-      when: debug_mode | bool
+      when: debug_mode | bool      # Show detailed cache update status and repository information
+      # Показать детальный статус обновления кэша и информацию о репозиториях
+
 
     - name: "Display Zypper cache update and repository analysis results (English)"
-      # Show detailed cache update status and repository information / Показать детальный статус обновления кэша и информацию о репозиториях
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -42,38 +59,22 @@
           - "============================================================================="
       when: 
         - debug_mode | bool and package_update_cache | bool
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display Zypper cache update and repository analysis results (Russian)"
-      # Show detailed cache update status and repository information / Показать детальный статус обновления кэша и информацию о репозиториях
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Результаты обновления кэша Zypper и анализа репозиториев:"
-          - "============================================================================="
-          - "Кэш обновлен:             {{ zypper_update_result.changed | default(false) }}"
-          - "Обновление кэша включено: {{ package_update_cache }}"
-          - "Доступные репозитории:    {{ zypper_repositories.stdout_lines | length if zypper_repositories is defined else 'Неизвестно' }}"
-          - "Статус операции:          {{ 'УСПЕХ' if zypper_update_result.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool and package_update_cache | bool
-        - debug_lang | default('both') in ['russian', 'both']
-
 # Execute comprehensive system package upgrade and maintenance for SUSE/openSUSE
 # Выполнение комплексного обновления и обслуживания системных пакетов для SUSE/openSUSE
 - name: "Execute system package upgrade and maintenance for SUSE/openSUSE"
-  block:
+  block:      # Update installed packages to latest versions with configurable upgrade policy
+      # Обновление установленных пакетов до последних версий с настраиваемой политикой обновления
+
     - name: "Perform system-wide package upgrade to latest available versions"
-      # Update installed packages to latest versions with configurable upgrade policy / Обновление установленных пакетов до последних версий с настраиваемой политикой обновления
       community.general.zypper:
         name: "*"
         state: latest
       register: zypper_upgrade_result
-      when: package_upgrade_packages | bool
+      when: package_upgrade_packages | bool      # Show comprehensive upgrade operation status and impact
+      # Показать комплексный статус операции обновления и её влияние
+
 
     - name: "Display system package upgrade operation results (English)"
-      # Show comprehensive upgrade operation status and impact / Показать комплексный статус операции обновления и её влияние
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -86,45 +87,30 @@
           - "============================================================================="
       when: 
         - debug_mode | bool and package_upgrade_packages | bool
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display system package upgrade operation results (Russian)"
-      # Show comprehensive upgrade operation status and impact / Показать комплексный статус операции обновления и её влияние
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Результаты операции обновления системных пакетов:"
-          - "============================================================================="
-          - "Пакеты обновлены:         {{ zypper_upgrade_result.changed | default(false) }}"
-          - "Политика обновления включена: {{ package_upgrade_packages }}"
-          - "Статус операции:          {{ 'УСПЕХ' if zypper_upgrade_result.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
-          - "Обновление завершено:     ДА"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool and package_upgrade_packages | bool
-        - debug_lang | default('both') in ['russian', 'both']
-
 # Execute essential package installation with comprehensive pre-installation analysis for SUSE/openSUSE
 # Выполнение установки основных пакетов с комплексным предустановочным анализом для SUSE/openSUSE
 - name: "Execute essential package installation with pre-installation analysis for SUSE/openSUSE"
-  block:
+  block:      # Collect detailed package information for installation planning
+      # Сбор детальной информации о пакетах для планирования установки
+
     - name: "Gather comprehensive information about currently installed packages"
-      # Collect detailed package information for installation planning / Сбор детальной информации о пакетах для планирования установки
       ansible.builtin.package_facts:
         manager: auto
-      register: package_facts
+      register: package_facts      # Verify packages are available for installation with version information
+      # Проверка доступности пакетов для установки с информацией о версиях
+
 
     - name: "Perform detailed package availability verification in repositories"
-      # Verify packages are available for installation with version information / Проверка доступности пакетов для установки с информацией о версиях
       ansible.builtin.command: "zypper search --match-exact {{ item }}"
       register: package_availability
       failed_when: false
       changed_when: false
       loop: "{{ platform_packages }}"
-      when: debug_mode | bool
+      when: debug_mode | bool      # Show detailed package availability information including versions
+      # Показать детальную информацию о доступности пакетов включая версии
+
 
     - name: "Display package availability analysis results (English)"
-      # Show detailed package availability information including versions / Показать детальную информацию о доступности пакетов включая версии
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -136,27 +122,10 @@
           - "============================================================================="
       loop: "{{ package_availability.results | default([]) }}"
       when: 
-        - debug_mode | bool and package_availability is defined
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display package availability analysis results (Russian)"
-      # Show detailed package availability information including versions / Показать детальную информацию о доступности пакетов включая версии
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Анализ доступности пакетов:"
-          - "============================================================================="
-          - "Имя пакета:               {{ item.item }}"
-          - "Доступен в репозиториях:  {{ 'ДА' if item.rc == 0 else 'НЕТ' }}"
-          - "Статус:                   {{ 'ДОСТУПЕН' if item.rc == 0 else 'НЕ НАЙДЕН' }}"
-          - "============================================================================="
-      loop: "{{ package_availability.results | default([]) }}"
-      when: 
-        - debug_mode | bool and package_availability is defined
-        - debug_lang | default('both') in ['russian', 'both']
+        - debug_mode | bool and package_availability is defined      # Show comprehensive package installation status and planning information
+      # Показать комплексный статус установки пакетов и информацию о планировании
 
     - name: "Display current package installation status and installation plan (English)"
-      # Show comprehensive package installation status and planning information / Показать комплексный статус установки пакетов и информацию о планировании
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -169,28 +138,10 @@
           - "============================================================================="
       when: 
         - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
-      no_log: true
-
-    - name: "Display current package installation status and installation plan (Russian)"
-      # Show comprehensive package installation status and planning information / Показать комплексный статус установки пакетов и информацию о планировании
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Текущий статус установки пакетов и план установки:"
-          - "============================================================================="
-          - "Всего установленных пакетов: {{ package_facts.ansible_facts.packages | length }}"
-          - "Основные уже установлены:    {{ platform_packages | intersect(package_facts.ansible_facts.packages.keys()) | list }}"
-          - "Основные к установке:        {{ platform_packages | difference(package_facts.ansible_facts.packages.keys()) | list }}"
-          - "Статус плана установки:      {{ 'ГОТОВ' if (platform_packages | difference(package_facts.ansible_facts.packages.keys()) | list | length) > 0 else 'ВСЕ УСТАНОВЛЕНЫ' }}"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
-      no_log: true
+      no_log: true      # Install required packages with retry mechanism and comprehensive error handling
+      # Установка необходимых пакетов с механизмом повтора и комплексной обработкой ошибок
 
     - name: "Execute essential packages installation with retry mechanism and error handling"
-      # Install required packages with retry mechanism and comprehensive error handling / Установка необходимых пакетов с механизмом повтора и комплексной обработкой ошибок
       community.general.zypper:
         name: "{{ platform_packages }}"
         state: present
@@ -200,8 +151,21 @@
       until: essential_packages_result is succeeded
       notify: "Restart system services after package installation for SUSE"
 
+    # Log essential packages installation
+    # Логирование установки основных пакетов
+    - name: "Log essential packages installation"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | PACKAGE_INSTALL | ESSENTIAL | {{ ansible_hostname }} | {{ 'SUCCESS' if essential_packages_result.changed else 'NO_CHANGE' }} | {{ essential_packages_result.results | selectattr('changed') | map(attribute='item') | list | join(',') if essential_packages_result.results is defined else 'N/A' }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: essential_packages_result is defined      # Show detailed installation operation results including success and failure analysis
+      # Показать детальные результаты операции установки включая анализ успеха и сбоев
+
+
     - name: "Display essential packages installation operation results (English)"
-      # Show detailed installation operation results including success and failure analysis / Показать детальные результаты операции установки включая анализ успеха и сбоев
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -215,33 +179,14 @@
           - "============================================================================="
       when: 
         - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
       no_log: true
-
-    - name: "Display essential packages installation operation results (Russian)"
-      # Show detailed installation operation results including success and failure analysis / Показать детальные результаты операции установки включая анализ успеха и сбоев
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Результаты операции установки основных пакетов:"
-          - "============================================================================="
-          - "Пакеты изменены:           {{ essential_packages_result.changed | default(false) }}"
-          - "Пакеты установлены:        {{ essential_packages_result.results | selectattr('changed') | map(attribute='item') | list if essential_packages_result.results is defined else 'Н/Д' }}"
-          - "Неудачные пакеты:          {{ essential_packages_result.results | selectattr('failed') | map(attribute='item') | list if essential_packages_result.results is defined else 'Нет' }}"
-          - "Статус операции:           {{ 'УСПЕХ' if essential_packages_result.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
-          - "Установка завершена:       ДА"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
-      no_log: true
-
 # Execute optional packages installation with conditional processing and error handling for SUSE/openSUSE
 # Выполнение установки дополнительных пакетов с условной обработкой и обработкой ошибок для SUSE/openSUSE
 - name: "Execute optional packages installation with conditional processing for SUSE/openSUSE"
-  block:
+  block:      # Install user-defined optional packages with retry mechanism and comprehensive error handling
+      # Установка пользовательских дополнительных пакетов с механизмом повтора и комплексной обработкой ошибок
+
     - name: "Execute user-defined optional packages installation with retry mechanism"
-      # Install user-defined optional packages with retry mechanism and comprehensive error handling / Установка пользовательских дополнительных пакетов с механизмом повтора и комплексной обработкой ошибок
       community.general.zypper:
         name: "{{ platform_optional_packages }}"
         state: present
@@ -251,8 +196,23 @@
       until: optional_packages_result is succeeded
       when: platform_optional_packages | length > 0
 
+    # Log optional packages installation
+    # Логирование установки дополнительных пакетов
+    - name: "Log optional packages installation"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | PACKAGE_INSTALL | OPTIONAL | {{ ansible_hostname }} | {{ 'SUCCESS' if optional_packages_result.changed else 'NO_CHANGE' }} | {{ optional_packages_result.results | selectattr('changed') | map(attribute='item') | list | join(',') if optional_packages_result.results is defined else 'N/A' }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: 
+        - platform_optional_packages | length > 0
+        - optional_packages_result is defined      # Show detailed optional packages installation status and operation analysis
+      # Показать детальный статус установки дополнительных пакетов и анализ операции
+
+
     - name: "Display optional packages installation operation results (English)"
-      # Show detailed optional packages installation status and operation analysis / Показать детальный статус установки дополнительных пакетов и анализ операции
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -266,48 +226,31 @@
           - "============================================================================="
       when: 
         - debug_mode | bool and platform_optional_packages | length > 0
-        - debug_lang | default('both') in ['english', 'both']
       no_log: true
-
-    - name: "Display optional packages installation operation results (Russian)"
-      # Show detailed optional packages installation status and operation analysis / Показать детальный статус установки дополнительных пакетов и анализ операции
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Результаты операции установки дополнительных пакетов:"
-          - "============================================================================="
-          - "Пакеты изменены:           {{ optional_packages_result.changed | default(false) }}"
-          - "Пакеты установлены:        {{ optional_packages_result.results | selectattr('changed') | map(attribute='item') | list if optional_packages_result.results is defined else 'Н/Д' }}"
-          - "Неудачные пакеты:          {{ optional_packages_result.results | selectattr('failed') | map(attribute='item') | list if optional_packages_result.results is defined else 'Нет' }}"
-          - "Статус операции:           {{ 'УСПЕХ' if optional_packages_result.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
-          - "Установка завершена:       ДА"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool and platform_optional_packages | length > 0
-        - debug_lang | default('both') in ['russian', 'both']
-      no_log: true
-
 # Execute comprehensive package installation verification and post-installation validation for SUSE/openSUSE
 # Выполнение комплексной проверки установки пакетов и пост-установочной валидации для SUSE/openSUSE
 - name: "Execute package installation verification and post-installation validation for SUSE/openSUSE"
-  block:
+  block:      # Collect final package information for comprehensive verification
+      # Сбор финальной информации о пакетах для комплексной проверки
+
     - name: "Gather final comprehensive package information for post-installation verification"
-      # Collect final package information for comprehensive verification / Сбор финальной информации о пакетах для комплексной проверки
       ansible.builtin.package_facts:
         manager: auto
-      register: final_package_facts
+      register: final_package_facts      # Verify each essential package is present and properly installed
+      # Проверка присутствия и корректной установки каждого основного пакета
+
 
     - name: "Perform comprehensive verification of all essential packages installation"
-      # Verify each essential package is present and properly installed / Проверка присутствия и корректной установки каждого основного пакета
       ansible.builtin.assert:
         that:
           - item in final_package_facts.ansible_facts.packages
         fail_msg: "Package '{{ item }}' was not successfully installed"
         success_msg: "Package '{{ item }}' is installed and verified"
-      loop: "{{ platform_packages }}"
+      loop: "{{ platform_packages }}"      # Show comprehensive installation results and verification status
+      # Показать комплексные результаты установки и статус проверки
+
 
     - name: "Display final installation summary and verification results (English)"
-      # Show comprehensive installation results and verification status / Показать комплексные результаты установки и статус проверки
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -322,28 +265,9 @@
           - "============================================================================="
       when: 
         - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
+  rescue:      # Handle any errors that occur during package installation
+      # Обработка любых ошибок, возникающих при установке пакетов
 
-    - name: "Display final installation summary and verification results (Russian)"
-      # Show comprehensive installation results and verification status / Показать комплексные результаты установки и статус проверки
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Финальная сводка установки и результаты проверки:"
-          - "============================================================================="
-          - "Основные пакеты установлены:  {{ platform_packages | length }}"
-          - "Дополнительные пакеты установлены: {{ platform_optional_packages | length if platform_optional_packages is defined else 0 }}"
-          - "Всего пакетов в системе:      {{ final_package_facts.ansible_facts.packages | length }}"
-          - "Все основные проверены:       ДА"
-          - "Статус проверки:             УСПЕХ"
-          - "Система готова к использованию: ДА"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
-
-  rescue:
     - name: "Handle SUSE/openSUSE package installation errors"
-      # Handle any errors that occur during package installation / Обработка любых ошибок, возникающих при установке пакетов
       ansible.builtin.fail:
         msg: "Failed to install packages on SUSE/openSUSE system. Check package availability and system state."

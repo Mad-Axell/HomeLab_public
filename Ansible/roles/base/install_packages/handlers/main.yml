@@ -9,12 +9,14 @@
 # для перезапуска сервисов и выполнения пост-установочных задач.
 # =============================================================================
 
+# Gather information about services on the system
+# Сбор информации о сервисах в системе
 - name: "Gather service facts"
-  # Gather information about services on the system / Сбор информации о сервисах в системе
   ansible.builtin.service_facts:
 
+# Restart services that may have been affected by package installation
+# Перезапуск сервисов, которые могли быть затронуты установкой пакетов
 - name: "Restart system services after package installation"
-  # Restart services that may have been affected by package installation / Перезапуск сервисов, которые могли быть затронуты установкой пакетов
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: restarted
@@ -30,10 +32,11 @@
   tags:
     - handlers
     - services
-    - restart
+    - restart  # Restart services that may have been affected by package installation on RedHat systems
+  # Перезапуск сервисов, которые могли быть затронуты установкой пакетов на системах RedHat
+
 
 - name: "Restart system services after package installation for RedHat"
-  # Restart services that may have been affected by package installation on RedHat systems / Перезапуск сервисов, которые могли быть затронуты установкой пакетов на системах RedHat
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: restarted
@@ -50,10 +53,11 @@
     - handlers
     - services
     - restart
-    - redhat
+    - redhat  # Reload system configuration that may have been updated by package installation
+  # Перезагрузка системной конфигурации, которая могла быть обновлена установкой пакетов
+
 
 - name: "Reload system configuration after package installation"
-  # Reload system configuration that may have been updated by package installation / Перезагрузка системной конфигурации, которая могла быть обновлена установкой пакетов
   ansible.builtin.command: systemctl daemon-reload
   register: daemon_reload_result
   changed_when: daemon_reload_result.rc == 0

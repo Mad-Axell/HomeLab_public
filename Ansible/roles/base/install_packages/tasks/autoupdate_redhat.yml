@@ -7,21 +7,24 @@
 #
 # Этот файл настраивает dnf-automatic (RHEL 8+) или yum-cron (RHEL 7)
 # для автоматических обновлений безопасности с проверкой GPG.
-# =============================================================================
+# =============================================================================  # Configure dnf-automatic or yum-cron for automatic security updates
+  # Настройка dnf-automatic или yum-cron для автоматических обновлений безопасности
+
 
 - name: "Configure automatic security updates for RedHat/CentOS"
-  # Configure dnf-automatic or yum-cron for automatic security updates / Настройка dnf-automatic или yum-cron для автоматических обновлений безопасности
-  block:
+  block:      # Determine if using DNF or YUM
+      # Определение использования DNF или YUM
+
     - name: "Determine package manager and version"
-      # Determine if using DNF or YUM / Определение использования DNF или YUM
       ansible.builtin.set_fact:
         use_dnf: "{{ (ansible_distribution_major_version | int >= 8) or (ansible_distribution in ['Rocky', 'AlmaLinux']) }}"
         autoupdate_package: "{{ 'dnf-automatic' if ((ansible_distribution_major_version | int >= 8) or (ansible_distribution in ['Rocky', 'AlmaLinux'])) else 'yum-cron' }}"
         autoupdate_service: "{{ 'dnf-automatic.timer' if ((ansible_distribution_major_version | int >= 8) or (ansible_distribution in ['Rocky', 'AlmaLinux'])) else 'yum-cron' }}"
-        autoupdate_config: "{{ '/etc/dnf/automatic.conf' if ((ansible_distribution_major_version | int >= 8) or (ansible_distribution in ['Rocky', 'AlmaLinux'])) else '/etc/yum/yum-cron.conf' }}"
+        autoupdate_config: "{{ '/etc/dnf/automatic.conf' if ((ansible_distribution_major_version | int >= 8) or (ansible_distribution in ['Rocky', 'AlmaLinux'])) else '/etc/yum/yum-cron.conf' }}"      # Show initialization message
+      # Показать сообщение об инициализации
+
 
     - name: "Display automatic updates configuration initialization (English)"
-      # Show initialization message / Показать сообщение об инициализации
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -36,30 +39,10 @@
           - "Reboot If Required:       {{ reboot_if_required }}"
           - "============================================================================="
       when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display automatic updates configuration initialization (Russian)"
-      # Show initialization message / Показать сообщение об инициализации
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Настройка автоматических обновлений безопасности для RedHat/CentOS"
-          - "============================================================================="
-          - "Дистрибутив:              {{ ansible_distribution }} {{ ansible_distribution_major_version }}"
-          - "Использование DNF:        {{ use_dnf }}"
-          - "Пакет автообновления:     {{ autoupdate_package }}"
-          - "Автообновления включены:  {{ autoupdates_enabled }}"
-          - "Только безопасность:      {{ security_updates_only }}"
-          - "Проверка GPG:             {{ gpg_require_signed }}"
-          - "Перезагрузка при необходимости: {{ reboot_if_required }}"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
+        - debug_mode | bool      # Install the appropriate automatic updates package
+      # Установка соответствующего пакета автоматических обновлений
 
     - name: "Install automatic updates package (dnf-automatic or yum-cron)"
-      # Install the appropriate automatic updates package / Установка соответствующего пакета автоматических обновлений
       ansible.builtin.yum:
         name: "{{ autoupdate_package }}"
         state: present
@@ -70,8 +53,21 @@
         - security
         - autoupdate
 
+    # Log automatic updates package installation
+    # Логирование установки пакета автоматических обновлений
+    - name: "Log automatic updates package installation"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | PACKAGE_INSTALL | AUTOUPDATE | {{ ansible_hostname }} | {{ 'SUCCESS' if autoupdate_install.changed else 'NO_CHANGE' }} | Package: {{ autoupdate_package }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: autoupdate_install is defined      # Check that all repositories have valid GPG keys
+      # Проверка наличия валидных GPG ключей для всех репозиториев
+
+
     - name: "Verify GPG keys for all configured repositories"
-      # Check that all repositories have valid GPG keys / Проверка наличия валидных GPG ключей для всех репозиториев
       ansible.builtin.command: rpm -q gpg-pubkey --qf '%{NAME}-%{VERSION}-%{RELEASE}\t%{SUMMARY}\n'
       register: rpm_keys_list
       changed_when: false
@@ -79,10 +75,11 @@
       become: true
       tags:
         - security
-        - gpg
+        - gpg      # Show GPG keys status
+      # Показать статус GPG ключей
+
 
     - name: "Display GPG keys verification status (English)"
-      # Show GPG keys status / Показать статус GPG ключей
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -93,26 +90,10 @@
           - "Verification Status:      {{ 'PASSED' if rpm_keys_list.rc == 0 else 'FAILED' }}"
           - "============================================================================="
       when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display GPG keys verification status (Russian)"
-      # Show GPG keys status / Показать статус GPG ключей
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Проверка GPG ключей:"
-          - "============================================================================="
-          - "GPG ключи найдены:        {{ 'ДА' if rpm_keys_list.rc == 0 else 'НЕТ' }}"
-          - "Количество ключей:        {{ rpm_keys_list.stdout_lines | length }}"
-          - "Статус проверки:          {{ 'УСПЕШНО' if rpm_keys_list.rc == 0 else 'НЕУДАЧНО' }}"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
+        - debug_mode | bool      # Ensure YUM/DNF only accepts signed packages
+      # Обеспечить принятие YUM/DNF только подписанных пакетов
 
     - name: "Configure YUM/DNF to require signed packages"
-      # Ensure YUM/DNF only accepts signed packages / Обеспечить принятие YUM/DNF только подписанных пакетов
       ansible.builtin.lineinfile:
         path: "{{ '/etc/dnf/dnf.conf' if use_dnf else '/etc/yum.conf' }}"
         regexp: '^gpgcheck='
@@ -126,10 +107,11 @@
       tags:
         - security
         - gpg
-        - configuration
+        - configuration      # Ensure repository metadata is also GPG checked
+      # Обеспечить проверку GPG метаданных репозитория
+
 
     - name: "Configure YUM/DNF to require repository GPG check"
-      # Ensure repository metadata is also GPG checked / Обеспечить проверку GPG метаданных репозитория
       ansible.builtin.lineinfile:
         path: "{{ '/etc/dnf/dnf.conf' if use_dnf else '/etc/yum.conf' }}"
         regexp: '^repo_gpgcheck='
@@ -143,10 +125,11 @@
       tags:
         - security
         - gpg
-        - configuration
+        - configuration      # Ensure local packages are also GPG checked
+      # Обеспечить проверку GPG локальных пакетов
+
 
     - name: "Configure localpkg_gpgcheck for local packages"
-      # Ensure local packages are also GPG checked / Обеспечить проверку GPG локальных пакетов
       ansible.builtin.lineinfile:
         path: "{{ '/etc/dnf/dnf.conf' if use_dnf else '/etc/yum.conf' }}"
         regexp: '^localpkg_gpgcheck='
@@ -160,10 +143,11 @@
       tags:
         - security
         - gpg
-        - configuration
+        - configuration      # Configure dnf-automatic for security-only updates
+      # Настройка dnf-automatic для обновлений только безопасности
+
 
     - name: "Configure dnf-automatic for security updates (RHEL 8+)"
-      # Configure dnf-automatic for security-only updates / Настройка dnf-automatic для обновлений только безопасности
       ansible.builtin.template:
         src: dnf-automatic.conf.j2
         dest: /etc/dnf/automatic.conf
@@ -177,8 +161,23 @@
         - configuration
         - security
 
+    # Log dnf-automatic configuration
+    # Логирование конфигурации dnf-automatic
+    - name: "Log dnf-automatic configuration"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | CONFIG_CHANGE | DNF_AUTOMATIC | {{ ansible_hostname }} | {{ 'SUCCESS' if dnf_automatic_config.changed else 'NO_CHANGE' }} | Security updates: {{ security_updates_only }}, Download only: {{ autoupdates_download_only }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: 
+        - use_dnf | bool
+        - dnf_automatic_config is defined      # Configure yum-cron for security-only updates
+      # Настройка yum-cron для обновлений только безопасности
+
+
     - name: "Configure yum-cron for security updates (RHEL 7)"
-      # Configure yum-cron for security-only updates / Настройка yum-cron для обновлений только безопасности
       ansible.builtin.template:
         src: yum-cron.conf.j2
         dest: /etc/yum/yum-cron.conf
@@ -192,8 +191,23 @@
         - configuration
         - security
 
+    # Log yum-cron configuration
+    # Логирование конфигурации yum-cron
+    - name: "Log yum-cron configuration"
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ ansible_date_time.iso8601 }} | CONFIG_CHANGE | YUM_CRON | {{ ansible_hostname }} | {{ 'SUCCESS' if yum_cron_config.changed else 'NO_CHANGE' }} | Security updates: {{ security_updates_only }}, Download only: {{ autoupdates_download_only }}"
+        create: yes
+        mode: '0644'
+        owner: root
+        group: root
+      when: 
+        - not (use_dnf | bool)
+        - yum_cron_config is defined      # Ensure dnf-automatic timer is enabled and running
+      # Обеспечить включение и запуск таймера dnf-automatic
+
+
     - name: "Enable and start automatic updates service (dnf-automatic timer)"
-      # Ensure dnf-automatic timer is enabled and running / Обеспечить включение и запуск таймера dnf-automatic
       ansible.builtin.systemd:
         name: dnf-automatic.timer
         enabled: true
@@ -203,10 +217,11 @@
       when: use_dnf | bool
       tags:
         - service
-        - security
+        - security      # Ensure yum-cron service is enabled and running
+      # Обеспечить включение и запуск службы yum-cron
+
 
     - name: "Enable and start automatic updates service (yum-cron)"
-      # Ensure yum-cron service is enabled and running / Обеспечить включение и запуск службы yum-cron
       ansible.builtin.systemd:
         name: yum-cron
         enabled: true
@@ -216,10 +231,11 @@
       when: not (use_dnf | bool)
       tags:
         - service
-        - security
+        - security      # Show configuration results
+      # Показать результаты конфигурации
+
 
     - name: "Display automatic updates configuration results (English)"
-      # Show configuration results / Показать результаты конфигурации
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -233,29 +249,11 @@
           - "============================================================================="
       when: 
         - debug_mode | bool
-        - debug_lang | default('both') in ['english', 'both']
-
-    - name: "Display automatic updates configuration results (Russian)"
-      # Show configuration results / Показать результаты конфигурации
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "Результаты настройки автоматических обновлений безопасности:"
-          - "============================================================================="
-          - "Пакет установлен:         {{ 'ДА' if autoupdate_install.changed else 'УЖЕ УСТАНОВЛЕН' }}"
-          - "Конфигурация обновлена:   {{ 'ДА' if (dnf_automatic_config.changed | default(false)) or (yum_cron_config.changed | default(false)) else 'БЕЗ ИЗМЕНЕНИЙ' }}"
-          - "Служба включена:          {{ 'ДА' if (dnf_automatic_service.changed | default(false)) or (yum_cron_service.changed | default(false)) else 'УЖЕ ВКЛЮЧЕНА' }}"
-          - "Проверка GPG включена:    {{ gpg_require_signed }}"
-          - "Статус конфигурации:      УСПЕХ"
-          - "============================================================================="
-      when: 
-        - debug_mode | bool
-        - debug_lang | default('both') in ['russian', 'both']
-
   when: autoupdates_enabled | bool
-  rescue:
+  rescue:      # Handle any errors that occur during configuration
+      # Обработка любых ошибок, возникающих при конфигурации
+
     - name: "Handle automatic updates configuration errors"
-      # Handle any errors that occur during configuration / Обработка любых ошибок, возникающих при конфигурации
       ansible.builtin.debug:
         msg: "Warning: Failed to configure automatic security updates. Manual configuration may be required."
 

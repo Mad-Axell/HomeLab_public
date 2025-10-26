@@ -6,10 +6,8 @@
 
 # Debug mode for verbose output / Режим отладки для подробного вывода
 debug_mode: false
-
-# Debug language selection / Выбор языка для отладочных сообщений
-debug_lang: 'both'  # Options: 'english', 'russian', 'both' / Варианты: 'english', 'russian', 'both'
-
+# Log file for structured logging / Файл лога для структурированного логирования
+log_file: "/var/log/ansible-changes.log"
 # Validation settings / Настройки валидации
 validate_parameters: true
 strict_validation: true
@@ -18,7 +16,6 @@ strict_validation: true
 package_cache_valid_time: 86400  # 24 hours in seconds / 24 часа в секундах
 package_update_cache: true       # Update package cache / Обновлять кэш пакетов
 package_upgrade_packages: true   # Upgrade system packages / Обновлять системные пакеты
-package_clean_expire_cache: true # Clean expired cache (YUM/DNF only) / Очищать устаревший кэш (только YUM/DNF)
 
 # Universal essential packages list - automatically mapped to platform-specific names
 # Универсальный список основных пакетов - автоматически сопоставляется с именами для конкретной платформы
@@ -78,17 +75,9 @@ package_mappings:
 # Универсальные дополнительные пакеты, которые могут быть добавлены пользователями
 optional_packages: []
 
-# Universal package installation timeout (in seconds)
-# Универсальный таймаут установки пакетов (в секундах)
-package_install_timeout: 600
-
 # Whether to install recommended packages
 # Устанавливать ли рекомендуемые пакеты
 package_install_recommends: true
-
-# Whether to install suggested packages (APT only)
-# Устанавливать ли предлагаемые пакеты (только APT)
-package_install_suggests: false
 
 # =============================================================================
 # Automatic Security Updates Configuration
