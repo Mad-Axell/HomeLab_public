@@ -1,0 +1,129 @@
+---
+# Multi-Platform Package Installation Role Defaults
+# Значения по умолчанию для мультиплатформенной роли установки пакетов
+# This role installs essential packages for Ubuntu/Debian and RedHat/CentOS systems
+# Эта роль устанавливает основные пакеты для систем Ubuntu/Debian и RedHat/CentOS
+
+# Debug mode for verbose output / Режим отладки для подробного вывода
+debug_mode: false
+
+# Debug language selection / Выбор языка для отладочных сообщений
+debug_lang: 'both'  # Options: 'english', 'russian', 'both' / Варианты: 'english', 'russian', 'both'
+
+# Validation settings / Настройки валидации
+validate_parameters: true
+strict_validation: true
+
+# Universal package cache management / Универсальное управление кэшем пакетов
+package_cache_valid_time: 86400  # 24 hours in seconds / 24 часа в секундах
+package_update_cache: true       # Update package cache / Обновлять кэш пакетов
+package_upgrade_packages: true   # Upgrade system packages / Обновлять системные пакеты
+package_clean_expire_cache: true # Clean expired cache (YUM/DNF only) / Очищать устаревший кэш (только YUM/DNF)
+
+# Universal essential packages list - automatically mapped to platform-specific names
+# Универсальный список основных пакетов - автоматически сопоставляется с именами для конкретной платформы
+essential_packages:
+  - acl                    # Access Control Lists / Списки контроля доступа
+  - sudo                   # Superuser do / Выполнение от имени суперпользователя
+  - net-tools              # Network utilities / Сетевые утилиты
+  - gnupg                  # GNU Privacy Guard (gnupg2 on RedHat) / GNU Privacy Guard (gnupg2 на RedHat)
+  - audit                  # System audit daemon (auditd on Debian) / Демон аудита системы (auditd на Debian)
+  - libpwquality           # Password quality enforcement (libpam-pwquality on Debian) / Контроль качества паролей
+  - htop                   # Interactive process viewer / Интерактивный просмотрщик процессов
+  - curl                   # Command line tool for transferring data / Инструмент командной строки для передачи данных
+  - wget                   # Internet file retriever / Загрузчик файлов из интернета
+  - openssh-clients        # SSH client / SSH клиент
+  - iputils                # Network testing tools (iputils-ping on Debian) / Инструменты тестирования сети
+  - bind-utils             # DNS utilities (dnsutils on Debian) / DNS утилиты
+
+# Platform-specific package mappings / Сопоставления пакетов для конкретных платформ
+package_mappings:
+  # Debian/Ubuntu specific packages / Специфичные пакеты для Debian/Ubuntu
+  debian:
+    gnupg: gnupg
+    audit: auditd
+    libpwquality: libpam-pwquality
+    iputils: iputils-ping
+    bind-utils: dnsutils
+    openssh-clients: openssh-client
+    # Additional Debian-specific packages / Дополнительные пакеты для Debian
+    additional:
+      - apt-transport-https
+      - software-properties-common
+  
+  # RedHat/CentOS specific packages / Специфичные пакеты для RedHat/CentOS
+  redhat:
+    gnupg: gnupg2
+    audit: audit
+    libpwquality: libpwquality
+    iputils: iputils
+    bind-utils: bind-utils
+    openssh-clients: openssh-clients
+
+  # SUSE/openSUSE specific packages / Специфичные пакеты для SUSE/openSUSE
+  suse:
+    gnupg: gpg2
+    audit: audit
+    libpwquality: libpwquality
+    iputils: iputils
+    bind-utils: bind-utils
+    openssh-clients: openssh
+    # Additional SUSE-specific packages / Дополнительные пакеты для SUSE
+    additional:
+      - patterns-devel-base-devel_basis
+      - gcc
+      - make
+
+# Universal optional packages that can be added by users
+# Универсальные дополнительные пакеты, которые могут быть добавлены пользователями
+optional_packages: []
+
+# Universal package installation timeout (in seconds)
+# Универсальный таймаут установки пакетов (в секундах)
+package_install_timeout: 600
+
+# Whether to install recommended packages
+# Устанавливать ли рекомендуемые пакеты
+package_install_recommends: true
+
+# Whether to install suggested packages (APT only)
+# Устанавливать ли предлагаемые пакеты (только APT)
+package_install_suggests: false
+
+# =============================================================================
+# Automatic Security Updates Configuration
+# Конфигурация автоматических обновлений безопасности
+# =============================================================================
+
+# Enable automatic security updates / Включить автоматические обновления безопасности
+autoupdates_enabled: true
+
+# Install only security updates (not all available updates)
+# Устанавливать только обновления безопасности (не все доступные обновления)
+security_updates_only: true
+
+# Allow automatic system reboot if required after updates
+# Разрешить автоматическую перезагрузку системы, если требуется после обновлений
+reboot_if_required: false
+
+# Require GPG signature verification for all packages
+# Требовать проверку GPG подписи для всех пакетов
+gpg_require_signed: true
+
+# Automatic removal of unused dependencies (Debian/Ubuntu only)
+# Автоматическое удаление неиспользуемых зависимостей (только Debian/Ubuntu)
+autoupdates_autoremove: true
+
+# Automatic update schedule configuration / Конфигурация расписания автоматических обновлений
+# For Debian/Ubuntu: unattended-upgrades runs via apt.systemd.daily
+# For RHEL/CentOS: dnf-automatic/yum-cron schedule
+# For SUSE: zypper auto-update schedule
+autoupdates_schedule_enabled: true
+
+# Time for automatic updates (for systems that support it)
+# Время для автоматических обновлений (для систем, которые это поддерживают)
+autoupdates_time: "02:00"
+
+# Download updates automatically even if not installing
+# Загружать обновления автоматически, даже если не устанавливать
+autoupdates_download_only: false

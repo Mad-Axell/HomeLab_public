@@ -1,0 +1,114 @@
+---
+# Argument specifications for role input validation / Спецификации аргументов для валидации входных параметров роли
+# This file defines the expected input parameters for the install_packages role
+# Этот файл определяет ожидаемые входные параметры для роли install_packages
+
+argument_specs:
+  main:
+    short_description: "Multi-platform package installation role"
+    description: |
+      This role installs essential packages on Debian/Ubuntu, RedHat/CentOS, and SUSE/openSUSE systems
+      with comprehensive validation, advanced debugging capabilities, and production-ready error handling.
+    author:
+      - "System Administrator"
+    options:
+      debug_mode:
+        description: "Enable comprehensive debug output with system resources and performance metrics"
+        type: bool
+        default: false
+        required: false
+      debug_lang:
+        description: "Language for debug messages"
+        type: str
+        default: 'both'
+        required: false
+        choices: ['english', 'russian', 'both']
+      validate_parameters:
+        description: "Enable parameter validation before role execution"
+        type: bool
+        default: true
+        required: false
+      strict_validation:
+        description: "Enable strict parameter validation with detailed error messages"
+        type: bool
+        default: true
+        required: false
+      package_cache_valid_time:
+        description: "Package cache validity time in seconds (24 hours default)"
+        type: int
+        default: 86400
+        required: false
+        choices: [3600, 7200, 14400, 28800, 43200, 86400, 172800, 259200, 604800]
+      package_update_cache:
+        description: "Update package cache before operations"
+        type: bool
+        default: true
+        required: false
+      package_upgrade_packages:
+        description: "Upgrade system packages to latest versions"
+        type: bool
+        default: true
+        required: false
+      package_clean_expire_cache:
+        description: "Clean expired cache (YUM/DNF only)"
+        type: bool
+        default: true
+        required: false
+      essential_packages:
+        description: "List of universal essential packages to install"
+        type: list
+        elements: str
+        default: 
+          - acl
+          - sudo
+          - net-tools
+          - gnupg
+          - audit
+          - libpwquality
+          - htop
+          - curl
+          - wget
+          - openssh-clients
+          - iputils
+          - bind-utils
+        required: false
+      optional_packages:
+        description: "List of universal optional packages to install"
+        type: list
+        elements: str
+        default: []
+        required: false
+      package_install_timeout:
+        description: "Package installation timeout in seconds (1-3600 range)"
+        type: int
+        default: 600
+        required: false
+        choices: [60, 120, 300, 600, 900, 1200, 1800, 3600]
+      package_install_recommends:
+        description: "Install recommended packages along with main packages"
+        type: bool
+        default: true
+        required: false
+      package_install_suggests:
+        description: "Install suggested packages (not recommended for production)"
+        type: bool
+        default: false
+        required: false
+      package_mappings:
+        description: "Platform-specific package name mappings"
+        type: dict
+        default: {}
+        required: false
+        suboptions:
+          debian:
+            description: "Debian/Ubuntu specific package mappings"
+            type: dict
+            required: false
+          redhat:
+            description: "RedHat/CentOS specific package mappings"
+            type: dict
+            required: false
+          suse:
+            description: "SUSE/openSUSE specific package mappings"
+            type: dict
+            required: false

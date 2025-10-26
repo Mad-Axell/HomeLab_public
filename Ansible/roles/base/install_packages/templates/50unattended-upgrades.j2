@@ -1,0 +1,104 @@
+// Automatic Security Updates Configuration for Debian/Ubuntu
+// Конфигурация автоматических обновлений безопасности для Debian/Ubuntu
+// Managed by Ansible - DO NOT EDIT MANUALLY
+// Управляется Ansible - НЕ РЕДАКТИРУЙТЕ ВРУЧНУЮ
+
+// Allowed origins for automatic updates
+// Разрешенные источники для автоматических обновлений
+Unattended-Upgrade::Allowed-Origins {
+{% if security_updates_only | bool %}
+    // Security updates only / Только обновления безопасности
+    "${distro_id}:${distro_codename}-security";
+{% if ansible_distribution == "Ubuntu" %}
+    "${distro_id}ESMApps:${distro_codename}-apps-security";
+    "${distro_id}ESM:${distro_codename}-infra-security";
+{% endif %}
+{% else %}
+    // All updates / Все обновления
+    "${distro_id}:${distro_codename}";
+    "${distro_id}:${distro_codename}-security";
+    "${distro_id}:${distro_codename}-updates";
+{% endif %}
+};
+
+// Package blacklist - packages that should never be automatically upgraded
+// Черный список пакетов - пакеты, которые никогда не должны обновляться автоматически
+Unattended-Upgrade::Package-Blacklist {
+    // "vim";
+    // "libc6";
+    // "libc6-dev";
+    // "libc6-i686";
+};
+
+// Automatically remove unused dependencies
+// Автоматически удалять неиспользуемые зависимости
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "{{ 'true' if autoupdates_autoremove | bool else 'false' }}";
+Unattended-Upgrade::Remove-Unused-Dependencies "{{ 'true' if autoupdates_autoremove | bool else 'false' }}";
+
+// Automatically reboot if required
+// Автоматически перезагружаться при необходимости
+Unattended-Upgrade::Automatic-Reboot "{{ 'true' if reboot_if_required | bool else 'false' }}";
+
+// If automatic reboot is enabled, reboot at specific time
+// Если автоматическая перезагрузка включена, перезагружаться в определенное время
+Unattended-Upgrade::Automatic-Reboot-WithUsers "{{ 'true' if reboot_if_required | bool else 'false' }}";
+Unattended-Upgrade::Automatic-Reboot-Time "{{ autoupdates_time }}";
+
+// Send email notifications about updates
+// Отправлять email уведомления об обновлениях
+// Unattended-Upgrade::Mail "root";
+// Unattended-Upgrade::MailReport "on-change";
+
+// Only install updates if they don't require a reboot
+// Устанавливать обновления только если они не требуют перезагрузки
+// Unattended-Upgrade::InstallOnShutdown "false";
+
+// Download and install upgrades only on AC power
+// Загружать и устанавливать обновления только при питании от сети
+// Unattended-Upgrade::OnlyOnACPower "true";
+
+// Allow package downgrade if required
+// Разрешить понижение версии пакета при необходимости
+Unattended-Upgrade::Allow-APT-Mark-Fallback "true";
+
+// Minimal steps for interruption-safe upgrades
+// Минимальные шаги для безопасных от прерываний обновлений
+Unattended-Upgrade::MinimalSteps "true";
+
+// Split the upgrade into smallest steps
+// Разделить обновление на минимальные шаги
+Unattended-Upgrade::InstallOnShutdown "false";
+
+// Enable logging of automatic updates
+// Включить логирование автоматических обновлений
+Unattended-Upgrade::SyslogEnable "true";
+Unattended-Upgrade::SyslogFacility "daemon";
+
+{% if gpg_require_signed | bool %}
+// Require valid GPG signatures for all packages
+// Требовать валидные GPG подписи для всех пакетов
+APT::Get::AllowUnauthenticated "false";
+Unattended-Upgrade::AllowUnauthenticated "false";
+{% endif %}
+
+// Verbose output for debugging
+// Подробный вывод для отладки
+// Unattended-Upgrade::Debug "true";
+
+// Update package lists automatically
+// Обновлять списки пакетов автоматически
+APT::Periodic::Update-Package-Lists "1";
+
+// Download upgradable packages automatically
+// Загружать обновляемые пакеты автоматически
+APT::Periodic::Download-Upgradeable-Packages "1";
+
+// Clean up downloaded packages
+// Очищать загруженные пакеты
+APT::Periodic::AutocleanInterval "7";
+
+// Perform unattended upgrade
+// Выполнять автоматическое обновление
+APT::Periodic::Unattended-Upgrade "1";
+

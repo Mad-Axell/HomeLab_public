@@ -1,0 +1,64 @@
+---
+# =============================================================================
+# Package Installation Role Handlers
+# =============================================================================
+# This file contains handlers for the package installation role
+# for restarting services and performing post-installation tasks.
+#
+# Этот файл содержит обработчики для роли установки пакетов
+# для перезапуска сервисов и выполнения пост-установочных задач.
+# =============================================================================
+
+- name: "Gather service facts"
+  # Gather information about services on the system / Сбор информации о сервисах в системе
+  ansible.builtin.service_facts:
+
+- name: "Restart system services after package installation"
+  # Restart services that may have been affected by package installation / Перезапуск сервисов, которые могли быть затронуты установкой пакетов
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: restarted
+    enabled: yes
+  loop:
+    - auditd
+    - ssh
+  when: 
+    - ansible_os_family == "Debian"
+    - ansible_facts['services'][item] is defined
+    - ansible_facts['services'][item]['status'] | default('not-found') != 'not-found'
+  ignore_errors: yes
+  tags:
+    - handlers
+    - services
+    - restart
+
+- name: "Restart system services after package installation for RedHat"
+  # Restart services that may have been affected by package installation on RedHat systems / Перезапуск сервисов, которые могли быть затронуты установкой пакетов на системах RedHat
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: restarted
+    enabled: yes
+  loop:
+    - auditd
+    - sshd
+  when: 
+    - ansible_os_family == "RedHat"
+    - ansible_facts['services'][item] is defined
+    - ansible_facts['services'][item]['status'] | default('not-found') != 'not-found'
+  ignore_errors: yes
+  tags:
+    - handlers
+    - services
+    - restart
+    - redhat
+
+- name: "Reload system configuration after package installation"
+  # Reload system configuration that may have been updated by package installation / Перезагрузка системной конфигурации, которая могла быть обновлена установкой пакетов
+  ansible.builtin.command: systemctl daemon-reload
+  register: daemon_reload_result
+  changed_when: daemon_reload_result.rc == 0
+  failed_when: daemon_reload_result.rc != 0
+  tags:
+    - handlers
+    - systemd
+    - reload

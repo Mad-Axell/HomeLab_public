@@ -1,0 +1,59 @@
+# Automatic Security Updates Configuration for YUM (RHEL 7)
+# Конфигурация автоматических обновлений безопасности для YUM (RHEL 7)
+# Managed by Ansible - DO NOT EDIT MANUALLY
+# Управляется Ansible - НЕ РЕДАКТИРУЙТЕ ВРУЧНУЮ
+
+[commands]
+# What kind of update to perform / Какой тип обновления выполнять
+{% if security_updates_only | bool %}
+update_cmd = security
+{% else %}
+update_cmd = default
+{% endif %}
+
+# Whether to install updates automatically or just download them
+# Устанавливать ли обновления автоматически или только загружать их
+{% if autoupdates_download_only | bool %}
+apply_updates = no
+download_updates = yes
+{% else %}
+apply_updates = yes
+{% endif %}
+
+# Maximum random time to sleep before checking for updates (in minutes)
+# Максимальное случайное время ожидания перед проверкой обновлений (в минутах)
+random_sleep = 360
+
+[emitters]
+# Emit via email / Отправка через email
+emit_via = stdio
+output_width = 80
+
+# Name to use for the emitter / Имя для использования в отправителе
+system_name = {{ ansible_hostname }}
+
+[email]
+# Address to send email messages to / Адрес для отправки email сообщений
+email_to = root
+
+# Address to send email messages from / Адрес отправителя email сообщений
+email_from = root@{{ ansible_hostname }}
+
+[groups]
+# List of groups to update / Список групп для обновления
+group_list = None
+group_package_types = mandatory, default
+
+[base]
+# Enable debug messages / Включить отладочные сообщения
+debuglevel = -2
+
+# Skip packages with missing or bad GPG signatures
+# Пропускать пакеты с отсутствующими или неправильными GPG подписями
+{% if gpg_require_signed | bool %}
+gpgcheck = 1
+{% endif %}
+
+# Location of metadata cache / Расположение кэша метаданных
+mdpolicy = group:main
+
