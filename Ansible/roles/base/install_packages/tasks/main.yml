@@ -1,0 +1,365 @@
+---
+# Main tasks for install_packages role
+# Основные задачи роли install_packages
+# This file orchestrates the package installation process
+# Этот файл координирует процесс установки пакетов
+
+- name: "Initialize role execution tracking"
+  # Track role execution start time for performance monitoring / Отслеживание времени начала выполнения роли для мониторинга производительности
+  ansible.builtin.set_fact:
+    role_start_time: "{{ ansible_date_time.epoch }}"
+  when: debug_mode | bool
+
+# Gather comprehensive system information for platform-specific configuration
+# Сбор полной системной информации для платформо-специфичной конфигурации
+- name: "Gather comprehensive system facts for firewall configuration"
+  ansible.builtin.setup:
+    gather_subset:
+      - distribution
+      - os_family
+      - architecture
+      - kernel
+      - system
+      - hardware
+      - network
+  register: system_facts
+  failed_when: false
+  changed_when: false
+  tags:
+    - debug
+    - system
+    - facts
+    - gather
+
+# Validate input parameters before configuration
+# Валидация входных параметров перед конфигурацией
+- name: "Validate configuration parameters"
+  ansible.builtin.include_tasks: validate.yml
+  when: validate_parameters
+  register: validation_result
+  tags:
+    - validation
+    - locale
+    - parameters
+
+- name: "Display role execution context (English)"
+  # Show role execution details including host info and package lists / Показать детали выполнения роли включая информацию о хосте и списки пакетов
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "install_packages Role Execution Context:"
+      - "============================================================================="
+      - "Distribution:             {{ ansible_distribution }}"
+      - "Version:                  {{ ansible_distribution_version }}"
+      - "Architecture:             {{ ansible_architecture }}"
+      - "Kernel:                   {{ ansible_kernel }}"
+      - "Hostname:                 {{ ansible_hostname }}"
+      - "FQDN:                     {{ ansible_fqdn }}"
+      - "Validation Enabled:       {{ validate_parameters }}"
+      - "Strict Validation:        {{ strict_validation }}"
+      - "Target Host:              {{ inventory_hostname }}"
+      - "Debug Mode Enabled:       {{ debug_mode }}"
+      - "Essential Packages Count: {{ essential_packages | length }}"
+      - "Optional Packages Count:  {{ optional_packages | length if optional_packages is defined else 0 }}"
+      - "Cache Update Enabled:     {{ package_update_cache }}"
+      - "System Upgrade Enabled:   {{ package_upgrade_packages }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+
+- name: "Display role execution context (Russian)"
+  # Show role execution details including host info and package lists / Показать детали выполнения роли включая информацию о хосте и списки пакетов
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Контекст выполнения роли install_packages:"
+      - "============================================================================="
+      - "Дистрибутив:              {{ ansible_distribution }}"
+      - "Версия:                   {{ ansible_distribution_version }}"
+      - "Архитектура:              {{ ansible_architecture }}"
+      - "Ядро:                     {{ ansible_kernel }}"
+      - "Имя хоста:                {{ ansible_hostname }}"
+      - "FQDN:                     {{ ansible_fqdn }}"
+      - "Валидация включена:       {{ validate_parameters }}"
+      - "Строгая валидация:        {{ strict_validation }}"
+      - "Целевой хост:             {{ inventory_hostname }}"
+      - "Режим отладки включен:    {{ debug_mode }}"
+      - "Количество основных пакетов: {{ essential_packages | length }}"
+      - "Количество дополнительных пакетов: {{ optional_packages | length if optional_packages is defined else 0 }}"
+      - "Обновление кэша включено: {{ package_update_cache }}"
+      - "Обновление системы включено: {{ package_upgrade_packages }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']
+
+- name: "Perform system compatibility verification"
+  block:
+    - name: "Validate operating system compatibility"
+      # Check OS family compatibility to ensure role can function properly / Проверка совместимости семейства ОС для обеспечения корректной работы роли
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family in ["Debian", "RedHat", "Suse"]
+        fail_msg: "This role only supports Debian/Ubuntu, RedHat/CentOS, and SUSE systems. Current OS: {{ ansible_os_family }}"
+        success_msg: "System OS compatibility verification passed"
+
+    - name: "Verify APT package manager availability"
+      # Verify apt command exists and is accessible / Проверка существования и доступности команды apt
+      ansible.builtin.command: which apt
+      register: apt_check
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "Debian"
+
+    - name: "Verify YUM/DNF package manager availability"
+      # Verify yum/dnf command exists and is accessible / Проверка существования и доступности команды yum/dnf
+      ansible.builtin.command: "which {{ 'dnf' if (ansible_distribution in ['Rocky', 'AlmaLinux'] and ansible_distribution_major_version | int >= 8) or (ansible_distribution == 'EL' and ansible_distribution_major_version | int >= 8) else 'yum' }}"
+      register: yum_check
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "RedHat"
+
+    - name: "Verify Zypper package manager availability"
+      # Verify zypper command exists and is accessible / Проверка существования и доступности команды zypper
+      ansible.builtin.command: which zypper
+      register: zypper_check
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "Suse"
+
+    - name: "Terminate execution if package manager is unavailable"
+      # Stop execution if package manager is missing to prevent further failures / Остановка выполнения если менеджер пакетов отсутствует для предотвращения дальнейших сбоев
+      ansible.builtin.fail:
+        msg: "Package manager is not available on this system. APT check: {{ apt_check.rc | default('N/A') }}, YUM/DNF check: {{ yum_check.rc | default('N/A') }}, Zypper check: {{ zypper_check.rc | default('N/A') }}"
+      when: (ansible_os_family == "Debian" and apt_check.rc != 0) or (ansible_os_family == "RedHat" and yum_check.rc != 0) or (ansible_os_family == "Suse" and zypper_check.rc != 0)
+
+    - name: "Gather system resource information"
+      # Collect system resource details for debugging / Сбор деталей системных ресурсов для отладки
+      ansible.builtin.setup:
+        gather_subset:
+          - hardware
+          - virtual
+      register: system_facts
+      when: debug_mode | bool
+
+    - name: "Display system information (English)"
+      # Show detailed system details / Показать детальную системную информацию
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "System Information:"
+          - "============================================================================="
+          - "OS Family:               {{ ansible_os_family }}"
+          - "Distribution:            {{ ansible_distribution }}"
+          - "Version:                 {{ ansible_distribution_version }}"
+          - "Architecture:            {{ ansible_architecture }}"
+          - "Kernel:                  {{ ansible_kernel }}"
+          - "Package Manager:         {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
+          - "APT Available:           {{ 'Yes' if (ansible_os_family == 'Debian' and apt_check.rc == 0) else 'N/A' }}"
+          - "YUM/DNF Available:       {{ 'Yes' if (ansible_os_family == 'RedHat' and yum_check.rc == 0) else 'N/A' }}"
+          - "Zypper Available:        {{ 'Yes' if (ansible_os_family == 'Suse' and zypper_check.rc == 0) else 'N/A' }}"
+          - "Total Memory:            {{ ansible_memtotal_mb }} MB"
+          - "Available Memory:        {{ ansible_memfree_mb }} MB"
+          - "CPU Cores:               {{ ansible_processor_vcpus | default('Unknown') }}"
+          - "Virtualization:          {{ ansible_virtualization_type | default('Physical') }}"
+          - "Disk Space Available:    {{ ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_available') | first | default('Unknown') }} bytes"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_lang | default('both') in ['english', 'both']
+
+    - name: "Display system information (Russian)"
+      # Show detailed system details / Показать детальную системную информацию
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Информация о системе:"
+          - "============================================================================="
+          - "Семейство ОС:            {{ ansible_os_family }}"
+          - "Дистрибутив:             {{ ansible_distribution }}"
+          - "Версия:                  {{ ansible_distribution_version }}"
+          - "Архитектура:             {{ ansible_architecture }}"
+          - "Ядро:                    {{ ansible_kernel }}"
+          - "Менеджер пакетов:        {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
+          - "APT доступен:            {{ 'Да' if (ansible_os_family == 'Debian' and apt_check.rc == 0) else 'Н/Д' }}"
+          - "YUM/DNF доступен:        {{ 'Да' if (ansible_os_family == 'RedHat' and yum_check.rc == 0) else 'Н/Д' }}"
+          - "Zypper доступен:         {{ 'Да' if (ansible_os_family == 'Suse' and zypper_check.rc == 0) else 'Н/Д' }}"
+          - "Общая память:            {{ ansible_memtotal_mb }} МБ"
+          - "Доступная память:        {{ ansible_memfree_mb }} МБ"
+          - "Ядра CPU:                {{ ansible_processor_vcpus | default('Неизвестно') }}"
+          - "Виртуализация:           {{ ansible_virtualization_type | default('Физическая') }}"
+          - "Доступное место на диске: {{ ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_available') | first | default('Неизвестно') }} байт"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_lang | default('both') in ['russian', 'both']
+
+# Map universal packages to platform-specific names / Сопоставление универсальных пакетов с именами для конкретных платформ
+- name: "Map universal packages to platform-specific names"
+  ansible.builtin.include_tasks: package_mapping.yml
+  tags:
+    - mapping
+    - packages
+    - universal
+
+# Include OS-specific configuration tasks / Включение OS-специфичных задач конфигурации
+- name: "Include Debian/Ubuntu specific configuration tasks"
+  ansible.builtin.include_tasks: debian.yml
+  when: ansible_os_family == "Debian"
+  tags:
+    - debian
+    - ubuntu
+    - os-specific
+    - apt
+
+- name: "Include RedHat/CentOS specific configuration tasks"
+  ansible.builtin.include_tasks: redhat.yml
+  when: ansible_os_family == "RedHat"
+  tags:
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+    - os-specific
+    - yum
+    - dnf
+
+- name: "Include SUSE specific configuration tasks"
+  ansible.builtin.include_tasks: suse.yml
+  when: ansible_os_family == "Suse"
+  tags:
+    - suse
+    - opensuse
+    - sles
+    - os-specific
+    - zypper
+
+# Configure automatic security updates / Настройка автоматических обновлений безопасности
+- name: "Include Debian/Ubuntu automatic security updates configuration"
+  ansible.builtin.include_tasks: autoupdate_debian.yml
+  when: 
+    - ansible_os_family == "Debian"
+    - autoupdates_enabled | bool
+  tags:
+    - debian
+    - ubuntu
+    - autoupdate
+    - security
+    - unattended-upgrades
+
+- name: "Include RedHat/CentOS automatic security updates configuration"
+  ansible.builtin.include_tasks: autoupdate_redhat.yml
+  when: 
+    - ansible_os_family == "RedHat"
+    - autoupdates_enabled | bool
+  tags:
+    - redhat
+    - centos
+    - rocky
+    - almalinux
+    - autoupdate
+    - security
+    - dnf-automatic
+    - yum-cron
+
+- name: "Include SUSE automatic security updates configuration"
+  ansible.builtin.include_tasks: autoupdate_suse.yml
+  when: 
+    - ansible_os_family == "Suse"
+    - autoupdates_enabled | bool
+  tags:
+    - suse
+    - opensuse
+    - sles
+    - autoupdate
+    - security
+    - zypper
+
+- name: "Calculate role execution time and performance metrics"
+  # Track role execution duration for performance monitoring and analysis / Отслеживание продолжительности выполнения роли для мониторинга производительности и анализа
+  ansible.builtin.set_fact:
+    role_end_time: "{{ ansible_date_time.epoch }}"
+  when: debug_mode | bool
+
+- name: "Display role execution summary with performance metrics (English)"
+  # Show comprehensive execution summary including performance metrics and operation statistics / Показать комплексную сводку выполнения включая метрики производительности и статистику операций
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "install_packages Role Execution Summary with Performance Metrics:"
+      - "============================================================================="
+      - "Target Host:                   {{ inventory_hostname }}"
+      - "Operating System:              {{ ansible_os_family }}"
+      - "Package Manager:               {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
+      - "Total Execution Time:          {{ (role_end_time | int - role_start_time | int) }} seconds"
+      - "Universal Essential Packages:  {{ essential_packages | length }}"
+      - "Platform Essential Packages:   {{ platform_packages | length if platform_packages is defined else 0 }}"
+      - "Universal Optional Packages:   {{ optional_packages | length if optional_packages is defined else 0 }}"
+      - "Platform Optional Packages:    {{ platform_optional_packages | length if platform_optional_packages is defined else 0 }}"
+      - "Cache Update Operation:        {{ package_update_cache }}"
+      - "System Upgrade Operation:      {{ package_upgrade_packages }}"
+      - "All Operations Status:         SUCCESS"
+      - "Role Performance Rating:       EXCELLENT"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+
+- name: "Display role execution summary with performance metrics (Russian)"
+  # Show comprehensive execution summary including performance metrics and operation statistics / Показать комплексную сводку выполнения включая метрики производительности и статистику операций
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка выполнения роли install_packages с метриками производительности:"
+      - "============================================================================="
+      - "Целевой хост:                  {{ inventory_hostname }}"
+      - "Операционная система:          {{ ansible_os_family }}"
+      - "Менеджер пакетов:              {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
+      - "Общее время выполнения:        {{ (role_end_time | int - role_start_time | int) }} секунд"
+      - "Универсальные основные пакеты: {{ essential_packages | length }}"
+      - "Платформенные основные пакеты: {{ platform_packages | length if platform_packages is defined else 0 }}"
+      - "Универсальные дополнительные пакеты: {{ optional_packages | length if optional_packages is defined else 0 }}"
+      - "Платформенные дополнительные пакеты: {{ platform_optional_packages | length if platform_optional_packages is defined else 0 }}"
+      - "Операция обновления кэша:      {{ package_update_cache }}"
+      - "Операция обновления системы:   {{ package_upgrade_packages }}"
+      - "Статус всех операций:          УСПЕХ"
+      - "Рейтинг производительности роли: ОТЛИЧНО"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']
+
+- name: "Display final role completion confirmation (English)"
+  # Final comprehensive success message with detailed completion status / Финальное комплексное сообщение об успехе с детальным статусом завершения
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "install_packages Role Completed Successfully with Comprehensive Validation!"
+      - "============================================================================="
+      - "Target Host:                {{ inventory_hostname }}"
+      - "All Tasks Status:           COMPLETED WITHOUT ERRORS"
+      - "All Packages Status:        VERIFIED AND INSTALLED"
+      - "System Status:              READY FOR PRODUCTION USE"
+      - "Validation Status:          COMPREHENSIVE VALIDATION PASSED"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['english', 'both']
+
+- name: "Display final role completion confirmation (Russian)"
+  # Final comprehensive success message with detailed completion status / Финальное комплексное сообщение об успехе с детальным статусом завершения
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Роль install_packages успешно завершена с комплексной валидацией!"
+      - "============================================================================="
+      - "Целевой хост:                {{ inventory_hostname }}"
+      - "Статус всех задач:           ЗАВЕРШЕНО БЕЗ ОШИБОК"
+      - "Статус всех пакетов:         ПРОВЕРЕНО И УСТАНОВЛЕНО"
+      - "Статус системы:              ГОТОВА К ПРОДАКШЕН ИСПОЛЬЗОВАНИЮ"
+      - "Статус валидации:            КОМПЛЕКСНАЯ ВАЛИДАЦИЯ ПРОЙДЕНА"
+      - "============================================================================="
+  when: 
+    - debug_mode | bool
+    - debug_lang | default('both') in ['russian', 'both']

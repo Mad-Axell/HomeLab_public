@@ -1,0 +1,80 @@
+---
+# Handlers for add_users role
+# Обработчики для роли add_users
+
+# EN: Restart SSH service with OS detection / RU: Перезапуск службы SSH с определением ОС
+- name: Restart SSH daemon on RedHat-based systems
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted
+    daemon_reload: false
+  when: ansible_os_family == "RedHat"
+  listen: "restart ssh service"
+  throttle: 1  # EN: Restart one host at a time / RU: Перезапускать по одному хосту
+
+- name: Restart SSH service on Debian-based systems
+  ansible.builtin.systemd:
+    name: ssh
+    state: restarted
+    daemon_reload: false
+  when: ansible_os_family == "Debian"
+  listen: "restart ssh service"
+  throttle: 1  # EN: Restart one host at a time / RU: Перезапускать по одному хосту
+
+- name: Restart SSH service on Suse-based systems
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted
+    daemon_reload: false
+  when: ansible_os_family == "Suse"
+  listen: "restart ssh service"
+  throttle: 1  # EN: Restart one host at a time / RU: Перезапускать по одному хосту
+
+# EN: Reload SSH service (lighter than restart) / RU: Перезагрузка службы SSH (легче чем перезапуск)
+- name: Reload SSH daemon configuration
+  ansible.builtin.systemd:
+    name: "{{ 'sshd' if ansible_os_family in ['RedHat', 'Suse'] else 'ssh' }}"
+    state: reloaded
+  listen: "reload ssh service"
+
+# EN: Validate sudoers configuration / RU: Валидация конфигурации sudoers
+- name: Validate sudoers configuration
+  ansible.builtin.command: visudo -c
+  changed_when: false
+  failed_when: false
+  register: sudoers_validation
+  listen: "validate sudoers"
+
+- name: Display sudoers validation result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Sudoers Validation Result:"
+      - "============================================================================="
+      - "Status:                   {{ 'VALID' if sudoers_validation.rc == 0 else 'INVALID' }}"
+      - "Output:                   {{ sudoers_validation.stdout }}"
+      - "============================================================================="
+  when: 
+    - debug_mode | default(false)
+    - sudoers_validation is defined
+  listen: "validate sudoers"
+
+# EN: Notification handler for successful user creation / RU: Обработчик уведомлений об успешном создании пользователя
+- name: Notify successful user creation
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "User Creation Notification:"
+      - "============================================================================="
+      - "User:                     {{ item.username }}"
+      - "Status:                   Created Successfully"
+      - "Groups:                   {{ item.groups | default([]) | join(', ') }}"
+      - "Sudo Privileges:          {{ 'Yes' if item.is_sudoers | default(false) else 'No' }}"
+      - "Home Directory:           {{ item.home | default(add_users_home_prefix + '/' + item.username) }}"
+      - "Shell:                    {{ item.shell | default(add_users_default_shell) }}"
+      - "============================================================================="
+  loop: "{{ users_to_add }}"
+  when: debug_mode | default(false)
+  listen: "notify user creation"
+  tags:
+    - notification

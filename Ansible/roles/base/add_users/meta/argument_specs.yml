@@ -1,0 +1,293 @@
+---
+# EN: Argument specifications for role input validation
+# RU: Спецификации аргументов для валидации входных параметров роли
+argument_specs:
+  main:
+    short_description: "EN: User management role with sudo and group configuration / RU: Роль управления пользователями с sudo и конфигурацией групп"
+    description: |
+      EN: This role creates and manages user accounts on Linux systems with comprehensive validation,
+          group management, and sudo privileges configuration. Supports Ubuntu, Debian, and RHEL-based systems.
+      RU: Данная роль создает и управляет учетными записями пользователей в Linux системах с комплексной валидацией,
+          управлением группами и настройкой sudo привилегий. Поддерживает Ubuntu, Debian и системы на базе RHEL.
+    author:
+      - "Ansible Admin <admin@example.com>"
+    
+    options:
+      users_to_add:
+        type: list
+        required: true
+        description: |
+          EN: List of users to create or update with their configuration parameters
+          RU: Список пользователей для создания или обновления с их параметрами конфигурации
+        elements: dict
+        options:
+          username:
+            type: str
+            required: true
+            description: |
+              EN: Username for the account (lowercase letters, numbers, underscores only)
+              RU: Имя пользователя для учетной записи (только строчные буквы, цифры, подчеркивания)
+          
+          password:
+            type: str
+            required: true
+            description: |
+              EN: Plain text password (will be hashed automatically)
+              RU: Пароль в открытом виде (будет автоматически захеширован)
+          
+          groups:
+            type: list
+            required: false
+            default: []
+            description: |
+              EN: List of groups the user should be member of
+              RU: Список групп, в которых пользователь должен состоять
+            elements: str
+          
+          is_sudoers:
+            type: bool
+            required: false
+            default: false
+            description: |
+              EN: Grant sudo privileges to the user
+              RU: Предоставить пользователю sudo привилегии
+          
+          shell:
+            type: str
+            required: false
+            description: |
+              EN: User shell (must be in valid_shells list)
+              RU: Оболочка пользователя (должна быть в списке valid_shells)
+          
+          uid:
+            type: int
+            required: false
+            description: |
+              EN: User ID (1000-65534 for regular users)
+              RU: ID пользователя (1000-65534 для обычных пользователей)
+          
+          gid:
+            type: int
+            required: false
+            description: |
+              EN: Primary group ID
+              RU: ID основной группы
+          
+          create_home:
+            type: bool
+            required: false
+            description: |
+              EN: Create home directory for the user
+              RU: Создать домашнюю директорию для пользователя
+          
+          home:
+            type: str
+            required: false
+            description: |
+              EN: Custom home directory path (must be absolute path)
+              RU: Пользовательский путь домашней директории (должен быть абсолютным путем)
+          
+          authorized_keys:
+            type: list
+            required: false
+            default: []
+            description: |
+              EN: List of SSH public keys for the user
+              RU: Список SSH публичных ключей для пользователя
+            elements: str
+          
+          allowed_subnets:
+            type: list
+            required: false
+            default: []
+            description: |
+              EN: List of allowed subnets for SSH access
+              RU: Список разрешенных подсетей для SSH доступа
+            elements: str
+          
+          denied_subnets:
+            type: list
+            required: false
+            default: []
+            description: |
+              EN: List of denied subnets for SSH access
+              RU: Список запрещенных подсетей для SSH доступа
+            elements: str
+          
+          not_trusted_subnets:
+            type: list
+            required: false
+            default: []
+            description: |
+              EN: List of not trusted subnets for SSH access
+              RU: Список недоверенных подсетей для SSH доступа
+            elements: str
+      
+      debug_mode:
+        type: bool
+        required: false
+        default: false
+        description: |
+          EN: Enable detailed debug output
+          RU: Включить детальный вывод отладки
+      
+      
+      debug_show_passwords:
+        type: bool
+        required: false
+        default: false
+        description: |
+          EN: Show passwords in debug output (INSECURE - use only for testing)
+          RU: Показывать пароли в отладочном выводе (НЕБЕЗОПАСНО - использовать только для тестирования)
+      
+      add_users_create_home:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Default setting for home directory creation
+          RU: Настройка по умолчанию для создания домашней директории
+      
+      add_users_home_prefix:
+        type: str
+        required: false
+        default: "/home"
+        description: |
+          EN: Prefix path for user home directories
+          RU: Префикс пути для домашних директорий пользователей
+      
+      add_users_default_shell:
+        type: str
+        required: false
+        default: "/bin/bash"
+        description: |
+          EN: Default shell for users
+          RU: Оболочка по умолчанию для пользователей
+      
+      add_users_validate_passwords:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable password strength validation
+          RU: Включить проверку надежности паролей
+      
+      add_users_min_password_length:
+        type: int
+        required: false
+        default: 8
+        description: |
+          EN: Minimum password length requirement
+          RU: Требуемая минимальная длина пароля
+      
+      enable_rollback:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Enable automatic rollback on failure
+          RU: Включить автоматический откат при ошибке
+      
+      backup_config:
+        type: bool
+        required: false
+        default: true
+        description: |
+          EN: Create backup before changes
+          RU: Создавать резервную копию перед изменениями
+      
+      retries:
+        type: int
+        required: false
+        default: 3
+        description: |
+          EN: Number of retries for failed tasks
+          RU: Количество повторов для неудачных задач
+      
+      retry_delay:
+        type: int
+        required: false
+        default: 5
+        description: |
+          EN: Delay between retries in seconds
+          RU: Задержка между повторами в секундах
+      
+      password_max_age:
+        type: int
+        required: false
+        default: 90
+        description: |
+          EN: Maximum password age in days
+          RU: Максимальный возраст пароля в днях
+      
+      password_warn_age:
+        type: int
+        required: false
+        default: 14
+        description: |
+          EN: Password warning age in days
+          RU: Предупреждение о смене пароля за N дней
+      
+      account_inactive_days:
+        type: int
+        required: false
+        default: 30
+        description: |
+          EN: Days until account locks after password expiry (non-sudo users)
+          RU: Дней до блокировки аккаунта после истечения пароля (не-sudo пользователи)
+      
+      pam_deny_attempts:
+        type: int
+        required: false
+        default: 3
+        description: |
+          EN: Failed login attempts before lockout
+          RU: Неудачных попыток входа до блокировки
+      
+      pam_unlock_time:
+        type: int
+        required: false
+        default: 900
+        description: |
+          EN: Account unlock time in seconds (15 minutes)
+          RU: Время разблокировки аккаунта в секундах (15 минут)
+      
+      password_remember_count:
+        type: int
+        required: false
+        default: 12
+        description: |
+          EN: Number of old passwords to remember
+          RU: Количество старых паролей для запоминания
+      
+      password_history_file:
+        type: str
+        required: false
+        default: /etc/security/opasswd
+        description: |
+          EN: Password history file path
+          RU: Путь к файлу истории паролей
+      
+      umask_system_users:
+        type: str
+        required: false
+        default: '0027'
+        description: |
+          EN: Umask for system users
+          RU: Umask для системных пользователей
+      
+      home_dir_permissions:
+        type: str
+        required: false
+        default: '0750'
+        description: |
+          EN: Home directory permissions
+          RU: Права на домашние директории
+      
+      security_groups:
+        type: dict
+        required: false
+        description: |
+          EN: Security groups configuration with members and allowed commands
+          RU: Конфигурация групп безопасности с членами и разрешенными командами
+

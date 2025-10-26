@@ -1,0 +1,35 @@
+// Automatic Updates Schedule Configuration
+// Конфигурация расписания автоматических обновлений
+// Managed by Ansible - DO NOT EDIT MANUALLY
+// Управляется Ansible - НЕ РЕДАКТИРУЙТЕ ВРУЧНУЮ
+
+{% if autoupdates_schedule_enabled | bool %}
+// Update package lists daily
+// Обновлять списки пакетов ежедневно
+APT::Periodic::Update-Package-Lists "1";
+
+{% if autoupdates_download_only | bool %}
+// Download upgradeable packages but don't install
+// Загружать обновляемые пакеты, но не устанавливать
+APT::Periodic::Download-Upgradeable-Packages "1";
+APT::Periodic::Unattended-Upgrade "0";
+{% else %}
+// Download and install upgradeable packages
+// Загружать и устанавливать обновляемые пакеты
+APT::Periodic::Download-Upgradeable-Packages "1";
+APT::Periodic::Unattended-Upgrade "1";
+{% endif %}
+
+// Clean local download archive every 7 days
+// Очищать локальный архив загрузок каждые 7 дней
+APT::Periodic::AutocleanInterval "7";
+
+{% else %}
+// Automatic updates disabled
+// Автоматические обновления отключены
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Download-Upgradeable-Packages "0";
+APT::Periodic::Unattended-Upgrade "0";
+APT::Periodic::AutocleanInterval "0";
+{% endif %}
+

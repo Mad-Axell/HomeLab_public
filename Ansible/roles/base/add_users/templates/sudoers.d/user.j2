@@ -1,0 +1,39 @@
+# Managed by Ansible - add_users role
+# EN: Sudoers configuration for user: {{ username }}
+# RU: Конфигурация sudoers для пользователя: {{ username }}
+#
+# User: {{ username }}
+# Security Groups: {{ user_security_groups | default([]) | join(', ') }}
+# Generated: {{ ansible_date_time.iso8601 }}
+# Host: {{ ansible_hostname }}
+
+{% if user_security_groups is defined and user_security_groups | length > 0 %}
+{%   for group in user_security_groups %}
+{%     if group in security_groups %}
+{%       set group_config = security_groups[group] %}
+# EN: Security group: {{ group }} / RU: Группа безопасности: {{ group }}
+{%       if group_config.commands is defined and group_config.commands | length > 0 %}
+{%         for command in group_config.commands %}
+{%           if group_config.nopasswd | default(false) %}
+{{ username }} ALL=(ALL:ALL) NOPASSWD: {{ command }}
+{%           else %}
+{{ username }} ALL=(ALL:ALL) {{ command }}
+{%           endif %}
+{%         endfor %}
+{%       endif %}
+{%     endif %}
+{%   endfor %}
+{% else %}
+# EN: Standard sudo configuration (no specific security groups assigned)
+# RU: Стандартная конфигурация sudo (специфические группы безопасности не назначены)
+{{ username }} ALL=(ALL:ALL) ALL
+{% endif %}
+
+# EN: Additional custom sudo rules can be added below
+# RU: Дополнительные пользовательские правила sudo можно добавить ниже
+{% if custom_sudo_rules is defined and custom_sudo_rules | length > 0 %}
+{%   for rule in custom_sudo_rules %}
+{{ rule }}
+{%   endfor %}
+{% endif %}
+

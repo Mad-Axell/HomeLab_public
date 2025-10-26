@@ -1,0 +1,509 @@
+---
+# Main tasks for add_users role
+# Основные задачи роли add_users
+
+
+# Gather comprehensive system information for platform-specific configuration
+# Сбор полной системной информации для платформо-специфичной конфигурации
+- name: "Gather comprehensive system facts for firewall configuration"
+  ansible.builtin.setup:
+    gather_subset:
+      - distribution
+      - os_family
+      - architecture
+      - kernel
+      - system
+      - hardware
+      - network
+  register: system_facts
+  failed_when: false
+  changed_when: false
+  tags:
+    - debug
+    - system
+    - facts
+    - gather
+
+
+
+# EN: Validate role arguments (Automatic in Ansible 2.11+)
+# RU: Валидация аргументов роли (Автоматически в Ansible 2.11+)
+- name: Validate role arguments
+  ansible.builtin.validate_argument_spec:
+    argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
+  tags: ['always', 'validate']
+
+# EN: Include OS-specific variables / RU: Подключение переменных ОС
+- name: Include OS-specific variables
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+  tags: ['always']
+
+# Include preflight checks
+# Подключение предварительных проверок
+- name: Preflight checks
+  ansible.builtin.include_tasks: preflight.yml
+  tags:
+    - preflight
+    - always
+
+# Include validation tasks
+# Подключение задач валидации
+- name: Validate input parameters and user data
+  ansible.builtin.include_tasks: validate.yml
+  tags:
+    - validation
+    - always
+
+# Install required packages
+# Установка необходимых пакетов
+- name: Install required packages
+  ansible.builtin.include_tasks: "{{ ansible_os_family | lower }}.yml"
+  tags:
+    - packages
+    - install
+
+# Display detailed user information in debug mode
+# Отображение подробной информации о пользователях в режиме отладки
+- name: Display user configuration details
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "User Configuration Details:"
+      - "============================================================================="
+      - "Username:               {{ item.username }}"
+      - "Password:               {{ debug_show_passwords | default(false) | ternary(item.password, '-- ** Use debug_show_passwords=true ** --') }}"
+      - "Groups:                 {{ item.groups | default([]) | join(', ') }}"
+      - "Sudo Privileges:        {{ 'Yes' if item.is_sudoers | default(false) else 'No' }}"
+      - "Shell:                  {{ item.shell | default(add_users_default_shell) }}"
+      - "UID:                    {{ item.uid | default('auto') }}"
+      - "Create Home:            {{ 'Yes' if item.create_home | default(add_users_create_home) else 'No' }}"
+      - "Home Directory:         {{ item.home | default(add_users_home_prefix + '/' + item.username) }}"
+      - "============================================================================="
+  loop: "{{ users_to_add }}"
+  when: debug_mode | default(false)
+  tags:
+    - debug
+    - always
+
+# Gather system information about existing users and groups
+# Сбор системной информации о существующих пользователях и группах
+- name: Collect existing system users information
+  ansible.builtin.getent:
+    database: passwd
+  register: existing_users
+  tags:
+    - facts
+    - always
+
+- name: Collect existing system groups information
+  ansible.builtin.getent:
+    database: group
+  register: existing_groups
+  tags:
+    - facts
+    - always
+
+# Display system information in debug mode
+# Отображение системной информации в режиме отладки
+- name: Display system users and groups count
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "System Information Summary:"
+      - "============================================================================="
+      - "Existing Users:          {{ existing_users.ansible_facts.getent_passwd | default({}) | length }}"
+      - "Existing Groups:         {{ existing_groups.ansible_facts.getent_group | default({}) | length }}"
+      - "Users to Process:        {{ users_to_add | length }}"
+      - "============================================================================="
+  when: debug_mode | default(false)
+  tags:
+    - debug
+    - always
+
+# Process and create required groups
+# Обработка и создание необходимых групп
+- name: Extract unique groups from user configuration
+  ansible.builtin.set_fact:
+    unique_groups: "{{ users_to_add | map(attribute='groups') | default([]) | flatten() | unique }}"
+  tags:
+    - facts
+    - groups
+
+- name: Display groups to be created
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Groups Creation Plan:"
+      - "============================================================================="
+      - "Groups to Create:         {{ unique_groups | join(', ') }}"
+      - "Total Groups:             {{ unique_groups | length }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - unique_groups | length > 0
+  tags:
+    - debug
+    - groups
+
+# Create required user groups with comprehensive error handling and logging
+# Создание необходимых пользовательских групп с комплексной обработкой ошибок и логированием
+- name: Create required user groups
+  block:
+    - name: Create user groups
+      ansible.builtin.group:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ unique_groups }}"
+      when: unique_groups | length > 0
+      register: group_creation_result
+      tags:
+        - groups
+        - create
+  rescue:
+    - name: Group creation failed - continuing with available groups
+      ansible.builtin.debug:
+        msg: "Warning: Could not create some groups. Continuing with available groups."
+      register: group_creation_result
+      failed_when: false
+  tags:
+    - groups
+    - create
+
+# Display detailed group creation results
+# Отображение детальных результатов создания групп
+- name: Display detailed group creation results
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Group Creation Results:"
+      - "============================================================================="
+      - "Group Name:               {{ item.item }}"
+      - "Operation Status:         {{ 'SUCCESS' if item.changed else 'ALREADY EXISTS' }}"
+      - "Group Created:            {{ 'YES' if item.changed else 'NO' }}"
+      - "Group Exists:             {{ 'YES' if not item.changed else 'NO' }}"
+      - "============================================================================="
+  loop: "{{ group_creation_result.results | default([]) }}"
+  no_log: true
+  when:
+    - debug_mode | default(false)
+    - group_creation_result is defined
+  tags:
+    - debug
+    - groups
+    - results
+
+# Setup sudo configuration
+# Настройка конфигурации sudo
+- name: Create sudo group for privileged users
+  ansible.builtin.group:
+    name: "{{ sudo_group }}"
+    state: present
+  when: users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+  tags:
+    - groups
+    - sudo
+    - create
+
+- name: Display sudo users information
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Sudo Configuration Summary:"
+      - "============================================================================="
+      - "Users with Sudo:          {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | map(attribute='username') | list | join(', ') }}"
+      - "Sudo Group:               {{ sudo_group }}"
+      - "Total Sudo Users:         {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+  tags:
+    - debug
+    - sudo
+
+- name: Ensure sudoers.d directory exists with proper permissions
+  ansible.builtin.file:
+    path: /etc/sudoers.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when: users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+  tags:
+    - sudo
+    - create
+
+# User management operations with comprehensive logging
+# Операции управления пользователями с комплексным логированием
+- name: Identify existing system users
+  ansible.builtin.set_fact:
+    existing_usernames: "{{ existing_users.ansible_facts.getent_passwd | default({}) | list }}"
+  tags:
+    - facts
+    - users
+
+- name: Display user creation plan
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "User Management Plan:"
+      - "============================================================================="
+      - "Users to Create:          {{ users_to_add | rejectattr('username', 'in', existing_usernames) | map(attribute='username') | list | join(', ') }}"
+      - "Users to Update:          {{ users_to_add | selectattr('username', 'in', existing_usernames) | map(attribute='username') | list | join(', ') }}"
+      - "Total New Users:          {{ users_to_add | rejectattr('username', 'in', existing_usernames) | list | length }}"
+      - "Total Updated Users:      {{ users_to_add | selectattr('username', 'in', existing_usernames) | list | length }}"
+      - "============================================================================="
+  when: debug_mode | default(false)
+  tags:
+    - debug
+    - users
+
+# Create new system users with comprehensive error handling and logging
+# Создание новых системных пользователей с комплексной обработкой ошибок и логированием
+- name: Create new system users with full configuration
+  block:
+    - name: Set task start time
+      ansible.builtin.set_fact:
+        user_creation_start_time: "{{ ansible_date_time.epoch }}"
+      
+    - name: Create new system users
+      ansible.builtin.user:
+        name: "{{ item.username }}"
+        shell: "{{ item.shell | default(add_users_default_shell) }}"
+        groups: "{{ item.groups | default([]) }}"
+        append: true
+        password: "{{ item.password | ansible.builtin.password_hash('sha512') }}"
+        update_password: always
+        createhome: "{{ item.create_home | default(add_users_create_home) }}"
+        home: "{{ item.home | default(add_users_home_prefix + '/' + item.username) }}"
+        system: false
+        state: present
+        uid: "{{ item.uid | default(omit) }}"
+        gid: "{{ item.gid | default(omit) }}"
+      loop: "{{ users_to_add }}"
+      when: item.username not in existing_usernames
+      register: user_creation_result
+      retries: "{{ retries | default(3) }}"
+      delay: "{{ retry_delay | default(5) }}"
+      until: user_creation_result is succeeded
+      no_log: true
+      notify: "notify user creation"
+      tags:
+        - users
+        - create
+        
+  rescue:
+    - name: User creation failed - log error
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "USER CREATION FAILED"
+          - "============================================================================="
+          - "Error: {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "Task: {{ ansible_failed_task.name | default('Unknown task') }}"
+          - "Rollback Enabled: {{ enable_rollback | default(true) }}"
+          - "============================================================================="
+      when: debug_mode | default(false)
+        
+    - name: Continue with partial user creation
+      ansible.builtin.set_fact:
+        user_creation_result: "{{ user_creation_result | default({}) }}"
+        user_creation_failed: true
+      failed_when: false
+      
+  always:
+    - name: Set task completion status
+      ansible.builtin.set_fact:
+        user_creation_status: "{{ ansible_failed_task is undefined | ternary('SUCCESS', 'FAILED') }}"
+        user_creation_duration: "{{ (ansible_date_time.epoch | int) - (user_creation_start_time | default(ansible_date_time.epoch) | int) }}"
+        
+    - name: Log user creation task result
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "User Creation Task Summary:"
+          - "============================================================================="
+          - "Status:                    {{ user_creation_status }}"
+          - "Duration:                  {{ user_creation_duration }}s"
+          - "Users Processed:           {{ users_to_add | rejectattr('username', 'in', existing_usernames) | list | length }}"
+          - "Timestamp:                 {{ ansible_date_time.iso8601 }}"
+          - "============================================================================="
+      when: debug_mode | default(false)
+        
+  tags:
+    - users
+    - create
+
+# Display detailed user creation results
+# Отображение детальных результатов создания пользователей
+- name: Display detailed user creation results
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "User Creation Results:"
+      - "============================================================================="
+      - "Username:                {{ item.item.username }}"
+      - "Operation Status:        {{ 'SUCCESS' if item.changed else 'SKIPPED' }}"
+      - "User Created:            {{ 'YES' if item.changed else 'NO' }}"
+      - "Shell:                   {{ item.item.shell | default(add_users_default_shell) }}"
+      - "Groups:                  {{ item.item.groups | default([]) | join(', ') }}"
+      - "Home Directory:          {{ item.item.home | default(add_users_home_prefix + '/' + item.item.username) }}"
+      - "UID:                     {{ item.item.uid | default('auto') }}"
+      - "============================================================================="
+  loop: "{{ user_creation_result.results | default([]) }}"
+  no_log: true
+  when:
+    - debug_mode | default(false)
+    - user_creation_result is defined
+  tags:
+    - debug
+    - users
+    - results
+
+# Update existing users with comprehensive error handling and logging
+# Обновление существующих пользователей с комплексной обработкой ошибок и логированием
+- name: Update existing users with new password and group membership
+  block:
+    - name: Update existing users
+      ansible.builtin.user:
+        name: "{{ item.username }}"
+        groups: "{{ item.groups | default([]) }}"
+        append: true
+        password: "{{ item.password | ansible.builtin.password_hash('sha512') }}"
+        update_password: always
+      loop: "{{ users_to_add }}"
+      when: item.username in existing_usernames
+      register: user_update_result
+      no_log: true
+      tags:
+        - users
+        - update
+  rescue:
+    - name: User update failed - continuing with available users
+      ansible.builtin.debug:
+        msg: "Warning: Could not update some users. Continuing with available users."
+      register: user_update_result
+      failed_when: false
+  tags:
+    - users
+    - update
+
+# Sudo group management with comprehensive error handling and logging
+# Управление группой sudo с комплексной обработкой ошибок и логированием
+- name: Add users to sudo group for administrative privileges
+  block:
+    - name: Add users to sudo group
+      ansible.builtin.user:
+        name: "{{ item.username }}"
+        groups: "{{ sudo_group }}"
+        append: true
+      when: item.is_sudoers | default(false)
+      loop: "{{ users_to_add }}"
+      register: sudo_group_result
+      tags:
+        - users
+        - sudo
+        - update
+  rescue:
+    - name: Sudo group assignment failed - continuing with available users
+      ansible.builtin.debug:
+        msg: "Warning: Could not add some users to sudo group. Continuing with available users."
+      register: sudo_group_result
+      failed_when: false
+  tags:
+    - users
+    - sudo
+    - update
+
+# Sudo configuration file management with comprehensive error handling and logging
+# Управление файлами конфигурации sudo с комплексной обработкой ошибок и логированием
+- name: Backup existing sudoers files before modification
+  ansible.builtin.command: >
+    tar -czf /root/sudoers_backup_{{ ansible_date_time.epoch }}.tar.gz /etc/sudoers.d/
+  when: 
+    - backup_config | default(true)
+    - users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+  register: sudoers_backup_result
+  failed_when: false
+  changed_when: sudoers_backup_result.rc == 0
+  tags:
+    - sudo
+    - backup
+
+# EN: Include granular sudoers configuration tasks
+# RU: Подключение задач гранулярной конфигурации sudoers
+- name: Configure granular sudoers permissions
+  ansible.builtin.include_tasks: sudoers_granular.yml
+  when: users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
+  tags:
+    - sudo
+    - security_groups
+    - create
+
+- name: Remove sudoers files for users without sudo privileges
+  block:
+    - name: Remove sudoers files
+      ansible.builtin.file:
+        path: "/etc/sudoers.d/{{ item.username }}"
+        state: absent
+      when: not (item.is_sudoers | default(false))
+      loop: "{{ users_to_add }}"
+      register: sudoers_cleanup_result
+      tags:
+        - sudo
+        - cleanup
+  rescue:
+    - name: Sudoers file cleanup failed - continuing with available users
+      ansible.builtin.debug:
+        msg: "Warning: Could not remove some sudoers files. Continuing with available users."
+      register: sudoers_cleanup_result
+      failed_when: false
+  tags:
+    - sudo
+    - cleanup
+
+# EN: Include security hardening tasks
+# RU: Подключение задач усиления безопасности
+- name: Apply security hardening configuration
+  ansible.builtin.include_tasks: security.yml
+  tags:
+    - security
+    - hardening
+    - always
+
+# Final summary and completion status with comprehensive operation results
+# Финальная сводка и статус завершения с комплексными результатами операций
+- name: Display comprehensive user management summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "USER MANAGEMENT COMPLETED SUCCESSFULLY!"
+      - "============================================================================="
+      - "Operating System:              {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Total Users Processed:         {{ users_to_add | length }}"
+      - "Users with Sudo:               {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length }}"
+      - "Groups Created:                {{ unique_groups | length if unique_groups is defined else 0 }}"
+      - "New Users Created:             {{ users_to_add | rejectattr('username', 'in', existing_usernames) | list | length if existing_usernames is defined else users_to_add | length }}"
+      - "Existing Users Updated:        {{ users_to_add | selectattr('username', 'in', existing_usernames) | list | length if existing_usernames is defined else 0 }}"
+      - "Debug Mode:                    {{ debug_mode }}"
+      - "Validation Enabled:            {{ add_users_validate_passwords }}"
+      - "============================================================================="
+      - "Operation Results Summary:"
+      - "- Group Creation:              {{ 'SUCCESS' if group_creation_result is defined else 'SKIPPED' }}"
+      - "- User Creation:               {{ 'SUCCESS' if user_creation_result is defined else 'SKIPPED' }}"
+      - "- User Updates:                {{ 'SUCCESS' if user_update_result is defined else 'SKIPPED' }}"
+      - "- Sudo Group Assignment:       {{ 'SUCCESS' if sudo_group_result is defined else 'SKIPPED' }}"
+      - "- Sudoers File Creation:       {{ 'SUCCESS' if sudoers_creation_result is defined else 'SKIPPED' }}"
+      - "- Sudoers File Cleanup:        {{ 'SUCCESS' if sudoers_cleanup_result is defined else 'SKIPPED' }}"
+      - "============================================================================="
+      - "Configuration files modified:"
+      - "- /etc/passwd (user accounts)"
+      - "- /etc/group (group memberships)"
+      - "- /etc/sudoers.d/ (sudo privileges)"
+      - "============================================================================="
+  when: debug_mode | default(false)
+  tags:
+    - summary
+    - debug
+    - always
+

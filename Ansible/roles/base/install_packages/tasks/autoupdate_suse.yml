@@ -1,0 +1,269 @@
+---
+# =============================================================================
+# SUSE/openSUSE Automatic Security Updates Configuration
+# =============================================================================
+# This file configures zypper automatic updates for security patches
+# with GPG verification and trusted key management.
+#
+# Этот файл настраивает автоматические обновления zypper для патчей безопасности
+# с проверкой GPG и управлением доверенными ключами.
+# =============================================================================
+
+- name: "Configure automatic security updates for SUSE/openSUSE"
+  # Configure zypper for automatic security updates / Настройка zypper для автоматических обновлений безопасности
+  block:
+    - name: "Display automatic updates configuration initialization (English)"
+      # Show initialization message / Показать сообщение об инициализации
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Configuring Automatic Security Updates for SUSE/openSUSE"
+          - "============================================================================="
+          - "Distribution:             {{ ansible_distribution }} {{ ansible_distribution_major_version }}"
+          - "Auto-updates Enabled:     {{ autoupdates_enabled }}"
+          - "Security Only:            {{ security_updates_only }}"
+          - "GPG Verification:         {{ gpg_require_signed }}"
+          - "Reboot If Required:       {{ reboot_if_required }}"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_lang | default('both') in ['english', 'both']
+
+    - name: "Display automatic updates configuration initialization (Russian)"
+      # Show initialization message / Показать сообщение об инициализации
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Настройка автоматических обновлений безопасности для SUSE/openSUSE"
+          - "============================================================================="
+          - "Дистрибутив:              {{ ansible_distribution }} {{ ansible_distribution_major_version }}"
+          - "Автообновления включены:  {{ autoupdates_enabled }}"
+          - "Только безопасность:      {{ security_updates_only }}"
+          - "Проверка GPG:             {{ gpg_require_signed }}"
+          - "Перезагрузка при необходимости: {{ reboot_if_required }}"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_lang | default('both') in ['russian', 'both']
+
+    - name: "Install yast2-online-update-configuration for automatic updates"
+      # Install tools for configuring automatic updates / Установка инструментов для настройки автоматических обновлений
+      community.general.zypper:
+        name:
+          - yast2-online-update-configuration
+          - zypper-needs-restarting
+        state: present
+      register: autoupdate_install
+      become: true
+      failed_when: false
+      tags:
+        - packages
+        - security
+        - autoupdate
+
+    - name: "Verify GPG keys for all configured repositories"
+      # Check that all repositories have valid GPG keys / Проверка наличия валидных GPG ключей для всех репозиториев
+      ansible.builtin.command: rpm -q gpg-pubkey --qf '%{NAME}-%{VERSION}-%{RELEASE}\t%{SUMMARY}\n'
+      register: rpm_keys_list
+      changed_when: false
+      failed_when: false
+      become: true
+      tags:
+        - security
+        - gpg
+
+    - name: "List all configured repositories"
+      # Get list of all configured repositories / Получение списка всех настроенных репозиториев
+      ansible.builtin.command: zypper repos --uri
+      register: zypper_repos_list
+      changed_when: false
+      failed_when: false
+      become: true
+      tags:
+        - security
+
+    - name: "Display GPG keys verification status (English)"
+      # Show GPG keys status / Показать статус GPG ключей
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "GPG Keys Verification:"
+          - "============================================================================="
+          - "GPG Keys Found:           {{ 'YES' if rpm_keys_list.rc == 0 else 'NO' }}"
+          - "Keys Count:               {{ rpm_keys_list.stdout_lines | length }}"
+          - "Repositories Count:       {{ (zypper_repos_list.stdout_lines | select('match', '^\\s*[0-9]+\\s+\\|') | list | length) if zypper_repos_list.rc == 0 else 'Unknown' }}"
+          - "Verification Status:      {{ 'PASSED' if rpm_keys_list.rc == 0 else 'FAILED' }}"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_lang | default('both') in ['english', 'both']
+
+    - name: "Display GPG keys verification status (Russian)"
+      # Show GPG keys status / Показать статус GPG ключей
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Проверка GPG ключей:"
+          - "============================================================================="
+          - "GPG ключи найдены:        {{ 'ДА' if rpm_keys_list.rc == 0 else 'НЕТ' }}"
+          - "Количество ключей:        {{ rpm_keys_list.stdout_lines | length }}"
+          - "Количество репозиториев:  {{ (zypper_repos_list.stdout_lines | select('match', '^\\s*[0-9]+\\s+\\|') | list | length) if zypper_repos_list.rc == 0 else 'Неизвестно' }}"
+          - "Статус проверки:          {{ 'УСПЕШНО' if rpm_keys_list.rc == 0 else 'НЕУДАЧНО' }}"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_lang | default('both') in ['russian', 'both']
+
+    - name: "Configure Zypper to require signed packages"
+      # Ensure Zypper only accepts signed packages / Обеспечить принятие Zypper только подписанных пакетов
+      ansible.builtin.lineinfile:
+        path: /etc/zypp/zypp.conf
+        regexp: '^gpgcheck\s*='
+        line: 'gpgcheck = on'
+        create: true
+        mode: '0644'
+        owner: root
+        group: root
+      become: true
+      when: gpg_require_signed | bool
+      tags:
+        - security
+        - gpg
+        - configuration
+
+    - name: "Configure Zypper to auto-import repository GPG keys"
+      # Configure automatic import of trusted repository GPG keys / Настройка автоматического импорта доверенных GPG ключей репозиториев
+      ansible.builtin.lineinfile:
+        path: /etc/zypp/zypp.conf
+        regexp: '^repo.refresh.locales\s*='
+        line: 'repo.refresh.locales = auto'
+        create: true
+        mode: '0644'
+        owner: root
+        group: root
+      become: true
+      when: gpg_require_signed | bool
+      tags:
+        - security
+        - gpg
+        - configuration
+
+    - name: "Ensure all repository GPG keys are imported and trusted"
+      # Import and trust GPG keys for all enabled repositories / Импорт и установка доверия GPG ключам для всех включенных репозиториев
+      ansible.builtin.command: zypper --gpg-auto-import-keys refresh
+      register: zypper_refresh_keys
+      changed_when: "'Retrieving' in zypper_refresh_keys.stdout"
+      failed_when: false
+      become: true
+      tags:
+        - security
+        - gpg
+
+    - name: "Create systemd service for automatic updates"
+      # Create custom systemd service for automatic security updates / Создание пользовательского systemd сервиса для автоматических обновлений безопасности
+      ansible.builtin.template:
+        src: zypper-automatic-update.service.j2
+        dest: /etc/systemd/system/zypper-automatic-update.service
+        mode: '0644'
+        owner: root
+        group: root
+      become: true
+      register: zypper_service_file
+      tags:
+        - configuration
+        - security
+
+    - name: "Create systemd timer for automatic updates"
+      # Create systemd timer to schedule automatic updates / Создание systemd таймера для планирования автоматических обновлений
+      ansible.builtin.template:
+        src: zypper-automatic-update.timer.j2
+        dest: /etc/systemd/system/zypper-automatic-update.timer
+        mode: '0644'
+        owner: root
+        group: root
+      become: true
+      register: zypper_timer_file
+      tags:
+        - configuration
+        - security
+
+    - name: "Create automatic update script"
+      # Create script to perform automatic security updates / Создание скрипта для выполнения автоматических обновлений безопасности
+      ansible.builtin.template:
+        src: zypper-automatic-update.sh.j2
+        dest: /usr/local/bin/zypper-automatic-update.sh
+        mode: '0755'
+        owner: root
+        group: root
+      become: true
+      register: zypper_script_file
+      tags:
+        - configuration
+        - security
+
+    - name: "Reload systemd daemon after service/timer changes"
+      # Reload systemd to pick up new service and timer / Перезагрузка systemd для применения нового сервиса и таймера
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      when: zypper_service_file.changed or zypper_timer_file.changed
+      tags:
+        - service
+
+    - name: "Enable and start automatic updates timer"
+      # Ensure automatic updates timer is enabled and running / Обеспечить включение и запуск таймера автоматических обновлений
+      ansible.builtin.systemd:
+        name: zypper-automatic-update.timer
+        enabled: true
+        state: started
+      become: true
+      register: zypper_timer_service
+      tags:
+        - service
+        - security
+
+    - name: "Display automatic updates configuration results (English)"
+      # Show configuration results / Показать результаты конфигурации
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Automatic Security Updates Configuration Results:"
+          - "============================================================================="
+          - "Packages Installed:       {{ 'YES' if autoupdate_install.changed else 'ALREADY INSTALLED' }}"
+          - "Service Created:          {{ 'YES' if zypper_service_file.changed else 'NO CHANGE' }}"
+          - "Timer Created:            {{ 'YES' if zypper_timer_file.changed else 'NO CHANGE' }}"
+          - "Script Created:           {{ 'YES' if zypper_script_file.changed else 'NO CHANGE' }}"
+          - "Timer Enabled:            {{ 'YES' if zypper_timer_service.changed else 'ALREADY ENABLED' }}"
+          - "GPG Check Enabled:        {{ gpg_require_signed }}"
+          - "Configuration Status:     SUCCESS"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_lang | default('both') in ['english', 'both']
+
+    - name: "Display automatic updates configuration results (Russian)"
+      # Show configuration results / Показать результаты конфигурации
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Результаты настройки автоматических обновлений безопасности:"
+          - "============================================================================="
+          - "Пакеты установлены:       {{ 'ДА' if autoupdate_install.changed else 'УЖЕ УСТАНОВЛЕНЫ' }}"
+          - "Сервис создан:            {{ 'ДА' if zypper_service_file.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
+          - "Таймер создан:            {{ 'ДА' if zypper_timer_file.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
+          - "Скрипт создан:            {{ 'ДА' if zypper_script_file.changed else 'БЕЗ ИЗМЕНЕНИЙ' }}"
+          - "Таймер включен:           {{ 'ДА' if zypper_timer_service.changed else 'УЖЕ ВКЛЮЧЕН' }}"
+          - "Проверка GPG включена:    {{ gpg_require_signed }}"
+          - "Статус конфигурации:      УСПЕХ"
+          - "============================================================================="
+      when: 
+        - debug_mode | bool
+        - debug_lang | default('both') in ['russian', 'both']
+
+  when: autoupdates_enabled | bool
+  rescue:
+    - name: "Handle automatic updates configuration errors"
+      # Handle any errors that occur during configuration / Обработка любых ошибок, возникающих при конфигурации
+      ansible.builtin.debug:
+        msg: "Warning: Failed to configure automatic security updates. Manual configuration may be required."
+

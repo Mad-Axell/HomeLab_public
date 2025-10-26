@@ -1,0 +1,49 @@
+---
+# EN: Debian/Ubuntu specific tasks
+# RU: Задачи для Debian/Ubuntu
+
+# EN: Install required packages for Debian/Ubuntu
+# RU: Установка необходимых пакетов для Debian/Ubuntu
+- name: Install required packages (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: "{{ required_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  retries: "{{ retries | default(3) }}"
+  delay: "{{ retry_delay | default(5) }}"
+  register: package_installation_result
+  tags:
+    - packages
+    - install
+
+# EN: Log package installation (Debian/Ubuntu)
+# RU: Логирование установки пакетов (Debian/Ubuntu)
+- name: Log package installation (Debian/Ubuntu)
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "PACKAGE_INSTALL",
+      "package_list": required_packages,
+      "package_manager": "apt",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Required packages installed",
+      "metadata": {
+        "os_family": ansible_os_family,
+        "os_distribution": ansible_distribution,
+        "os_version": ansible_distribution_version,
+        "packages_installed": package_installation_result.changed | default(false),
+        "packages_count": required_packages | length
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when: log_file is defined
+  tags:
+    - packages
+    - logging

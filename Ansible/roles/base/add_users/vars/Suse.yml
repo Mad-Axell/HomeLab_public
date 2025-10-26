@@ -1,0 +1,18 @@
+---
+# EN: SUSE/openSUSE specific variables
+# RU: Переменные для SUSE/openSUSE
+
+# EN: Sudo group name / RU: Имя группы sudo
+sudo_group: wheel
+
+# EN: Package manager / RU: Менеджер пакетов
+package_manager: zypper
+
+
+
+
+# EN: System-specific packages / RU: Системные пакеты
+required_packages:
+  - sudo
+  - shadow
+

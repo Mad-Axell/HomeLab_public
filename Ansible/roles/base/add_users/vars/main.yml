@@ -1,0 +1,49 @@
+---
+# Internal variables for add_users role
+# Внутренние переменные для роли add_users
+
+# Reserved usernames that should not be created
+# Зарезервированные имена пользователей, которые не должны создаваться
+reserved_usernames:
+  - root
+  - daemon
+  - bin
+  - sys
+  - sync
+  - games
+  - man
+  - lp
+  - mail
+  - news
+  - uucp
+  - proxy
+  - www-data
+  - backup
+  - list
+  - irc
+  - gnats
+  - nobody
+  - systemd-network
+  - systemd-resolve
+  - systemd-timesync
+  - messagebus
+  - syslog
+  - _apt
+  - tss
+  - uuidd
+  - tcpdump
+  - tty
+  - sshd
+  - systemd-coredump
+
+# EN: Shell configuration / RU: Конфигурация оболочек
+valid_shells:
+  - /bin/bash
+  - /bin/sh
+  - /bin/zsh
+  - /bin/fish
+  - /usr/bin/bash
+  - /usr/bin/sh
+  - /usr/bin/zsh
+  - /usr/bin/fish
+  - /bin/dash

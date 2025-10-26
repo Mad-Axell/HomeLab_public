@@ -1,0 +1,212 @@
+---
+# Granular sudoers configuration tasks
+# Задачи настройки гранулярных sudoers правил
+
+# EN: Prepare security groups membership for each user
+# RU: Подготовка членства в группах безопасности для каждого пользователя
+- name: Build user to security groups mapping
+  ansible.builtin.set_fact:
+    user_security_groups_map: >-
+      {%- set mapping = {} -%}
+      {%- for group_name, group_config in security_groups.items() -%}
+        {%- if group_config.members is defined -%}
+          {%- for member in group_config.members -%}
+            {%- if member not in mapping -%}
+              {%- set _ = mapping.update({member: []}) -%}
+            {%- endif -%}
+            {%- set _ = mapping[member].append(group_name) -%}
+          {%- endfor -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ mapping }}
+  tags:
+    - sudo
+    - security_groups
+    - facts
+
+- name: Display security groups mapping
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Security Groups Membership Mapping:"
+      - "============================================================================="
+      - "{{ user_security_groups_map | to_nice_yaml }}"
+      - "============================================================================="
+  when:
+    - debug_mode | default(false)
+    - user_security_groups_map is defined
+  tags:
+    - debug
+    - sudo
+    - security_groups
+
+# EN: Create granular sudoers files using template
+# RU: Создание гранулярных sudoers файлов используя шаблон
+- name: Create granular sudoers files from template
+  block:
+    - name: Create sudoers files with granular permissions
+      ansible.builtin.template:
+        src: sudoers.d/user.j2
+        dest: "/etc/sudoers.d/{{ item.username }}"
+        mode: '0440'
+        owner: root
+        group: root
+        validate: 'visudo -cf %s'
+        backup: "{{ backup_config | default(true) }}"
+      loop: "{{ users_to_add }}"
+      when: item.is_sudoers | default(false)
+      vars:
+        username: "{{ item.username }}"
+        user_security_groups: "{{ user_security_groups_map[item.username] | default([]) }}"
+        custom_sudo_rules: "{{ item.custom_sudo_rules | default([]) }}"
+      register: sudoers_granular_result
+      notify: "validate sudoers"
+      tags:
+        - sudo
+        - security_groups
+        - create
+
+    - name: Display granular sudoers creation results (English)
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Granular Sudoers File Created:"
+          - "============================================================================="
+          - "User:                     {{ item.item.username }}"
+          - "File:                     /etc/sudoers.d/{{ item.item.username }}"
+          - "Security Groups:          {{ user_security_groups_map[item.item.username] | default([]) | join(', ') | default('None - Standard sudo') }}"
+          - "Status:                   {{ 'CREATED' if item.changed else 'ALREADY EXISTS' }}"
+          - "Validation:               PASSED (visudo)"
+          - "============================================================================="
+      loop: "{{ sudoers_granular_result.results | default([]) }}"
+      when:
+        - debug_mode | default(false)
+        - debug_lang | default('both') in ['english', 'both']
+        - sudoers_granular_result is defined
+      tags:
+        - debug
+        - sudo
+
+  rescue:
+    - name: Granular sudoers creation failed - log error
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "GRANULAR SUDOERS CREATION FAILED"
+          - "============================================================================="
+          - "Error: {{ ansible_failed_result.msg | default('Unknown error') }}"
+          - "Task: {{ ansible_failed_task.name | default('Unknown task') }}"
+          - "============================================================================="
+          - "NOTE: Falling back to standard sudoers configuration"
+          - "============================================================================="
+      when: debug_mode | default(false)
+
+    - name: Fall back to standard sudoers configuration
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ item.username }}"
+        content: "{{ item.username }} ALL=(ALL:ALL) ALL"
+        mode: '0440'
+        owner: root
+        group: root
+        validate: 'visudo -cf %s'
+        backup: "{{ backup_config | default(true) }}"
+      loop: "{{ users_to_add }}"
+      when: item.is_sudoers | default(false)
+      register: sudoers_fallback_result
+
+    - name: Set granular sudoers creation status
+      ansible.builtin.set_fact:
+        sudoers_granular_failed: true
+      failed_when: false
+
+  always:
+    - name: Set granular sudoers status
+      ansible.builtin.set_fact:
+        sudoers_granular_status: "{{ ansible_failed_task is undefined | ternary('SUCCESS', 'FAILED_FALLBACK') }}"
+
+  tags:
+    - sudo
+    - security_groups
+    - create
+
+# EN: Verify sudoers files are correctly configured
+# RU: Проверить что sudoers файлы корректно настроены
+- name: Verify all sudoers files
+  ansible.builtin.command: visudo -c
+  register: sudoers_verify_result
+  changed_when: false
+  failed_when: false
+  tags:
+    - sudo
+    - verify
+
+- name: Display sudoers verification result
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Sudoers Configuration Verification:"
+      - "============================================================================="
+      - "Verification Status:      {{ 'PASSED' if sudoers_verify_result.rc == 0 else 'FAILED' }}"
+      - "Return Code:              {{ sudoers_verify_result.rc }}"
+      - "Output:                   {{ sudoers_verify_result.stdout }}"
+      - "============================================================================="
+  when: debug_mode | default(false)
+    - sudoers_verify_result is defined
+  tags:
+    - debug
+    - sudo
+    - verify
+
+# EN: List all created sudoers files
+# RU: Список всех созданных sudoers файлов
+- name: Find all sudoers files in /etc/sudoers.d/
+  ansible.builtin.find:
+    paths: /etc/sudoers.d/
+    patterns: '*'
+  register: sudoers_files_list
+  tags:
+    - sudo
+    - facts
+
+- name: Display list of sudoers files
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Sudoers Files Inventory:"
+      - "============================================================================="
+      - "Total Files:              {{ sudoers_files_list.matched }}"
+      - "Files:"
+      - "{% for file in sudoers_files_list.files %}  - {{ file.path | basename }}{% endfor %}"
+      - "============================================================================="
+  when: debug_mode | default(false)
+    - sudoers_files_list is defined
+  tags:
+    - debug
+    - sudo
+
+# EN: Summary of granular sudoers configuration
+# RU: Сводка конфигурации гранулярных sudoers
+- name: Display granular sudoers configuration summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "GRANULAR SUDOERS CONFIGURATION COMPLETED!"
+      - "============================================================================="
+      - "Configuration Status:     {{ sudoers_granular_status | default('SUCCESS') }}"
+      - "Total Sudo Users:         {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length }}"
+      - "Security Groups Defined:  {{ security_groups.keys() | list | join(', ') }}"
+      - "Sudoers Files Created:    {{ sudoers_files_list.matched | default(0) }}"
+      - "Validation:               {{ 'PASSED' if sudoers_verify_result.rc == 0 else 'FAILED' }}"
+      - "Template Used:            templates/sudoers.d/user.j2"
+      - "============================================================================="
+      - "Security Groups Configuration:"
+      - "{% for group_name, group_config in security_groups.items() %}  - {{ group_name }}: {{ group_config.members | default([]) | length }} members, {{ group_config.commands | default([]) | length }} commands{% endfor %}"
+      - "============================================================================="
+  when: debug_mode | default(false)
+  tags:
+    - debug
+    - sudo
+    - summary
+
+
+

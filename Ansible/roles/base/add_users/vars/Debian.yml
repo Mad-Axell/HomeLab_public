@@ -1,0 +1,15 @@
+---
+# EN: Debian/Ubuntu specific variables
+# RU: Переменные для Debian/Ubuntu
+
+# EN: Sudo group name / RU: Имя группы sudo
+sudo_group: sudo
+
+# EN: Package manager / RU: Менеджер пакетов
+package_manager: apt
+
+# EN: System-specific packages / RU: Системные пакеты
+required_packages:
+  - sudo
+  - passwd
+

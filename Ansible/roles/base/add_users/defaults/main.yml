@@ -1,0 +1,82 @@
+---
+# EN: Default configuration variables
+# RU: Переменные конфигурации по умолчанию
+
+# EN: Debug configuration / RU: Конфигурация отладки
+debug_mode: false                # Boolean. Enable detailed debug output / Логическое значение. Включить детальный вывод отладки
+debug_show_passwords: false      # Boolean. Show passwords in debug (INSECURE) / Логическое значение. Показывать пароли в отладке (НЕБЕЗОПАСНО)
+
+# EN: User configuration / RU: Конфигурация пользователей
+users_to_add: []                 # List. Users to create or update / Список. Пользователи для создания или обновления
+  # Example configuration / Пример конфигурации:
+  # - username: test_user_1       # String. Username (lowercase, numbers, underscores) / Строка. Имя пользователя (строчные, цифры, подчеркивания)
+  #   password: "SecurePass123"   # String. Plain text password (will be hashed) / Строка. Пароль открытым текстом (будет захеширован)
+  #   groups: ["docker", "wheel"]  # List. User groups / Список. Группы пользователя
+  #   is_sudoers: true             # Boolean. Grant sudo privileges / Логическое значение. Предоставить sudo привилегии
+  #   uid: null                    # Integer. User ID (null for auto) / Целое число. ID пользователя (null для авто)
+  #   gid: null                    # Integer. Group ID (null for auto) / Целое число. ID группы (null для авто)
+  #   shell: /bin/bash             # String. User shell / Строка. Оболочка пользователя
+  #   create_home: true            # Boolean. Create home directory / Логическое значение. Создать домашнюю директорию
+  #   home: "/home/test_user_1"    # String. Home directory path / Строка. Путь домашней директории
+
+# EN: Global settings for user creation / RU: Глобальные настройки для создания пользователей
+add_users_create_home: true          # Boolean. Create home directory by default / Логическое значение. Создавать домашнюю директорию по умолчанию
+add_users_home_prefix: "/home"       # String. Home directory prefix / Строка. Префикс домашней директории
+add_users_default_shell: "/bin/bash" # String. Default shell for users / Строка. Оболочка по умолчанию для пользователей
+
+# EN: Password validation / RU: Валидация паролей
+add_users_validate_passwords: true   # Boolean. Enable password validation / Логическое значение. Включить валидацию паролей
+add_users_min_password_length: 8     # Integer. Minimum password length / Целое число. Минимальная длина пароля
+
+# EN: Rollback configuration / RU: Конфигурация отката
+enable_rollback: true                # Boolean. Enable automatic rollback on failure / Логическое значение. Включить автоматический откат при ошибке
+backup_config: true                  # Boolean. Create backup before changes / Логическое значение. Создавать резервную копию перед изменениями
+
+# EN: Performance tuning / RU: Настройка производительности
+retries: 3                           # Integer. Number of retries for failed tasks / Целое число. Количество повторов для неудачных задач
+retry_delay: 5                       # Integer. Delay between retries in seconds / Целое число. Задержка между повторами в секундах
+
+
+# EN: Password and account security policies / RU: Политики безопасности паролей и аккаунтов
+password_max_age: 90                 # Integer. Maximum password age in days / Целое число. Максимальный возраст пароля в днях
+password_warn_age: 14                # Integer. Password warning age in days / Целое число. Предупреждение о смене пароля за N дней
+account_inactive_days: 30            # Integer. Days until account locks after password expiry / Целое число. Дней до блокировки аккаунта после истечения пароля
+pam_deny_attempts: 3                 # Integer. Failed login attempts before lockout / Целое число. Неудачных попыток входа до блокировки
+pam_unlock_time: 900                 # Integer. Account unlock time in seconds (15 min) / Целое число. Время разблокировки в секундах (15 мин)
+password_remember_count: 12          # Integer. Number of old passwords to remember / Целое число. Количество старых паролей для запоминания
+password_history_file: /etc/security/opasswd  # String. Password history file / Строка. Файл истории паролей
+umask_system_users: '0027'           # String. Umask for system users / Строка. Umask для системных пользователей
+home_dir_permissions: '0750'         # String. Home directory permissions / Строка. Права на домашние директории
+min_uid: 1000                        # Integer. Minimum UID for regular users / Целое число. Минимальный UID для обычных пользователей
+max_uid: 60000                       # Integer. Maximum UID for regular users / Целое число. Максимальный UID для обычных пользователей
+
+# EN: Security groups configuration / RU: Конфигурация групп безопасности
+security_groups:                     # Dictionary. Security groups with members and allowed commands / Словарь. Группы безопасности с членами и разрешенными командами
+  admins:                            # EN: Full administrative access / RU: Полный административный доступ
+    members: []                      # List. Usernames of admins / Список. Имена пользователей-администраторов
+    commands:                        # List. Allowed commands (empty = ALL) / Список. Разрешенные команды (пусто = ALL)
+      - ALL
+    nopasswd: true                   # Boolean. Allow NOPASSWD for these commands / Логическое значение. Разрешить NOPASSWD для этих команд
+    
+  operators:                         # EN: Limited operational access / RU: Ограниченный операционный доступ
+    members: []                      # List. Usernames of operators / Список. Имена пользователей-операторов
+    commands:                        # List. Allowed commands / Список. Разрешенные команды
+      - /bin/systemctl restart *
+      - /bin/systemctl stop *
+      - /bin/systemctl start *
+      - /bin/systemctl status *
+      - /bin/journalctl *
+      - /usr/bin/docker *
+      - /usr/local/bin/docker-compose *
+    nopasswd: false                  # Boolean. Require password for these commands / Логическое значение. Требовать пароль для этих команд
+    
+  auditors:                          # EN: Read-only audit access / RU: Доступ только на чтение для аудита
+    members: []                      # List. Usernames of auditors / Список. Имена пользователей-аудиторов
+    commands:                        # List. Allowed commands / Список. Разрешенные команды
+      - /bin/cat /var/log/*
+      - /bin/tail /var/log/*
+      - /bin/grep * /var/log/*
+      - /bin/journalctl *
+      - /bin/systemctl status *
+      - /usr/bin/find /var/log/*
+    nopasswd: true                   # Boolean. Allow NOPASSWD for read-only commands / Логическое значение. Разрешить NOPASSWD для команд только на чтение
