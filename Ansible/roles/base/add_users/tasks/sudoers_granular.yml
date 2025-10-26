@@ -66,7 +66,8 @@
         - security_groups
         - create
 
-    - name: Display granular sudoers creation results (English)
+    - name: Display granular sudoers creation results 
+    
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -81,7 +82,6 @@
       loop: "{{ sudoers_granular_result.results | default([]) }}"
       when:
         - debug_mode | default(false)
-        - debug_lang | default('both') in ['english', 'both']
         - sudoers_granular_result is defined
       tags:
         - debug
@@ -150,7 +150,8 @@
       - "Return Code:              {{ sudoers_verify_result.rc }}"
       - "Output:                   {{ sudoers_verify_result.stdout }}"
       - "============================================================================="
-  when: debug_mode | default(false)
+  when:
+    - debug_mode | default(false)
     - sudoers_verify_result is defined
   tags:
     - debug
@@ -178,7 +179,8 @@
       - "Files:"
       - "{% for file in sudoers_files_list.files %}  - {{ file.path | basename }}{% endfor %}"
       - "============================================================================="
-  when: debug_mode | default(false)
+  when:
+    - debug_mode | default(false)
     - sudoers_files_list is defined
   tags:
     - debug

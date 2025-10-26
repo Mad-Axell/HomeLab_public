@@ -33,9 +33,9 @@
     argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
   tags: ['always', 'validate']
 
-# EN: Include OS-specific variables / RU: Подключение переменных ОС
-- name: Include OS-specific variables
-  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+# EN: Include Debian-specific variables / RU: Подключение переменных Debian
+- name: Include Debian-specific variables
+  ansible.builtin.include_vars: "Debian.yml"
   tags: ['always']
 
 # Include preflight checks
@@ -57,7 +57,7 @@
 # Install required packages
 # Установка необходимых пакетов
 - name: Install required packages
-  ansible.builtin.include_tasks: "{{ ansible_os_family | lower }}.yml"
+  ansible.builtin.include_tasks: install_packages.yml
   tags:
     - packages
     - install
@@ -196,7 +196,7 @@
 # Настройка конфигурации sudo
 - name: Create sudo group for privileged users
   ansible.builtin.group:
-    name: "{{ sudo_group }}"
+    name: "sudo"
     state: present
   when: users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
   tags:
@@ -211,7 +211,7 @@
       - "Sudo Configuration Summary:"
       - "============================================================================="
       - "Users with Sudo:          {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | map(attribute='username') | list | join(', ') }}"
-      - "Sudo Group:               {{ sudo_group }}"
+      - "Sudo Group:               sudo"
       - "Total Sudo Users:         {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length }}"
       - "============================================================================="
   when:
@@ -395,7 +395,7 @@
     - name: Add users to sudo group
       ansible.builtin.user:
         name: "{{ item.username }}"
-        groups: "{{ sudo_group }}"
+        groups: "sudo"
         append: true
       when: item.is_sudoers | default(false)
       loop: "{{ users_to_add }}"

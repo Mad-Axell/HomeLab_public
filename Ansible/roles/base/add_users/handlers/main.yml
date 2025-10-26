@@ -2,38 +2,19 @@
 # Handlers for add_users role
 # Обработчики для роли add_users
 
-# EN: Restart SSH service with OS detection / RU: Перезапуск службы SSH с определением ОС
-- name: Restart SSH daemon on RedHat-based systems
-  ansible.builtin.systemd:
-    name: sshd
-    state: restarted
-    daemon_reload: false
-  when: ansible_os_family == "RedHat"
-  listen: "restart ssh service"
-  throttle: 1  # EN: Restart one host at a time / RU: Перезапускать по одному хосту
-
-- name: Restart SSH service on Debian-based systems
+# EN: Restart SSH service for Debian / RU: Перезапуск службы SSH для Debian
+- name: Restart SSH service
   ansible.builtin.systemd:
     name: ssh
     state: restarted
     daemon_reload: false
-  when: ansible_os_family == "Debian"
-  listen: "restart ssh service"
-  throttle: 1  # EN: Restart one host at a time / RU: Перезапускать по одному хосту
-
-- name: Restart SSH service on Suse-based systems
-  ansible.builtin.systemd:
-    name: sshd
-    state: restarted
-    daemon_reload: false
-  when: ansible_os_family == "Suse"
   listen: "restart ssh service"
   throttle: 1  # EN: Restart one host at a time / RU: Перезапускать по одному хосту
 
 # EN: Reload SSH service (lighter than restart) / RU: Перезагрузка службы SSH (легче чем перезапуск)
 - name: Reload SSH daemon configuration
   ansible.builtin.systemd:
-    name: "{{ 'sshd' if ansible_os_family in ['RedHat', 'Suse'] else 'ssh' }}"
+    name: ssh
     state: reloaded
   listen: "reload ssh service"
 

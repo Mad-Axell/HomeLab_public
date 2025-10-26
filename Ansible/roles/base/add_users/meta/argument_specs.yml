@@ -130,8 +130,7 @@ argument_specs:
         description: |
           EN: Enable detailed debug output
           RU: Включить детальный вывод отладки
-      
-      
+
       debug_show_passwords:
         type: bool
         required: false
@@ -227,6 +226,14 @@ argument_specs:
         description: |
           EN: Password warning age in days
           RU: Предупреждение о смене пароля за N дней
+      
+      password_max_age_override:
+        type: bool
+        required: false
+        default: false
+        description: |
+          EN: Allow individual password_max_age per user (enables password_max_age field in users_to_add)
+          RU: Разрешить индивидуальный password_max_age для каждого пользователя (включает поле password_max_age в users_to_add)
       
       account_inactive_days:
         type: int

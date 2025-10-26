@@ -97,7 +97,7 @@
     - security
     - login_defs
 
-- name: Display login.defs configuration (English)
+- name: Display login.defs configuration
   ansible.builtin.debug:
     msg:
       - "============================================================================="
@@ -108,9 +108,7 @@
       - "PASS_WARN_AGE:            {{ password_warn_age }} days"
       - "UMASK:                    {{ umask_system_users }}"
       - "============================================================================="
-  when:
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
+  when: debug_mode | default(false)
   tags:
     - debug
     - security
@@ -144,7 +142,6 @@
 # EN: Configure PAM for Debian-based systems
 # RU: Настройка PAM для систем на базе Debian
 - name: Configure PAM password quality for Debian/Ubuntu
-  when: ansible_os_family == "Debian"
   block:
     - name: Ensure libpam-pwquality is installed
       ansible.builtin.apt:
@@ -241,7 +238,7 @@
         - pam
         - faillock
 
-    - name: Display PAM configuration for Debian (English)
+    - name: Display PAM configuration for Debian
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -271,184 +268,6 @@
     - pam
     - debian
 
-# EN: Configure PAM for RedHat-based systems
-# RU: Настройка PAM для систем на базе RedHat
-- name: Configure PAM password quality for RHEL/CentOS
-  when: ansible_os_family == "RedHat"
-  block:
-    - name: Ensure libpwquality is installed
-      ansible.builtin.dnf:
-        name: libpwquality
-        state: present
-      retries: "{{ retries | default(3) }}"
-      delay: "{{ retry_delay | default(5) }}"
-      when: ansible_distribution_major_version | int >= 8
-
-    - name: Ensure libpwquality is installed (yum)
-      ansible.builtin.yum:
-        name: libpwquality
-        state: present
-      retries: "{{ retries | default(3) }}"
-      delay: "{{ retry_delay | default(5) }}"
-      when: ansible_distribution_major_version | int < 8
-
-    - name: Backup PAM system-auth before modification
-      ansible.builtin.copy:
-        src: /etc/pam.d/system-auth
-        dest: /etc/pam.d/system-auth.backup.{{ ansible_date_time.epoch }}
-        remote_src: true
-        mode: '0644'
-      when: backup_config | default(true)
-
-    - name: Configure pam_pwquality in system-auth
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/system-auth
-        regexp: '^password\s+requisite\s+pam_pwquality.so'
-        line: "password requisite pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type= minlen={{ add_users_min_password_length }}"
-        insertafter: '^#%PAM-1.0'
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - password_quality
-
-    - name: Configure pam_unix password history in system-auth
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/system-auth
-        regexp: '^password\s+sufficient\s+pam_unix.so'
-        line: "password sufficient pam_unix.so sha512 shadow try_first_pass use_authtok remember={{ password_remember_count }}"
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - password_history
-
-    - name: Configure pam_faillock preauth in system-auth
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/system-auth
-        line: "auth required pam_faillock.so preauth silent deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }}"
-        insertbefore: '^auth\s+sufficient\s+pam_unix.so'
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - faillock
-
-    - name: Configure pam_faillock authfail in system-auth
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/system-auth
-        line: "auth [default=die] pam_faillock.so authfail deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }}"
-        insertafter: '^auth\s+sufficient\s+pam_unix.so'
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - faillock
-
-    - name: Configure pam_faillock in system-auth account
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/system-auth
-        line: "account required pam_faillock.so"
-        insertbefore: '^account\s+required\s+pam_unix.so'
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - faillock
-
-    - name: Backup PAM password-auth before modification
-      ansible.builtin.copy:
-        src: /etc/pam.d/password-auth
-        dest: /etc/pam.d/password-auth.backup.{{ ansible_date_time.epoch }}
-        remote_src: true
-        mode: '0644'
-      when: backup_config | default(true)
-
-    - name: Configure pam_pwquality in password-auth
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/password-auth
-        regexp: '^password\s+requisite\s+pam_pwquality.so'
-        line: "password requisite pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type= minlen={{ add_users_min_password_length }}"
-        insertafter: '^#%PAM-1.0'
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - password_quality
-
-    - name: Configure pam_unix password history in password-auth
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/password-auth
-        regexp: '^password\s+sufficient\s+pam_unix.so'
-        line: "password sufficient pam_unix.so sha512 shadow try_first_pass use_authtok remember={{ password_remember_count }}"
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - password_history
-
-    - name: Configure pam_faillock preauth in password-auth
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/password-auth
-        line: "auth required pam_faillock.so preauth silent deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }}"
-        insertbefore: '^auth\s+sufficient\s+pam_unix.so'
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - faillock
-
-    - name: Configure pam_faillock authfail in password-auth
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/password-auth
-        line: "auth [default=die] pam_faillock.so authfail deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }}"
-        insertafter: '^auth\s+sufficient\s+pam_unix.so'
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - faillock
-
-    - name: Configure pam_faillock in password-auth account
-      ansible.builtin.lineinfile:
-        path: /etc/pam.d/password-auth
-        line: "account required pam_faillock.so"
-        insertbefore: '^account\s+required\s+pam_unix.so'
-        state: present
-        backup: "{{ backup_config | default(true) }}"
-      tags:
-        - pam
-        - faillock
-
-    - name: Display PAM configuration for RHEL (English)
-      ansible.builtin.debug:
-        msg:
-          - "============================================================================="
-          - "PAM Configuration (RHEL/CentOS):"
-          - "============================================================================="
-          - "pwquality minlen:         {{ add_users_min_password_length }}"
-          - "Password remember count:  {{ password_remember_count }}"
-          - "Faillock deny attempts:   {{ pam_deny_attempts }}"
-          - "Faillock unlock time:     {{ pam_unlock_time }}s"
-          - "Files modified:           /etc/pam.d/{system-auth,password-auth}"
-          - "============================================================================="
-      when:
-        - debug_mode | default(false)
-        - debug_lang | default('both') in ['english', 'both']
-      tags:
-        - debug
-        - pam
-
-  rescue:
-    - name: PAM configuration failed for RHEL
-      ansible.builtin.debug:
-        msg: "Warning: PAM configuration failed. Check logs."
-      failed_when: false
-
-  tags:
-    - security
-    - pam
-    - rhel
 
 # EN: Configure account inactivity lockout (excluding sudoers)
 # RU: Настройка блокировки неактивных аккаунтов (исключая sudoers)
@@ -466,7 +285,7 @@
     - security
     - account_expiry
 
-- name: Display account inactivity configuration (English)
+- name: Display account inactivity configuration
   ansible.builtin.debug:
     msg:
       - "============================================================================="
@@ -475,27 +294,62 @@
       - "User:                     {{ item.item.username }}"
       - "Is Sudoer:                {{ 'Yes (SKIPPED)' if item.item.is_sudoers | default(false) else 'No' }}"
       - "Inactive Days:            {{ account_inactive_days if not (item.item.is_sudoers | default(false)) else 'Not applied' }}"
-      - "Status:                   {{ 'SUCCESS' if item.rc == 0 else 'SKIPPED' }}"
+      - "Status:                   {{ 'SUCCESS' if item.rc is defined and item.rc == 0 else 'SKIPPED' }}"
       - "============================================================================="
   loop: "{{ chage_inactive_result.results | default([]) }}"
+  when: debug_mode | default(false)
+    - chage_inactive_result is defined
+    - chage_inactive_result.results is defined
+  tags:
+    - debug
+    - security
+
+# EN: Configure individual password max age for users
+# RU: Настройка индивидуального максимального возраста паролей для пользователей
+- name: Set individual password max age for users
+  ansible.builtin.command:
+    cmd: "chage -M {{ item.password_max_age | default(password_max_age) }} {{ item.username }}"
+  loop: "{{ users_to_add }}"
+  when: password_max_age_override | default(false)
+  register: chage_max_age_result
+  changed_when: chage_max_age_result.rc == 0
+  failed_when: false
+  tags:
+    - security
+    - password_age
+
+- name: Display individual password max age configuration
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Individual Password Max Age Configuration:"
+      - "============================================================================="
+      - "User:                     {{ item.item.username }}"
+      - "Password Max Age:         {{ item.item.password_max_age | default(password_max_age) }} days"
+      - "Override Enabled:         {{ password_max_age_override | default(false) }}"
+      - "Status:                   {{ 'SUCCESS' if item.rc is defined and item.rc == 0 else 'SKIPPED' }}"
+      - "============================================================================="
+  loop: "{{ chage_max_age_result.results | default([]) }}"
   when:
     - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
-    - chage_inactive_result is defined
+    - password_max_age_override | default(false)
+    - chage_max_age_result is defined
+    - chage_max_age_result.results is defined
   tags:
     - debug
     - security
 
 # EN: Summary of security configurations
 # RU: Сводка конфигураций безопасности
-- name: Display comprehensive security configuration summary (English)
+- name: Display comprehensive security configuration summary
   ansible.builtin.debug:
     msg:
       - "============================================================================="
       - "SECURITY CONFIGURATION COMPLETED!"
       - "============================================================================="
       - "Home Directory Permissions:  {{ home_dir_permissions }}"
-      - "Password Max Age:            {{ password_max_age }} days"
+      - "Password Max Age:            {{ password_max_age }} days (global)"
+      - "Password Max Age Override:   {{ 'ENABLED' if password_max_age_override | default(false) else 'DISABLED' }}"
       - "Password Warn Age:           {{ password_warn_age }} days"
       - "Account Inactive Days:       {{ account_inactive_days }} days (non-sudo users)"
       - "PAM Deny Attempts:           {{ pam_deny_attempts }}"
@@ -509,40 +363,10 @@
       - "- User home directories permissions"
       - "- Password history file: {{ password_history_file }}"
       - "============================================================================="
-  when:
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['english', 'both']
+  when: debug_mode | default(false)
   tags:
     - debug
     - security
     - summary
 
-- name: Display comprehensive security configuration summary (Russian)
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "КОНФИГУРАЦИЯ БЕЗОПАСНОСТИ ЗАВЕРШЕНА!"
-      - "============================================================================="
-      - "Права домашних директорий:   {{ home_dir_permissions }}"
-      - "Макс. возраст пароля:        {{ password_max_age }} дней"
-      - "Предупреждение о пароле:     {{ password_warn_age }} дней"
-      - "Дней неактивности аккаунта:  {{ account_inactive_days }} дней (не-sudo пользователи)"
-      - "PAM попыток до блокировки:   {{ pam_deny_attempts }}"
-      - "PAM время разблокировки:     {{ pam_unlock_time }}с"
-      - "Помнить паролей:             {{ password_remember_count }}"
-      - "UMASK:                       {{ umask_system_users }}"
-      - "============================================================================="
-      - "Измененные конфигурационные файлы:"
-      - "- /etc/login.defs"
-      - "- /etc/pam.d/* (зависит от системы)"
-      - "- Права домашних директорий пользователей"
-      - "- Файл истории паролей: {{ password_history_file }}"
-      - "============================================================================="
-  when:
-    - debug_mode | default(false)
-    - debug_lang | default('both') in ['russian', 'both']
-  tags:
-    - debug
-    - security
-    - summary
 

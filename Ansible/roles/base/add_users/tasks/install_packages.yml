@@ -1,10 +1,10 @@
 ---
-# EN: Debian/Ubuntu specific tasks
-# RU: Задачи для Debian/Ubuntu
+# EN: Package installation tasks
+# RU: Задачи установки пакетов
 
-# EN: Install required packages for Debian/Ubuntu
-# RU: Установка необходимых пакетов для Debian/Ubuntu
-- name: Install required packages (Debian/Ubuntu)
+# EN: Install required packages
+# RU: Установка необходимых пакетов
+- name: Install required packages
   ansible.builtin.apt:
     name: "{{ required_packages }}"
     state: present
@@ -17,9 +17,9 @@
     - packages
     - install
 
-# EN: Log package installation (Debian/Ubuntu)
-# RU: Логирование установки пакетов (Debian/Ubuntu)
-- name: Log package installation (Debian/Ubuntu)
+# EN: Log package installation
+# RU: Логирование установки пакетов
+- name: Log package installation
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
@@ -46,4 +46,5 @@
   when: log_file is defined
   tags:
     - packages
+    - install
     - logging
