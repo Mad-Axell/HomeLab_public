@@ -60,22 +60,6 @@ argument_specs:
           Управлять ли конфигурацией часового пояса.
       
       # Locale configuration / Конфигурация локализации
-      locale_language:
-        type: str
-        required: false
-        default: "en_US"
-        description: |
-          Primary locale language code (e.g., en_US, ru_RU, de_DE).
-          Код основного языка локализации (например, en_US, ru_RU, de_DE).
-        
-      locale_encoding:
-        type: str
-        required: false
-        default: "UTF-8"
-        description: |
-          Locale encoding (typically UTF-8).
-          Кодировка локализации (обычно UTF-8).
-        
       locale_primary:
         type: str
         required: false
@@ -160,33 +144,18 @@ argument_specs:
           Enable strict validation mode with comprehensive checks.
           Включить строгий режим валидации с комплексными проверками.
       
-      # Universal Package Mapping / Универсальный маппинг пакетов
-      supported_os_families:
+      # Debian Package Configuration / Конфигурация пакетов Debian
+      debian_packages:
         type: list
         required: false
         default:
-          - Debian
-          - RedHat
-          - Suse
+          - locales
+          - console-setup
+          - keyboard-configuration
         elements: str
         description: |
-          Supported OS families for this role.
-          Поддерживаемые семейства ОС для этой роли.
-        
-      universal_packages:
-        type: list
-        required: false
-        elements: str
-        description: |
-          Universal package list for mapping to OS-specific packages.
-          Универсальный список пакетов для маппинга на OS-специфичные пакеты.
-        
-      package_mappings:
-        type: dict
-        required: false
-        description: |
-          Package mappings for different OS families.
-          Маппинг пакетов для различных семейств ОС.
+          Debian packages to install for locale configuration.
+          Пакеты Debian для установки конфигурации локализации.
       
       # Validation patterns / Паттерны валидации
       valid_locale_pattern:
@@ -228,4 +197,38 @@ argument_specs:
         description: |
           List of valid console fonts.
           Список допустимых консольных шрифтов.
+      
+      # Handler commands / Команды обработчиков
+      locale_reload_command:
+        type: str
+        required: false
+        default: "locale-gen"
+        description: |
+          Command to reload locale configuration.
+          Команда для перезагрузки конфигурации локализации.
+        
+      console_reload_command:
+        type: str
+        required: false
+        default: "setupcon"
+        description: |
+          Command to reload console configuration.
+          Команда для перезагрузки конфигурации консоли.
+      
+      # Logging and rollback / Логирование и откат
+      log_file:
+        type: str
+        required: false
+        default: "/var/log/ansible-changes.log"
+        description: |
+          Path to log file for changes.
+          Путь к файлу лога изменений.
+        
+      enable_rollback:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable automatic rollback on failure.
+          Включить автоматический откат при ошибке.
 

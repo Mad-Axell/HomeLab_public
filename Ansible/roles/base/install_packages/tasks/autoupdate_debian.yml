@@ -43,7 +43,23 @@
     - name: "Log unattended-upgrades installation"
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
-        line: "{{ ansible_date_time.iso8601 }} | PACKAGE_INSTALL | UNATTENDED_UPGRADES | {{ ansible_hostname }} | {{ 'SUCCESS' if unattended_install.changed else 'NO_CHANGE' }} | {{ unattended_install.changed | default(false) }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "PACKAGE_INSTALL",
+          "service_name": "install_packages",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Unattended-upgrades package installed",
+          "metadata": {
+            "package_name": "unattended-upgrades",
+            "status": "SUCCESS" if unattended_install.changed else "NO_CHANGE",
+            "package_changed": unattended_install.changed | default(false),
+            "package_manager": "APT"
+          }
+        } | to_json }}'
         create: yes
         mode: '0644'
         owner: root
@@ -109,7 +125,24 @@
     - name: "Log APT security configuration"
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
-        line: "{{ ansible_date_time.iso8601 }} | CONFIG_CHANGE | APT_SECURITY | {{ ansible_hostname }} | {{ 'SUCCESS' if apt_security_config.changed else 'NO_CHANGE' }} | GPG verification enabled"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "CONFIG_CHANGE",
+          "service_name": "install_packages",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "correlation_id": ansible_date_time.epoch,
+          "message": "APT security configuration applied",
+          "metadata": {
+            "config_type": "APT_SECURITY",
+            "status": "SUCCESS" if apt_security_config.changed else "NO_CHANGE",
+            "config_changed": apt_security_config.changed | default(false),
+            "gpg_verification_enabled": true,
+            "config_file": "/etc/apt/apt.conf.d/99security"
+          }
+        } | to_json }}'
         create: yes
         mode: '0644'
         owner: root
@@ -142,7 +175,25 @@
     - name: "Log unattended-upgrades configuration"
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
-        line: "{{ ansible_date_time.iso8601 }} | CONFIG_CHANGE | UNATTENDED_UPGRADES | {{ ansible_hostname }} | {{ 'SUCCESS' if unattended_config.changed else 'NO_CHANGE' }} | Security updates: {{ security_updates_only }}, Reboot: {{ reboot_if_required }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "CONFIG_CHANGE",
+          "service_name": "install_packages",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Unattended-upgrades configuration applied",
+          "metadata": {
+            "config_type": "UNATTENDED_UPGRADES",
+            "status": "SUCCESS" if unattended_config.changed else "NO_CHANGE",
+            "config_changed": unattended_config.changed | default(false),
+            "security_updates_only": security_updates_only,
+            "reboot_if_required": reboot_if_required,
+            "config_file": "/etc/apt/apt.conf.d/50unattended-upgrades"
+          }
+        } | to_json }}'
         create: yes
         mode: '0644'
         owner: root
@@ -169,7 +220,25 @@
     - name: "Log automatic updates schedule configuration"
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
-        line: "{{ ansible_date_time.iso8601 }} | CONFIG_CHANGE | AUTO_UPGRADES_SCHEDULE | {{ ansible_hostname }} | {{ 'SUCCESS' if auto_upgrades_config.changed else 'NO_CHANGE' }} | Schedule enabled: {{ autoupdates_schedule_enabled }}, Download only: {{ autoupdates_download_only }}"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "CONFIG_CHANGE",
+          "service_name": "install_packages",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Automatic updates schedule configured",
+          "metadata": {
+            "config_type": "AUTO_UPGRADES_SCHEDULE",
+            "status": "SUCCESS" if auto_upgrades_config.changed else "NO_CHANGE",
+            "config_changed": auto_upgrades_config.changed | default(false),
+            "schedule_enabled": autoupdates_schedule_enabled,
+            "download_only": autoupdates_download_only,
+            "config_file": "/etc/apt/apt.conf.d/20auto-upgrades"
+          }
+        } | to_json }}'
         create: yes
         mode: '0644'
         owner: root
@@ -195,7 +264,24 @@
     - name: "Log unattended-upgrades service management"
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
-        line: "{{ ansible_date_time.iso8601 }} | SERVICE_MANAGE | UNATTENDED_UPGRADES | {{ ansible_hostname }} | {{ 'SUCCESS' if unattended_service.changed else 'NO_CHANGE' }} | Enabled: true, State: started"
+        line: '{{ {
+          "timestamp": ansible_date_time.iso8601,
+          "level": "INFO",
+          "event_type": "SERVICE_MANAGE",
+          "service_name": "install_packages",
+          "user": ansible_user_id,
+          "host": inventory_hostname,
+          "playbook": ansible_play_name,
+          "correlation_id": ansible_date_time.epoch,
+          "message": "Unattended-upgrades service managed",
+          "metadata": {
+            "managed_service": "unattended-upgrades",
+            "status": "SUCCESS" if unattended_service.changed else "NO_CHANGE",
+            "service_changed": unattended_service.changed | default(false),
+            "service_enabled": true,
+            "service_state": "started"
+          }
+        } | to_json }}'
         create: yes
         mode: '0644'
         owner: root

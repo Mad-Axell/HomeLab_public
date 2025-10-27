@@ -4,10 +4,23 @@
 
 # EN: Prepare security groups membership for each user
 # RU: Подготовка членства в группах безопасности для каждого пользователя
-- name: Build user to security groups mapping
+- name: Build user to security groups mapping from users_to_add
   ansible.builtin.set_fact:
     user_security_groups_map: >-
       {%- set mapping = {} -%}
+      {%- for user in users_to_add -%}
+        {%- if user.security_groups is defined and user.security_groups | length > 0 -%}
+          {%- set _ = mapping.update({user.username: user.security_groups}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ mapping }}
+
+# EN: Add legacy support for security_groups.members (backward compatibility)
+# RU: Добавить поддержку legacy через security_groups.members (обратная совместимость)
+- name: Add legacy security groups mapping
+  ansible.builtin.set_fact:
+    user_security_groups_map: >-
+      {%- set mapping = user_security_groups_map | default({}) -%}
       {%- for group_name, group_config in security_groups.items() -%}
         {%- if group_config.members is defined -%}
           {%- for member in group_config.members -%}

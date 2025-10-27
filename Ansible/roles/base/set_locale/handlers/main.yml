@@ -6,13 +6,12 @@
 # Файл содержит обработчики для изменений конфигурации локализации
 # =============================================================================
 
-# Universal locale reload handler / Универсальный обработчик перезагрузки локализации
+# Debian locale reload handler / Обработчик перезагрузки локализации для Debian
 - name: reload locale
-  ansible.builtin.command: "{{ locale_reload_commands[ansible_os_family] }}"
+  ansible.builtin.command: "{{ locale_reload_command }}"
   register: locale_reload_result
   changed_when: locale_reload_result.rc == 0
   failed_when: false
-  when: locale_reload_commands[ansible_os_family] is defined
   listen: reload locale
   throttle: 1  # Reload one host at a time / Перезагружать по одному хосту
   tags:
@@ -27,7 +26,7 @@
       - "Locale Configuration Reload Results:"
       - "============================================================================="
       - "OS Family:             {{ ansible_os_family }}"
-      - "Command:               {{ locale_reload_commands[ansible_os_family] }}"
+      - "Command:               {{ locale_reload_command }}"
       - "Return Code:           {{ locale_reload_result.rc | default('N/A') }}"
       - "Changed:               {{ locale_reload_result.changed | default(false) }}"
       - "Output:                {{ locale_reload_result.stdout | default('N/A') }}"
@@ -40,13 +39,12 @@
     - debug
     - handlers
 
-# Universal console reload handler / Универсальный обработчик перезагрузки консоли
+# Debian console reload handler / Обработчик перезагрузки консоли для Debian
 - name: reload console
-  ansible.builtin.command: "{{ console_reload_commands[ansible_os_family] }}"
+  ansible.builtin.command: "{{ console_reload_command }}"
   register: console_reload_result
   failed_when: false
   changed_when: console_reload_result.rc == 0
-  when: console_reload_commands[ansible_os_family] is defined
   listen: reload console
   tags:
     - handlers
@@ -60,7 +58,7 @@
       - "Console Configuration Reload Results:"
       - "============================================================================="
       - "OS Family:             {{ ansible_os_family }}"
-      - "Command:               {{ console_reload_commands[ansible_os_family] }}"
+      - "Command:               {{ console_reload_command }}"
       - "Return Code:           {{ console_reload_result.rc | default('N/A') }}"
       - "Changed:               {{ console_reload_result.changed | default(false) }}"
       - "Output:                {{ console_reload_result.stdout | default('N/A') }}"

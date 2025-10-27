@@ -3,21 +3,17 @@
 System locale configuration role for Ansible.
 
 ## Description
-This Ansible role provides comprehensive system locale configuration for Linux systems, supporting Debian/Ubuntu, RedHat/CentOS, and SUSE families. The role ensures proper locale, timezone, keyboard layout, and console font configuration with extensive validation, structured logging, and automatic rollback capabilities.
+This Ansible role provides system locale configuration for Debian/Ubuntu systems. The role ensures proper locale, timezone, keyboard layout, and console font configuration with validation and debugging capabilities.
 
 ## Features
 
-- **Cross-platform Support**: Works with Debian, RedHat, and SUSE families
+- **Debian/Ubuntu Support**: Optimized for Debian and Ubuntu systems
 - **Comprehensive Validation**: Pre-flight checks and parameter validation
-- **Structured Logging**: JSON-formatted logs for integration with log aggregators
-- **Automatic Rollback**: Backup and restore capabilities on failure
-- **Bilingual Support**: English and Russian documentation
 - **Debug Mode**: Detailed output for troubleshooting
 - **Idempotent**: Safe to run multiple times
-- **Modular Design**: OS-specific tasks for optimal compatibility
+- **Simplified Design**: Clean, maintainable code without unnecessary complexity
 - **System Facts Gathering**: Automatic collection of system information
-- **Optimized Performance**: Unified handlers and bulk package installation
-- **Modular Components**: Reusable debug and rollback components
+- **Optimized Performance**: Streamlined handlers and package installation
 
 ## Requirements
 
@@ -30,16 +26,6 @@ This Ansible role provides comprehensive system locale configuration for Linux s
 #### Debian Family
 - Debian: 9, 10, 11, 12
 - Ubuntu: 18.04, 20.04, 22.04, 24.04
-
-#### RedHat Family
-- RedHat Enterprise Linux: 7, 8, 9
-- CentOS: 7, 8, 9
-- Rocky Linux: 8, 9
-- AlmaLinux: 8, 9
-
-#### SUSE Family
-- SUSE Linux Enterprise Server: Latest versions
-- openSUSE: Latest versions
 
 ## Role Variables
 
@@ -62,9 +48,7 @@ This Ansible role provides comprehensive system locale configuration for Linux s
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `locale_language` | str | `"en_US"` | Primary locale language code |
-| `locale_encoding` | str | `"UTF-8"` | Locale encoding |
-| `locale_primary` | str | `"{{ locale_language }}.{{ locale_encoding }}"` | Primary system locale |
+| `locale_primary` | str | `"en_US.UTF-8"` | Primary system locale |
 | `locale_additional` | list | `["ru_RU.UTF-8", "en_GB.UTF-8"]` | Additional locales to generate |
 | `locale_variables` | dict | See defaults | System locale environment variables |
 
@@ -101,8 +85,8 @@ This Ansible role provides comprehensive system locale configuration for Linux s
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `locale_reload_commands` | dict | See defaults | OS-specific locale reload commands |
-| `console_reload_commands` | dict | See defaults | OS-specific console reload commands |
+| `locale_reload_command` | str | `"locale-gen"` | Locale reload command |
+| `console_reload_command` | str | `"setupcon"` | Console reload command |
 
 ## Dependencies
 
@@ -157,7 +141,7 @@ None. This role is designed to be independent and self-contained.
 ```yaml
 locale_variables:
   LANG: "{{ locale_primary }}"
-  LANGUAGE: "{{ locale_language }}"
+  LANGUAGE: "{{ locale_primary | regex_replace('\\..*', '') }}"
   LC_ALL: "{{ locale_primary }}"
   LC_COLLATE: "{{ locale_primary }}"
   LC_CTYPE: "{{ locale_primary }}"
@@ -167,41 +151,20 @@ locale_variables:
   LC_TIME: "{{ locale_primary }}"
 ```
 
-### OS-Specific Package Mapping
+### Debian Package Configuration
 
 ```yaml
-package_mappings:
-  debian:
-    locales: locales
-    console_setup: console-setup
-    keyboard_config: keyboard-configuration
-    additional: []
-  redhat:
-    locales: glibc-locale-source
-    console_setup: kbd
-    keyboard_config: kbd
-    additional:
-      - glibc-langpack-en
-  suse:
-    locales: glibc-locale
-    console_setup: kbd
-    keyboard_config: kbd
-    additional:
-      - glibc-i18ndata
+debian_packages:
+  - locales
+  - console-setup
+  - keyboard-configuration
 ```
 
 ### Handler Commands Configuration
 
 ```yaml
-locale_reload_commands:
-  Debian: "locale-gen"
-  RedHat: "localectl set-locale LANG={{ locale_primary }}"
-  Suse: "localectl set-locale LANG={{ locale_primary }}"
-
-console_reload_commands:
-  Debian: "setupcon"
-  RedHat: "systemctl restart systemd-vconsole-setup"
-  Suse: "systemctl restart systemd-vconsole-setup"
+locale_reload_command: "locale-gen"
+console_reload_command: "setupcon"
 ```
 
 ## Role Structure
@@ -209,7 +172,7 @@ console_reload_commands:
 ```
 roles/base/set_locale/
 ├── defaults/main.yml          # Default variables
-├── handlers/main.yml          # Universal handlers
+├── handlers/main.yml          # Handlers
 ├── meta/
 │   ├── main.yml              # Role metadata
 │   └── argument_specs.yml    # Input validation specs
@@ -217,11 +180,7 @@ roles/base/set_locale/
 │   ├── main.yml              # Main role tasks
 │   ├── preflight.yml         # Pre-flight checks
 │   ├── validate.yml          # Parameter validation
-│   ├── debug.yml             # Common debug messages
-│   ├── rollback.yml          # Common rollback logic
-│   ├── debian.yml            # Debian/Ubuntu specific tasks
-│   ├── redhat.yml            # RedHat/CentOS specific tasks
-│   └── suse.yml              # SUSE specific tasks
+│   └── debian.yml            # Debian/Ubuntu specific tasks
 ├── README.md                 # Brief overview
 ├── README_eng.md            # Complete English documentation
 └── README_rus.md            # Complete Russian documentation
@@ -237,7 +196,7 @@ roles/base/set_locale/
 6. **Additional Locales**: Generate additional locales for multi-language support
 7. **Locale Variables Configuration**: Configure system locale environment variables
 8. **Timezone Configuration**: Set system timezone
-9. **OS-Specific Tasks**: Execute OS-specific configuration tasks
+9. **Debian/Ubuntu Tasks**: Execute Debian/Ubuntu specific configuration tasks
 10. **Final Summary**: Display comprehensive configuration summary
 
 ## Error Handling
@@ -249,24 +208,13 @@ The role implements comprehensive error handling:
 - **Block-Rescue Pattern**: Uses structured error handling with automatic rollback
 - **Backup and Restore**: Creates backups before changes and restores on failure
 
-## OS-Specific Behavior
+## Debian/Ubuntu Behavior
 
-### Debian/Ubuntu
 - Uses `apt` for package management
 - Generates primary locale using `community.general.locale_gen`
 - Configures `/etc/default/locale` and `/etc/locale.gen`
 - Uses `debconf` for keyboard configuration
 - Console font in `/etc/default/console-setup`
-
-### RedHat/CentOS
-- Uses `yum`/`dnf` for package management
-- Uses `localectl` for locale and keyboard configuration
-- Console font in `/etc/vconsole.conf`
-
-### SUSE
-- Uses `zypper` for package management
-- Uses `localectl` for locale and keyboard configuration
-- Console font in `/etc/vconsole.conf`
 
 ## Validation Patterns
 
@@ -277,30 +225,13 @@ The role validates inputs using regex patterns:
 - **Keyboard Layouts**: Predefined list of valid layouts
 - **Console Fonts**: Predefined list of valid fonts
 
-## Structured Logging
+## Logging
 
-The role implements comprehensive structured logging with JSON format:
+The role implements basic logging for configuration changes:
 
-```json
-{
-  "timestamp": "2024-01-15T10:30:45.123456Z",
-  "level": "INFO",
-  "event_type": "LOCALE_CONFIGURATION",
-  "user": "ansible_user",
-  "host": "target_host",
-  "playbook": "locale_setup",
-  "correlation_id": 1705312245,
-  "message": "Locale configuration applied",
-  "metadata": {
-    "locale_primary": "en_US.UTF-8",
-    "timezone": "Europe/Moscow",
-    "keyboard_layout": "us",
-    "console_font": "Lat2-Terminus16",
-    "os_family": "Debian",
-    "os_version": "12"
-  }
-}
-```
+- Configuration changes are logged to `/var/log/ansible-changes.log`
+- Debug mode provides detailed output for troubleshooting
+- Simple error messages for failed operations
 
 ## License
 

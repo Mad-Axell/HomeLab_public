@@ -71,15 +71,7 @@
       # Валидация универсального параметра таймаута установки
 
 
-    - name: "Check if package_install_timeout is a positive integer"
-      ansible.builtin.assert:
-        that:
-          - package_install_timeout is defined
-          - package_install_timeout is number
-          - package_install_timeout > 0
-          - package_install_timeout <= 3600
-        fail_msg: "package_install_timeout must be a positive number between 1 and 3600 seconds"
-        success_msg: "package_install_timeout parameter is valid"      # Validate universal install recommends flag
+      # Validate universal install recommends flag
       # Валидация универсального флага установки рекомендуемых пакетов
 
 
@@ -91,17 +83,6 @@
         fail_msg: "package_install_recommends must be a boolean value"
         success_msg: "package_install_recommends parameter is valid"      # Validate universal install suggests flag
       # Валидация универсального флага установки предлагаемых пакетов
-
-
-    - name: "Check if package_install_suggests is boolean"
-      ansible.builtin.assert:
-        that:
-          - package_install_suggests is defined
-          - package_install_suggests is boolean or package_install_suggests is string
-        fail_msg: "package_install_suggests must be a boolean value"
-        success_msg: "package_install_suggests parameter is valid"      # Check individual universal essential package name validity
-      # Проверка валидности отдельных универсальных имен основных пакетов
-
 
     - name: "Validate universal essential package names format"
       ansible.builtin.assert:
@@ -129,22 +110,20 @@
       # Показать результаты валидации
 
 
-    - name: "Display validation summary (English)"
+    - name: "Display validation summary"
       ansible.builtin.debug:
         msg:
           - "============================================================================="
           - "Parameter Validation Summary:"
           - "============================================================================="
           - "Operating System:          {{ ansible_os_family }}"
-          - "Package Manager:           {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
+          - "Package Manager:           APT"
           - "Universal Essential:       {{ essential_packages | length }} packages defined"
           - "Universal Optional:        {{ optional_packages | length if optional_packages is defined else 0 }} packages defined"
           - "Cache Valid Time:          {{ package_cache_valid_time }} seconds"
           - "Update Cache:              {{ package_update_cache }}"
           - "Upgrade Packages:          {{ package_upgrade_packages }}"
-          - "Install Timeout:           {{ package_install_timeout }} seconds"
           - "Install Recommends:        {{ package_install_recommends }}"
-          - "Install Suggests:          {{ package_install_suggests }}"
           - "Debug Mode:                {{ debug_mode }}"
           - "============================================================================="
       when: debug_mode | bool

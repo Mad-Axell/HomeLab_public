@@ -1,0 +1,149 @@
+---
+# Preflight checks for install_packages role
+# Предварительные проверки для роли install_packages
+# This file contains pre-execution validation tasks
+# Этот файл содержит задачи предварительной валидации
+
+# Check Ansible version
+# Проверка версии Ansible
+- name: "Check Ansible version"
+  ansible.builtin.assert:
+    that:
+      - ansible_version.full is version('2.9', '>=')
+    fail_msg: "Requires Ansible 2.9+. Current: {{ ansible_version.full }}"
+    success_msg: "Ansible version check passed: {{ ansible_version.full }}"
+
+# Check OS compatibility
+# Проверка совместимости ОС
+- name: "Check OS compatibility"
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'Debian'
+    fail_msg: "Unsupported OS: {{ ansible_distribution }}. Only Debian family is supported."
+    success_msg: "OS compatibility check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+# Check disk space
+# Проверка дискового пространства
+- name: "Check disk space"
+  ansible.builtin.assert:
+    that:
+      - item.size_available > min_disk_space | default(1073741824)  # 1GB default
+    fail_msg: "Insufficient disk space on {{ item.mount }}. Available: {{ (item.size_available / 1024 / 1024) | round(2) }}MB, Required: {{ (min_disk_space | default(1073741824) / 1024 / 1024) | round(2) }}MB"
+    success_msg: "Disk space check passed on {{ item.mount }}: {{ (item.size_available / 1024 / 1024) | round(2) }}MB available"
+  loop: "{{ ansible_mounts }}"
+  when: item.mount in required_mounts | default(['/'])
+
+# Check package manager availability
+# Проверка доступности менеджера пакетов
+- name: "Check APT package manager availability"
+  ansible.builtin.command: which apt
+  register: apt_check
+  failed_when: false
+  changed_when: false
+
+- name: "Verify APT is available"
+  ansible.builtin.assert:
+    that:
+      - apt_check.rc == 0
+    fail_msg: "APT package manager is not available on this system"
+    success_msg: "APT package manager is available"
+
+# Check system resources
+# Проверка системных ресурсов
+- name: "Check system memory"
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb > min_memory_mb | default(512)
+    fail_msg: "Insufficient memory. Available: {{ ansible_memtotal_mb }}MB, Required: {{ min_memory_mb | default(512) }}MB"
+    success_msg: "Memory check passed: {{ ansible_memtotal_mb }}MB available"
+
+# Check network connectivity
+# Проверка сетевого подключения
+- name: "Check network connectivity"
+  ansible.builtin.ping:
+  register: network_check
+  failed_when: false
+  changed_when: false
+
+- name: "Verify network connectivity"
+  ansible.builtin.assert:
+    that:
+      - network_check.ping is defined
+    fail_msg: "Network connectivity check failed"
+    success_msg: "Network connectivity check passed"
+
+# Check required directories
+# Проверка необходимых директорий
+- name: "Check required directories exist"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: dir_check
+  loop:
+    - /etc/apt
+    - /var/cache/apt
+    - /var/lib/apt
+  failed_when: false
+  changed_when: false
+
+- name: "Verify required directories"
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Required directory {{ item.item }} does not exist"
+    success_msg: "Directory {{ item.item }} exists"
+  loop: "{{ dir_check.results }}"
+
+# Check system is not in read-only mode
+# Проверка что система не в режиме только для чтения
+- name: "Check filesystem is writable"
+  ansible.builtin.command: touch /tmp/ansible_write_test
+  register: write_test
+  failed_when: false
+  changed_when: false
+
+- name: "Clean up write test file"
+  ansible.builtin.file:
+    path: /tmp/ansible_write_test
+    state: absent
+  when: write_test.rc == 0
+
+- name: "Verify filesystem is writable"
+  ansible.builtin.assert:
+    that:
+      - write_test.rc == 0
+    fail_msg: "Filesystem is not writable. Check if system is in read-only mode"
+    success_msg: "Filesystem is writable"
+
+# Log preflight check results
+# Логирование результатов предварительных проверок
+- name: "Log preflight check results"
+  ansible.builtin.lineinfile:
+    path: "{{ log_file }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "PREFLIGHT_CHECKS",
+      "service_name": "install_packages",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Preflight checks completed successfully",
+      "metadata": {
+        "ansible_version": ansible_version.full,
+        "os_family": ansible_os_family,
+        "distribution": ansible_distribution,
+        "distribution_version": ansible_distribution_version,
+        "architecture": ansible_architecture,
+        "memory_mb": ansible_memtotal_mb,
+        "disk_space_gb": (ansible_mounts | selectattr("mount", "equalto", "/") | map(attribute="size_available") | first | default(0) / 1024 / 1024 / 1024) | round(2),
+        "apt_available": apt_check.rc == 0,
+        "network_connectivity": network_check.ping is defined,
+        "filesystem_writable": write_test.rc == 0
+      }
+    } | to_json }}'
+    create: yes
+    mode: '0644'
+    owner: root
+    group: root
+  when: log_file is defined

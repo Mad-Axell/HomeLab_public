@@ -122,6 +122,13 @@ argument_specs:
               EN: List of not trusted subnets for SSH access
               RU: Список недоверенных подсетей для SSH доступа
             elements: str
+          
+          password_max_age:
+            type: int
+            required: false
+            description: |
+              EN: Individual password max age in days for this user (requires password_max_age_override: true)
+              RU: Индивидуальный максимальный возраст пароля в днях для этого пользователя (требует password_max_age_override: true)
       
       debug_mode:
         type: bool

@@ -4,7 +4,7 @@ System locale configuration role for Ansible.
 
 ## Overview
 
-This Ansible role provides comprehensive system locale configuration for Linux systems, supporting Debian/Ubuntu, RedHat/CentOS, and SUSE families. The role ensures proper locale, timezone, keyboard layout, and console font configuration with extensive validation, structured logging, and automatic rollback capabilities.
+This Ansible role provides system locale configuration for Debian/Ubuntu systems. The role ensures proper locale, timezone, keyboard layout, and console font configuration with validation and debugging capabilities.
 
 ## Quick Links
 
@@ -13,20 +13,17 @@ This Ansible role provides comprehensive system locale configuration for Linux s
 
 ## Features
 
-- **Cross-platform Support**: Debian, RedHat, and SUSE families
+- **Debian/Ubuntu Support**: Optimized for Debian and Ubuntu systems
 - **Comprehensive Validation**: Pre-flight checks and parameter validation
-- **Structured Logging**: JSON-formatted logs for log aggregators
-- **Automatic Rollback**: Backup and restore on failure
-- **Bilingual Support**: English and Russian documentation
 - **Debug Mode**: Detailed troubleshooting output
 - **Idempotent**: Safe to run multiple times
-- **Modular Design**: OS-specific tasks for optimal compatibility
+- **Simplified Design**: Clean, maintainable code without unnecessary complexity
 
 ## Requirements
 
 - **Ansible**: 2.14+
 - **Python**: 3.6+
-- **Supported OS**: Debian 9+, Ubuntu 18.04+, RHEL 7+, CentOS 7+, Rocky Linux 8+, AlmaLinux 8+, SUSE 15+
+- **Supported OS**: Debian 9+, Ubuntu 18.04+
 
 ## Quick Start
 

@@ -33,11 +33,11 @@
   ansible.builtin.assert:
     that:
       - ansible_os_family is defined
-      - ansible_os_family in supported_os_families
+      - ansible_os_family == 'Debian'
     success_msg: "OS family {{ ansible_os_family }} is supported"
     fail_msg: |
       Unsupported OS family: {{ ansible_os_family | default('undefined') }}
-      Supported OS families: {{ supported_os_families | join(', ') }}
+      This role only supports Debian/Ubuntu systems
   tags:
     - validation
     - os
@@ -48,8 +48,6 @@
   ansible.builtin.assert:
     that:
       - locale_primary is match(valid_locale_pattern)
-      - locale_language is defined
-      - locale_encoding is defined
     success_msg: "Locale format validation passed"
     fail_msg: "Invalid locale format. Expected format: ll_CC.ENCODING (e.g., en_US.UTF-8)"
   when: strict_validation | bool
@@ -73,16 +71,16 @@
     - validation
     - timezone
 
-# Validate keyboard layout for all systems / Валидация раскладки клавиатуры для всех систем
+# Validate keyboard layout for Debian systems / Валидация раскладки клавиатуры для систем Debian
 - name: "Validate keyboard layout"
   ansible.builtin.assert:
     that:
       - keyboard_layout in valid_keyboard_layouts
-    success_msg: "Keyboard layout validation passed for {{ ansible_os_family }}"
-    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for {{ ansible_os_family }}. Valid options: {{ valid_keyboard_layouts | join(', ') }}"
+    success_msg: "Keyboard layout validation passed for Debian"
+    fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for Debian. Valid options: {{ valid_keyboard_layouts | join(', ') }}"
   when: 
     - strict_validation | bool
-    - ansible_os_family in supported_os_families
+    - ansible_os_family == 'Debian'
     - keyboard_layout != ""
   tags:
     - validation
@@ -137,7 +135,7 @@
       - "============================================================================="
       - "Parameter Validation Summary:"
       - "============================================================================="
-      - "OS Family:             {{ ansible_os_family }} {{ '✓' if ansible_os_family in supported_os_families else '✗' }}"
+      - "OS Family:             {{ ansible_os_family }} {{ '✓' if ansible_os_family == 'Debian' else '✗' }}"
       - "Locale Primary:        {{ locale_primary }} {{ '✓' if locale_primary is match(valid_locale_pattern) else '✗' }}"
       - "Timezone:              {{ timezone }} {{ '✓' if timezone is defined and timezone != '' and timezone is match(valid_timezone_pattern) else '✗' }}"
       - "Keyboard Layout:       {{ keyboard_layout }} {{ '✓' if keyboard_layout in valid_keyboard_layouts else '✗' }}"

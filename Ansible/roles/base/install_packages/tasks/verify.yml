@@ -1,0 +1,156 @@
+---
+# Post-deployment verification for install_packages role
+# Проверка пост-развертывания для роли install_packages
+# This file contains verification tasks after package installation
+# Этот файл содержит задачи проверки после установки пакетов
+
+# Verify essential packages are installed
+# Проверка установки основных пакетов
+- name: "Verify essential packages are installed"
+  ansible.builtin.package_facts:
+    manager: auto
+  register: installed_packages
+
+- name: "Check essential packages installation"
+  ansible.builtin.assert:
+    that:
+      - item in installed_packages.ansible_facts.packages
+    fail_msg: "Essential package '{{ item }}' is not installed"
+    success_msg: "Essential package '{{ item }}' is installed and verified"
+  loop: "{{ essential_packages }}"
+
+# Verify optional packages are installed (if any)
+# Проверка установки дополнительных пакетов (если есть)
+- name: "Check optional packages installation"
+  ansible.builtin.assert:
+    that:
+      - item in installed_packages.ansible_facts.packages
+    fail_msg: "Optional package '{{ item }}' is not installed"
+    success_msg: "Optional package '{{ item }}' is installed and verified"
+  loop: "{{ optional_packages }}"
+  when: optional_packages is defined and optional_packages | length > 0
+
+# Verify package manager is working
+# Проверка работы менеджера пакетов
+- name: "Verify APT is working"
+  ansible.builtin.shell: apt list --installed | head -5
+  register: apt_working_check
+  changed_when: false
+  failed_when: false
+
+- name: "Check APT functionality"
+  ansible.builtin.assert:
+    that:
+      - apt_working_check.rc == 0
+      - apt_working_check.stdout_lines | length > 0
+    fail_msg: "APT package manager is not working properly"
+    success_msg: "APT package manager is working correctly"
+
+# Verify SSH service is running
+# Проверка работы SSH сервиса
+- name: "Check SSH service status"
+  ansible.builtin.systemd:
+    name: ssh
+    state: started
+  register: ssh_status
+  failed_when: false
+  changed_when: false
+
+- name: "Verify SSH is running"
+  ansible.builtin.assert:
+    that:
+      - ssh_status.status.ActiveState == "active"
+    fail_msg: "SSH service is not running"
+    success_msg: "SSH service is running"
+  when: "'openssh-client' in essential_packages"
+
+# Verify network tools are working
+# Проверка работы сетевых инструментов
+- name: "Test network connectivity with ping"
+  ansible.builtin.command: ping -c 1 8.8.8.8
+  register: ping_test
+  failed_when: false
+  changed_when: false
+
+- name: "Verify network connectivity"
+  ansible.builtin.assert:
+    that:
+      - ping_test.rc == 0
+    fail_msg: "Network connectivity test failed"
+    success_msg: "Network connectivity test passed"
+  when: "'iputils-ping' in essential_packages"
+
+# Verify DNS resolution
+# Проверка разрешения DNS
+- name: "Test DNS resolution"
+  ansible.builtin.command: nslookup google.com
+  register: dns_test
+  failed_when: false
+  changed_when: false
+
+- name: "Verify DNS resolution"
+  ansible.builtin.assert:
+    that:
+      - dns_test.rc == 0
+    fail_msg: "DNS resolution test failed"
+    success_msg: "DNS resolution test passed"
+  when: "'dnsutils' in essential_packages"
+
+# Verify package manager cache is updated
+# Проверка обновления кэша менеджера пакетов
+- name: "Check APT cache age"
+  ansible.builtin.stat:
+    path: /var/cache/apt/pkgcache.bin
+  register: apt_cache_stat
+
+- name: "Verify APT cache is recent"
+  ansible.builtin.assert:
+    that:
+      - (ansible_date_time.epoch | int) - (apt_cache_stat.stat.mtime | int) < package_cache_valid_time
+    fail_msg: "APT cache is too old ({{ ((ansible_date_time.epoch | int) - (apt_cache_stat.stat.mtime | int)) / 3600 | round(2) }} hours old)"
+    success_msg: "APT cache is recent ({{ ((ansible_date_time.epoch | int) - (apt_cache_stat.stat.mtime | int)) / 3600 | round(2) }} hours old)"
+  when: 
+    - package_update_cache | bool
+    - apt_cache_stat.stat.exists
+
+# Verify system is ready for production
+# Проверка готовности системы к продакшену
+- name: "Check system readiness"
+  ansible.builtin.assert:
+    that:
+      - installed_packages.ansible_facts.packages | length > 0
+      - apt_working_check.rc == 0
+    fail_msg: "System is not ready for production use"
+    success_msg: "System is ready for production use"
+
+# Log verification results
+# Логирование результатов проверки
+- name: "Log verification results"
+  ansible.builtin.lineinfile:
+    path: "{{ log_file }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "VERIFICATION_COMPLETE",
+      "service_name": "install_packages",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Post-deployment verification completed successfully",
+      "metadata": {
+        "essential_packages_verified": essential_packages | length,
+        "optional_packages_verified": optional_packages | length if optional_packages is defined else 0,
+        "total_packages_installed": installed_packages.ansible_facts.packages | length,
+        "apt_functional": apt_working_check.rc == 0,
+        "ssh_running": ssh_status.status.ActiveState == "active" if ssh_status is defined else false,
+        "network_connectivity": ping_test.rc == 0 if ping_test is defined else false,
+        "dns_resolution": dns_test.rc == 0 if dns_test is defined else false,
+        "system_ready": true
+      }
+    } | to_json }}'
+    create: yes
+    mode: '0644'
+    owner: root
+    group: root
+  when: log_file is defined

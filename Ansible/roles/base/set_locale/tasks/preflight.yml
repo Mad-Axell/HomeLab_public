@@ -17,10 +17,10 @@
 - name: Check OS compatibility
   ansible.builtin.assert:
     that:
-      - ansible_os_family in ['Debian', 'RedHat', 'Suse']
+      - ansible_os_family == 'Debian'
     fail_msg: |
       Unsupported OS family: {{ ansible_os_family | default('undefined') }}
-      Supported OS families: Debian, RedHat, Suse
+      This role only supports Debian/Ubuntu systems
     success_msg: |
       OS compatibility check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}
   tags: ['preflight', 'always']

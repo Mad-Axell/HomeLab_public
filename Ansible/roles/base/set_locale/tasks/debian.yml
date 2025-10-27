@@ -13,11 +13,7 @@
   block:
     - name: "Build package list for Debian/Ubuntu"
       ansible.builtin.set_fact:
-        debian_packages_to_install: >-
-          {{
-            (universal_packages | map('extract', package_mappings.debian) | list) +
-            (package_mappings.debian.additional | default([]))
-          }}
+        debian_packages_to_install: "{{ debian_packages }}"
 
     - name: "Display packages to install for Debian/Ubuntu (English)"
       ansible.builtin.debug:

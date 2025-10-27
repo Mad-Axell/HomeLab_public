@@ -4,12 +4,41 @@
 # This file orchestrates the package installation process
 # Этот файл координирует процесс установки пакетов
 
+# Validate role arguments
+# Валидация аргументов роли
+- name: "Validate role arguments"
+  ansible.builtin.validate_argument_spec:
+    argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
+
+
+# Preflight checks
+# Предварительные проверки
+- name: "Preflight checks"
+  ansible.builtin.include_tasks: preflight.yml
+
 # Log role execution start
 # Логирование начала выполнения роли
 - name: "Log role execution start"
   ansible.builtin.lineinfile:
     path: "{{ log_file }}"
-    line: "{{ ansible_date_time.iso8601 }} | ROLE_START | install_packages | {{ ansible_hostname }} | {{ ansible_os_family }} | {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "ROLE_START",
+      "service_name": "install_packages",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Role execution started",
+      "metadata": {
+        "os_family": ansible_os_family,
+        "distribution": ansible_distribution,
+        "distribution_version": ansible_distribution_version,
+        "architecture": ansible_architecture,
+        "kernel": ansible_kernel
+      }
+    } | to_json }}'
     create: yes
     mode: '0644'
     owner: root
@@ -69,7 +98,6 @@
       - "Hostname:                 {{ ansible_hostname }}"
       - "FQDN:                     {{ ansible_fqdn }}"
       - "Validation Enabled:       {{ validate_parameters }}"
-      - "Strict Validation:        {{ strict_validation }}"
       - "Target Host:              {{ inventory_hostname }}"
       - "Debug Mode Enabled:       {{ debug_mode }}"
       - "Essential Packages Count: {{ essential_packages | length }}"
@@ -88,8 +116,8 @@
     - name: "Validate operating system compatibility"
       ansible.builtin.assert:
         that:
-          - ansible_os_family in ["Debian", "RedHat", "Suse"]
-        fail_msg: "This role only supports Debian/Ubuntu, RedHat/CentOS, and SUSE systems. Current OS: {{ ansible_os_family }}"
+          - ansible_os_family in ["Debian"]
+        fail_msg: "This role only supports Debian/Ubuntu systems. Current OS: {{ ansible_os_family }}"
         success_msg: "System OS compatibility verification passed"
 
     # Verify apt command exists and is accessible
@@ -101,30 +129,13 @@
       changed_when: false
       when: ansible_os_family == "Debian"
 
-    # Verify yum/dnf command exists and is accessible
-    # Проверка существования и доступности команды yum/dnf
-    - name: "Verify YUM/DNF package manager availability"
-      ansible.builtin.command: "which {{ 'dnf' if (ansible_distribution in ['Rocky', 'AlmaLinux'] and ansible_distribution_major_version | int >= 8) or (ansible_distribution == 'EL' and ansible_distribution_major_version | int >= 8) else 'yum' }}"
-      register: yum_check
-      failed_when: false
-      changed_when: false
-      when: ansible_os_family == "RedHat"
-
-    # Verify zypper command exists and is accessible
-    # Проверка существования и доступности команды zypper
-    - name: "Verify Zypper package manager availability"
-      ansible.builtin.command: which zypper
-      register: zypper_check
-      failed_when: false
-      changed_when: false
-      when: ansible_os_family == "Suse"
 
     # Stop execution if package manager is missing to prevent further failures
     # Остановка выполнения если менеджер пакетов отсутствует для предотвращения дальнейших сбоев
     - name: "Terminate execution if package manager is unavailable"
       ansible.builtin.fail:
-        msg: "Package manager is not available on this system. APT check: {{ apt_check.rc | default('N/A') }}, YUM/DNF check: {{ yum_check.rc | default('N/A') }}, Zypper check: {{ zypper_check.rc | default('N/A') }}"
-      when: (ansible_os_family == "Debian" and apt_check.rc != 0) or (ansible_os_family == "RedHat" and yum_check.rc != 0) or (ansible_os_family == "Suse" and zypper_check.rc != 0)
+        msg: "Package manager is not available on this system. APT check: {{ apt_check.rc | default('N/A') }}"
+      when: ansible_os_family == "Debian" and apt_check.rc != 0
 
     # Collect system resource details for debugging
     # Сбор деталей системных ресурсов для отладки
@@ -138,7 +149,7 @@
 
     # Show detailed system details
     # Показать детальную системную информацию
-    - name: "Display system information (English)"
+    - name: "Display system information"
       ansible.builtin.debug:
         msg:
           - "============================================================================="
@@ -149,10 +160,8 @@
           - "Version:                 {{ ansible_distribution_version }}"
           - "Architecture:            {{ ansible_architecture }}"
           - "Kernel:                  {{ ansible_kernel }}"
-          - "Package Manager:         {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
-          - "APT Available:           {{ 'Yes' if (ansible_os_family == 'Debian' and apt_check.rc == 0) else 'N/A' }}"
-          - "YUM/DNF Available:       {{ 'Yes' if (ansible_os_family == 'RedHat' and yum_check.rc == 0) else 'N/A' }}"
-          - "Zypper Available:        {{ 'Yes' if (ansible_os_family == 'Suse' and zypper_check.rc == 0) else 'N/A' }}"
+          - "Package Manager:         APT"
+          - "APT Available:           {{ 'Yes' if (ansible_os_family == 'Debian' and apt_check.rc == 0) else 'No' }}"
           - "Total Memory:            {{ ansible_memtotal_mb }} MB"
           - "Available Memory:        {{ ansible_memfree_mb }} MB"
           - "CPU Cores:               {{ ansible_processor_vcpus | default('Unknown') }}"
@@ -163,14 +172,15 @@
         - debug_mode | bool
 
 
-# Map universal packages to platform-specific names
-# Сопоставление универсальных пакетов с именами для конкретных платформ
-- name: "Map universal packages to platform-specific names"
-  ansible.builtin.include_tasks: package_mapping.yml
+# Initialize package lists for Debian/Ubuntu
+# Инициализация списков пакетов для Debian/Ubuntu
+- name: "Initialize package lists for Debian/Ubuntu"
+  ansible.builtin.set_fact:
+    platform_packages: "{{ essential_packages }}"
+    platform_optional_packages: "{{ optional_packages | default([]) }}"
   tags:
-    - mapping
     - packages
-    - universal
+    - initialization
 
 # Include OS-specific configuration tasks
 # Включение OS-специфичных задач конфигурации
@@ -183,27 +193,15 @@
     - os-specific
     - apt
 
-- name: "Include RedHat/CentOS specific configuration tasks"
-  ansible.builtin.include_tasks: redhat.yml
-  when: ansible_os_family == "RedHat"
+# Verify deployment
+# Проверка развертывания
+- name: "Verify deployment"
+  ansible.builtin.include_tasks: verify.yml
+  when: verify_deployment | default(true)
   tags:
-    - redhat
-    - centos
-    - rocky
-    - almalinux
-    - os-specific
-    - yum
-    - dnf
+    - verification
+    - post-deployment
 
-- name: "Include SUSE specific configuration tasks"
-  ansible.builtin.include_tasks: suse.yml
-  when: ansible_os_family == "Suse"
-  tags:
-    - suse
-    - opensuse
-    - sles
-    - os-specific
-    - zypper
 
 # Configure automatic security updates
 # Настройка автоматических обновлений безопасности
@@ -219,33 +217,6 @@
     - security
     - unattended-upgrades
 
-- name: "Include RedHat/CentOS automatic security updates configuration"
-  ansible.builtin.include_tasks: autoupdate_redhat.yml
-  when: 
-    - ansible_os_family == "RedHat"
-    - autoupdates_enabled | bool
-  tags:
-    - redhat
-    - centos
-    - rocky
-    - almalinux
-    - autoupdate
-    - security
-    - dnf-automatic
-    - yum-cron
-
-- name: "Include SUSE automatic security updates configuration"
-  ansible.builtin.include_tasks: autoupdate_suse.yml
-  when: 
-    - ansible_os_family == "Suse"
-    - autoupdates_enabled | bool
-  tags:
-    - suse
-    - opensuse
-    - sles
-    - autoupdate
-    - security
-    - zypper
 
 - name: "Calculate role execution time and performance metrics"
   # Track role execution duration for performance monitoring and analysis
@@ -254,7 +225,7 @@
     role_end_time: "{{ ansible_date_time.epoch }}"
   when: debug_mode | bool
 
-- name: "Display role execution summary with performance metrics (English)"
+- name: "Display role execution summary with performance metrics"
   # Show comprehensive execution summary including performance metrics and operation statistics
   # Показать комплексную сводку выполнения включая метрики производительности и статистику операций
   ansible.builtin.debug:
@@ -264,7 +235,7 @@
       - "============================================================================="
       - "Target Host:                   {{ inventory_hostname }}"
       - "Operating System:              {{ ansible_os_family }}"
-      - "Package Manager:               {{ 'APT' if ansible_os_family == 'Debian' else ('YUM/DNF' if ansible_os_family == 'RedHat' else 'Zypper') }}"
+      - "Package Manager:               APT"
       - "Total Execution Time:          {{ (role_end_time | int - role_start_time | int) }} seconds"
       - "Universal Essential Packages:  {{ essential_packages | length }}"
       - "Platform Essential Packages:   {{ platform_packages | length if platform_packages is defined else 0 }}"
@@ -301,7 +272,25 @@
 - name: "Log role execution completion"
   ansible.builtin.lineinfile:
     path: "{{ log_file }}"
-    line: "{{ ansible_date_time.iso8601 }} | ROLE_COMPLETE | install_packages | {{ ansible_hostname }} | SUCCESS | {{ (ansible_date_time.epoch | int) - (role_start_time | default(ansible_date_time.epoch) | int) }}s"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "ROLE_COMPLETE",
+      "service_name": "install_packages",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "Role execution completed successfully",
+      "metadata": {
+        "execution_time_seconds": (ansible_date_time.epoch | int) - (role_start_time | default(ansible_date_time.epoch) | int),
+        "status": "SUCCESS",
+        "essential_packages_count": essential_packages | length,
+        "optional_packages_count": optional_packages | length if optional_packages is defined else 0,
+        "cache_updated": package_update_cache,
+        "packages_upgraded": package_upgrade_packages
+      }
+    } | to_json }}'
     create: yes
     mode: '0644'
     owner: root

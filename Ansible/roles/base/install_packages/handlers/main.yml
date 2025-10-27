@@ -22,41 +22,18 @@
     state: restarted
     enabled: yes
   loop:
-    - auditd
     - ssh
   when: 
-    - ansible_os_family == "Debian"
     - ansible_facts['services'][item] is defined
     - ansible_facts['services'][item]['status'] | default('not-found') != 'not-found'
   ignore_errors: yes
   tags:
     - handlers
     - services
-    - restart  # Restart services that may have been affected by package installation on RedHat systems
-  # Перезапуск сервисов, которые могли быть затронуты установкой пакетов на системах RedHat
-
-
-- name: "Restart system services after package installation for RedHat"
-  ansible.builtin.systemd:
-    name: "{{ item }}"
-    state: restarted
-    enabled: yes
-  loop:
-    - auditd
-    - sshd
-  when: 
-    - ansible_os_family == "RedHat"
-    - ansible_facts['services'][item] is defined
-    - ansible_facts['services'][item]['status'] | default('not-found') != 'not-found'
-  ignore_errors: yes
-  tags:
-    - handlers
-    - services
-    - restart
-    - redhat  # Reload system configuration that may have been updated by package installation
+    - restart  
+    
+  # Reload system configuration that may have been updated by package installation
   # Перезагрузка системной конфигурации, которая могла быть обновлена установкой пакетов
-
-
 - name: "Reload system configuration after package installation"
   ansible.builtin.command: systemctl daemon-reload
   register: daemon_reload_result

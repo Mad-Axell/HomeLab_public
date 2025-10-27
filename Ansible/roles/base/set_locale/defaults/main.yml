@@ -11,9 +11,7 @@ timezone: "Europe/Moscow" ##"UTC"
 timezone_manage: true
 
 # Primary locale configuration
-locale_language: "en_US"
-locale_encoding: "UTF-8"
-locale_primary: "{{ locale_language }}.{{ locale_encoding }}"
+locale_primary: "en_US.UTF-8"
 
 # Additional locales to generate (useful for multi-language environments)
 locale_additional:
@@ -23,7 +21,7 @@ locale_additional:
 # System locale variables
 locale_variables:
   LANG: "{{ locale_primary }}"
-  LANGUAGE: "{{ locale_language }}"
+  LANGUAGE: "{{ locale_primary | regex_replace('\\..*', '') }}"
   LC_ALL: "{{ locale_primary }}"
   LC_COLLATE: "{{ locale_primary }}"
   LC_CTYPE: "{{ locale_primary }}"
@@ -56,39 +54,13 @@ enable_rollback: true               # Boolean. Auto-rollback on failure
                                     # Логическое значение. Автоматический откат при ошибке
 
 # =============================================================================
-# Universal Package Mapping / Универсальный маппинг пакетов
+# Debian Package Configuration / Конфигурация пакетов Debian
 # =============================================================================
-# Supported OS families / Поддерживаемые семейства ОС
-supported_os_families:
-  - Debian
-  - RedHat
-  - Suse
-
-# Universal packages list / Универсальный список пакетов
-universal_packages:
+# Debian packages list / Список пакетов Debian
+debian_packages:
   - locales
-  - console_setup
-  - keyboard_config
-
-# Package mappings for different OS families / Маппинг пакетов для разных семейств ОС
-package_mappings:
-  debian:
-    locales: locales
-    console_setup: console-setup
-    keyboard_config: keyboard-configuration
-    additional: []
-  redhat:
-    locales: glibc-locale-source
-    console_setup: kbd
-    keyboard_config: kbd
-    additional:
-      - glibc-langpack-en
-  suse:
-    locales: glibc-locale
-    console_setup: kbd
-    keyboard_config: kbd
-    additional:
-      - glibc-i18ndata
+  - console-setup
+  - keyboard-configuration
 
 # Validation patterns
 valid_locale_pattern: '^[a-z]{2}_[A-Z]{2}\.[A-Z0-9-]+$'
@@ -241,13 +213,6 @@ valid_console_fonts:
 # =============================================================================
 # Handler Commands / Команды обработчиков
 # =============================================================================
-# Commands for different OS families / Команды для разных семейств ОС
-locale_reload_commands:
-  Debian: "locale-gen"
-  RedHat: "localectl set-locale LANG={{ locale_primary }}"
-  Suse: "localectl set-locale LANG={{ locale_primary }}"
-
-console_reload_commands:
-  Debian: "setupcon"
-  RedHat: "systemctl restart systemd-vconsole-setup"
-  Suse: "systemctl restart systemd-vconsole-setup"
+# Commands for Debian systems / Команды для систем Debian
+locale_reload_command: "locale-gen"
+console_reload_command: "setupcon"

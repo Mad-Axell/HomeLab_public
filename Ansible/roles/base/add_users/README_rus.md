@@ -71,7 +71,8 @@
 users_to_add:
   - username: "john_doe"           # Строка. Имя пользователя (только строчные буквы, цифры, подчеркивания)
     password: "SecurePass123"      # Строка. Пароль открытым текстом (будет автоматически захеширован)
-    groups: ["docker", "wheel"]    # Список. Группы пользователя (необязательно)
+    groups: ["docker", "wheel"]    # Список. Системные группы пользователя (необязательно)
+    security_groups: ["operators"] # Список. Группы безопасности для sudo привилегий (необязательно)
     is_sudoers: true               # Логическое значение. Предоставить sudo привилегии (необязательно, по умолчанию: false)
     shell: "/bin/bash"             # Строка. Оболочка пользователя (необязательно, по умолчанию: /bin/bash)
     uid: 1001                      # Целое число. ID пользователя (необязательно, назначается автоматически)
@@ -178,8 +179,9 @@ security_groups:                   # Словарь. Группы безопас
         users_to_add:
           - username: "john_doe"
             password: "SecurePass123"
+            groups: ["sudo", "docker"]        # Системные группы Linux
+            security_groups: ["operators"]     # Группы безопасности для sudo
             is_sudoers: true
-            groups: ["sudo", "docker"]
 ```
 
 ### Расширенная конфигурация пользователей
@@ -194,6 +196,7 @@ security_groups:                   # Словарь. Группы безопас
           - username: "admin"
             password: "VerySecurePassword123!"
             groups: ["sudo", "docker", "wheel"]
+            security_groups: ["admins"]
             is_sudoers: true
             shell: "/bin/bash"
             uid: 1001
@@ -206,17 +209,19 @@ security_groups:                   # Словарь. Группы безопас
           - username: "operator"
             password: "OperatorPass456!"
             groups: ["docker"]
+            security_groups: ["operators"]
             is_sudoers: true
             shell: "/bin/zsh"
             
           - username: "auditor"
             password: "AuditorPass789!"
             groups: ["audit"]
+            security_groups: ["auditors"]
             is_sudoers: true
             shell: "/bin/bash"
 ```
 
-### Конфигурация групп безопасности
+### Конфигурация групп безопасности (новый подход)
 
 ```yaml
 - hosts: all
@@ -225,7 +230,55 @@ security_groups:                   # Словарь. Группы безопас
       vars:
         security_groups:
           admins:
-            members: ["admin", "root_admin"]
+            members: []  # Заполняется автоматически из users_to_add
+            commands: ["ALL"]
+            nopasswd: true
+            
+          operators:
+            members: []  # Заполняется автоматически из users_to_add
+            commands:
+              - "/bin/systemctl restart *"
+              - "/bin/systemctl stop *"
+              - "/usr/bin/docker *"
+            nopasswd: false
+            
+          auditors:
+            members: []  # Заполняется автоматически из users_to_add
+            commands:
+              - "/bin/cat /var/log/*"
+              - "/bin/journalctl *"
+            nopasswd: true
+            
+        users_to_add:
+          - username: "admin"
+            password: "AdminPass123!"
+            groups: ["sudo", "wheel"]
+            security_groups: ["admins"]
+            is_sudoers: true
+            
+          - username: "operator1"
+            password: "OperatorPass123!"
+            groups: ["docker"]
+            security_groups: ["operators"]
+            is_sudoers: true
+            
+          - username: "auditor1"
+            password: "AuditorPass123!"
+            groups: ["audit"]
+            security_groups: ["auditors"]
+            is_sudoers: true
+```
+
+### Конфигурация групп безопасности (legacy подход)
+
+```yaml
+- hosts: all
+  roles:
+    - role: base/add_users
+      vars:
+        security_groups:
+          admins:
+            members: ["admin", "root_admin"]  # Явное указание пользователей
             commands: ["ALL"]
             nopasswd: true
             
@@ -237,13 +290,6 @@ security_groups:                   # Словарь. Группы безопас
               - "/usr/bin/docker *"
             nopasswd: false
             
-          auditors:
-            members: ["auditor1", "auditor2"]
-            commands:
-              - "/bin/cat /var/log/*"
-              - "/bin/journalctl *"
-            nopasswd: true
-            
         users_to_add:
           - username: "admin"
             password: "AdminPass123!"
@@ -251,10 +297,6 @@ security_groups:                   # Словарь. Группы безопас
             
           - username: "operator1"
             password: "OperatorPass123!"
-            is_sudoers: true
-            
-          - username: "auditor1"
-            password: "AuditorPass123!"
             is_sudoers: true
 ```
 
@@ -300,6 +342,86 @@ security_groups:                   # Словарь. Группы безопас
 ## Группы безопасности
 
 Группы безопасности предоставляют способ назначения гранулярных sudo привилегий пользователям на основе их роли в организации.
+
+### Различие между `groups` и `security_groups`
+
+- **`groups`** - системные группы Linux (docker, wheel, sudo, etc.), которые определяют членство пользователя в системных группах
+- **`security_groups`** - логические группы для настройки sudo привилегий, определяющие какие команды может выполнять пользователь
+
+### Новый подход (рекомендуемый)
+
+```yaml
+users_to_add:
+  - username: "operator1"
+    groups: ["docker", "wheel"]        # Системные группы Linux
+    security_groups: ["operators"]     # Группы безопасности для sudo
+    is_sudoers: true
+```
+
+### Legacy подход (поддерживается)
+
+```yaml
+security_groups:
+  operators:
+    members: ["operator1"]             # Явное указание пользователей
+    commands: ["/bin/systemctl restart *"]
+```
+
+## Миграция с Legacy подхода
+
+### Пошаговое руководство по миграции
+
+1. **Определите текущие группы безопасности** в вашей конфигурации
+2. **Добавьте поле `security_groups`** в каждый пользователь в `users_to_add`
+3. **Очистите поле `members`** в `security_groups` (оставьте пустым)
+4. **Протестируйте конфигурацию** в тестовой среде
+
+### Пример миграции
+
+**До (Legacy подход):**
+```yaml
+security_groups:
+  operators:
+    members: ["operator1", "operator2"]
+    commands: ["/bin/systemctl restart *"]
+    nopasswd: false
+
+users_to_add:
+  - username: "operator1"
+    password: "Pass123!"
+    is_sudoers: true
+  - username: "operator2"
+    password: "Pass456!"
+    is_sudoers: true
+```
+
+**После (Новый подход):**
+```yaml
+security_groups:
+  operators:
+    members: []  # Очищено - заполняется автоматически
+    commands: ["/bin/systemctl restart *"]
+    nopasswd: false
+
+users_to_add:
+  - username: "operator1"
+    password: "Pass123!"
+    groups: ["docker"]              # Добавлены системные группы
+    security_groups: ["operators"]  # Добавлены группы безопасности
+    is_sudoers: true
+  - username: "operator2"
+    password: "Pass456!"
+    groups: ["wheel"]
+    security_groups: ["operators"]
+    is_sudoers: true
+```
+
+### Преимущества нового подхода
+
+- **Централизованная конфигурация**: Все настройки пользователя в одном месте
+- **Лучшая читаемость**: Легче понять, какие права у пользователя
+- **Автоматическое управление**: Не нужно дублировать имена пользователей
+- **Гибкость**: Один пользователь может быть в нескольких группах безопасности
 
 ### Предустановленные группы
 

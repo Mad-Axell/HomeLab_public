@@ -4,21 +4,17 @@
 
 ## Описание
 
-Эта роль Ansible обеспечивает комплексную настройку системной локализации для Linux систем, поддерживая семейства Debian/Ubuntu, RedHat/CentOS и SUSE. Роль обеспечивает правильную настройку локали, часового пояса, раскладки клавиатуры и консольного шрифта с расширенной валидацией, структурированным логированием и возможностями автоматического отката.
+Эта роль Ansible обеспечивает настройку системной локализации для систем Debian/Ubuntu. Роль обеспечивает правильную настройку локали, часового пояса, раскладки клавиатуры и консольного шрифта с валидацией и возможностями отладки.
 
 ## Возможности
 
-- **Кроссплатформенная поддержка**: Работает с семействами Debian, RedHat и SUSE
+- **Поддержка Debian/Ubuntu**: Оптимизирована для систем Debian и Ubuntu
 - **Комплексная валидация**: Предварительные проверки и валидация параметров
-- **Структурированное логирование**: Логи в формате JSON для интеграции с агрегаторами логов
-- **Автоматический откат**: Возможности резервного копирования и восстановления при ошибках
-- **Двуязычная поддержка**: Документация на английском и русском языках
 - **Режим отладки**: Подробный вывод для диагностики проблем
 - **Идемпотентность**: Безопасно запускать несколько раз
-- **Модульный дизайн**: OS-специфичные задачи для оптимальной совместимости
+- **Упрощенный дизайн**: Чистый, поддерживаемый код без ненужной сложности
 - **Сбор системной информации**: Автоматический сбор системной информации
-- **Оптимизированная производительность**: Унифицированные обработчики и массовая установка пакетов
-- **Модульные компоненты**: Переиспользуемые компоненты отладки и отката
+- **Оптимизированная производительность**: Упрощенные обработчики и установка пакетов
 
 ## Требования
 
@@ -31,16 +27,6 @@
 #### Семейство Debian
 - Debian: 9, 10, 11, 12
 - Ubuntu: 18.04, 20.04, 22.04, 24.04
-
-#### Семейство RedHat
-- RedHat Enterprise Linux: 7, 8, 9
-- CentOS: 7, 8, 9
-- Rocky Linux: 8, 9
-- AlmaLinux: 8, 9
-
-#### Семейство SUSE
-- SUSE Linux Enterprise Server: Последние версии
-- openSUSE: Последние версии
 
 ## Переменные роли
 
@@ -63,9 +49,7 @@
 
 | Переменная | Тип | По умолчанию | Описание |
 |------------|-----|--------------|----------|
-| `locale_language` | str | `"en_US"` | Код основного языка локализации |
-| `locale_encoding` | str | `"UTF-8"` | Кодировка локализации |
-| `locale_primary` | str | `"{{ locale_language }}.{{ locale_encoding }}"` | Основная системная локализация |
+| `locale_primary` | str | `"en_US.UTF-8"` | Основная системная локализация |
 | `locale_additional` | list | `["ru_RU.UTF-8", "en_GB.UTF-8"]` | Дополнительные локализации для генерации |
 | `locale_variables` | dict | См. defaults | Системные переменные окружения локализации |
 
@@ -102,8 +86,8 @@
 
 | Переменная | Тип | По умолчанию | Описание |
 |------------|-----|--------------|----------|
-| `locale_reload_commands` | dict | См. defaults | OS-специфичные команды перезагрузки локали |
-| `console_reload_commands` | dict | См. defaults | OS-специфичные команды перезагрузки консоли |
+| `locale_reload_command` | str | `"locale-gen"` | Команда перезагрузки локали |
+| `console_reload_command` | str | `"setupcon"` | Команда перезагрузки консоли |
 
 ## Зависимости
 
@@ -158,7 +142,7 @@
 ```yaml
 locale_variables:
   LANG: "{{ locale_primary }}"
-  LANGUAGE: "{{ locale_language }}"
+  LANGUAGE: "{{ locale_primary | regex_replace('\\..*', '') }}"
   LC_ALL: "{{ locale_primary }}"
   LC_COLLATE: "{{ locale_primary }}"
   LC_CTYPE: "{{ locale_primary }}"
@@ -168,41 +152,20 @@ locale_variables:
   LC_TIME: "{{ locale_primary }}"
 ```
 
-### OS-специфичный маппинг пакетов
+### Конфигурация пакетов Debian
 
 ```yaml
-package_mappings:
-  debian:
-    locales: locales
-    console_setup: console-setup
-    keyboard_config: keyboard-configuration
-    additional: []
-  redhat:
-    locales: glibc-locale-source
-    console_setup: kbd
-    keyboard_config: kbd
-    additional:
-      - glibc-langpack-en
-  suse:
-    locales: glibc-locale
-    console_setup: kbd
-    keyboard_config: kbd
-    additional:
-      - glibc-i18ndata
+debian_packages:
+  - locales
+  - console-setup
+  - keyboard-configuration
 ```
 
 ### Конфигурация команд обработчиков
 
 ```yaml
-locale_reload_commands:
-  Debian: "locale-gen"
-  RedHat: "localectl set-locale LANG={{ locale_primary }}"
-  Suse: "localectl set-locale LANG={{ locale_primary }}"
-
-console_reload_commands:
-  Debian: "setupcon"
-  RedHat: "systemctl restart systemd-vconsole-setup"
-  Suse: "systemctl restart systemd-vconsole-setup"
+locale_reload_command: "locale-gen"
+console_reload_command: "setupcon"
 ```
 
 ## Структура роли
@@ -210,7 +173,7 @@ console_reload_commands:
 ```
 roles/base/set_locale/
 ├── defaults/main.yml          # Переменные по умолчанию
-├── handlers/main.yml          # Универсальные обработчики
+├── handlers/main.yml          # Обработчики
 ├── meta/
 │   ├── main.yml              # Метаданные роли
 │   └── argument_specs.yml    # Спецификации валидации входных данных
@@ -218,11 +181,7 @@ roles/base/set_locale/
 │   ├── main.yml              # Основные задачи роли
 │   ├── preflight.yml         # Предварительные проверки
 │   ├── validate.yml          # Валидация параметров
-│   ├── debug.yml             # Общие debug-сообщения
-│   ├── rollback.yml          # Общая логика отката
-│   ├── debian.yml            # Специфичные задачи для Debian/Ubuntu
-│   ├── redhat.yml            # Специфичные задачи для RedHat/CentOS
-│   └── suse.yml              # Специфичные задачи для SUSE
+│   └── debian.yml            # Специфичные задачи для Debian/Ubuntu
 ├── README.md                 # Краткий обзор
 ├── README_eng.md            # Полная документация на английском
 └── README_rus.md            # Полная документация на русском
@@ -238,7 +197,7 @@ roles/base/set_locale/
 6. **Дополнительные локали**: Генерация дополнительных локалей для многоязычной поддержки
 7. **Конфигурация переменных локали**: Настройка системных переменных окружения локализации
 8. **Конфигурация часового пояса**: Установка системного часового пояса
-9. **OS-специфичные задачи**: Выполнение OS-специфичных задач конфигурации
+9. **Задачи Debian/Ubuntu**: Выполнение специфичных задач конфигурации для Debian/Ubuntu
 10. **Итоговая сводка**: Отображение комплексной сводки конфигурации
 
 ## Обработка ошибок
@@ -250,24 +209,13 @@ roles/base/set_locale/
 - **Паттерн Block-Rescue**: Использует структурированную обработку ошибок с автоматическим откатом
 - **Резервное копирование и восстановление**: Создает резервные копии перед изменениями и восстанавливает при ошибках
 
-## OS-специфичное поведение
+## Поведение для Debian/Ubuntu
 
-### Debian/Ubuntu
 - Использует `apt` для управления пакетами
 - Генерирует основную локаль с помощью `community.general.locale_gen`
 - Настраивает `/etc/default/locale` и `/etc/locale.gen`
 - Использует `debconf` для конфигурации клавиатуры
 - Консольный шрифт в `/etc/default/console-setup`
-
-### RedHat/CentOS
-- Использует `yum`/`dnf` для управления пакетами
-- Использует `localectl` для конфигурации локали и клавиатуры
-- Консольный шрифт в `/etc/vconsole.conf`
-
-### SUSE
-- Использует `zypper` для управления пакетами
-- Использует `localectl` для конфигурации локали и клавиатуры
-- Консольный шрифт в `/etc/vconsole.conf`
 
 ## Паттерны валидации
 
@@ -278,30 +226,13 @@ roles/base/set_locale/
 - **Раскладки клавиатуры**: Предопределенный список допустимых раскладок
 - **Консольные шрифты**: Предопределенный список допустимых шрифтов
 
-## Структурированное логирование
+## Логирование
 
-Роль реализует комплексное структурированное логирование в формате JSON:
+Роль реализует базовое логирование изменений конфигурации:
 
-```json
-{
-  "timestamp": "2024-01-15T10:30:45.123456Z",
-  "level": "INFO",
-  "event_type": "LOCALE_CONFIGURATION",
-  "user": "ansible_user",
-  "host": "target_host",
-  "playbook": "locale_setup",
-  "correlation_id": 1705312245,
-  "message": "Locale configuration applied",
-  "metadata": {
-    "locale_primary": "en_US.UTF-8",
-    "timezone": "Europe/Moscow",
-    "keyboard_layout": "us",
-    "console_font": "Lat2-Terminus16",
-    "os_family": "Debian",
-    "os_version": "12"
-  }
-}
-```
+- Изменения конфигурации логируются в `/var/log/ansible-changes.log`
+- Режим отладки предоставляет подробный вывод для диагностики проблем
+- Простые сообщения об ошибках для неудачных операций
 
 ## Лицензия
 

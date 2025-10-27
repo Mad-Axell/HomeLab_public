@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `base.install_packages` role provides comprehensive package installation capabilities across multiple operating system families (Debian, RedHat, SUSE) with advanced features including automatic security updates, structured logging, and robust error handling.
+The `base.install_packages` role provides comprehensive package installation capabilities for Debian/Ubuntu systems with advanced features including optional automatic security updates, structured logging, and robust error handling.
 
 ## Table of Contents
 
@@ -53,6 +53,8 @@ The `base.install_packages` role provides comprehensive package installation cap
 | `debug_mode` | bool | `false` | Enable comprehensive debug output |
 | `validate_parameters` | bool | `true` | Enable parameter validation |
 | `log_file` | str | `/var/log/ansible-changes.log` | Path to structured log file |
+| `verify_deployment` | bool | `true` | Enable post-deployment verification |
+| `autoupdates_enabled` | bool | `false` | Enable automatic security updates |
 
 ### Package Management
 
@@ -84,8 +86,6 @@ The role installs these universal packages (mapped to platform-specific names):
 - `sudo` - Superuser do
 - `net-tools` - Network utilities
 - `gnupg` - GNU Privacy Guard
-- `audit` - System audit daemon
-- `libpwquality` - Password quality enforcement
 - `htop` - Interactive process viewer
 - `curl` - Command line tool for transferring data
 - `wget` - Internet file retriever
@@ -122,6 +122,20 @@ None - this role is designed to be independent.
           - curl
           - wget
           - htop
+        debug_mode: true
+```
+
+### With Security Auto-updates Enabled
+
+```yaml
+---
+- name: Install packages with security auto-updates
+  hosts: all
+  become: yes
+  roles:
+    - role: base.install_packages
+      vars:
+        autoupdates_enabled: true
         debug_mode: true
 ```
 
@@ -270,34 +284,18 @@ The role automatically maps universal package names to platform-specific names. 
 
 ## Platform Support
 
-### Package Manager Mapping
+### Supported Operating Systems
 
 | OS Family | Package Manager | Auto-update Tool |
 |-----------|----------------|------------------|
-| Debian/Ubuntu | APT | unattended-upgrades |
-| RedHat/CentOS 7 | YUM | yum-cron |
-| RedHat/CentOS 8+ | DNF | dnf-automatic |
-| SUSE/openSUSE | Zypper | Custom systemd service |
+| Debian/Ubuntu | APT | unattended-upgrades (optional) |
 
-### OS-Specific Features
-
-#### Debian/Ubuntu
+### Debian/Ubuntu Features
 - APT package management
-- `unattended-upgrades` for automatic security updates
+- `unattended-upgrades` for automatic security updates (optional)
 - GPG signature verification
 - Automatic dependency cleanup
-
-#### RedHat/CentOS
-- YUM/DNF package management
-- `yum-cron` (RHEL 7) or `dnf-automatic` (RHEL 8+) for automatic updates
-- RPM GPG signature verification
-- Repository metadata verification
-
-#### SUSE/openSUSE
-- Zypper package management
-- Custom systemd service and timer for automatic updates
-- RPM GPG signature verification
-- Repository refresh and key management
+- Optional automatic security updates
 
 ## Logging
 

@@ -17,6 +17,7 @@ users_to_add: []                 # List. Users to create or update / Списо�
   # - username: test_user_1       # String. Username (lowercase, numbers, underscores) / Строка. Имя пользователя (строчные, цифры, подчеркивания)
   #   password: "SecurePass123"   # String. Plain text password (will be hashed) / Строка. Пароль открытым текстом (будет захеширован)
   #   groups: ["docker", "wheel"]  # List. User groups / Список. Группы пользователя
+  #   security_groups: ["operators"]  # List. Security groups for sudo privileges / Список. Группы безопасности для sudo привилегий
   #   is_sudoers: true             # Boolean. Grant sudo privileges / Логическое значение. Предоставить sudo привилегии
   #   uid: null                    # Integer. User ID (null for auto) / Целое число. ID пользователя (null для авто)
   #   gid: null                    # Integer. Group ID (null for auto) / Целое число. ID группы (null для авто)
@@ -59,7 +60,7 @@ security_groups:                     # Dictionary. Security groups with members 
     members: []                      # List. Usernames of admins / Список. Имена пользователей-администраторов
     commands:                        # List. Allowed commands (empty = ALL) / Список. Разрешенные команды (пусто = ALL)
       - ALL
-    nopasswd: true                   # Boolean. Allow NOPASSWD for these commands / Логическое значение. Разрешить NOPASSWD для этих команд
+    nopasswd: false                  # Boolean. Allow NOPASSWD for these commands / Логическое значение. Разрешить NOPASSWD для этих команд
     
   operators:                         # EN: Limited operational access / RU: Ограниченный операционный доступ
     members: []                      # List. Usernames of operators / Список. Имена пользователей-операторов
@@ -82,4 +83,4 @@ security_groups:                     # Dictionary. Security groups with members 
       - /bin/journalctl *
       - /bin/systemctl status *
       - /usr/bin/find /var/log/*
-    nopasswd: true                   # Boolean. Allow NOPASSWD for read-only commands / Логическое значение. Разрешить NOPASSWD для команд только на чтение
+    nopasswd: false                  # Boolean. Allow NOPASSWD for read-only commands / Логическое значение. Разрешить NOPASSWD для команд только на чтение

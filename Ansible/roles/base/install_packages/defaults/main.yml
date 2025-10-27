@@ -1,8 +1,8 @@
 ---
-# Multi-Platform Package Installation Role Defaults
-# Значения по умолчанию для мультиплатформенной роли установки пакетов
-# This role installs essential packages for Ubuntu/Debian and RedHat/CentOS systems
-# Эта роль устанавливает основные пакеты для систем Ubuntu/Debian и RedHat/CentOS
+# Debian Package Installation Role Defaults
+# Значения по умолчанию для роли установки пакетов Debian
+# This role installs essential packages for Ubuntu/Debian systems
+# Эта роль устанавливает основные пакеты для систем Ubuntu/Debian
 
 # Debug mode for verbose output / Режим отладки для подробного вывода
 debug_mode: false
@@ -10,66 +10,29 @@ debug_mode: false
 log_file: "/var/log/ansible-changes.log"
 # Validation settings / Настройки валидации
 validate_parameters: true
-strict_validation: true
+verify_deployment: true                 # Boolean. Enable post-deployment verification
+                                        # Логическое значение. Включить проверку пост-развертывания
 
 # Universal package cache management / Универсальное управление кэшем пакетов
 package_cache_valid_time: 86400  # 24 hours in seconds / 24 часа в секундах
 package_update_cache: true       # Update package cache / Обновлять кэш пакетов
 package_upgrade_packages: true   # Upgrade system packages / Обновлять системные пакеты
 
-# Universal essential packages list - automatically mapped to platform-specific names
-# Универсальный список основных пакетов - автоматически сопоставляется с именами для конкретной платформы
+# Essential packages list for Debian/Ubuntu systems
+# Список основных пакетов для систем Debian/Ubuntu
 essential_packages:
   - acl                    # Access Control Lists / Списки контроля доступа
   - sudo                   # Superuser do / Выполнение от имени суперпользователя
   - net-tools              # Network utilities / Сетевые утилиты
-  - gnupg                  # GNU Privacy Guard (gnupg2 on RedHat) / GNU Privacy Guard (gnupg2 на RedHat)
-  - audit                  # System audit daemon (auditd on Debian) / Демон аудита системы (auditd на Debian)
-  - libpwquality           # Password quality enforcement (libpam-pwquality on Debian) / Контроль качества паролей
+  - gnupg                  # GNU Privacy Guard / GNU Privacy Guard
   - htop                   # Interactive process viewer / Интерактивный просмотрщик процессов
   - curl                   # Command line tool for transferring data / Инструмент командной строки для передачи данных
   - wget                   # Internet file retriever / Загрузчик файлов из интернета
-  - openssh-clients        # SSH client / SSH клиент
-  - iputils                # Network testing tools (iputils-ping on Debian) / Инструменты тестирования сети
-  - bind-utils             # DNS utilities (dnsutils on Debian) / DNS утилиты
-
-# Platform-specific package mappings / Сопоставления пакетов для конкретных платформ
-package_mappings:
-  # Debian/Ubuntu specific packages / Специфичные пакеты для Debian/Ubuntu
-  debian:
-    gnupg: gnupg
-    audit: auditd
-    libpwquality: libpam-pwquality
-    iputils: iputils-ping
-    bind-utils: dnsutils
-    openssh-clients: openssh-client
-    # Additional Debian-specific packages / Дополнительные пакеты для Debian
-    additional:
-      - apt-transport-https
-      - software-properties-common
-  
-  # RedHat/CentOS specific packages / Специфичные пакеты для RedHat/CentOS
-  redhat:
-    gnupg: gnupg2
-    audit: audit
-    libpwquality: libpwquality
-    iputils: iputils
-    bind-utils: bind-utils
-    openssh-clients: openssh-clients
-
-  # SUSE/openSUSE specific packages / Специфичные пакеты для SUSE/openSUSE
-  suse:
-    gnupg: gpg2
-    audit: audit
-    libpwquality: libpwquality
-    iputils: iputils
-    bind-utils: bind-utils
-    openssh-clients: openssh
-    # Additional SUSE-specific packages / Дополнительные пакеты для SUSE
-    additional:
-      - patterns-devel-base-devel_basis
-      - gcc
-      - make
+  - openssh-client         # SSH client / SSH клиент
+  - iputils-ping           # Network testing tools / Инструменты тестирования сети
+  - dnsutils               # DNS utilities / DNS утилиты
+  - apt-transport-https    # HTTPS transport for APT / HTTPS транспорт для APT
+  - software-properties-common  # Software properties management / Управление свойствами ПО
 
 # Universal optional packages that can be added by users
 # Универсальные дополнительные пакеты, которые могут быть добавлены пользователями
@@ -85,7 +48,7 @@ package_install_recommends: true
 # =============================================================================
 
 # Enable automatic security updates / Включить автоматические обновления безопасности
-autoupdates_enabled: true
+autoupdates_enabled: false
 
 # Install only security updates (not all available updates)
 # Устанавливать только обновления безопасности (не все доступные обновления)
@@ -105,8 +68,6 @@ autoupdates_autoremove: true
 
 # Automatic update schedule configuration / Конфигурация расписания автоматических обновлений
 # For Debian/Ubuntu: unattended-upgrades runs via apt.systemd.daily
-# For RHEL/CentOS: dnf-automatic/yum-cron schedule
-# For SUSE: zypper auto-update schedule
 autoupdates_schedule_enabled: true
 
 # Time for automatic updates (for systems that support it)
@@ -116,3 +77,23 @@ autoupdates_time: "02:00"
 # Download updates automatically even if not installing
 # Загружать обновления автоматически, даже если не устанавливать
 autoupdates_download_only: false
+
+# =============================================================================
+# System Requirements
+# Системные требования
+# =============================================================================
+
+# Minimum disk space required for installation (in bytes)
+# Минимальное дисковое пространство необходимое для установки (в байтах)
+min_disk_space: 1073741824              # Integer. Minimum disk space in bytes (1GB)
+                                        # Целое число. Минимальное дисковое пространство в байтах (1ГБ)
+
+# Minimum memory required for installation (in MB)
+# Минимальная память необходимая для установки (в МБ)
+min_memory_mb: 512                      # Integer. Minimum memory in MB
+                                        # Целое число. Минимальная память в МБ
+
+# Required mount points for preflight checks
+# Необходимые точки монтирования для предварительных проверок
+required_mounts: ["/"]                  # List. Required mount points
+                                        # Список. Необходимые точки монтирования

@@ -5,9 +5,9 @@
 
 argument_specs:
   main:
-    short_description: "Multi-platform package installation role"
+    short_description: "Debian package installation role"
     description: |
-      This role installs essential packages on Debian/Ubuntu, RedHat/CentOS, and SUSE/openSUSE systems
+      This role installs essential packages on Debian/Ubuntu systems
       with comprehensive validation, advanced debugging capabilities, and production-ready error handling.
     author:
       - "System Administrator"
@@ -19,11 +19,6 @@ argument_specs:
         required: false
       validate_parameters:
         description: "Enable parameter validation before role execution"
-        type: bool
-        default: true
-        required: false
-      strict_validation:
-        description: "Enable strict parameter validation with detailed error messages"
         type: bool
         default: true
         required: false
@@ -43,13 +38,8 @@ argument_specs:
         type: bool
         default: true
         required: false
-      package_clean_expire_cache:
-        description: "Clean expired cache (YUM/DNF only)"
-        type: bool
-        default: true
-        required: false
       essential_packages:
-        description: "List of universal essential packages to install"
+        description: "List of essential packages to install for Debian/Ubuntu"
         type: list
         elements: str
         default: 
@@ -57,52 +47,33 @@ argument_specs:
           - sudo
           - net-tools
           - gnupg
-          - audit
-          - libpwquality
           - htop
           - curl
           - wget
-          - openssh-clients
-          - iputils
-          - bind-utils
+          - openssh-client
+          - iputils-ping
+          - dnsutils
+          - apt-transport-https
+          - software-properties-common
         required: false
       optional_packages:
-        description: "List of universal optional packages to install"
+        description: "List of optional packages to install for Debian/Ubuntu"
         type: list
         elements: str
         default: []
         required: false
-      package_install_timeout:
-        description: "Package installation timeout in seconds (1-3600 range)"
-        type: int
-        default: 600
-        required: false
-        choices: [60, 120, 300, 600, 900, 1200, 1800, 3600]
       package_install_recommends:
         description: "Install recommended packages along with main packages"
         type: bool
         default: true
         required: false
-      package_install_suggests:
-        description: "Install suggested packages (not recommended for production)"
+      verify_deployment:
+        description: "Enable post-deployment verification"
+        type: bool
+        default: true
+        required: false
+      autoupdates_enabled:
+        description: "Enable automatic security updates"
         type: bool
         default: false
         required: false
-      package_mappings:
-        description: "Platform-specific package name mappings"
-        type: dict
-        default: {}
-        required: false
-        suboptions:
-          debian:
-            description: "Debian/Ubuntu specific package mappings"
-            type: dict
-            required: false
-          redhat:
-            description: "RedHat/CentOS specific package mappings"
-            type: dict
-            required: false
-          suse:
-            description: "SUSE/openSUSE specific package mappings"
-            type: dict
-            required: false

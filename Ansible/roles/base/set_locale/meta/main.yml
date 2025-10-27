@@ -13,11 +13,11 @@ galaxy_info:
   author: "Mad-Axell [mad.axell@gmail.com]"
   description: |
     Configures system locale, timezone, keyboard layout and console font
-    for Debian/Ubuntu and RedHat/CentOS systems with comprehensive validation
+    for Debian/Ubuntu systems with comprehensive validation
     and debugging capabilities.
     
     Настраивает системную локализацию, часовой пояс, раскладку клавиатуры
-    и консольный шрифт для систем Debian/Ubuntu и RedHat/CentOS с комплексной
+    и консольный шрифт для систем Debian/Ubuntu с комплексной
     валидацией и возможностями отладки.
   
   company: "Internal Infrastructure / Внутренняя инфраструктура"
@@ -38,19 +38,6 @@ galaxy_info:
         - "20.04"
         - "22.04"
         - "24.04"
-    - name: "EL"
-      versions:
-        - "7"
-        - "8"
-        - "9"
-    - name: "Rocky"
-      versions:
-        - "8"
-        - "9"
-    - name: "AlmaLinux"
-      versions:
-        - "8"
-        - "9"
   
   # Required collections / Требуемые коллекции
   collections:
@@ -67,10 +54,6 @@ galaxy_info:
     - configuration
     - debian
     - ubuntu
-    - redhat
-    - centos
-    - rocky
-    - almalinux
 
 # Dependencies / Зависимости
 dependencies: []
