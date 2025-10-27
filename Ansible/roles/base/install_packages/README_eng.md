@@ -1,87 +1,58 @@
-# Base Install Packages Role - English Documentation
+# install_packages - Debian Package Installation Role
 
-## Overview
+## Description
 
-The `base.install_packages` role provides comprehensive package installation capabilities for Debian/Ubuntu systems with advanced features including optional automatic security updates, structured logging, and robust error handling.
+This role installs essential packages on Debian/Ubuntu systems with comprehensive validation, advanced debugging capabilities, and production-ready error handling. It supports both essential and optional packages, automatic security updates configuration, and includes structured logging for all operations.
 
-## Table of Contents
+## Features
 
-- [Requirements](#requirements)
-- [Role Variables](#role-variables)
-- [Dependencies](#dependencies)
-- [Example Playbook](#example-playbook)
-- [Advanced Usage](#advanced-usage)
-- [Platform Support](#platform-support)
-- [Logging](#logging)
-- [Troubleshooting](#troubleshooting)
-- [License](#license)
+- **Universal Package Management**: Installs essential packages for Debian/Ubuntu systems
+- **Automatic Security Updates**: Configures unattended-upgrades for security updates
+- **Comprehensive Validation**: Preflight checks and post-deployment verification
+- **Structured Logging**: JSON-formatted logs for all operations
+- **Error Handling**: Block-rescue patterns with rollback capabilities
+- **Debug Support**: Detailed debugging output with system metrics
+- **Performance Monitoring**: Execution time tracking and performance metrics
+
+## Supported Platforms
+
+- **Ubuntu**: focal, jammy, noble
+- **Debian**: bullseye, bookworm, trixie
 
 ## Requirements
 
-### Ansible Version
-- **Minimum**: Ansible 2.9+
-- **Recommended**: Ansible 2.14+
-
-### Supported Operating Systems
-
-#### Debian Family
-- **Ubuntu**: focal (20.04), jammy (22.04), noble (24.04)
-- **Debian**: bullseye (11), bookworm (12), trixie (13)
-
-#### RedHat Family
-- **EL**: 7, 8, 9
-- **CentOS**: 7
-- **Rocky Linux**: 8, 9
-- **AlmaLinux**: 8, 9
-
-#### SUSE Family
-- **openSUSE**: 15.3, 15.4, 15.5, Tumbleweed
-- **SLES**: 15.3, 15.4, 15.5
-
-### Python Requirements
-- Python 3.6+ (on target hosts)
-- Required Python packages: `ansible`, `community.general` (for SUSE support)
+- Ansible 2.9 or higher
+- Debian family operating systems
+- Root or sudo privileges
+- Network connectivity for package downloads
 
 ## Role Variables
 
-### Core Configuration
+### Essential Configuration
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `essential_packages` | list | See defaults | Universal package names to install |
-| `optional_packages` | list | `[]` | Additional packages to install |
 | `debug_mode` | bool | `false` | Enable comprehensive debug output |
+| `log_file` | str | `"/var/log/ansible-changes.log"` | Path to structured log file |
 | `validate_parameters` | bool | `true` | Enable parameter validation |
-| `log_file` | str | `/var/log/ansible-changes.log` | Path to structured log file |
 | `verify_deployment` | bool | `true` | Enable post-deployment verification |
-| `autoupdates_enabled` | bool | `false` | Enable automatic security updates |
 
 ### Package Management
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `package_update_cache` | bool | `true` | Update package cache before installation |
-| `package_upgrade_packages` | bool | `true` | Upgrade system packages |
-| `package_cache_valid_time` | int | `86400` | Cache validity time in seconds (24 hours) |
-| `package_install_recommends` | bool | `true` | Install recommended packages |
+| `package_cache_valid_time` | int | `86400` | Package cache validity time in seconds (24 hours) |
+| `package_update_cache` | bool | `true` | Update package cache before operations |
+| `package_upgrade_packages` | bool | `true` | Upgrade system packages to latest versions |
+| `package_install_recommends` | bool | `true` | Install recommended packages along with main packages |
 
-### Automatic Updates
+### Essential Packages
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `autoupdates_enabled` | bool | `true` | Enable automatic security updates |
-| `security_updates_only` | bool | `true` | Install only security updates |
-| `reboot_if_required` | bool | `false` | Allow automatic reboot after updates |
-| `gpg_require_signed` | bool | `true` | Require GPG signature verification |
-| `autoupdates_autoremove` | bool | `true` | Remove unused dependencies (Debian/Ubuntu) |
-| `autoupdates_schedule_enabled` | bool | `true` | Enable scheduled automatic updates |
-| `autoupdates_time` | str | `"02:00"` | Time for automatic updates |
-| `autoupdates_download_only` | bool | `false` | Download updates without installing |
+| `essential_packages` | list | See below | List of essential packages to install |
 
-### Default Essential Packages
-
-The role installs these universal packages (mapped to platform-specific names):
-
+**Default Essential Packages:**
 - `acl` - Access Control Lists
 - `sudo` - Superuser do
 - `net-tools` - Network utilities
@@ -89,21 +60,42 @@ The role installs these universal packages (mapped to platform-specific names):
 - `htop` - Interactive process viewer
 - `curl` - Command line tool for transferring data
 - `wget` - Internet file retriever
-- `openssh-clients` - SSH client
-- `iputils` - Network testing tools
-- `bind-utils` - DNS utilities
+- `openssh-client` - SSH client
+- `iputils-ping` - Network testing tools
+- `dnsutils` - DNS utilities
+- `apt-transport-https` - HTTPS transport for APT
+- `software-properties-common` - Software properties management
+
+### Optional Packages
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `optional_packages` | list | `[]` | List of optional packages to install |
+
+### Automatic Security Updates
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `autoupdates_enabled` | bool | `false` | Enable automatic security updates |
+| `security_updates_only` | bool | `true` | Install only security updates |
+| `reboot_if_required` | bool | `false` | Allow automatic system reboot if required |
+| `gpg_require_signed` | bool | `true` | Require GPG signature verification |
+| `autoupdates_autoremove` | bool | `true` | Automatic removal of unused dependencies |
+| `autoupdates_schedule_enabled` | bool | `true` | Enable automatic update schedule |
+| `autoupdates_time` | str | `"02:00"` | Time for automatic updates |
+| `autoupdates_download_only` | bool | `false` | Download updates without installing |
+
+### System Requirements
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `min_disk_space` | int | `1073741824` | Minimum disk space in bytes (1GB) |
+| `min_memory_mb` | int | `512` | Minimum memory in MB |
+| `required_mounts` | list | `["/"]` | Required mount points for preflight checks |
 
 ## Dependencies
 
-### Ansible Collections
-```yaml
-collections:
-  - name: community.general
-    version: ">=3.0.0"
-```
-
-### Role Dependencies
-None - this role is designed to be independent.
+None
 
 ## Example Playbook
 
@@ -111,292 +103,172 @@ None - this role is designed to be independent.
 
 ```yaml
 ---
-- name: Install essential packages
-  hosts: all
-  become: yes
+- hosts: all
+  become: true
   roles:
-    - role: base.install_packages
+    - role: install_packages
       vars:
+        debug_mode: true
         essential_packages:
+          - acl
           - sudo
           - curl
           - wget
-          - htop
-        debug_mode: true
 ```
 
-### With Security Auto-updates Enabled
+### With Optional Packages
 
 ```yaml
 ---
-- name: Install packages with security auto-updates
-  hosts: all
-  become: yes
+- hosts: all
+  become: true
   roles:
-    - role: base.install_packages
+    - role: install_packages
       vars:
-        autoupdates_enabled: true
-        debug_mode: true
-```
-
-### Advanced Configuration
-
-```yaml
----
-- name: Configure server with packages and auto-updates
-  hosts: servers
-  become: yes
-  roles:
-    - role: base.install_packages
-      vars:
-        # Essential packages
         essential_packages:
+          - acl
           - sudo
           - curl
-          - wget
-          - htop
+        optional_packages:
           - vim
           - git
-        
-        # Optional packages
-        optional_packages:
-          - tree
-          - jq
-          - unzip
-        
-        # Debug and logging
+          - htop
         debug_mode: true
-        log_file: "/var/log/ansible-package-install.log"
-        
-        # Automatic updates
+```
+
+### With Automatic Security Updates
+
+```yaml
+---
+- hosts: all
+  become: true
+  roles:
+    - role: install_packages
+      vars:
         autoupdates_enabled: true
         security_updates_only: true
         reboot_if_required: false
         autoupdates_time: "03:00"
 ```
 
-### Platform-Specific Examples
+## Role Structure
 
-#### Debian/Ubuntu
-```yaml
----
-- name: Configure Ubuntu server
-  hosts: ubuntu_servers
-  become: yes
-  roles:
-    - role: base.install_packages
-      vars:
-        essential_packages:
-          - sudo
-          - curl
-          - wget
-        autoupdates_enabled: true
-        autoupdates_autoremove: true
+```
+roles/base/install_packages/
+├── defaults/main.yml              # Default variables
+├── handlers/main.yml              # Service restart handlers
+├── meta/
+│   ├── main.yml                   # Role metadata
+│   └── argument_specs.yml         # Input validation specs
+├── tasks/
+│   ├── main.yml                   # Main orchestration
+│   ├── validate.yml               # Parameter validation
+│   ├── preflight.yml              # Pre-execution checks
+│   ├── debian.yml                 # Debian/Ubuntu specific tasks
+│   ├── autoupdate_debian.yml      # Automatic updates config
+│   └── verify.yml                 # Post-deployment verification
+├── templates/
+│   ├── 20auto-upgrades.j2         # APT periodic config
+│   └── 50unattended-upgrades.j2   # Unattended upgrades config
+├── README.md                      # Brief overview
+├── README_eng.md                  # Complete English docs
+└── README_rus.md                  # Complete Russian docs
 ```
 
-#### RedHat/CentOS
-```yaml
----
-- name: Configure CentOS server
-  hosts: centos_servers
-  become: yes
-  roles:
-    - role: base.install_packages
-      vars:
-        essential_packages:
-          - sudo
-          - curl
-          - wget
-        autoupdates_enabled: true
-        security_updates_only: true
-```
+## Task Flow
 
-#### SUSE/openSUSE
-```yaml
----
-- name: Configure SUSE server
-  hosts: suse_servers
-  become: yes
-  roles:
-    - role: base.install_packages
-      vars:
-        essential_packages:
-          - sudo
-          - curl
-          - wget
-        autoupdates_enabled: true
-        autoupdates_time: "02:30"
-```
+1. **Validation**: Validate role arguments and parameters
+2. **Preflight Checks**: Verify system compatibility and resources
+3. **Package Cache Management**: Update APT cache if enabled
+4. **System Upgrade**: Upgrade packages if enabled
+5. **Essential Package Installation**: Install required packages
+6. **Optional Package Installation**: Install optional packages if defined
+7. **Verification**: Verify all packages are installed correctly
+8. **Automatic Updates Configuration**: Configure security updates if enabled
 
-## Advanced Usage
+## Preflight Checks
 
-### Custom Package Mappings
+The role performs comprehensive preflight checks:
 
-The role automatically maps universal package names to platform-specific names. You can override these mappings:
+- Ansible version validation (2.9+)
+- OS compatibility (Debian family only)
+- Disk space verification
+- Memory requirements check
+- Network connectivity test
+- Package manager availability
+- Required directories existence
+- Filesystem writability
 
-```yaml
----
-- name: Custom package mappings
-  hosts: all
-  become: yes
-  roles:
-    - role: base.install_packages
-      vars:
-        package_mappings:
-          debian:
-            custom_package: "custom-debian-package"
-          redhat:
-            custom_package: "custom-redhat-package"
-          suse:
-            custom_package: "custom-suse-package"
-```
+## Structured Logging
 
-### Conditional Package Installation
+All operations are logged to a structured JSON file (`/var/log/ansible-changes.log` by default) with the following information:
 
-```yaml
----
-- name: Conditional package installation
-  hosts: all
-  become: yes
-  roles:
-    - role: base.install_packages
-      vars:
-        essential_packages:
-          - sudo
-          - curl
-          - wget
-        optional_packages: "{{ development_packages if is_development | default(false) else [] }}"
-```
+- Timestamp and correlation ID
+- Event type and level
+- User and host information
+- Operation metadata
+- Success/failure status
 
-### Custom Logging Configuration
+## Error Handling
 
-```yaml
----
-- name: Custom logging setup
-  hosts: all
-  become: yes
-  roles:
-    - role: base.install_packages
-      vars:
-        log_file: "/var/log/custom-ansible-changes.log"
-        debug_mode: true
-```
+The role implements comprehensive error handling:
 
-## Platform Support
+- Block-rescue patterns for critical operations
+- Automatic rollback on configuration failures
+- Detailed error messages with context
+- Graceful degradation for non-critical failures
 
-### Supported Operating Systems
+## Performance Features
 
-| OS Family | Package Manager | Auto-update Tool |
-|-----------|----------------|------------------|
-| Debian/Ubuntu | APT | unattended-upgrades (optional) |
+- Configurable package cache validity
+- Retry mechanisms for failed operations
+- Execution time tracking
+- Resource usage monitoring
+- Optimized APT operations
 
-### Debian/Ubuntu Features
-- APT package management
-- `unattended-upgrades` for automatic security updates (optional)
-- GPG signature verification
-- Automatic dependency cleanup
-- Optional automatic security updates
+## Security Features
 
-## Logging
-
-### Structured Logging Format
-
-All operations are logged in JSON format to the specified log file:
-
-```json
-{
-  "timestamp": "2024-01-15T10:30:45Z",
-  "level": "INFO",
-  "event_type": "PACKAGE_INSTALL",
-  "component": "ESSENTIAL",
-  "hostname": "server01",
-  "status": "SUCCESS",
-  "packages": "sudo,curl,wget",
-  "user": "ansible",
-  "playbook": "install_packages",
-  "correlation_id": "1705312245"
-}
-```
-
-### Log Event Types
-
-- `ROLE_START` - Role execution started
-- `ROLE_COMPLETE` - Role execution completed
-- `CACHE_UPDATE` - Package cache updated
-- `PACKAGE_INSTALL` - Packages installed
-- `CONFIG_CHANGE` - Configuration changed
-- `SERVICE_MANAGE` - Service management operations
-
-### Log Analysis
-
-```bash
-# View all package installations
-grep "PACKAGE_INSTALL" /var/log/ansible-changes.log
-
-# View configuration changes
-grep "CONFIG_CHANGE" /var/log/ansible-changes.log
-
-# View errors
-grep '"level":"ERROR"' /var/log/ansible-changes.log
-```
+- GPG signature verification for packages
+- Secure configuration file permissions
+- No hardcoded secrets
+- Input validation and sanitization
+- Audit trail through structured logging
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### Package Installation Failures
-```bash
-# Check package availability
-ansible host -m shell -a "apt list --installed | grep package_name"  # Debian/Ubuntu
-ansible host -m shell -a "rpm -qa | grep package_name"  # RedHat/CentOS
-ansible host -m shell -a "zypper se -i package_name"  # SUSE
-```
+1. **Package Installation Failures**
+   - Check network connectivity
+   - Verify package names are correct
+   - Ensure sufficient disk space
 
-#### Automatic Updates Not Working
-```bash
-# Check service status
-ansible host -m shell -a "systemctl status unattended-upgrades"  # Debian/Ubuntu
-ansible host -m shell -a "systemctl status dnf-automatic.timer"  # RedHat/CentOS 8+
-ansible host -m shell -a "systemctl status yum-cron"  # RedHat/CentOS 7
-ansible host -m shell -a "systemctl status zypper-automatic-update.timer"  # SUSE
-```
+2. **Permission Errors**
+   - Run playbook with `become: true`
+   - Check sudo configuration
+   - Verify user has necessary privileges
 
-#### GPG Signature Issues
-```bash
-# Refresh GPG keys
-ansible host -m shell -a "apt-key update"  # Debian/Ubuntu
-ansible host -m shell -a "rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-*"  # RedHat/CentOS
-ansible host -m shell -a "zypper refresh"  # SUSE
-```
+3. **Validation Failures**
+   - Check parameter types and values
+   - Ensure all required variables are defined
+   - Verify OS compatibility
 
 ### Debug Mode
 
 Enable debug mode for detailed output:
 
 ```yaml
----
-- name: Debug package installation
-  hosts: all
-  become: yes
-  roles:
-    - role: base.install_packages
-      vars:
-        debug_mode: true
-        essential_packages:
-          - sudo
-          - curl
+- role: install_packages
+  vars:
+    debug_mode: true
 ```
 
-### Validation Issues
-
-The role includes comprehensive parameter validation. Common validation errors:
-
-- Invalid package names
-- Unsupported OS family
-- Invalid boolean values
-- Missing required parameters
-
-Check the role execution output for specific validation error messages.
+This will provide:
+- Detailed system information
+- Package availability analysis
+- Installation progress tracking
+- Performance metrics
+- Comprehensive error details
 
 ## License
 
@@ -404,17 +276,4 @@ MIT
 
 ## Author
 
-Mad-Axell [mad.axell@gmail.com]
-
-## Changelog
-
-### Version 2.0.0
-- Added structured logging support
-- Enhanced error handling with rollback mechanisms
-- Improved multi-platform support
-- Added comprehensive parameter validation
-
-### Version 1.0.0
-- Initial release
-- Basic package installation support
-- Multi-platform compatibility
+System Administrator [mad.axell@gmail.com]

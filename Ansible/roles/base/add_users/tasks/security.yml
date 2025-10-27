@@ -297,7 +297,8 @@
       - "Status:                   {{ 'SUCCESS' if item.rc is defined and item.rc == 0 else 'SKIPPED' }}"
       - "============================================================================="
   loop: "{{ chage_inactive_result.results | default([]) }}"
-  when: debug_mode | default(false)
+  when: 
+    - debug_mode | default(false)
     - chage_inactive_result is defined
     - chage_inactive_result.results is defined
   tags:

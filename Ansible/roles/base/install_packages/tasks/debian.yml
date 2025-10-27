@@ -59,10 +59,10 @@
       register: apt_repositories
       failed_when: false
       changed_when: false
-      when: debug_mode | bool      # Show detailed cache update status and repository information
-      # Показать детальный статус обновления кэша и информацию о репозиториях
+      when: debug_mode | bool
 
-
+    # Show detailed cache update status and repository information
+    # Показать детальный статус обновления кэша и информацию о репозиториях
     - name: "Display APT cache update and repository analysis results (English)"
       ansible.builtin.debug:
         msg:
@@ -77,20 +77,21 @@
           - "============================================================================="
       when: 
         - debug_mode | bool and package_update_cache | bool
+
 # Execute comprehensive system package upgrade and maintenance for Debian/Ubuntu
 # Выполнение комплексного обновления и обслуживания системных пакетов для Debian/Ubuntu
 - name: "Execute system package upgrade and maintenance for Debian/Ubuntu"
-  block:      # Update installed packages to latest versions with configurable upgrade policy
-      # Обновление установленных пакетов до последних версий с настраиваемой политикой обновления
-
+  block:
+    # Update installed packages to latest versions with configurable upgrade policy
+    # Обновление установленных пакетов до последних версий с настраиваемой политикой обновления
     - name: "Perform system-wide package upgrade to latest available versions"
       ansible.builtin.apt:
         upgrade: "{{ package_upgrade_packages }}"
       register: apt_upgrade_result
-      when: package_upgrade_packages | bool      # Show comprehensive upgrade operation status and impact
-      # Показать комплексный статус операции обновления и её влияние
+      when: package_upgrade_packages | bool
 
-
+    # Show comprehensive upgrade operation status and impact
+    # Показать комплексный статус операции обновления и её влияние
     - name: "Display system package upgrade operation results (English)"
       ansible.builtin.debug:
         msg:
@@ -104,29 +105,30 @@
           - "============================================================================="
       when: 
         - debug_mode | bool and package_upgrade_packages | bool
+
 # Execute essential package installation with comprehensive pre-installation analysis for Debian/Ubuntu
 # Выполнение установки основных пакетов с комплексным предустановочным анализом для Debian/Ubuntu
 - name: "Execute essential package installation with pre-installation analysis for Debian/Ubuntu"
-  block:      # Collect detailed package information for installation planning
-      # Сбор детальной информации о пакетах для планирования установки
-
+  block:
+    # Collect detailed package information for installation planning
+    # Сбор детальной информации о пакетах для планирования установки
     - name: "Gather comprehensive information about currently installed packages"
       ansible.builtin.package_facts:
         manager: auto
-      register: package_facts      # Verify packages are available for installation with version information
-      # Проверка доступности пакетов для установки с информацией о версиях
+      register: package_facts
 
-
+    # Verify packages are available for installation with version information
+    # Проверка доступности пакетов для установки с информацией о версиях
     - name: "Perform detailed package availability verification in repositories"
       ansible.builtin.command: "apt-cache policy {{ item }}"
       register: package_availability
       failed_when: false
       changed_when: false
       loop: "{{ platform_packages }}"
-      when: debug_mode | bool      # Show detailed package availability information including versions
-      # Показать детальную информацию о доступности пакетов включая версии
+      when: debug_mode | bool
 
-
+    # Show detailed package availability information including versions
+    # Показать детальную информацию о доступности пакетов включая версии
     - name: "Display package availability analysis results (English)"
       ansible.builtin.debug:
         msg:
@@ -140,9 +142,10 @@
           - "============================================================================="
       loop: "{{ package_availability.results | default([]) }}"
       when: 
-        - debug_mode | bool and package_availability is defined      # Show comprehensive package installation status and planning information
-      # Показать комплексный статус установки пакетов и информацию о планировании
+        - debug_mode | bool and package_availability is defined
 
+    # Show comprehensive package installation status and planning information
+    # Показать комплексный статус установки пакетов и информацию о планировании
     - name: "Display current package installation status and installation plan (English)"
       ansible.builtin.debug:
         msg:
@@ -156,9 +159,10 @@
           - "============================================================================="
       when: 
         - debug_mode | bool
-      no_log: true      # Install required packages with retry mechanism and comprehensive error handling
-      # Установка необходимых пакетов с механизмом повтора и комплексной обработкой ошибок
+      no_log: true
 
+    # Install required packages with retry mechanism and comprehensive error handling
+    # Установка необходимых пакетов с механизмом повтора и комплексной обработкой ошибок
     - name: "Execute essential packages installation with retry mechanism and error handling"
       ansible.builtin.apt:
         name: "{{ platform_packages }}"
@@ -198,10 +202,10 @@
         owner: root
         group: root
       when: essential_packages_result is defined
-      notify: "Restart system services after package installation"      # Show detailed installation operation results including success and failure analysis
-      # Показать детальные результаты операции установки включая анализ успеха и сбоев
+      notify: "Restart system services after package installation"
 
-
+    # Show detailed installation operation results including success and failure analysis
+    # Показать детальные результаты операции установки включая анализ успеха и сбоев
     - name: "Display essential packages installation operation results (English)"
       ansible.builtin.debug:
         msg:
@@ -217,12 +221,13 @@
       when: 
         - debug_mode | bool
       no_log: true
+
 # Execute optional packages installation with conditional processing and comprehensive error handling for Debian/Ubuntu
 # Выполнение установки дополнительных пакетов с условной обработкой и комплексной обработкой ошибок для Debian/Ubuntu
 - name: "Execute optional packages installation with conditional processing for Debian/Ubuntu"
-  block:      # Install user-defined optional packages with retry mechanism and comprehensive error handling
-      # Установка пользовательских дополнительных пакетов с механизмом повтора и комплексной обработкой ошибок
-
+  block:
+    # Install user-defined optional packages with retry mechanism and comprehensive error handling
+    # Установка пользовательских дополнительных пакетов с механизмом повтора и комплексной обработкой ошибок
     - name: "Execute user-defined optional packages installation with retry mechanism"
       ansible.builtin.apt:
         name: "{{ platform_optional_packages }}"
@@ -264,10 +269,10 @@
         group: root
       when: 
         - platform_optional_packages | length > 0
-        - optional_packages_result is defined      # Show detailed optional packages installation status and operation analysis
-      # Показать детальный статус установки дополнительных пакетов и анализ операции
+        - optional_packages_result is defined
 
-
+    # Show detailed optional packages installation status and operation analysis
+    # Показать детальный статус установки дополнительных пакетов и анализ операции
     - name: "Display optional packages installation operation results (English)"
       ansible.builtin.debug:
         msg:
@@ -283,29 +288,30 @@
       when: 
         - debug_mode | bool and platform_optional_packages | length > 0
       no_log: true
+
 # Execute comprehensive package installation verification and post-installation validation for Debian/Ubuntu
 # Выполнение комплексной проверки установки пакетов и пост-установочной валидации для Debian/Ubuntu
 - name: "Execute package installation verification and post-installation validation for Debian/Ubuntu"
-  block:      # Collect final package information for comprehensive verification
-      # Сбор финальной информации о пакетах для комплексной проверки
-
+  block:
+    # Collect final package information for comprehensive verification
+    # Сбор финальной информации о пакетах для комплексной проверки
     - name: "Gather final comprehensive package information for post-installation verification"
       ansible.builtin.package_facts:
         manager: auto
-      register: final_package_facts      # Verify each essential package is present and properly installed
-      # Проверка присутствия и корректной установки каждого основного пакета
+      register: final_package_facts
 
-
+    # Verify each essential package is present and properly installed
+    # Проверка присутствия и корректной установки каждого основного пакета
     - name: "Perform comprehensive verification of all essential packages installation"
       ansible.builtin.assert:
         that:
           - item in final_package_facts.ansible_facts.packages
         fail_msg: "Package '{{ item }}' was not successfully installed"
         success_msg: "Package '{{ item }}' is installed and verified"
-      loop: "{{ platform_packages }}"      # Show comprehensive installation results and verification status
-      # Показать комплексные результаты установки и статус проверки
+      loop: "{{ platform_packages }}"
 
-
+    # Show comprehensive installation results and verification status
+    # Показать комплексные результаты установки и статус проверки
     - name: "Display final installation summary and verification results (English)"
       ansible.builtin.debug:
         msg:
@@ -321,9 +327,9 @@
           - "============================================================================="
       when: 
         - debug_mode | bool
-  rescue:      # Handle any errors that occur during package installation
-      # Обработка любых ошибок, возникающих при установке пакетов
-
+  rescue:
+    # Handle any errors that occur during package installation
+    # Обработка любых ошибок, возникающих при установке пакетов
     - name: "Handle Debian/Ubuntu package installation errors"
       ansible.builtin.fail:
         msg: "Failed to install packages on Debian/Ubuntu system. Check package availability and system state."

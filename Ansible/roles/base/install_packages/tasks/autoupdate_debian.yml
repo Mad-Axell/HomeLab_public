@@ -7,14 +7,15 @@
 #
 # Этот файл настраивает unattended-upgrades для автоматических обновлений
 # безопасности на системах Debian/Ubuntu с проверкой GPG и обновлениями только безопасности.
-# =============================================================================  # Configure unattended-upgrades for automatic security updates
-  # Настройка unattended-upgrades для автоматических обновлений безопасности
+# =============================================================================
+# Configure unattended-upgrades for automatic security updates
+# Настройка unattended-upgrades для автоматических обновлений безопасности
 
 
 - name: "Configure automatic security updates for Debian/Ubuntu"
-  block:      # Show initialization message
-      # Показать сообщение об инициализации
-
+  block:
+    # Show initialization message
+    # Показать сообщение об инициализации
     - name: "Display automatic updates configuration initialization (English)"
       ansible.builtin.debug:
         msg:
@@ -28,9 +29,10 @@
           - "Auto-remove Packages:     {{ autoupdates_autoremove }}"
           - "============================================================================="
       when: 
-        - debug_mode | bool      # Install unattended-upgrades package for automatic updates
-      # Установка пакета unattended-upgrades для автоматических обновлений
+        - debug_mode | bool
 
+    # Install unattended-upgrades package for automatic updates
+    # Установка пакета unattended-upgrades для автоматических обновлений
     - name: "Install unattended-upgrades package"
       ansible.builtin.apt:
         name: unattended-upgrades
@@ -198,10 +200,10 @@
         mode: '0644'
         owner: root
         group: root
-      when: unattended_config is defined      # Configure when automatic updates should run
-      # Настройка времени запуска автоматических обновлений
+      when: unattended_config is defined
 
-
+    # Configure when automatic updates should run
+    # Настройка времени запуска автоматических обновлений
     - name: "Configure automatic updates schedule"
       ansible.builtin.template:
         src: 20auto-upgrades.j2
@@ -243,10 +245,10 @@
         mode: '0644'
         owner: root
         group: root
-      when: auto_upgrades_config is defined      # Ensure unattended-upgrades service is enabled and running
-      # Обеспечить включение и запуск службы unattended-upgrades
+      when: auto_upgrades_config is defined
 
-
+    # Ensure unattended-upgrades service is enabled and running
+    # Обеспечить включение и запуск службы unattended-upgrades
     - name: "Enable and start unattended-upgrades service"
       ansible.builtin.systemd:
         name: unattended-upgrades
@@ -286,10 +288,10 @@
         mode: '0644'
         owner: root
         group: root
-      when: unattended_service is defined      # Test configuration for syntax errors
-      # Проверка конфигурации на синтаксические ошибки
+      when: unattended_service is defined
 
-
+    # Test configuration for syntax errors
+    # Проверка конфигурации на синтаксические ошибки
     - name: "Verify unattended-upgrades configuration"
       ansible.builtin.command: unattended-upgrade --dry-run --debug
       register: unattended_test
@@ -297,10 +299,10 @@
       failed_when: false
       become: true
       tags:
-        - validation      # Show configuration results
-      # Показать результаты конфигурации
+        - validation
 
-
+    # Show configuration results
+    # Показать результаты конфигурации
     - name: "Display unattended-upgrades configuration results (English)"
       ansible.builtin.debug:
         msg:

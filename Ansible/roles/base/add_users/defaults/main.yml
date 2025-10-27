@@ -39,6 +39,14 @@ add_users_min_password_length: 8     # Integer. Minimum password length / Цел
 enable_rollback: true                # Boolean. Enable automatic rollback on failure / Логическое значение. Включить автоматический откат при ошибке
 backup_config: true                  # Boolean. Create backup before changes / Логическое значение. Создавать резервную копию перед изменениями
 
+# EN: Performance settings / RU: Настройки производительности
+async_timeout: 300                   # Integer (seconds). Timeout for async operations / Целое число (секунды). Таймаут для асинхронных операций
+retries: 3                          # Integer. Number of retry attempts for failed tasks / Целое число. Количество попыток повтора для неудачных задач
+retry_delay: 5                      # Integer (seconds). Delay between retry attempts / Целое число (секунды). Задержка между повторами
+
+# EN: Structured logging / RU: Структурированное логирование
+log_file: "/var/log/ansible-changes.log"  # String. Path to structured log file / Строка. Путь к файлу структурированного лога
+
 
 # EN: Password and account security policies / RU: Политики безопасности паролей и аккаунтов
 password_max_age: 90                 # Integer. Maximum password age in days / Целое число. Максимальный возраст пароля в днях

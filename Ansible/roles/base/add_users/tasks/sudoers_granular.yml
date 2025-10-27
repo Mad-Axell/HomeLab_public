@@ -79,8 +79,7 @@
         - security_groups
         - create
 
-    - name: Display granular sudoers creation results 
-    
+    - name: Display granular sudoers creation results
       ansible.builtin.debug:
         msg:
           - "============================================================================="

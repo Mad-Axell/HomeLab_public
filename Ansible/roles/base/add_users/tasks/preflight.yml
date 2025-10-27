@@ -17,19 +17,16 @@
 - name: Check OS compatibility
   ansible.builtin.assert:
     that:
-      - ansible_os_family in ['Debian', 'RedHat', 'Suse']
-      - ansible_distribution_version is version(min_os_version[ansible_os_family], '>=')
+      - ansible_os_family == 'Debian'
+      - ansible_distribution_version is version(min_os_version, '>=')
     fail_msg: |
-      EN: Unsupported OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
-      RU: Неподдерживаемая ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      EN: Unsupported OS: {{ ansible_distribution }} {{ ansible_distribution_version }}. Only Debian family distributions are supported.
+      RU: Неподдерживаемая ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}. Поддерживаются только дистрибутивы семейства Debian.
     success_msg: |
       EN: OS compatibility check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}
       RU: Проверка совместимости ОС пройдена: {{ ansible_distribution }} {{ ansible_distribution_version }}
   vars:
-    min_os_version:
-      Debian: "11"
-      RedHat: "8"
-      Suse: "15"
+    min_os_version: "11"
   tags: ['preflight']
 
 - name: Check required Python modules

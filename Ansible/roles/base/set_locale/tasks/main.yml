@@ -3,10 +3,10 @@
 # System Locale Configuration Role - Main Tasks
 # =============================================================================
 # This role configures system locale, timezone, keyboard layout and console font
-# for Debian/Ubuntu and RedHat/CentOS systems.
+# for Debian/Ubuntu systems.
 #
 # Роль настройки системной локализации, часового пояса, раскладки клавиатуры
-# и консольного шрифта для систем Debian/Ubuntu и RedHat/CentOS.
+# и консольного шрифта для систем Debian/Ubuntu.
 # =============================================================================
 
 # Gather system facts

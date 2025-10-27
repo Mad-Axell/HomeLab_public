@@ -67,23 +67,20 @@
           - optional_packages is iterable
           - optional_packages is not string
         fail_msg: "optional_packages must be defined as a list of universal package names"
-        success_msg: "optional_packages parameter is valid"      # Validate universal installation timeout parameter
-      # Валидация универсального параметра таймаута установки
+        success_msg: "optional_packages parameter is valid"
 
-
-      # Validate universal install recommends flag
-      # Валидация универсального флага установки рекомендуемых пакетов
-
-
+    # Validate universal install recommends flag
+    # Валидация универсального флага установки рекомендуемых пакетов
     - name: "Check if package_install_recommends is boolean"
       ansible.builtin.assert:
         that:
           - package_install_recommends is defined
           - package_install_recommends is boolean or package_install_recommends is string
         fail_msg: "package_install_recommends must be a boolean value"
-        success_msg: "package_install_recommends parameter is valid"      # Validate universal install suggests flag
-      # Валидация универсального флага установки предлагаемых пакетов
+        success_msg: "package_install_recommends parameter is valid"
 
+    # Validate universal essential package names format
+    # Валидация формата универсальных имен основных пакетов
     - name: "Validate universal essential package names format"
       ansible.builtin.assert:
         that:
@@ -93,10 +90,10 @@
         fail_msg: "Universal essential package name '{{ item }}' is invalid. Package names must be non-empty strings and cannot start with '-' or '+'"
         success_msg: "Universal essential package name '{{ item }}' is valid"
       loop: "{{ essential_packages }}"
-      when: essential_packages is defined and essential_packages | length > 0      # Check individual universal optional package name validity
-      # Проверка валидности отдельных универсальных имен дополнительных пакетов
+      when: essential_packages is defined and essential_packages | length > 0
 
-
+    # Check individual universal optional package name validity
+    # Проверка валидности отдельных универсальных имен дополнительных пакетов
     - name: "Validate universal optional package names format"
       ansible.builtin.assert:
         that:
@@ -106,10 +103,10 @@
         fail_msg: "Universal optional package name '{{ item }}' is invalid. Package names must be non-empty strings and cannot start with '-' or '+'"
         success_msg: "Universal optional package name '{{ item }}' is valid"
       loop: "{{ optional_packages }}"
-      when: optional_packages is defined and optional_packages | length > 0      # Show validation results
-      # Показать результаты валидации
+      when: optional_packages is defined and optional_packages | length > 0
 
-
+    # Show validation results
+    # Показать результаты валидации
     - name: "Display validation summary"
       ansible.builtin.debug:
         msg:
@@ -127,9 +124,9 @@
           - "Debug Mode:                {{ debug_mode }}"
           - "============================================================================="
       when: debug_mode | bool
-  rescue:      # Handle validation errors
-      # Обработка ошибок валидации
-
+  rescue:
+    # Handle validation errors
+    # Обработка ошибок валидации
     - name: "Parameter validation failed"
       ansible.builtin.fail:
         msg: "Role parameter validation failed. Please check the error messages above and correct the configuration. Ensure all required variables are properly defined and follow the expected format."

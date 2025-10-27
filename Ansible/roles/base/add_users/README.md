@@ -1,50 +1,38 @@
-# base/add_users
+# add_users
 
-**EN:** Comprehensive user management role with sudo privileges and security hardening  
-**RU:** Комплексная роль управления пользователями с sudo привилегиями и усилением безопасности
-
-## Quick Links
-
-- [📖 Complete English Documentation](README_eng.md)
-- [📖 Полная русская документация](README_rus.md)
-- [🔧 Usage Examples](#usage-examples)
-- [🛡️ Security Features](#security-features)
-
-## Overview
-
-This role provides enterprise-grade user management capabilities for Linux systems with:
-
-- **User Creation & Management**: Create, update, and configure user accounts
-- **Sudo Privileges**: Granular sudo configuration with security groups
-- **Security Hardening**: Password policies, PAM configuration, and access controls
-- **Cross-Platform Support**: Ubuntu, Debian, RHEL, and openSUSE
-- **Comprehensive Validation**: Input validation and error handling
+**EN:** User management role with sudo and group configuration  
+**RU:** Роль управления пользователями с sudo и конфигурацией групп
 
 ## Quick Start
 
 ```yaml
 - hosts: all
+  become: true
   roles:
-    - role: base/add_users
+    - role: base.add_users
       vars:
         users_to_add:
-          - username: "admin"
+          - username: admin_user
             password: "SecurePass123"
             is_sudoers: true
-            groups: ["sudo", "docker"]
+            groups: ["docker", "wheel"]
 ```
 
-## Security Groups
+## Documentation
 
-- **admins**: Full administrative access
-- **operators**: Limited operational access (systemctl, docker)
-- **auditors**: Read-only audit access
+- **[Complete English Documentation](README_eng.md)** - Full documentation in English
+- **[Полная документация на русском](README_rus.md)** - Полная документация на русском языке
 
-## Requirements
+## Features
 
-- Ansible 2.14+
-- Python 3.8+
-- Supported OS: Ubuntu 20.04+, Debian 11+, RHEL 8+, openSUSE 15+
+- ✅ User account creation and management
+- ✅ Sudo privileges configuration
+- ✅ Security groups with granular permissions
+- ✅ Password policies and PAM configuration
+- ✅ Comprehensive input validation
+- ✅ Structured JSON logging
+- ✅ Error handling with rollback support
+- ✅ Debian/Ubuntu support
 
 ## License
 

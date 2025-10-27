@@ -7,9 +7,7 @@
 # Validate role arguments
 # Валидация аргументов роли
 - name: "Validate role arguments"
-  ansible.builtin.validate_argument_spec:
-    argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
-
+  ansible.builtin.include_tasks: validate.yml
 
 # Preflight checks
 # Предварительные проверки
@@ -44,9 +42,9 @@
     owner: root
     group: root
 
+# Track role execution start time for performance monitoring
+# Отслеживание времени начала выполнения роли для мониторинга производительности
 - name: "Initialize role execution tracking"
-  # Track role execution start time for performance monitoring
-  # Отслеживание времени начала выполнения роли для мониторинга производительности
   ansible.builtin.set_fact:
     role_start_time: "{{ ansible_date_time.epoch }}"
   when: debug_mode | bool
@@ -66,11 +64,6 @@
   register: system_facts
   failed_when: false
   changed_when: false
-  tags:
-    - debug
-    - system
-    - facts
-    - gather
 
 # Validate input parameters before configuration
 # Валидация входных параметров перед конфигурацией
@@ -78,14 +71,10 @@
   ansible.builtin.include_tasks: validate.yml
   when: validate_parameters
   register: validation_result
-  tags:
-    - validation
-    - locale
-    - parameters
 
+# Show role execution details including host info and package lists
+# Показать детали выполнения роли включая информацию о хосте и списки пакетов
 - name: "Display role execution context (English)"
-  # Show role execution details including host info and package lists
-  # Показать детали выполнения роли включая информацию о хосте и списки пакетов
   ansible.builtin.debug:
     msg:
       - "============================================================================="
@@ -218,16 +207,16 @@
     - unattended-upgrades
 
 
+# Track role execution duration for performance monitoring and analysis
+# Отслеживание продолжительности выполнения роли для мониторинга производительности и анализа
 - name: "Calculate role execution time and performance metrics"
-  # Track role execution duration for performance monitoring and analysis
-  # Отслеживание продолжительности выполнения роли для мониторинга производительности и анализа
   ansible.builtin.set_fact:
     role_end_time: "{{ ansible_date_time.epoch }}"
   when: debug_mode | bool
 
+# Show comprehensive execution summary including performance metrics and operation statistics
+# Показать комплексную сводку выполнения включая метрики производительности и статистику операций
 - name: "Display role execution summary with performance metrics"
-  # Show comprehensive execution summary including performance metrics and operation statistics
-  # Показать комплексную сводку выполнения включая метрики производительности и статистику операций
   ansible.builtin.debug:
     msg:
       - "============================================================================="
@@ -250,9 +239,9 @@
     - debug_mode | bool
 
 
+# Final comprehensive success message with detailed completion status
+# Финальное комплексное сообщение об успехе с детальным статусом завершения
 - name: "Display final role completion confirmation (English)"
-  # Final comprehensive success message with detailed completion status
-  # Финальное комплексное сообщение об успехе с детальным статусом завершения
   ansible.builtin.debug:
     msg:
       - "============================================================================="
