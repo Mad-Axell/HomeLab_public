@@ -1,0 +1,80 @@
+---
+# Tasks for NFS configuration (optional)
+
+- name: Install NFS kernel server
+  ansible.builtin.apt:
+    name: nfs-kernel-server
+    state: present
+  when: nfs_enabled | default(false)
+  tags:
+    - nfs
+    - packages
+
+- name: Generate NFS exports configuration
+  ansible.builtin.template:
+    src: nfs-exports.j2
+    dest: /etc/exports
+    owner: root
+    group: root
+    mode: '0644'
+  when: nfs_enabled | default(false)
+  notify: restart_nfs
+  tags:
+    - nfs
+    - config
+
+- name: Create NFS export directories if they don't exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ nfs_exports | default([]) }}"
+  when:
+    - nfs_enabled | default(false)
+    - nfs_exports | default([]) | length > 0
+  tags:
+    - nfs
+    - shares
+
+- name: Export NFS shares
+  ansible.builtin.command:
+    cmd: exportfs -ra
+  when: nfs_enabled | default(false)
+  register: nfs_export_result
+  changed_when: nfs_export_result.rc == 0
+  tags:
+    - nfs
+    - shares
+
+- name: Ensure NFS services are enabled and started
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - nfs-kernel-server
+    - rpcbind
+  when: nfs_enabled | default(false)
+  tags:
+    - nfs
+    - services
+
+- name: Check NFS service status
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+  register: nfs_service_status
+  when: nfs_enabled | default(false)
+  tags:
+    - nfs
+    - verification
+
+- name: Verify NFS service is running
+  ansible.builtin.assert:
+    that:
+      - nfs_service_status.status.ActiveState == "active"
+    fail_msg: "NFS service is not running"
+    success_msg: "NFS service is running"
+  when: nfs_enabled | default(false)
+  tags:
+    - nfs
+    - verification

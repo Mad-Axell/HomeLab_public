@@ -1,0 +1,315 @@
+---
+# =============================================================================
+# UFW Configuration Validation Tasks / Задачи валидации конфигурации UFW
+# =============================================================================
+# This file contains validation tasks for firewall configuration parameters
+# Validates input parameters before applying firewall configuration
+#
+# Файл содержит задачи валидации параметров конфигурации файрвола
+# Валидирует входные параметры перед применением конфигурации файрвола
+# =============================================================================
+
+# Validate OS support
+# Валидация поддержки ОС
+- name: "Validate OS support"
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'Debian'
+    fail_msg: "Unsupported OS family: {{ ansible_os_family }}. Only Debian is supported"
+    success_msg: "OS family {{ ansible_os_family }} is supported"
+
+# Validate SSH port number
+# Валидация номера порта SSH
+- name: "Validate SSH port number"
+  ansible.builtin.assert:
+    that:
+      - ssh_port is number
+      - ssh_port >= 1
+      - ssh_port <= 65535
+    fail_msg: "SSH port must be a number between 1 and 65535 / Порт SSH должен быть числом от 1 до 65535"
+    success_msg: "SSH port validation passed / Валидация порта SSH прошла успешно"
+
+# Validate SSH protocol
+# Валидация протокола SSH
+- name: "Validate SSH protocol"
+  ansible.builtin.assert:
+    that:
+      - ssh_protocol in ['tcp', 'udp']
+    fail_msg: "SSH protocol must be either 'tcp' or 'udp'"
+    success_msg: "SSH protocol validation passed"
+
+# Validate configuration mode
+# Валидация режима конфигурации
+- name: "Validate configuration mode"
+  ansible.builtin.assert:
+    that:
+      - (allowed_subnets is defined and allowed_subnets | length > 0) or (users_to_add is defined and users_to_add | length > 0)
+    fail_msg: "Either allowed_subnets or users_to_add must be defined and non-empty"
+    success_msg: "Configuration mode validation passed"
+
+# Validate direct subnet configuration
+# Валидация прямой конфигурации подсетей
+- name: "Validate direct subnet configuration"
+  ansible.builtin.assert:
+    that:
+      - allowed_subnets is sequence
+      - denied_subnets is sequence
+    fail_msg: "allowed_subnets and denied_subnets must be lists"
+    success_msg: "Direct subnet configuration validation passed"
+  when: allowed_subnets is defined and allowed_subnets | length > 0
+
+# Validate direct allowed subnets format
+# Валидация формата прямых разрешенных подсетей
+- name: "Validate direct allowed subnets format"
+  ansible.builtin.assert:
+    that:
+      - item is match('^[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid allowed subnet format: {{ item }}. Must be in CIDR notation (e.g., 192.168.1.0/24)"
+    success_msg: "Allowed subnet {{ item }} format is valid"
+  loop: "{{ allowed_subnets }}"
+  when: allowed_subnets is defined and allowed_subnets | length > 0
+
+# Validate direct denied subnets format
+# Валидация формата прямых запрещенных подсетей
+- name: "Validate direct denied subnets format"
+  ansible.builtin.assert:
+    that:
+      - item is match('^[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid denied subnet format: {{ item }}. Must be in CIDR notation (e.g., 192.168.1.0/24)"
+    success_msg: "Denied subnet {{ item }} format is valid"
+  loop: "{{ denied_subnets }}"
+  when: denied_subnets is defined and denied_subnets | length > 0
+
+# Validate users to add structure
+# Валидация структуры пользователей для добавления
+- name: "Validate users to add structure"
+  ansible.builtin.assert:
+    that:
+      - users_to_add is sequence
+    fail_msg: "users_to_add must be a list"
+    success_msg: "Users list validation passed"
+  when: users_to_add is defined and users_to_add | length > 0
+
+# Validate individual user structure
+# Валидация структуры отдельного пользователя
+- name: "Validate individual user structure"
+  ansible.builtin.assert:
+    that:
+      - item.username is defined
+      - item.username is string
+      - item.username | length > 0
+      - item.password is defined
+      - item.password is string
+      - item.password | length > 0
+      - item.groups is defined
+      - item.groups is sequence
+      - item.is_sudoers is defined
+      - item.is_sudoers is boolean
+      - item.shell is defined
+      - item.shell is string
+      - item.allowed_subnets is defined
+      - item.allowed_subnets is sequence
+      - item.denied_subnets is defined
+      - item.denied_subnets is sequence
+    fail_msg: "Invalid user structure: {{ item }}. Each user must have username, password, groups, is_sudoers, shell, allowed_subnets, and denied_subnets"
+    success_msg: "User {{ item.username }} structure is valid"
+  loop: "{{ users_to_add }}"
+  when: users_to_add | length > 0
+
+# Validate allowed subnets for each user
+# Валидация разрешенных подсетей для каждого пользователя
+- name: "Validate allowed subnets for each user"
+  ansible.builtin.assert:
+    that:
+      - item.1 is match('^[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid allowed subnet format for user {{ item.0.username }}: {{ item.1 }}. Must be in CIDR notation (e.g., 192.168.1.0/24)"
+    success_msg: "Allowed subnet {{ item.1 }} for user {{ item.0.username }} format is valid"
+  with_subelements:
+    - "{{ users_to_add }}"
+    - allowed_subnets
+    - flags:
+        skip_missing: true
+  when: users_to_add | length > 0
+
+# Validate denied subnets for each user
+# Валидация запрещенных подсетей для каждого пользователя
+- name: "Validate denied subnets for each user"
+  ansible.builtin.assert:
+    that:
+      - item.1 is match('^[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid denied subnet format for user {{ item.0.username }}: {{ item.1 }}. Must be in CIDR notation (e.g., 192.168.1.0/24)"
+    success_msg: "Denied subnet {{ item.1 }} for user {{ item.0.username }} format is valid"
+  with_subelements:
+    - "{{ users_to_add }}"
+    - denied_subnets
+    - flags:
+        skip_missing: true
+  when: users_to_add | length > 0
+
+# Validate not_trusted subnets for each user (allowed networks)
+# Валидация not_trusted подсетей для каждого пользователя (разрешенные сети)
+- name: "Validate not_trusted subnets for each user (allowed networks)"
+  ansible.builtin.assert:
+    that:
+      - item.1 is match('^[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{1,2}$')
+    fail_msg: "Invalid not_trusted subnet format for user {{ item.0.username }}: {{ item.1 }}. Must be in CIDR notation (e.g., 192.168.1.0/24)"
+    success_msg: "Not trusted subnet {{ item.1 }} for user {{ item.0.username }} format is valid (allowed network)"
+  with_subelements:
+    - "{{ users_to_add }}"
+    - not_trusted_subnets
+    - flags:
+        skip_missing: true
+  when: users_to_add | length > 0
+
+
+# Validate UFW logging level
+# Валидация уровня логирования UFW
+- name: "Validate UFW logging level"
+  ansible.builtin.assert:
+    that:
+      - ufw_logging in ['off', 'low', 'medium', 'high', 'full']
+    fail_msg: "UFW logging level must be one of: off, low, medium, high, full"
+    success_msg: "UFW logging level validation passed "
+
+
+# Validate custom UFW rules structure
+# Валидация структуры пользовательских правил UFW
+- name: "Validate custom UFW rules structure"
+  ansible.builtin.assert:
+    that:
+      - ufw_rules is sequence
+    fail_msg: "ufw_rules must be a list"
+    success_msg: "Custom UFW rules list validation passed"
+
+# Validate individual UFW rule structure
+# Валидация структуры отдельного правила UFW
+- name: "Validate individual UFW rule structure"
+  ansible.builtin.assert:
+    that:
+      - item.rule is defined
+      - item.port is defined
+      - item.proto is defined
+      - item.rule in ['allow', 'deny', 'reject', 'limit']
+      - item.proto in ['tcp', 'udp']
+      - item.port is string or item.port is number
+    fail_msg: "Invalid UFW rule structure: {{ item }}. Each rule must have 'rule', 'port', and 'proto' fields"
+    success_msg: "UFW rule {{ item }} structure is valid"
+  loop: "{{ ufw_rules }}"
+  when: ufw_rules | length > 0
+
+
+# Validate boolean parameters
+# Валидация булевых параметров
+- name: "Validate boolean parameters"
+  ansible.builtin.assert:
+    that:
+      - debug_mode is boolean
+      - ssh_rate_limit is boolean
+      - validate_configuration is boolean
+      - ufw_ipv6 is boolean
+      - ufw_backup_enabled is boolean
+      - ddos_protection_enabled is boolean
+      - syn_flood_protection is boolean
+      - icmp_flood_protection is boolean
+      - invalid_packets_drop is boolean
+      - connection_tracking_limits is boolean
+      - structured_logging is boolean
+      - verify_deployment is boolean
+      - enable_rollback is boolean
+    fail_msg: "Boolean parameters must be true or false"
+    success_msg: "Boolean parameters validation passed"
+
+# Validate backup configuration
+# Валидация конфигурации резервного копирования
+- name: "Validate backup configuration"
+  ansible.builtin.assert:
+    that:
+      - ufw_backup_dir is string
+      - ufw_backup_dir | length > 0
+      - ufw_backup_suffix is string
+    fail_msg: "Backup configuration parameters are invalid"
+    success_msg: "Backup configuration validation passed"
+  when: ufw_backup_enabled | bool
+
+# Validate connection tracking parameters
+# Валидация параметров отслеживания соединений
+- name: "Validate connection tracking parameters"
+  ansible.builtin.assert:
+    that:
+      - conntrack_max is number
+      - conntrack_max > 0
+      - conntrack_max <= 1000000
+      - conntrack_tcp_timeout_syn_recv is number
+      - conntrack_tcp_timeout_syn_recv > 0
+      - conntrack_tcp_timeout_syn_recv <= 300
+      - conntrack_tcp_timeout_syn_sent is number
+      - conntrack_tcp_timeout_syn_sent > 0
+      - conntrack_tcp_timeout_syn_sent <= 300
+      - conntrack_tcp_timeout_fin_wait is number
+      - conntrack_tcp_timeout_fin_wait > 0
+      - conntrack_tcp_timeout_fin_wait <= 300
+      - conntrack_tcp_timeout_time_wait is number
+      - conntrack_tcp_timeout_time_wait > 0
+      - conntrack_tcp_timeout_time_wait <= 300
+      - conntrack_tcp_timeout_close is number
+      - conntrack_tcp_timeout_close > 0
+      - conntrack_tcp_timeout_close <= 300
+      - conntrack_tcp_timeout_close_wait is number
+      - conntrack_tcp_timeout_close_wait > 0
+      - conntrack_tcp_timeout_close_wait <= 300
+      - conntrack_tcp_timeout_last_ack is number
+      - conntrack_tcp_timeout_last_ack > 0
+      - conntrack_tcp_timeout_last_ack <= 300
+      - conntrack_tcp_timeout_established is number
+      - conntrack_tcp_timeout_established > 0
+      - conntrack_tcp_timeout_established <= 86400
+      - conntrack_tcp_timeout_unacknowledged is number
+      - conntrack_tcp_timeout_unacknowledged > 0
+      - conntrack_tcp_timeout_unacknowledged <= 300
+    fail_msg: "Connection tracking parameters are invalid"
+    success_msg: "Connection tracking parameters validation passed"
+  when: ddos_protection_enabled | bool and connection_tracking_limits | bool
+
+# Validate system requirements
+# Валидация системных требований
+- name: "Validate system requirements"
+  ansible.builtin.assert:
+    that:
+      - min_disk_space is number
+      - min_disk_space > 0
+      - required_mounts is sequence
+      - required_mounts | length > 0
+    fail_msg: "System requirements parameters are invalid"
+    success_msg: "System requirements validation passed"
+
+# Display validation summary / Отображение сводки валидации
+- name: "Display validation summary"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Parameter Validation Summary:"
+      - "============================================================================="
+      - "OS Family:              {{ ansible_os_family }} {{ '✓' if ansible_os_family == 'Debian' else '✗' }}"
+      - "SSH Port:               {{ ssh_port }} {{ '✓' if ssh_port is number and ssh_port >= 1 and ssh_port <= 65535 else '✗' }}"
+      - "SSH Protocol:           {{ ssh_protocol }} {{ '✓' if ssh_protocol in ['tcp', 'udp'] else '✗' }}"
+      - "Logging Level:          {{ ufw_logging }} {{ '✓' if ufw_logging in ['off', 'low', 'medium', 'high', 'full'] else '✗' }}"
+      - "IPv6 Support:           {{ ufw_ipv6 }} {{ '✓' if ufw_ipv6 is boolean else '✗' }}"
+      - "Rate Limiting:          {{ ssh_rate_limit }} {{ '✓' if ssh_rate_limit is boolean else '✗' }}"
+      - "DDoS Protection:        {{ ddos_protection_enabled }} {{ '✓' if ddos_protection_enabled is boolean else '✗' }}"
+      - "SYN Flood Protection:   {{ syn_flood_protection }} {{ '✓' if syn_flood_protection is boolean else '✗' }}"
+      - "ICMP Flood Protection:  {{ icmp_flood_protection }} {{ '✓' if icmp_flood_protection is boolean else '✗' }}"
+      - "Invalid Packets Drop:   {{ invalid_packets_drop }} {{ '✓' if invalid_packets_drop is boolean else '✗' }}"
+      - "Connection Tracking:    {{ connection_tracking_limits }} {{ '✓' if connection_tracking_limits is boolean else '✗' }}"
+      - "Debug Mode:             {{ debug_mode }} {{ '✓' if debug_mode is boolean else '✗' }}"
+      - "Validation Enabled:     {{ validate_configuration }} {{ '✓' if validate_configuration is boolean else '✗' }}"
+      - "Backup Enabled:         {{ ufw_backup_enabled }} {{ '✓' if ufw_backup_enabled is boolean else '✗' }}"
+      - "Structured Logging:     {{ structured_logging }} {{ '✓' if structured_logging is boolean else '✗' }}"
+      - "Verify Deployment:      {{ verify_deployment }} {{ '✓' if verify_deployment is boolean else '✗' }}"
+      - "Enable Rollback:        {{ enable_rollback }} {{ '✓' if enable_rollback is boolean else '✗' }}"
+      - "Configuration Mode:     {{ 'Direct subnets' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Users-based' }}"
+      - "Allowed Subnets:        {{ (allowed_subnets | length if (allowed_subnets is defined and allowed_subnets | length > 0) else (users_to_add | map(attribute='allowed_subnets') | flatten | unique | length if (users_to_add is defined and users_to_add | length > 0) else 0)) }} configured"
+      - "Denied Subnets:         {{ (denied_subnets | length if (denied_subnets is defined and denied_subnets | length > 0) else (users_to_add | map(attribute='denied_subnets') | flatten | unique | length if (users_to_add is defined and users_to_add | length > 0) else 0)) }} configured"
+      - "Custom Rules:           {{ ufw_rules | length }} configured"
+      - "Users to Add:           {{ users_to_add | length if (users_to_add is defined and users_to_add | length > 0) else '0' }} configured"
+      - "============================================================================="
+  when: debug_mode | default(false)

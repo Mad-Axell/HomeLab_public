@@ -1,0 +1,116 @@
+---
+# Preflight checks before role execution / Предварительные проверки перед выполнением роли
+
+# Check Ansible version
+# Проверка версии Ansible
+- name: "Check Ansible version"
+  ansible.builtin.assert:
+    that:
+      - ansible_version.full is version('2.14', '>=')
+    fail_msg: |
+      This role requires Ansible 2.14 or higher. Current version: {{ ansible_version.full }}
+      Эта роль требует Ansible 2.14 или выше. Текущая версия: {{ ansible_version.full }}
+    success_msg: |
+      Ansible version check passed: {{ ansible_version.full }}
+      Проверка версии Ansible прошла успешно: {{ ansible_version.full }}
+
+# Check OS compatibility
+# Проверка совместимости ОС
+- name: "Check OS compatibility"
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'Debian'
+      - ansible_distribution_version is version('11', '>=')
+    fail_msg: |
+      Unsupported OS: {{ ansible_distribution }} {{ ansible_distribution_version }}. Only Debian 11+ is supported.
+      Неподдерживаемая ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}. Поддерживается только Debian 11+.
+    success_msg: |
+      OS compatibility check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      Проверка совместимости ОС прошла успешно: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+# Check required Python modules
+# Проверка необходимых модулей Python
+- name: "Check required Python modules"
+  ansible.builtin.assert:
+    that:
+      - ansible_python_version is version('3.8', '>=')
+    fail_msg: |
+      Python 3.8+ is required. Current version: {{ ansible_python_version }}
+      Требуется Python 3.8+. Текущая версия: {{ ansible_python_version }}
+    success_msg: |
+      Python version check passed: {{ ansible_python_version }}
+      Проверка версии Python прошла успешно: {{ ansible_python_version }}
+
+# Check disk space
+# Проверка места на диске
+- name: "Check disk space"
+  ansible.builtin.assert:
+    that:
+      - item.size_available > min_disk_space | default(1073741824)  # 1GB default
+    fail_msg: |
+      Insufficient disk space on {{ item.mount }}
+      Недостаточно места на диске {{ item.mount }}
+  loop: "{{ ansible_mounts }}"
+  when:
+    - item.mount in required_mounts | default(['/'])
+  vars:
+    min_disk_space: 1073741824  # 1GB in bytes
+
+# Check if running as root or with sudo
+# Проверка запуска от имени root или с sudo
+- name: "Check if running as root or with sudo"
+  ansible.builtin.assert:
+    that:
+      - ansible_user == 'root' or ansible_become | default(false)
+    fail_msg: |
+      This role must be run as root or with become: true
+      Эта роль должна выполняться от имени root или с become: true
+    success_msg: |
+      Privilege check passed
+      Проверка привилегий прошла успешно
+
+# Check network connectivity
+# Проверка сетевого подключения
+- name: "Check network connectivity"
+  ansible.builtin.ping:
+  register: network_check
+  failed_when: false
+
+# Verify network connectivity
+# Проверка сетевого подключения
+- name: "Verify network connectivity"
+  ansible.builtin.assert:
+    that:
+      - network_check.ping is defined
+    fail_msg: |
+      Network connectivity check failed
+      Проверка сетевого подключения не удалась
+    success_msg: |
+      Network connectivity check passed
+      Проверка сетевого подключения прошла успешно
+
+# Check if firewall service is already running
+# Проверка запущена ли уже служба файрвола
+- name: "Check if firewall service is already running"
+  ansible.builtin.service_facts:
+  register: service_facts
+
+# Display preflight check results (English)
+# Отображение результатов предварительных проверок (английский)
+- name: "Display preflight check results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Preflight Check Results:"
+      - "============================================================================="
+      - "Ansible Version:         {{ ansible_version.full }} ✓"
+      - "OS Family:               {{ ansible_os_family }} ✓"
+      - "OS Version:              {{ ansible_distribution }} {{ ansible_distribution_version }} ✓"
+      - "Python Version:          {{ ansible_python_version }} ✓"
+      - "User:                    {{ ansible_user }} ✓"
+      - "Become:                  {{ ansible_become | default(false) }} ✓"
+      - "Network Connectivity:    {{ 'OK' if network_check.ping is defined else 'FAILED' }}"
+      - "Firewall Service:        UFW"
+      - "============================================================================="
+  when: debug_mode | default(false)
+

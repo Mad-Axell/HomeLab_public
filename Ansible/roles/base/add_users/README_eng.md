@@ -104,6 +104,9 @@ umask_system_users: '0027'               # String: Umask for system users
 home_dir_permissions: '0750'             # String: Home directory permissions
 min_uid: 1000                            # Integer: Minimum UID for regular users
 max_uid: 60000                           # Integer: Maximum UID for regular users
+enable_pam_configuration: true          # Boolean: Enable PAM modules configuration
+enable_pam_validation: true              # Boolean: Enable user credential validation before PAM setup
+enable_faillock_in_containers: false    # Boolean: Force enable faillock in containers (NOT RECOMMENDED)
 ```
 
 #### Security Groups Configuration
@@ -250,6 +253,56 @@ None. This role is self-contained and does not depend on other roles.
     - base.add_users
 ```
 
+### Container Usage
+```yaml
+---
+- hosts: containers
+  become: true
+  vars:
+    users_to_add:
+      - username: app_user
+        password: "SecurePass123!"
+        groups: ["docker"]
+        shell: "/bin/bash"
+    
+    # PAM configuration automatically adapts for containers
+    # faillock will be automatically disabled
+    enable_pam_configuration: true
+    enable_pam_validation: true
+    
+    # To force enable faillock (not recommended):
+    # enable_faillock_in_containers: true
+    
+    debug_mode: true  # Enable user login verification
+    
+  roles:
+    - base.add_users
+```
+
+### Proxmox Usage
+```yaml
+---
+- hosts: proxmox_hosts
+  become: true
+  vars:
+    users_to_add:
+      - username: proxmox_admin
+        password: "ProxmoxPass123!"
+        is_sudoers: true
+        groups: []
+        shell: "/bin/bash"
+      - username: proxmox_user
+        password: "UserPass456!"
+        shell: "/bin/bash"
+    
+    # Role automatically verifies Proxmox compatibility
+    enable_pam_configuration: true
+    debug_mode: true
+    
+  roles:
+    - base.add_users
+```
+
 ## Security Features
 
 ### Password Policies
@@ -263,6 +316,36 @@ The role automatically configures PAM modules for:
 - **Password Quality**: `pam_pwquality` for password complexity
 - **Account Lockout**: `pam_faillock` for failed login protection
 - **Password History**: `pam_unix` with password history tracking
+
+#### ⚠️ Important: PAM in Containers
+
+**Automatic Container Detection:**
+The role automatically detects container environments (Docker, LXC, Kubernetes) and **disables faillock** in containers for the following reasons:
+
+1. **Ephemeral Storage**: `/var/run/faillock` is typically in tmpfs and cleared on container restart
+2. **State Loss**: Failed attempt counters reset on restart, making tracking ineffective
+3. **Lockout Issues**: Lockout state can persist incorrectly after container restarts
+4. **Alternative Security**: Containers use network isolation and resource limits for security
+
+**Force Enable Faillock in Containers:**
+If you need to enable faillock in containers (not recommended), set:
+```yaml
+enable_faillock_in_containers: true  # NOT RECOMMENDED
+```
+
+**User Login Verification:**
+After role execution, automatic verification of user login capability is performed:
+- Faillock lockout check
+- System account lockout check
+- Sudo access test
+- SSH and Proxmox compatibility check
+- PAM configuration validation
+
+**Proxmox Compatibility:**
+The role verifies user compatibility with Proxmox web interface:
+- Users authenticate via PAM (already configured)
+- Validates shell compatibility for Proxmox
+- Provides recommendations for Proxmox web UI permissions setup
 
 ### File Permissions
 - **Home Directories**: Secure permissions (0750) for user home directories

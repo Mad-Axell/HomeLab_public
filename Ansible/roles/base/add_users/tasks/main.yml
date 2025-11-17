@@ -262,13 +262,26 @@
       ansible.builtin.set_fact:
         user_creation_start_time: "{{ ansible_date_time.epoch }}"
       
+    # EN: Determine password hashing method for user creation
+    # RU: Определение метода хеширования паролей для создания пользователей
+    # Note: Ansible does not support yescrypt directly, so we use sha512_crypt for creation
+    # Примечание: Ansible не поддерживает yescrypt напрямую, поэтому используем sha512_crypt для создания
+    # PAM will use yescrypt for password changes if configured
+    # PAM будет использовать yescrypt для смены паролей, если настроено
+    - name: Determine password hashing method for user creation
+      ansible.builtin.set_fact:
+        user_password_hash_method: "sha512_crypt"
+      tags:
+        - users
+        - facts
+
     - name: Create new system users
       ansible.builtin.user:
         name: "{{ item.username }}"
         shell: "{{ item.shell | default(add_users_default_shell) }}"
         groups: "{{ item.groups | default([]) }}"
         append: true
-        password: "{{ item.password | ansible.builtin.password_hash('sha512') }}"
+        password: "{{ item.password | ansible.builtin.password_hash(user_password_hash_method | default('sha512_crypt')) }}"
         update_password: always
         createhome: "{{ item.create_home | default(add_users_create_home) }}"
         home: "{{ item.home | default(add_users_home_prefix + '/' + item.username) }}"
@@ -282,7 +295,7 @@
       retries: "{{ retries | default(3) }}"
       delay: "{{ retry_delay | default(5) }}"
       until: user_creation_result is succeeded
-      no_log: true
+      no_log: "{{ not debug_show_passwords | default(false) }}"
       notify: "notify user creation"
       tags:
         - users
@@ -297,15 +310,22 @@
           - "============================================================================="
           - "Error: {{ ansible_failed_result.msg | default('Unknown error') }}"
           - "Task: {{ ansible_failed_task.name | default('Unknown task') }}"
+          - "User: {{ ansible_failed_result.item.username | default('Unknown') if ansible_failed_result.item is defined else 'Unknown' }}"
           - "Rollback Enabled: {{ enable_rollback | default(true) }}"
           - "============================================================================="
+          - "Common causes:"
+          - "1. Password hash method not supported (Ansible supports: md5_crypt, bcrypt, sha256_crypt, sha512_crypt)"
+          - "2. Password does not meet PAM requirements (minlen, minclass, maxrepeat)"
+          - "3. User already exists with different UID/GID"
+          - "4. Invalid username or password format"
+          - "5. Missing required packages (passwd, libpam-modules)"
+          - "============================================================================="
       when: debug_mode | default(false)
-        
-    - name: Continue with partial user creation
-      ansible.builtin.set_fact:
-        user_creation_result: "{{ user_creation_result | default({}) }}"
-        user_creation_failed: true
-      failed_when: false
+      
+    - name: Re-raise error for user creation failure
+      ansible.builtin.fail:
+        msg: "Failed to create user '{{ ansible_failed_result.item.username | default('unknown') if ansible_failed_result.item is defined else 'unknown' }}'. Error: {{ ansible_failed_result.msg | default('Unknown error') }}. Enable debug_mode=true to see detailed error information."
+      when: ansible_failed_result is defined
       
   always:
     - name: Set task completion status
@@ -365,12 +385,12 @@
         name: "{{ item.username }}"
         groups: "{{ item.groups | default([]) }}"
         append: true
-        password: "{{ item.password | ansible.builtin.password_hash('sha512') }}"
+        password: "{{ item.password | ansible.builtin.password_hash(user_password_hash_method | default('sha512_crypt')) }}"
         update_password: always
       loop: "{{ users_to_add }}"
       when: item.username in existing_usernames
       register: user_update_result
-      no_log: true
+      no_log: "{{ not debug_show_passwords | default(false) }}"
       tags:
         - users
         - update
@@ -457,6 +477,23 @@
   tags:
     - sudo
     - cleanup
+
+# EN: Unlock newly created users to prevent immediate lockout after PAM configuration
+# RU: Разблокировка только что созданных пользователей для предотвращения немедленной блокировки после настройки PAM
+- name: Ensure newly created users are not locked by faillock
+  ansible.builtin.command:
+    cmd: "faillock --dir {{ pam_faillock_dir | default('/var/lib/faillock') }} --user {{ item.username }} --reset"
+  loop: "{{ users_to_add }}"
+  when:
+    - item.username not in (existing_usernames | default([]))
+    - enable_pam_configuration | default(true)
+  register: unlock_new_users
+  changed_when: unlock_new_users.rc == 0
+  failed_when: false
+  tags:
+    - users
+    - security
+    - faillock
 
 # EN: Include security hardening tasks
 # RU: Подключение задач усиления безопасности

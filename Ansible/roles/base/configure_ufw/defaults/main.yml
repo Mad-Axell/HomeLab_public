@@ -1,0 +1,108 @@
+---
+# UFW Configuration Role Defaults / Значения по умолчанию роли конфигурации UFW
+# This role configures Uncomplicated Firewall (UFW) with security best practices
+# Эта роль настраивает простой файрвол (UFW) с лучшими практиками безопасности
+
+# Debug mode for verbose output / Режим отладки для подробного вывода
+debug_mode: true
+
+# SSH Configuration / Конфигурация SSH
+ssh_port: 22
+ssh_protocol: "tcp"
+
+# Direct subnet configuration (if defined, will be used instead of users_to_add)
+# Прямая конфигурация подсетей (если определена, будет использована вместо users_to_add)
+#allowed_subnets: []  # List of allowed subnets for SSH / Список разрешенных подсетей для SSH
+#denied_subnets: []   # List of denied subnets for SSH / Список запрещенных подсетей для SSH
+
+# User-based configuration (used if allowed_subnets/denied_subnets are not defined)
+# Конфигурация на основе пользователей (используется если allowed_subnets/denied_subnets не определены)
+users_to_add: []
+  # Пример структуры:
+  # - username: "admin"
+  #   password: "SecurePassword123!"
+  #   groups: ["sudo", "admin"]
+  #   is_sudoers: true
+  #   shell: /bin/bash
+  #   allowed_subnets:
+  #     - "192.168.1.0/24"
+  #     - "10.20.30.0/24"
+  #   denied_subnets:
+  #     - "192.168.0.0/24"
+  #     - "10.10.10.0/24"
+  #   not_trusted_subnets:  # Optional: allowed networks, merged with allowed_subnets / Опционально: разрешённые сети, объединяются с allowed_subnets
+  #     - "172.16.0.0/12"
+
+# UFW Default Policies / Политики UFW по умолчанию
+firewall_input_policy: "deny"      # Security policy for incoming traffic / Политика безопасности для входящего трафика
+firewall_output_policy: "allow"    # Security policy for outgoing traffic / Политика безопасности для исходящего трафика  
+firewall_forward_policy: "drop"    # Security policy for forwarded traffic / Политика безопасности для перенаправляемого трафика
+
+# Custom UFW Rules / Пользовательские правила UFW
+# Format: { rule: 'allow|deny', port: 'port_number', proto: 'tcp|udp', from_ip: 'optional_ip' }
+# Формат: { rule: 'allow|deny', port: 'номер_порта', proto: 'tcp|udp', from_ip: 'опциональный_ip' }
+ufw_rules:
+  # Web services (consider restricting to specific IPs in production)
+  # Веб-сервисы (рассмотрите ограничение доступа к конкретным IP в продакшене)
+  - { rule: 'allow', port: '80', proto: 'tcp', comment: 'HTTP' }
+  - { rule: 'allow', port: '443', proto: 'tcp', comment: 'HTTPS' }
+  - { rule: 'allow', port: "{{ ssh_port }}", proto: "{{ ssh_protocol }}", comment: 'SSH' }
+  
+# Rate limiting configuration for DDoS protection / Конфигурация ограничения скорости для защиты от DDoS
+# Rate limiting for SSH (optional). This rule ignores SSH access restrictions. / Ограничение скорости для SSH (опционально). Данное правило игнорирует запрет доступа по SSH
+# Rule : 22/tcp  LIMIT IN Anywhere
+ssh_rate_limit: true                      # Enable SSH rate limiting / Включить ограничение скорости SSH
+firewall_rate_limit_ssh: 5                # Max SSH connections per minute (UFW limit) / Макс. SSH подключений в минуту
+firewall_rate_limit_http: 100             # Max HTTP connections per minute / Макс. HTTP подключений в минуту
+firewall_rate_limit_https: 100            # Max HTTPS connections per minute / Макс. HTTPS подключений в минуту
+
+# Advanced DDoS protection settings / Настройки расширенной защиты от DDoS
+ddos_protection_enabled: true             # Enable DDoS protection features / Включить функции защиты от DDoS
+syn_flood_protection: true                # Enable SYN flood protection / Включить защиту от SYN flood
+icmp_flood_protection: true               # Enable ICMP flood protection / Включить защиту от ICMP flood
+invalid_packets_drop: true                # Enable invalid packets dropping / Включить отбрасывание недействительных пакетов
+connection_tracking_limits: true          # Enable connection tracking limits / Включить ограничения отслеживания соединений
+
+# Connection tracking limits / Ограничения отслеживания соединений
+conntrack_max: 65536                      # Maximum number of connections to track / Максимальное количество отслеживаемых соединений
+conntrack_tcp_timeout_syn_recv: 30        # SYN_RECV timeout in seconds / Таймаут SYN_RECV в секундах
+conntrack_tcp_timeout_syn_sent: 30        # SYN_SENT timeout in seconds / Таймаут SYN_SENT в секундах
+conntrack_tcp_timeout_fin_wait: 30        # FIN_WAIT timeout in seconds / Таймаут FIN_WAIT в секундах
+conntrack_tcp_timeout_time_wait: 30       # TIME_WAIT timeout in seconds / Таймаут TIME_WAIT в секундах
+conntrack_tcp_timeout_close: 10           # CLOSE timeout in seconds / Таймаут CLOSE в секундах
+conntrack_tcp_timeout_close_wait: 60      # CLOSE_WAIT timeout in seconds / Таймаут CLOSE_WAIT в секундах
+conntrack_tcp_timeout_last_ack: 30        # LAST_ACK timeout in seconds / Таймаут LAST_ACK в секундах
+conntrack_tcp_timeout_established: 3600   # ESTABLISHED timeout in seconds / Таймаут ESTABLISHED в секундах
+conntrack_tcp_timeout_unacknowledged: 30  # UNACKNOWLEDGED timeout in seconds / Таймаут UNACKNOWLEDGED в секундах
+
+# Logging configuration / Конфигурация логирования
+ufw_logging: "high"  # Options: off, low, medium, high, full / Варианты: off, low, medium, high, full
+# Recommended: high for security auditing / Рекомендуется: high  для аудита безопасности
+
+# IPv6 configuration / Конфигурация IPv6
+ufw_ipv6: false  # IPv6 support for security / Поддержка IPv6 для безопасности
+
+# Idempotency settings / Настройки идемпотентности
+ufw_auto_reset: true  # Automatically reset UFW for idempotency / Автоматически сбрасывать UFW для идемпотентности
+
+# Validation settings / Настройки валидации
+validate_configuration: true
+
+# Verification settings / Настройки проверки
+verify_deployment: true              # Enable post-deployment verification / Включить проверку после развертывания
+
+# Error handling and logging / Обработка ошибок и логирование
+ufw_backup_enabled: true
+ufw_backup_dir: "/etc/ufw/backup"
+ufw_backup_suffix: ".bak"
+
+# Structured logging / Структурированное логирование
+log_file: "/var/log/ansible-changes.log"  # String. Path to structured log file / Строка. Путь к файлу структурированного лога
+structured_logging: true                   # Boolean. Enable structured logging / Логическое значение. Включить структурированное логирование
+
+# System requirements / Системные требования
+min_disk_space: 1073741824                 # Minimum disk space in bytes (1GB) / Минимальное место на диске в байтах (1GB)
+required_mounts: ['/']                     # Required mount points for disk space check / Требуемые точки монтирования для проверки места
+
+# Error handling / Обработка ошибок
+enable_rollback: false                     # Enable rollback on failure / Включить откат при ошибке

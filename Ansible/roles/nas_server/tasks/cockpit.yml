@@ -1,0 +1,81 @@
+---
+# Tasks for Cockpit installation and configuration
+
+- name: Install Cockpit
+  ansible.builtin.apt:
+    name: cockpit
+    state: present
+  tags:
+    - cockpit
+    - packages
+
+- name: Setup 45Drives repository
+  ansible.builtin.shell:
+    cmd: curl -sSL https://repo.45drives.com/setup | bash
+  register: repo_setup_result
+  changed_when: "'already added' not in repo_setup_result.stdout | default('')"
+  tags:
+    - cockpit
+
+- name: Update apt cache after adding 45Drives repository
+  ansible.builtin.apt:
+    update_cache: true
+    #cache_valid_time: 3600
+  when: repo_setup_result.changed | default(false)
+  tags:
+    - cockpit
+
+- name: Install Cockpit modules from 45Drives
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ cockpit_modules | default([]) }}"
+  retries: 5
+  delay: 30
+  tags:
+    - cockpit
+    - packages
+
+# Configure Cockpit to listen on all interfaces
+# В случае проблем не использовать этот метод!
+# NOTE: If you have problems, do not use this method!
+- name: Configure Cockpit to listen on all interfaces
+  ansible.builtin.lineinfile:
+    path: /etc/cockpit/cockpit.conf
+    regexp: "^ListenStream="
+    line: "ListenStream={{ cockpit_listen_address }}:{{ cockpit_port }}"
+    create: true
+  notify: restart_cockpit
+  when: cockpit_configure_listener | default(false)
+  tags:
+    - cockpit
+    - config
+
+- name: Ensure Cockpit socket is enabled and started
+  ansible.builtin.systemd:
+    name: cockpit.socket
+    enabled: true
+    state: started
+  tags:
+    - cockpit
+    - services
+
+- name: Wait for Cockpit service to be available
+  ansible.builtin.wait_for:
+    port: "{{ cockpit_port }}"
+    host: "{{ cockpit_listen_address }}"
+    delay: 5
+    timeout: 60
+  tags:
+    - cockpit
+    - services
+
+- name: Verify Cockpit is running
+  ansible.builtin.uri:
+    url: "http://{{ cockpit_listen_address }}:{{ cockpit_port }}"
+    method: GET
+    status_code: [200, 401, 403]
+  register: cockpit_health_check
+  tags:
+    - cockpit
+    - verification

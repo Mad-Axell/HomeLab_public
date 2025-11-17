@@ -7,8 +7,7 @@
     argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
   tags: ['always', 'validate']
 
-# EN: Include parameter validation
-# RU: Включение валидации параметров
+
 # EN: Include parameter validation tasks
 # RU: Включение задач валидации параметров
 - name: "Include parameter validation tasks"
@@ -43,8 +42,6 @@
 # RU: Установка необходимых пакетов Python
 - name: "Install required Python packages"
   block:
-    # EN: Install Python dependencies
-    # RU: Установка зависимостей Python
     - name: "Install Python dependencies"
       ansible.builtin.package:
         name:
@@ -758,10 +755,12 @@
     api_token_id: "{{ pve_api_token_id | default(omit) }}"
     api_token_secret: "{{ pve_api_token_secret | default(omit) }}"
     vmid: "{{ pve_lxc_inferred_vmid }}"
+    hostname: "{{ pve_hostname | default(omit) }}"
     state: started
   register: pve_lxc_container_started
   notify: pve_lxc wait for connection
   when: 
+    - pve_lxc_inferred_vmid is defined
     - ((pve_lxc_container_created is not defined) or (pve_lxc_container_created is succeeded))
   tags:
     - container

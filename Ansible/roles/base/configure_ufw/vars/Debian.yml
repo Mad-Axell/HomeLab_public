@@ -1,0 +1,27 @@
+---
+# Debian/Ubuntu specific variables
+# Переменные для Debian/Ubuntu
+
+# Package management / Управление пакетами
+package_manager: apt
+package_cache_update: true
+package_cache_valid_time: 3600
+
+# Firewall package / Пакет файрвола
+firewall_package: ufw
+firewall_service: ufw
+
+# UFW specific paths / Специфичные пути UFW
+ufw_user_rules: "/etc/ufw/user.rules"
+ufw_default_file: "/etc/default/ufw"
+
+# UFW backup configuration / Конфигурация резервного копирования UFW
+ufw_backup_files:
+  - "/etc/ufw/ufw.conf"
+  - "/etc/ufw/user.rules"
+  - "/etc/ufw/user6.rules"
+  - "/etc/default/ufw"
+
+# Service management / Управление службами
+service_status_command: "systemctl is-active"
+service_enabled_command: "systemctl is-enabled"

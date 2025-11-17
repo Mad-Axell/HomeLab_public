@@ -1,0 +1,40 @@
+---
+# Handlers for nas_server role
+
+- name: restart cockpit
+  ansible.builtin.systemd:
+    name: cockpit.socket
+    state: restarted
+  listen: restart_cockpit
+
+- name: restart smbd
+  ansible.builtin.systemd:
+    name: smbd
+    state: restarted
+  listen: restart_smbd
+
+- name: restart nmbd
+  ansible.builtin.systemd:
+    name: nmbd
+    state: restarted
+  listen: restart_nmbd
+
+- name: reload smbd
+  ansible.builtin.systemd:
+    name: smbd
+    state: reloaded
+  listen: reload_smbd
+
+- name: restart nfs-kernel-server
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    state: restarted
+  listen: restart_nfs
+  when: nfs_enabled | default(false)
+
+- name: reload nfs-kernel-server
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    state: reloaded
+  listen: reload_nfs
+  when: nfs_enabled | default(false)

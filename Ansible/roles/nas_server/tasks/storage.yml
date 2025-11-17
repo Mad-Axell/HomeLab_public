@@ -1,0 +1,37 @@
+---
+
+- name: Add backports repository
+  ansible.builtin.lineinfile:
+    path: /etc/apt/sources.list
+    line: "deb http://deb.debian.org/debian {{ ansible_distribution_release }}-backports main contrib"
+    regexp: "^{{ ansible_distribution_release }}-backports"
+    state: present
+  when: backports_enabled | default(false)
+  tags:
+    - packages
+    - storage
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  tags:
+    - packages
+    - storage
+
+- name: Upgrade system packages
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: true
+    autoclean: true
+  tags:
+    - packages
+    - storage
+
+- name: Install essential packages
+  ansible.builtin.apt:
+    name: "{{ essential_packages }}"
+    state: present
+  tags:
+    - packages
+    - storage

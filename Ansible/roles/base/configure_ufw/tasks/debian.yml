@@ -1,0 +1,450 @@
+---
+# Debian/Ubuntu specific tasks / Задачи для Debian/Ubuntu
+
+# Extract allowed and denied subnets from users configuration
+# Извлечение разрешенных и запрещенных подсетей из конфигурации пользователей
+- name: "Extract allowed subnets from users to add"
+  ansible.builtin.set_fact:
+    extracted_allowed_subnets: "{{ extracted_allowed_subnets | default([]) + item.allowed_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+
+# Extract not_trusted subnets from users to add (allowed networks) directly to extracted_allowed_subnets
+# Извлечение not_trusted подсетей от пользователей для добавления (разрешенные сети) напрямую в extracted_allowed_subnets
+- name: "Extract not_trusted subnets from users to add (allowed networks) directly to extracted_allowed_subnets"
+  ansible.builtin.set_fact:
+    extracted_allowed_subnets: "{{ extracted_allowed_subnets | default([]) + item.not_trusted_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+    - item.not_trusted_subnets is defined
+
+# Deduplicate extracted allowed subnets (including not_trusted)
+# Дедупликация извлеченных разрешенных подсетей (включая not_trusted)
+- name: "Deduplicate extracted allowed subnets (including not_trusted)"
+  ansible.builtin.set_fact:
+    extracted_allowed_subnets: "{{ extracted_allowed_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - allowed_subnets is not defined or allowed_subnets | length == 0
+
+# Extract denied subnets from users to add
+# Извлечение запрещенных подсетей от пользователей для добавления
+- name: "Extract denied subnets from users to add"
+  ansible.builtin.set_fact:
+    extracted_denied_subnets: "{{ extracted_denied_subnets | default([]) + item.denied_subnets }}"
+  loop: "{{ users_to_add }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - denied_subnets is not defined or denied_subnets | length == 0
+
+# Deduplicate extracted denied subnets
+# Дедупликация извлеченных запрещенных подсетей
+- name: "Deduplicate extracted denied subnets"
+  ansible.builtin.set_fact:
+    extracted_denied_subnets: "{{ extracted_denied_subnets | unique }}"
+  when: 
+    - users_to_add is defined
+    - users_to_add | length > 0
+    - denied_subnets is not defined or denied_subnets | length == 0
+
+# Set final allowed subnets list (including not_trusted subnets)
+# Установка финального списка разрешенных подсетей (включая not_trusted подсети)
+- name: "Set final allowed subnets list (including not_trusted subnets)"
+  ansible.builtin.set_fact:
+    final_allowed_subnets: "{{ (allowed_subnets if (allowed_subnets is defined and allowed_subnets | length > 0) else extracted_allowed_subnets | default([])) | unique }}"
+
+# Set final denied subnets list
+# Установка финального списка запрещенных подсетей
+- name: "Set final denied subnets list"
+  ansible.builtin.set_fact:
+    final_denied_subnets: "{{ (denied_subnets if (denied_subnets is defined and denied_subnets | length > 0) else extracted_denied_subnets | default([])) | unique }}"
+
+# Install UFW package on Debian/Ubuntu
+# Установка пакета UFW на Debian/Ubuntu
+- name: "Install UFW package on Debian/Ubuntu"
+  ansible.builtin.apt:
+    name: "{{ firewall_package }}"
+    state: present
+    update_cache: "{{ package_cache_update }}"
+    cache_valid_time: "{{ package_cache_valid_time }}"
+  register: ufw_install_result
+
+# Log UFW package installation
+# Логирование установки пакета UFW
+- name: "Log UFW package installation"
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "PACKAGE_INSTALL",
+      "package_name": "ufw",
+      "package_version": "latest",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "UFW package installed",
+      "metadata": {
+        "package_manager": package_manager,
+        "os_family": ansible_os_family,
+        "os_version": ansible_distribution_version,
+        "installation_status": ufw_install_result.changed | default(false)
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when: 
+    - structured_logging | default(false)
+    - ufw_install_result is defined
+    - ufw_install_result.changed | default(false)
+
+# Start and enable UFW service
+# Запуск и включение службы UFW
+- name: "Start and enable UFW service"
+  ansible.builtin.service:
+    name: "{{ firewall_service }}"
+    state: started
+    enabled: true
+  register: ufw_service_result
+
+# Reset UFW to ensure idempotency
+# Сброс UFW для обеспечения идемпотентности
+- name: "Reset UFW to ensure idempotency"
+  community.general.ufw:
+    state: reset
+  when: ufw_auto_reset | bool
+  become: true
+  register: ufw_reset_result
+
+# Configure UFW logging level
+# Настройка уровня логирования UFW
+- name: "Configure UFW logging level"
+  community.general.ufw:
+    logging: "{{ ufw_logging }}"
+  become: true
+  register: ufw_logging_result
+
+# Set UFW default incoming policy to DENY
+# Установка политики UFW по умолчанию для входящих на DENY
+- name: "Set UFW default incoming policy to DENY"
+  community.general.ufw:
+    direction: incoming
+    policy: "{{ firewall_input_policy }}"
+  become: true
+  register: ufw_incoming_result
+
+# Set UFW default outgoing policy to ALLOW
+# Установка политики UFW по умолчанию для исходящих на ALLOW
+- name: "Set UFW default outgoing policy to ALLOW"
+  community.general.ufw:
+    direction: outgoing
+    policy: "{{ firewall_output_policy }}"
+  become: true
+  register: ufw_outgoing_result
+
+# Set UFW default forward policy to DROP
+# Установка политики UFW по умолчанию для перенаправления на DROP
+- name: "Set UFW default forward policy to DROP"
+  ansible.builtin.lineinfile:
+    path: "{{ ufw_default_file }}"
+    regexp: '^DEFAULT_FORWARD_POLICY='
+    line: 'DEFAULT_FORWARD_POLICY="{{ firewall_forward_policy | upper }}"'
+    backup: true
+  become: true
+  register: ufw_forward_result
+  notify: reload ufw
+
+# Allow all traffic on loopback interface
+# Разрешить весь трафик на интерфейсе loopback
+- name: "Allow all traffic on loopback interface"
+  community.general.ufw:
+    rule: allow
+    interface: lo
+    direction: in
+    comment: "Allow loopback traffic"
+  become: true
+  register: ufw_loopback_result
+
+# Allow established and related connections
+# Разрешить установленные и связанные соединения
+- name: "Allow established and related connections"
+  ansible.builtin.blockinfile:
+    path: "{{ ufw_user_rules }}"
+    marker: "# {mark} ANSIBLE MANAGED - ESTABLISHED/RELATED"
+    block: |
+      # Allow established and related connections / Разрешить установленные и связанные соединения
+      -A ufw-before-input -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+      -A ufw-before-output -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+    insertbefore: "^COMMIT"
+    backup: true
+  become: true
+  register: ufw_established_result
+  notify: reload ufw
+
+# Allow SSH access from allowed subnets
+# Разрешить SSH доступ с разрешенных подсетей
+- name: "Allow SSH access from allowed subnets"
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: "{{ ssh_protocol }}"
+    from_ip: "{{ item }}"
+    comment: "SSH access from {{ item }}"
+  loop: "{{ final_allowed_subnets }}"
+  when: final_allowed_subnets | length > 0
+  become: true
+  register: ssh_rules_result
+
+# Deny SSH access from denied subnets
+# Запретить SSH доступ с запрещенных подсетей
+- name: "Deny SSH access from denied subnets"
+  community.general.ufw:
+    rule: deny
+    port: "{{ ssh_port }}"
+    proto: "{{ ssh_protocol }}"
+    from_ip: "{{ item }}"
+    comment: "SSH access denied from {{ item }}"
+  loop: "{{ final_denied_subnets }}"
+  when: final_denied_subnets | length > 0
+  become: true
+  register: ssh_deny_rules_result
+
+# Add custom UFW rules
+# Добавление пользовательских правил UFW
+- name: "Add custom UFW rules"
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    from_ip: "{{ item.from_ip | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_rules }}"
+  become: true
+  register: custom_rules_result
+
+# Configure SSH rate limiting (DDoS protection)
+# Настройка ограничения скорости SSH (защита от DDoS)
+- name: "Configure SSH rate limiting (DDoS protection)"
+  community.general.ufw:
+    rule: limit
+    port: "{{ ssh_port }}"
+    proto: "{{ ssh_protocol }}"
+    comment: "SSH rate limiting - max {{ firewall_rate_limit_ssh }}/min DDoS protection"
+  when: ssh_rate_limit | bool
+  become: true
+  register: ssh_rate_limit_result
+
+# Configure HTTP rate limiting (DDoS protection)
+# Настройка ограничения скорости HTTP (защита от DDoS)
+- name: "Configure HTTP rate limiting (DDoS protection)"
+  ansible.builtin.blockinfile:
+    path: "{{ ufw_user_rules }}"
+    marker: "# {mark} ANSIBLE MANAGED - HTTP RATE LIMITING"
+    block: |
+      # HTTP rate limiting - max {{ firewall_rate_limit_http }} connections per minute / Ограничение скорости HTTP
+      -A ufw-before-input -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --set --name HTTP
+      -A ufw-before-input -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount {{ firewall_rate_limit_http }} --name HTTP -j DROP
+    insertbefore: "^COMMIT"
+    backup: true
+  become: true
+  register: http_rate_limit_result
+  notify: reload ufw
+
+# Configure HTTPS rate limiting (DDoS protection)
+# Настройка ограничения скорости HTTPS (защита от DDoS)
+- name: "Configure HTTPS rate limiting (DDoS protection)"
+  ansible.builtin.blockinfile:
+    path: "{{ ufw_user_rules }}"
+    marker: "# {mark} ANSIBLE MANAGED - HTTPS RATE LIMITING"
+    block: |
+      # HTTPS rate limiting - max {{ firewall_rate_limit_https }} connections per minute / Ограничение скорости HTTPS
+      -A ufw-before-input -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set --name HTTPS
+      -A ufw-before-input -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount {{ firewall_rate_limit_https }} --name HTTPS -j DROP
+    insertbefore: "^COMMIT"
+    backup: true
+  become: true
+  register: https_rate_limit_result
+  notify: reload ufw
+
+# Configure SYN flood protection (DDoS protection)
+# Настройка защиты от SYN flood (защита от DDoS)
+- name: "Configure SYN flood protection (DDoS protection)"
+  ansible.builtin.blockinfile:
+    path: "{{ ufw_user_rules }}"
+    marker: "# {mark} ANSIBLE MANAGED - SYN FLOOD PROTECTION"
+    block: |
+      # SYN flood protection - limit 1/s burst 3 / Защита от SYN flood
+      -A ufw-before-input -p tcp --tcp-flags SYN,ACK,FIN,RST SYN -m limit --limit 1/s --limit-burst 3 -j ACCEPT
+      -A ufw-before-input -p tcp --tcp-flags SYN,ACK,FIN,RST SYN -j DROP
+    insertbefore: "^COMMIT"
+    backup: true
+  become: true
+  register: syn_flood_protection_result
+  notify: reload ufw
+  when: ddos_protection_enabled | bool and syn_flood_protection | bool
+
+# Configure ICMP flood protection (DDoS protection)
+# Настройка защиты от ICMP flood (защита от DDoS)
+- name: "Configure ICMP flood protection (DDoS protection)"
+  ansible.builtin.blockinfile:
+    path: "{{ ufw_user_rules }}"
+    marker: "# {mark} ANSIBLE MANAGED - ICMP FLOOD PROTECTION"
+    block: |
+      # ICMP flood protection - limit 1/s burst 5 / Защита от ICMP flood
+      -A ufw-before-input -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-burst 5 -j ACCEPT
+      -A ufw-before-input -p icmp --icmp-type echo-request -j DROP
+    insertbefore: "^COMMIT"
+    backup: true
+  become: true
+  register: icmp_flood_protection_result
+  notify: reload ufw
+  when: ddos_protection_enabled | bool and icmp_flood_protection | bool
+
+# Configure invalid packets dropping (DDoS protection)
+# Настройка отбрасывания недействительных пакетов (защита от DDoS)
+- name: "Configure invalid packets dropping (DDoS protection)"
+  ansible.builtin.blockinfile:
+    path: "{{ ufw_user_rules }}"
+    marker: "# {mark} ANSIBLE MANAGED - INVALID PACKETS DROPPING"
+    block: |
+      # Drop invalid packets / Отбрасывание недействительных пакетов
+      -A ufw-before-input -m conntrack --ctstate INVALID -j DROP
+      -A ufw-before-input -p tcp --tcp-flags ALL NONE -j DROP
+      -A ufw-before-input -p tcp --tcp-flags ALL ALL -j DROP
+      -A ufw-before-input -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
+      -A ufw-before-input -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
+    insertbefore: "^COMMIT"
+    backup: true
+  become: true
+  register: invalid_packets_drop_result
+  notify: reload ufw
+  when: ddos_protection_enabled | bool and invalid_packets_drop | bool
+
+# Disable IPv6 in UFW
+# Отключение IPv6 в UFW
+- name: "Disable IPv6 in UFW"
+  ansible.builtin.lineinfile:
+    path: "{{ ufw_default_file }}"
+    regexp: '^IPV6='
+    line: 'IPV6=no'
+    backup: true
+  when: not ufw_ipv6 | bool
+  become: true
+  register: ufw_ipv6_disable_result
+
+# Configure sysctl for connection tracking limits (DDoS protection)
+# Настройка sysctl для ограничений отслеживания соединений (защита от DDoS)
+- name: "Configure sysctl for connection tracking limits (DDoS protection)"
+  ansible.builtin.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - { name: 'net.netfilter.nf_conntrack_max', value: "{{ conntrack_max }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_syn_recv', value: "{{ conntrack_tcp_timeout_syn_recv }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_syn_sent', value: "{{ conntrack_tcp_timeout_syn_sent }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_fin_wait', value: "{{ conntrack_tcp_timeout_fin_wait }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_time_wait', value: "{{ conntrack_tcp_timeout_time_wait }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_close', value: "{{ conntrack_tcp_timeout_close }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_close_wait', value: "{{ conntrack_tcp_timeout_close_wait }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_last_ack', value: "{{ conntrack_tcp_timeout_last_ack }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_established', value: "{{ conntrack_tcp_timeout_established }}" }
+    - { name: 'net.netfilter.nf_conntrack_tcp_timeout_unacknowledged', value: "{{ conntrack_tcp_timeout_unacknowledged }}" }
+  become: true
+  register: sysctl_connection_tracking_result
+  when: ddos_protection_enabled | bool and connection_tracking_limits | bool
+
+# Log DDoS protection configuration
+# Логирование конфигурации защиты от DDoS
+- name: "Log DDoS protection configuration"
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "DDOS_PROTECTION",
+      "service_name": "ufw",
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "DDoS protection configured",
+      "metadata": {
+        "ddos_protection_enabled": ddos_protection_enabled,
+        "syn_flood_protection": syn_flood_protection,
+        "icmp_flood_protection": icmp_flood_protection,
+        "invalid_packets_drop": invalid_packets_drop,
+        "connection_tracking_limits": connection_tracking_limits,
+        "rate_limiting_ssh": ssh_rate_limit,
+        "rate_limiting_http": firewall_rate_limit_http,
+        "rate_limiting_https": firewall_rate_limit_https
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when: 
+    - structured_logging | default(false)
+    - ddos_protection_enabled | default(false)
+
+# Enable UFW
+# Включение UFW
+- name: "Enable UFW"
+  community.general.ufw:
+    state: enabled
+  become: true
+  register: ufw_enable_result
+
+# Log UFW configuration change
+# Логирование изменения конфигурации UFW
+- name: "Log UFW configuration change"
+  ansible.builtin.lineinfile:
+    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
+    line: '{{ {
+      "timestamp": ansible_date_time.iso8601,
+      "level": "INFO",
+      "event_type": "SERVICE_CHANGE",
+      "service_name": "ufw",
+      "service_state": "enabled",
+      "service_enabled": true,
+      "user": ansible_user_id,
+      "host": inventory_hostname,
+      "playbook": ansible_play_name,
+      "correlation_id": ansible_date_time.epoch,
+      "message": "UFW service state changed",
+      "metadata": {
+        "previous_state": "unknown",
+        "daemon_reload": true,
+        "auto_reset": ufw_auto_reset
+      }
+    } | to_json }}'
+    create: true
+    mode: '0644'
+  when: structured_logging | default(false)
+
+# Log UFW package installation (English)
+# Логирование установки пакета UFW (английский)
+- name: "Log UFW package installation (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "UFW Package Installation Status:"
+      - "============================================================================="
+      - "Package:                 {{ firewall_package }}"
+      - "Installation Status:     {{ 'SUCCESS' if ufw_install_result.changed else 'SKIPPED' }}"
+      - "Message:                 Package installed successfully"
+      - "Timestamp:               {{ ansible_date_time.iso8601 }}"
+      - "============================================================================="
+  when:
+    - ufw_install_result.changed
+    - debug_mode | default(false)
+

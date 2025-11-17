@@ -4,6 +4,19 @@
 
 # EN: Set secure permissions on home directories
 # RU: Установка безопасных прав на домашние директории
+# Note: Check if user exists before setting ownership to prevent "failed to look up user" errors
+# Примечание: Проверка существования пользователя перед установкой владельца для предотвращения ошибок "failed to look up user"
+- name: Check if users exist before setting home directory permissions
+  ansible.builtin.getent:
+    database: passwd
+  register: users_exist_check
+  changed_when: false
+  failed_when: false
+  tags:
+    - security
+    - permissions
+    - users
+
 - name: Set secure permissions on user home directories
   ansible.builtin.file:
     path: "{{ item.home | default(add_users_home_prefix + '/' + item.username) }}"
@@ -12,7 +25,9 @@
     owner: "{{ item.username }}"
     group: "{{ item.username }}"
   loop: "{{ users_to_add }}"
-  when: item.create_home | default(add_users_create_home)
+  when:
+    - item.create_home | default(add_users_create_home)
+    - item.username in (users_exist_check.ansible_facts.getent_passwd | default({}) | list)
   tags:
     - security
     - permissions
@@ -139,17 +154,345 @@
     - security
     - pam
 
-# EN: Configure PAM for Debian-based systems
-# RU: Настройка PAM для систем на базе Debian
-- name: Configure PAM password quality for Debian/Ubuntu
+# EN: Install PAM packages required for security configuration
+# RU: Установка PAM пакетов, необходимых для конфигурации безопасности
+- name: Install PAM packages for security configuration
+  ansible.builtin.apt:
+    name:
+      - libpam-pwquality
+      - libpam-modules
+      - auditd
+    state: present
+    update_cache: true
+  when: enable_pam_configuration | default(true)
+  retries: "{{ retries | default(3) }}"
+  delay: "{{ retry_delay | default(5) }}"
+  tags:
+    - pam
+    - packages
+    - security
+
+# EN: Configure pwquality.conf for password validation
+# RU: Настройка pwquality.conf для валидации паролей
+- name: Configure pwquality.conf for password validation
   block:
-    - name: Ensure libpam-pwquality is installed
-      ansible.builtin.apt:
-        name: libpam-pwquality
+
+    - name: Ensure /etc/security directory exists
+      ansible.builtin.file:
+        path: /etc/security
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+      tags:
+        - validation
+        - pam
+        - pwquality
+
+    - name: Create pwquality.conf file if it doesn't exist
+      ansible.builtin.file:
+        path: /etc/security/pwquality.conf
+        state: touch
+        mode: '0644'
+        owner: root
+        group: root
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+      tags:
+        - validation
+        - pam
+        - pwquality
+
+    - name: Configure pwquality.conf settings
+      ansible.builtin.lineinfile:
+        path: /etc/security/pwquality.conf
+        regexp: '^#?\s*{{ item.key }}\s*='
+        line: '{{ item.key }} = {{ item.value }}'
         state: present
-        update_cache: true
-      retries: "{{ retries | default(3) }}"
-      delay: "{{ retry_delay | default(5) }}"
+        backup: "{{ backup_config | default(true) }}"
+        create: true
+      loop:
+        - { key: 'minlen', value: '{{ add_users_min_password_length | default(14) }}' }
+        - { key: 'dcredit', value: '-1' }
+        - { key: 'ucredit', value: '-1' }
+        - { key: 'lcredit', value: '-1' }
+        - { key: 'ocredit', value: '-1' }
+        - { key: 'minclass', value: '4' }
+        - { key: 'maxrepeat', value: '2' }
+        - { key: 'maxclassrepeat', value: '4' }
+        - { key: 'gecoscheck', value: '1' }
+        - { key: 'dictcheck', value: '1' }
+        - { key: 'usercheck', value: '1' }
+        - { key: 'enforcing', value: '1' }
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+      tags:
+        - validation
+        - pam
+        - pwquality
+
+  rescue:
+    - name: pwquality configuration failed - continuing with basic validation
+      ansible.builtin.debug:
+        msg: "Warning: pwquality configuration failed. Using basic password validation."
+      when: debug_mode | default(false)
+
+  tags:
+    - validation
+    - pam
+    - pwquality
+
+# EN: Validate user credentials before PAM configuration
+# RU: Валидация учетных данных пользователей перед настройкой PAM
+- name: Validate user credentials to prevent PAM lockout
+  block:
+    - name: Validate password meets basic requirements
+      ansible.builtin.assert:
+        that:
+          - item.password | length >= add_users_min_password_length
+        fail_msg: "Password for user '{{ item.username }}' is too short. Minimum length is {{ add_users_min_password_length }} characters"
+      loop: "{{ users_to_add }}"
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+        - add_users_validate_passwords | default(true)
+        - item.password is defined
+      tags:
+        - validation
+        - pam
+        - password_quality
+
+    - name: Validate password complexity requirements (minclass=4)
+      ansible.builtin.assert:
+        that:
+          - password_complexity_score | int >= 4
+        fail_msg: "Password for user '{{ item.username }}' does not meet complexity requirements. Must contain at least 4 character classes (uppercase, lowercase, digit, special)"
+      loop: "{{ users_to_add }}"
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+        - add_users_validate_passwords | default(true)
+        - item.password is defined
+      vars:
+        password_complexity_score: "{{ ((1 if item.password | regex_search('.*[0-9].*') else 0) + (1 if item.password | regex_search('.*[a-z].*') else 0) + (1 if item.password | regex_search('.*[A-Z].*') else 0) + (1 if item.password | regex_search('.*[^a-zA-Z0-9].*') else 0)) | int }}"
+      tags:
+        - validation
+        - pam
+        - password_quality
+
+    - name: Validate password does not contain username (usercheck)
+      ansible.builtin.assert:
+        that:
+          - item.username | lower not in (item.password | lower)
+        fail_msg: "Password for user '{{ item.username }}' contains the username. PAM usercheck=1 requires password to not contain username."
+      loop: "{{ users_to_add }}"
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+        - add_users_validate_passwords | default(true)
+        - item.password is defined
+      tags:
+        - validation
+        - pam
+        - password_quality
+
+    - name: Validate password meets all credit requirements (dcredit/ucredit/lcredit/ocredit=-1)
+      ansible.builtin.assert:
+        that:
+          - item.password | regex_search('.*[0-9].*') is not none  # dcredit=-1 requires at least 1 digit
+          - item.password | regex_search('.*[A-Z].*') is not none  # ucredit=-1 requires at least 1 uppercase
+          - item.password | regex_search('.*[a-z].*') is not none  # lcredit=-1 requires at least 1 lowercase
+          - item.password | regex_search('.*[^a-zA-Z0-9].*') is not none  # ocredit=-1 requires at least 1 special char
+        fail_msg: "Password for user '{{ item.username }}' does not meet PAM pwquality credit requirements. Must contain: at least 1 digit, 1 uppercase letter, 1 lowercase letter, and 1 special character."
+      loop: "{{ users_to_add }}"
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+        - add_users_validate_passwords | default(true)
+        - item.password is defined
+      tags:
+        - validation
+        - pam
+        - password_quality
+
+    - name: Validate password maxrepeat requirement (maxrepeat=2)
+      ansible.builtin.assert:
+        that:
+          - not (item.password | regex_search('(.)\\1{2,}'))
+        fail_msg: "Password for user '{{ item.username }}' contains more than 2 repeated characters in a row. PAM maxrepeat=2 requirement."
+      loop: "{{ users_to_add }}"
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+        - add_users_validate_passwords | default(true)
+        - item.password is defined
+      tags:
+        - validation
+        - pam
+        - password_quality
+
+    # EN: Check existing users only (skip validation for new users that will be created)
+    # RU: Проверка только существующих пользователей (пропуск валидации для новых пользователей, которые будут созданы)
+    - name: Get list of existing usernames
+      ansible.builtin.getent:
+        database: passwd
+      register: existing_users_check
+      changed_when: false
+      failed_when: false
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+      tags:
+        - validation
+        - pam
+        - login_test
+
+    - name: Test existing user accounts accessibility
+      ansible.builtin.command:
+        cmd: "id {{ item.username }}"
+      loop: "{{ users_to_add }}"
+      register: user_id_test
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: 
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+        - existing_users_check is defined
+        - item.username in (existing_users_check.ansible_facts.getent_passwd | default({}) | list)
+      tags:
+        - validation
+        - pam
+        - login_test
+
+    - name: Display password quality validation results
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Password Quality Validation Results:"
+          - "============================================================================="
+          - "User:                     {{ item.username }}"
+          - "Password Length:          {{ item.password | length }} characters"
+          - "Min Required:             {{ add_users_min_password_length }} characters"
+          - "Quality Test:             {{ 'PASS' if item.password | length >= add_users_min_password_length else 'FAIL' }}"
+          - "============================================================================="
+      loop: "{{ users_to_add }}"
+      when:
+        - debug_mode | default(false)
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+      tags:
+        - debug
+        - validation
+        - pam
+
+    - name: Display user account validation results
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "User Account Validation Results:"
+          - "============================================================================="
+          - "User:                     {{ item.item.username }}"
+          - "Account Test:             {{ 'SUCCESS' if (item.rc | default(-1) | int) == 0 else 'FAILED' }}"
+          - "Return Code:              {{ item.rc | default('N/A') }}"
+          - "Output:                   {{ item.stdout | default('No output') }}"
+          - "Error:                    {{ item.stderr | default('No errors') }}"
+          - "============================================================================="
+      loop: "{{ user_id_test.results | default([]) }}"
+      when:
+        - debug_mode | default(false)
+        - enable_pam_configuration | default(true)
+        - user_id_test is defined
+        - user_id_test.results is defined
+      tags:
+        - debug
+        - validation
+        - pam
+
+    - name: Fail if any existing user account validation failed
+      ansible.builtin.fail:
+        msg: "User account validation failed for existing users: {{ failed_users | join(', ') }}. Check user accounts before enabling PAM configuration."
+      vars:
+        failed_users: "{{ user_id_test.results | default([]) | selectattr('rc', 'ne', 0) | map(attribute='item') | map(attribute='username') | list }}"
+      when:
+        - enable_pam_configuration | default(true)
+        - enable_pam_validation | default(true)
+        - user_id_test is defined
+        - user_id_test.results is defined
+        - (user_id_test.results | selectattr('rc', 'ne', 0) | list | length) > 0
+      tags:
+        - validation
+        - pam
+
+  rescue:
+    - name: User validation failed - continuing without PAM
+      ansible.builtin.debug:
+        msg: "Warning: User validation failed. PAM configuration will be skipped to prevent account lockout."
+      when: debug_mode | default(false)
+
+    - name: Set PAM configuration to disabled due to validation failure
+      ansible.builtin.set_fact:
+        enable_pam_configuration: false
+      tags:
+        - validation
+        - pam
+
+  always:
+    - name: Display PAM configuration status after validation
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "PAM Configuration Status After Validation:"
+          - "============================================================================="
+          - "PAM Configuration:         {{ 'ENABLED' if enable_pam_configuration | default(true) else 'DISABLED' }}"
+          - "Reason:                    {{ 'User validation passed' if enable_pam_configuration | default(true) else 'User validation failed - disabled to prevent lockout' }}"
+          - "============================================================================="
+      when: debug_mode | default(false)
+      tags:
+        - debug
+        - validation
+        - pam
+
+  tags:
+    - validation
+    - pam
+    - login_test
+
+# EN: Configure PAM password quality and security
+# RU: Настройка качества паролей и безопасности PAM
+- name: Configure PAM password quality and security
+  when: enable_pam_configuration | default(true)
+  block:
+
+    - name: Determine password hashing method
+      ansible.builtin.set_fact:
+        password_hash_method: "{{ 'yescrypt' if ((ansible_distribution == 'Debian' and ansible_distribution_major_version | int >= 11) or (ansible_distribution == 'Ubuntu' and ansible_distribution_major_version | int >= 20)) else 'sha512' }}"
+      tags:
+        - pam
+        - facts
+
+    - name: Check if PAM common-password file exists
+      ansible.builtin.stat:
+        path: /etc/pam.d/common-password
+      register: pam_common_password_stat
+      failed_when: false
+      changed_when: false
+      tags:
+        - pam
+        - validation
+
+    - name: Fail if PAM common-password file does not exist
+      ansible.builtin.fail:
+        msg: "PAM file /etc/pam.d/common-password does not exist. Cannot configure PAM."
+      when: pam_common_password_stat.stat.exists | default(false) == false
+      tags:
+        - pam
+        - validation
 
     - name: Backup PAM common-password before modification
       ansible.builtin.copy:
@@ -158,12 +501,15 @@
         remote_src: true
         mode: '0644'
       when: backup_config | default(true)
+      tags:
+        - pam
+        - backup
 
     - name: Configure pam_pwquality in common-password
       ansible.builtin.lineinfile:
         path: /etc/pam.d/common-password
-        regexp: '^password\s+requisite\s+pam_pwquality.so'
-        line: "password requisite pam_pwquality.so retry=3 minlen={{ add_users_min_password_length }}"
+        regexp: '^password\s+requisite\s+pam_pwquality\.so'
+        line: "password requisite pam_pwquality.so retry=3 minlen={{ add_users_min_password_length }} maxrepeat=2 minclass=4 difok=4 enforce_for_root"
         insertafter: '^# here are the per-package modules'
         state: present
         backup: "{{ backup_config | default(true) }}"
@@ -171,23 +517,185 @@
         - pam
         - password_quality
 
-    - name: Configure pam_unix password history in common-password
+    - name: Configure pam_pwhistory in common-password
       ansible.builtin.lineinfile:
         path: /etc/pam.d/common-password
-        regexp: '^password\s+\[success=1\s+default=ignore\]\s+pam_unix.so'
-        line: "password [success=1 default=ignore] pam_unix.so obscure use_authtok try_first_pass yescrypt remember={{ password_remember_count }}"
+        regexp: '^password\s+required\s+pam_pwhistory\.so'
+        line: "password required pam_pwhistory.so use_authtok remember={{ password_remember_count }} enforce_for_root"
+        insertbefore: '^password\s+\[success=1\s+default=ignore\]\s+pam_unix\.so'
         state: present
         backup: "{{ backup_config | default(true) }}"
       tags:
         - pam
         - password_history
 
-    - name: Ensure libpam-modules is installed for faillock
-      ansible.builtin.apt:
-        name: libpam-modules
+    - name: Configure pam_unix password history in common-password
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/common-password
+        regexp: '^password\s+\[success=1\s+default=ignore\]\s+pam_unix\.so'
+        line: "password [success=1 default=ignore] pam_unix.so obscure use_authtok try_first_pass {{ password_hash_method }} remember={{ password_remember_count }}"
         state: present
-      retries: "{{ retries | default(3) }}"
-      delay: "{{ retry_delay | default(5) }}"
+        backup: "{{ backup_config | default(true) }}"
+      tags:
+        - pam
+        - password_history
+
+    # EN: Detect container environment to disable faillock
+    # RU: Определение контейнерной среды для отключения faillock
+    # Faillock is disabled in containers because:
+    # - /var/run/faillock is typically tmpfs and cleared on container restart (use pam_faillock_dir=/var/lib/faillock to override)
+    # - Container state is ephemeral, making lockout tracking ineffective
+    # - Containers use network isolation and resource limits for security
+    # - Lockout state can persist incorrectly after container restarts
+    # Faillock отключается в контейнерах, потому что:
+    # - /var/run/faillock обычно tmpfs и очищается при перезапуске контейнера (используйте pam_faillock_dir=/var/lib/faillock для переопределения)
+    # - Состояние контейнера эфемерно, отслеживание блокировок неэффективно
+    # - Контейнеры используют сетевую изоляцию и ограничения ресурсов для безопасности
+    # - Состояние блокировки может некорректно сохраняться после перезапуска контейнера
+    - name: Check if running in Docker container
+      ansible.builtin.stat:
+        path: /.dockerenv
+      register: docker_env_check
+      failed_when: false
+      changed_when: false
+      tags:
+        - pam
+        - facts
+
+    - name: Check if running in container (check cgroup)
+      ansible.builtin.command:
+        cmd: 'grep -q "docker\|lxc\|kubepods" /proc/self/cgroup 2>/dev/null && echo container || echo not-container'
+      register: cgroup_check
+      changed_when: false
+      failed_when: false
+      tags:
+        - pam
+        - facts
+
+    - name: Display container detection debug info
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Container Detection Debug Info:"
+          - "============================================================================="
+          - "Docker env file exists:      {{ docker_env_check.stat.exists | default(false) }}"
+          - "Cgroup check output:         {{ cgroup_check.stdout | default('N/A') }}"
+          - "Is container (cgroup):       {{ 'YES' if 'container' in (cgroup_check.stdout | default('')) else 'NO' }}"
+          - "Force enable in containers:  {{ enable_faillock_in_containers | default(false) }}"
+          - "============================================================================="
+      when: debug_mode | default(false)
+      tags:
+        - debug
+        - pam
+        - facts
+
+    - name: Determine if faillock should be configured
+      ansible.builtin.set_fact:
+        is_docker_container: "{{ docker_env_check.stat.exists | default(false) }}"
+        is_cgroup_container: "{{ 'container' in (cgroup_check.stdout | default('')) }}"
+        force_faillock: "{{ enable_faillock_in_containers | default(false) }}"
+      tags:
+        - pam
+        - facts
+
+    - name: Calculate faillock configuration decision
+      ansible.builtin.set_fact:
+        configure_faillock: "{{ force_faillock or (not is_docker_container and not is_cgroup_container) }}"
+        faillock_reason: "{{ 'FORCED (enable_faillock_in_containers=true)' if force_faillock else ('NOT CONTAINER' if (not is_docker_container and not is_cgroup_container) else ('CONTAINER DETECTED (Docker: ' + (is_docker_container | string) + ', Cgroup: ' + (is_cgroup_container | string) + ')')) }}"
+      tags:
+        - pam
+        - facts
+
+    - name: Display faillock configuration decision
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Faillock Configuration Decision:"
+          - "============================================================================="
+          - "Is Docker container:         {{ is_docker_container }}"
+          - "Is Cgroup container:         {{ is_cgroup_container }}"
+          - "Force enable in containers:   {{ force_faillock }}"
+          - "Configure faillock:          {{ configure_faillock }}"
+          - "Reason:                       {{ faillock_reason }}"
+          - "============================================================================="
+      when: debug_mode | default(false)
+      tags:
+        - debug
+        - pam
+        - facts
+
+    - name: Check faillock directory availability
+      ansible.builtin.stat:
+        path: "{{ pam_faillock_dir | default('/var/lib/faillock') }}"
+      register: faillock_dir_stat
+      failed_when: false
+      changed_when: false
+      when: configure_faillock | default(false)
+      tags:
+        - pam
+        - faillock
+        - validation
+
+    - name: Create faillock directory if it doesn't exist
+      ansible.builtin.file:
+        path: "{{ pam_faillock_dir | default('/var/lib/faillock') }}"
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+      when:
+        - configure_faillock | default(false) | bool
+        - faillock_dir_stat.stat.exists | default(false) == false
+      tags:
+        - pam
+        - faillock
+
+    - name: Verify faillock directory is writable
+      ansible.builtin.command:
+        cmd: "test -w {{ pam_faillock_dir | default('/var/lib/faillock') }} && echo 'writable' || echo 'not-writable'"
+      register: faillock_writable_check
+      changed_when: false
+      failed_when: false
+      when: configure_faillock | default(false)
+      tags:
+        - pam
+        - faillock
+        - validation
+
+    - name: Warn if faillock directory is not writable
+      ansible.builtin.debug:
+        msg: "Warning: {{ pam_faillock_dir | default('/var/lib/faillock') }} is not writable. Faillock may not work correctly."
+      when:
+        - configure_faillock | default(false) | bool
+        - faillock_writable_check.stdout | default('') != 'writable'
+      tags:
+        - pam
+        - faillock
+        - validation
+
+
+    - name: Check if PAM common-auth file exists
+      ansible.builtin.stat:
+        path: /etc/pam.d/common-auth
+      register: pam_common_auth_stat
+      failed_when: false
+      changed_when: false
+      when: configure_faillock | default(false)
+      tags:
+        - pam
+        - validation
+        - faillock
+
+    - name: Fail if PAM common-auth file does not exist
+      ansible.builtin.fail:
+        msg: "PAM file /etc/pam.d/common-auth does not exist. Cannot configure faillock."
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_common_auth_stat.stat.exists | default(false) == false
+      tags:
+        - pam
+        - validation
+        - faillock
 
     - name: Backup PAM common-auth before modification
       ansible.builtin.copy:
@@ -195,28 +703,141 @@
         dest: /etc/pam.d/common-auth.backup.{{ ansible_date_time.epoch }}
         remote_src: true
         mode: '0644'
-      when: backup_config | default(true)
+      when: 
+        - backup_config | default(true)
+        - configure_faillock | default(false) | bool
+      tags:
+        - pam
+        - backup
+        - faillock
 
-    - name: Configure pam_faillock in common-auth (auth phase)
+    - name: Check if pam_unix.so exists in common-auth for faillock insertion
+      ansible.builtin.command:
+        cmd: 'grep -q "auth.*pam_unix\.so" /etc/pam.d/common-auth && echo found || echo not-found'
+      register: pam_unix_auth_check
+      changed_when: false
+      failed_when: false
+      when: configure_faillock | default(false) | bool
+      tags:
+        - pam
+        - faillock
+        - validation
+
+    - name: Display pam_unix check result for debugging
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "PAM Unix Check Result:"
+          - "============================================================================="
+          - "configure_faillock:          {{ configure_faillock | default(false) }}"
+          - "pam_unix_auth_check stdout:  {{ pam_unix_auth_check.stdout | default('N/A') }}"
+          - "pam_unix_auth_check rc:      {{ pam_unix_auth_check.rc | default('N/A') }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - configure_faillock | default(false) | bool
+        - pam_unix_auth_check is defined
+      tags:
+        - debug
+        - pam
+        - faillock
+
+    - name: Configure pam_faillock in common-auth (auth phase - preauth)
       ansible.builtin.lineinfile:
         path: /etc/pam.d/common-auth
-        line: "auth required pam_faillock.so preauth silent deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }}"
-        insertbefore: '^auth\s+\[success=1\s+default=ignore\]\s+pam_unix.so'
+        regexp: '^auth\s+required\s+pam_faillock\.so\s+preauth'
+        line: "auth required pam_faillock.so preauth silent audit deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }} fail_interval={{ pam_fail_interval | default(900) }} dir={{ pam_faillock_dir | default('/var/lib/faillock') }}"
+        insertbefore: '^auth\s+\[success=1\s+default=bad\]\s+pam_unix\.so'
         state: present
         backup: "{{ backup_config | default(true) }}"
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_unix_auth_check.stdout | default('') == 'found'
       tags:
         - pam
         - faillock
 
-    - name: Configure pam_faillock in common-auth (account phase)
+    - name: Configure pam_faillock in common-auth (auth phase - preauth, fallback)
       ansible.builtin.lineinfile:
         path: /etc/pam.d/common-auth
-        line: "auth [default=die] pam_faillock.so authfail deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }}"
-        insertafter: '^auth\s+\[success=1\s+default=ignore\]\s+pam_unix.so'
+        regexp: '^auth\s+required\s+pam_faillock\.so\s+preauth'
+        line: "auth required pam_faillock.so preauth silent audit deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }} fail_interval={{ pam_fail_interval | default(900) }} dir={{ pam_faillock_dir | default('/var/lib/faillock') }}"
+        insertafter: '^# here are the per-package modules'
         state: present
         backup: "{{ backup_config | default(true) }}"
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_unix_auth_check.stdout | default('') != 'found'
       tags:
         - pam
+        - faillock
+
+    - name: Ensure pam_unix.so has correct control flags for faillock
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/common-auth
+        regexp: '^auth\s+\[success=1\s+default=bad\]\s+pam_unix\.so'
+        line: "auth [success=1 default=bad] pam_unix.so"
+        insertafter: '^auth\s+required\s+pam_faillock\.so\s+preauth'
+        state: present
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_unix_auth_check.stdout | default('') == 'found'
+      tags:
+        - pam
+        - faillock
+
+    - name: Configure pam_faillock in common-auth (auth phase - authfail)
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/common-auth
+        regexp: '^auth\s+\[default=die\]\s+pam_faillock\.so\s+authfail'
+        line: "auth [default=die] pam_faillock.so authfail audit deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }} fail_interval={{ pam_fail_interval | default(900) }} dir={{ pam_faillock_dir | default('/var/lib/faillock') }}"
+        insertafter: '^auth\s+\[success=1\s+default=bad\]\s+pam_unix\.so'
+        state: present
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_unix_auth_check.stdout | default('') == 'found'
+      tags:
+        - pam
+        - faillock
+
+    - name: Configure pam_faillock in common-auth (auth phase - authfail, fallback)
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/common-auth
+        regexp: '^auth\s+\[default=die\]\s+pam_faillock\.so\s+authfail'
+        line: "auth [default=die] pam_faillock.so authfail audit deny={{ pam_deny_attempts }} unlock_time={{ pam_unlock_time }} fail_interval={{ pam_fail_interval | default(900) }} dir={{ pam_faillock_dir | default('/var/lib/faillock') }}"
+        insertafter: '^auth\s+required\s+pam_faillock\.so\s+preauth'
+        state: present
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_unix_auth_check.stdout | default('') != 'found'
+      tags:
+        - pam
+        - faillock
+
+    - name: Check if PAM common-account file exists
+      ansible.builtin.stat:
+        path: /etc/pam.d/common-account
+      register: pam_common_account_stat
+      failed_when: false
+      changed_when: false
+      when: configure_faillock | default(false)
+      tags:
+        - pam
+        - validation
+        - faillock
+
+    - name: Fail if PAM common-account file does not exist
+      ansible.builtin.fail:
+        msg: "PAM file /etc/pam.d/common-account does not exist. Cannot configure faillock."
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_common_account_stat.stat.exists | default(false) == false
+      tags:
+        - pam
+        - validation
         - faillock
 
     - name: Backup PAM common-account before modification
@@ -225,40 +846,328 @@
         dest: /etc/pam.d/common-account.backup.{{ ansible_date_time.epoch }}
         remote_src: true
         mode: '0644'
-      when: backup_config | default(true)
+      when: 
+        - backup_config | default(true)
+        - configure_faillock | default(false) | bool
+      tags:
+        - pam
+        - backup
+        - faillock
+
+    - name: Check if pam_unix.so exists in common-account for faillock insertion
+      ansible.builtin.command:
+        cmd: 'grep -q "account.*pam_unix\.so" /etc/pam.d/common-account && echo found || echo not-found'
+      register: pam_unix_account_check
+      changed_when: false
+      failed_when: false
+      when: configure_faillock | default(false)
+      tags:
+        - pam
+        - faillock
+        - validation
 
     - name: Configure pam_faillock in common-account
       ansible.builtin.lineinfile:
         path: /etc/pam.d/common-account
+        regexp: '^account\s+required\s+pam_faillock\.so'
         line: "account required pam_faillock.so"
-        insertbefore: '^account\s+\[success=1\s+new_authtok_reqd=done\s+default=ignore\]\s+pam_unix.so'
+        insertbefore: '^account\s+\[success=1\s+new_authtok_reqd=done\s+default=ignore\]\s+pam_unix\.so'
         state: present
         backup: "{{ backup_config | default(true) }}"
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_unix_account_check.stdout | default('') == 'found'
       tags:
         - pam
         - faillock
 
-    - name: Display PAM configuration for Debian
+    - name: Configure pam_faillock in common-account (fallback)
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/common-account
+        regexp: '^account\s+required\s+pam_faillock\.so'
+        line: "account required pam_faillock.so"
+        insertafter: '^# here are the per-package modules'
+        state: present
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - configure_faillock | default(false) | bool
+        - pam_unix_account_check.stdout | default('') != 'found'
+      tags:
+        - pam
+        - faillock
+
+    - name: Verify faillock configuration in PAM files
+      ansible.builtin.command:
+        cmd: "grep -c 'pam_faillock' {{ item }} 2>/dev/null || echo '0'"
+      loop:
+        - /etc/pam.d/common-auth
+        - /etc/pam.d/common-account
+      register: faillock_config_check
+      changed_when: false
+      failed_when: false
+      when: configure_faillock | default(false)
+      tags:
+        - pam
+        - faillock
+        - validation
+
+    # EN: Validate PAM configuration syntax (with timeout to prevent hanging)
+    # RU: Валидация синтаксиса конфигурации PAM (с таймаутом для предотвращения зависания)
+    # Note: pam-auth-update may hang in containers, so we use timeout and make it non-blocking
+    # Примечание: pam-auth-update может зависать в контейнерах, поэтому используем таймаут и делаем неблокирующим
+    - name: Validate PAM configuration syntax
+      ansible.builtin.command:
+        cmd: "timeout 5 sh -c 'pam-auth-update --package 2>&1 || pam-config --validate 2>&1 || test -f /etc/pam.d/common-auth' || echo validation-timeout"
+      register: pam_syntax_check
+      changed_when: false
+      failed_when: false
+      timeout: 10
+      async: 10
+      poll: 0
+      when: enable_pam_configuration | default(true)
+      tags:
+        - pam
+        - validation
+
+    - name: Warn if PAM syntax validation failed
+      ansible.builtin.debug:
+        msg: "Warning: PAM configuration syntax validation returned non-zero exit code. Check PAM files manually."
+      when:
+        - enable_pam_configuration | default(true)
+        - pam_syntax_check.rc | default(0) != 0
+        - debug_mode | default(false)
+      tags:
+        - debug
+        - pam
+        - validation
+
+    - name: Display faillock configuration verification
       ansible.builtin.debug:
         msg:
           - "============================================================================="
-          - "PAM Configuration (Debian/Ubuntu):"
+          - "Faillock Configuration Verification:"
           - "============================================================================="
-          - "pwquality minlen:         {{ add_users_min_password_length }}"
-          - "Password remember count:  {{ password_remember_count }}"
-          - "Faillock deny attempts:   {{ pam_deny_attempts }}"
-          - "Faillock unlock time:     {{ pam_unlock_time }}s"
-          - "Files modified:           /etc/pam.d/common-{password,auth,account}"
+          - "common-auth entries:        {{ faillock_config_check.results[0].stdout | default('0') }}"
+          - "common-account entries:     {{ faillock_config_check.results[1].stdout | default('0') }}"
+          - "Status:                     {{ 'CONFIGURED' if (faillock_config_check.results[0].stdout | int) >= 2 and (faillock_config_check.results[1].stdout | int) >= 1 else 'MISSING ENTRIES' }}"
           - "============================================================================="
       when:
         - debug_mode | default(false)
-        - debug_lang | default('both') in ['english', 'both']
+        - configure_faillock | default(false) | bool
+        - faillock_config_check is defined
+      tags:
+        - debug
+        - pam
+        - faillock
+
+    # EN: Configure pam_limits for resource limits
+    # RU: Настройка pam_limits для ограничения ресурсов
+    - name: Check if PAM common-session file exists
+      ansible.builtin.stat:
+        path: /etc/pam.d/common-session
+      register: pam_common_session_stat
+      failed_when: false
+      changed_when: false
+      when: enable_pam_configuration | default(true)
+      tags:
+        - pam
+        - validation
+        - limits
+
+    - name: Backup PAM common-session before modification
+      ansible.builtin.copy:
+        src: /etc/pam.d/common-session
+        dest: /etc/pam.d/common-session.backup.{{ ansible_date_time.epoch }}
+        remote_src: true
+        mode: '0644'
+      when:
+        - backup_config | default(true)
+        - enable_pam_configuration | default(true)
+        - pam_common_session_stat.stat.exists | default(false)
+      tags:
+        - pam
+        - backup
+        - limits
+
+    - name: Configure pam_limits in common-session
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/common-session
+        regexp: '^session\s+required\s+pam_limits\.so'
+        line: "session required pam_limits.so"
+        insertafter: '^# here are the per-package modules'
+        state: present
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - enable_pam_configuration | default(true)
+        - pam_common_session_stat.stat.exists | default(false)
+      tags:
+        - pam
+        - limits
+
+    # EN: Configure pam_access for access control
+    # RU: Настройка pam_access для контроля доступа
+    - name: Check if PAM sshd file exists
+      ansible.builtin.stat:
+        path: /etc/pam.d/sshd
+      register: pam_sshd_stat
+      failed_when: false
+      changed_when: false
+      when: enable_pam_configuration | default(true)
+      tags:
+        - pam
+        - validation
+        - access
+
+    - name: Backup PAM sshd before modification
+      ansible.builtin.copy:
+        src: /etc/pam.d/sshd
+        dest: /etc/pam.d/sshd.backup.{{ ansible_date_time.epoch }}
+        remote_src: true
+        mode: '0644'
+      when:
+        - backup_config | default(true)
+        - enable_pam_configuration | default(true)
+        - pam_sshd_stat.stat.exists | default(false)
+      tags:
+        - pam
+        - backup
+        - access
+
+    - name: Configure pam_access in sshd
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        regexp: '^account\s+required\s+pam_access\.so'
+        line: "account required pam_access.so"
+        insertafter: '^# here are the per-package modules'
+        state: present
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - enable_pam_configuration | default(true)
+        - pam_sshd_stat.stat.exists | default(false)
+      tags:
+        - pam
+        - access
+
+    - name: Ensure access.conf file exists
+      ansible.builtin.file:
+        path: /etc/security/access.conf
+        state: touch
+        mode: '0644'
+        owner: root
+        group: root
+      when: enable_pam_configuration | default(true)
+      tags:
+        - pam
+        - access
+
+    # EN: Configure pam_tty_audit for command auditing
+    # RU: Настройка pam_tty_audit для аудита команд
+    - name: Configure pam_tty_audit in common-session
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/common-session
+        regexp: '^session\s+required\s+pam_tty_audit\.so'
+        line: "session required pam_tty_audit.so enable=* log_passwd"
+        insertafter: '^session\s+required\s+pam_limits\.so'
+        state: present
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - enable_pam_configuration | default(true)
+        - pam_common_session_stat.stat.exists | default(false)
+      tags:
+        - pam
+        - tty_audit
+
+    - name: Configure pam_tty_audit in sshd (alternative)
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        regexp: '^session\s+required\s+pam_tty_audit\.so'
+        line: "session required pam_tty_audit.so enable=* log_passwd"
+        insertafter: '^# here are the per-package modules'
+        state: present
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - enable_pam_configuration | default(true)
+        - pam_sshd_stat.stat.exists | default(false)
+        - pam_common_session_stat.stat.exists | default(false) == false
+      tags:
+        - pam
+        - tty_audit
+
+    # EN: Disable pam_systemd in containers
+    # RU: Отключение pam_systemd в контейнерах
+    - name: Check if pam_systemd exists in common-session
+      ansible.builtin.command:
+        cmd: 'grep -q "pam_systemd\.so" /etc/pam.d/common-session && echo found || echo not-found'
+      register: pam_systemd_check
+      changed_when: false
+      failed_when: false
+      when:
+        - enable_pam_configuration | default(true)
+        - pam_common_session_stat.stat.exists | default(false)
+        - (is_docker_container | default(false)) or (is_cgroup_container | default(false))
+      tags:
+        - pam
+        - systemd
+
+    - name: Comment out pam_systemd in containers
+      ansible.builtin.replace:
+        path: /etc/pam.d/common-session
+        regexp: '^(session\s+optional\s+pam_systemd\.so)'
+        replace: '# \1'
+        backup: "{{ backup_config | default(true) }}"
+      when:
+        - enable_pam_configuration | default(true)
+        - pam_common_session_stat.stat.exists | default(false)
+        - (is_docker_container | default(false)) or (is_cgroup_container | default(false))
+        - pam_systemd_check.stdout | default('') == 'found'
+      tags:
+        - pam
+        - systemd
+
+    - name: Display PAM configuration summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "PAM Configuration Summary:"
+          - "============================================================================="
+          - "pwquality minlen:         {{ add_users_min_password_length }}"
+          - "Password hash method:      {{ password_hash_method }}"
+          - "Password remember count:  {{ password_remember_count }}"
+          - "Faillock configured:      {{ 'YES' if configure_faillock | default(false) else 'NO' }}"
+          - "Faillock directory:       {{ pam_faillock_dir | default('/var/lib/faillock') if configure_faillock | default(false) else 'N/A' }}"
+          - "Faillock reason:          {{ faillock_reason | default('UNKNOWN') }}"
+          - "Faillock deny attempts:   {{ pam_deny_attempts if configure_faillock | default(false) else 'N/A' }}"
+          - "Faillock unlock time:     {{ pam_unlock_time if configure_faillock | default(false) else 'N/A' }}s"
+          - "pam_limits configured:    {{ 'YES' if pam_common_session_stat.stat.exists | default(false) else 'NO' }}"
+          - "pam_access configured:     {{ 'YES' if pam_sshd_stat.stat.exists | default(false) else 'NO' }}"
+          - "pam_tty_audit configured: {{ 'YES' if pam_common_session_stat.stat.exists | default(false) else 'NO' }}"
+          - "pam_systemd disabled:     {{ 'YES' if ((is_docker_container | default(false)) or (is_cgroup_container | default(false))) and (pam_systemd_check.stdout | default('') == 'found') else 'N/A' }}"
+          - "Files modified:           /etc/pam.d/common-{password,auth,account,session}, /etc/pam.d/sshd"
+          - "============================================================================="
+      when: debug_mode | default(false)
       tags:
         - debug
         - pam
 
+    # EN: Unlock all users after PAM configuration to prevent lockout
+    # RU: Разблокировка всех пользователей после настройки PAM для предотвращения блокировки
+    - name: Unlock all users after PAM configuration
+      ansible.builtin.command:
+        cmd: "faillock --dir {{ pam_faillock_dir | default('/var/lib/faillock') }} --user {{ item.username }} --reset"
+      loop: "{{ users_to_add }}"
+      when:
+        - configure_faillock | default(false) | bool
+        - enable_pam_configuration | default(true)
+      register: unlock_users_after_pam
+      changed_when: unlock_users_after_pam.rc == 0
+      failed_when: false
+      tags:
+        - pam
+        - faillock
+        - unlock
+
   rescue:
-    - name: PAM configuration failed for Debian
+    - name: PAM configuration failed
       ansible.builtin.debug:
         msg: "Warning: PAM configuration failed. Check logs."
       failed_when: false
@@ -266,8 +1175,6 @@
   tags:
     - security
     - pam
-    - debian
-
 
 # EN: Configure account inactivity lockout (excluding sudoers)
 # RU: Настройка блокировки неактивных аккаунтов (исключая sudoers)
@@ -369,5 +1276,367 @@
     - debug
     - security
     - summary
+
+# EN: Verify user login capability after PAM configuration
+# RU: Проверка возможности входа пользователей после настройки PAM
+- name: Verify user login capability
+  block:
+    - name: Check if users are locked by faillock
+      ansible.builtin.command:
+        cmd: "faillock --dir {{ pam_faillock_dir | default('/var/lib/faillock') }} --user {{ item.username }} 2>&1"
+      loop: "{{ users_to_add }}"
+      register: faillock_status_check
+      changed_when: false
+      failed_when: false
+      when:
+        - configure_faillock | default(false)
+        - enable_pam_configuration | default(true)
+      tags:
+        - validation
+        - login_test
+        - faillock
+
+    - name: Display faillock status for users
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Faillock Status Check:"
+          - "============================================================================="
+          - "User:                     {{ item.item.username }}"
+          - "Status:                   {{ 'LOCKED' if 'denied' in (item.stdout | default('')) else 'NOT LOCKED' if (item.rc | default(-1) | int) == 0 else 'CHECK FAILED' }}"
+          - "Output:                   {{ item.stdout | default('N/A') }}"
+          - "============================================================================="
+      loop: "{{ faillock_status_check.results | default([]) }}"
+      when:
+        - debug_mode | default(false)
+        - configure_faillock | default(false)
+        - faillock_status_check is defined
+      tags:
+        - debug
+        - validation
+        - login_test
+
+    - name: Test user account accessibility via sudo (no password)
+      ansible.builtin.command:
+        cmd: "sudo -u {{ item.username }} id 2>&1"
+      loop: "{{ users_to_add }}"
+      register: user_login_test
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: enable_pam_configuration | default(true)
+      tags:
+        - validation
+        - login_test
+
+    - name: Test user account via sudo (for sudoers)
+      ansible.builtin.command:
+        cmd: "sudo -u {{ item.username }} -n echo test-sudo-success 2>&1"
+      loop: "{{ users_to_add }}"
+      register: user_sudo_test
+      changed_when: false
+      failed_when: false
+      when:
+        - item.is_sudoers | default(false)
+        - enable_pam_configuration | default(true)
+      tags:
+        - validation
+        - login_test
+        - sudo
+
+    # EN: Check PAM configuration syntax (with timeout to prevent hanging)
+    # RU: Проверка синтаксиса конфигурации PAM (с таймаутом для предотвращения зависания)
+    # Note: pam-auth-update may hang in containers, so we use timeout and make it non-blocking
+    # Примечание: pam-auth-update может зависать в контейнерах, поэтому используем таймаут и делаем неблокирующим
+    - name: Check PAM configuration syntax
+      ansible.builtin.command:
+        cmd: "timeout 5 sh -c 'pam-auth-update --package 2>&1 || pam-config --validate 2>&1 || echo validation-skipped' || echo validation-timeout"
+      register: pam_config_validation
+      changed_when: false
+      failed_when: false
+      timeout: 10
+      async: 10
+      poll: 0
+      when: enable_pam_configuration | default(true)
+      tags:
+        - validation
+        - pam
+        - login_test
+
+    - name: Verify SSH access configuration
+      ansible.builtin.stat:
+        path: /etc/ssh/sshd_config
+      register: sshd_config_check
+      failed_when: false
+      changed_when: false
+      tags:
+        - validation
+        - login_test
+        - ssh
+
+    - name: Check user account status and shell
+      ansible.builtin.command:
+        cmd: "getent passwd {{ item.username }} | cut -d: -f7"
+      loop: "{{ users_to_add }}"
+      register: user_shell_check
+      changed_when: false
+      failed_when: false
+      tags:
+        - validation
+        - login_test
+
+    - name: Verify user account is not locked
+      ansible.builtin.command:
+        cmd: "passwd -S {{ item.username }} 2>&1"
+      loop: "{{ users_to_add }}"
+      register: user_account_status
+      changed_when: false
+      failed_when: false
+      tags:
+        - validation
+        - login_test
+
+    - name: Display user login test results
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "User Login Capability Test Results:"
+          - "============================================================================="
+          - "User:                     {{ item.item.username }}"
+          - "Access Test:              {{ 'SUCCESS' if (item.rc | default(-1) | int) == 0 else 'FAILED' if (item.rc | default(-1) | int) != 0 else 'SKIPPED' }}"
+          - "UID/GID:                  {{ item.stdout | default('') | regex_search('uid=\\d+') | default('N/A') }}"
+          - "Account Status:           {{ 'ACTIVE' if (item.rc | default(-1) | int) == 0 else 'ISSUES DETECTED' }}"
+          - "Output:                   {{ item.stdout | default('N/A') | truncate(100) }}"
+          - "============================================================================="
+      loop: "{{ user_login_test.results | default([]) }}"
+      when:
+        - debug_mode | default(false)
+        - user_login_test is defined
+        - user_login_test.results is defined
+        - user_login_test.results | length > 0
+      tags:
+        - debug
+        - validation
+        - login_test
+
+    # EN: Fail if user login test failed - stop execution on access issues
+    # RU: Остановка выполнения при провале теста доступа пользователя
+    - name: Fail if user login test failed
+      ansible.builtin.fail:
+        msg: "User '{{ failed_user }}' login test FAILED. User cannot access the system. Check: 1) User exists (id {{ failed_user }}), 2) Account is not locked (passwd -S {{ failed_user }}), 3) Faillock status (faillock --dir {{ pam_faillock_dir | default('/var/lib/faillock') }} --user {{ failed_user }}), 4) PAM configuration is correct."
+      vars:
+        failed_users: "{{ user_login_test.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | map(attribute='item') | map(attribute='username') | list }}"
+        failed_user: "{{ failed_users | first | default('') }}"
+      when:
+        - user_login_test is defined
+        - user_login_test.results is defined
+        - (user_login_test.results | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) > 0
+      tags:
+        - validation
+        - login_test
+        - always
+
+    - name: Display sudo test results
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Sudo Access Test Results:"
+          - "============================================================================="
+          - "User:                     {{ item.item.username }}"
+          - "Sudo Test:                {{ 'SUCCESS' if 'test-sudo-success' in (item.stdout | default('')) else 'FAILED' if (item.rc | default(-1) | int) != 0 else 'SKIPPED' }}"
+          - "Sudo Output:              {{ item.stdout | default('N/A') | truncate(100) }}"
+          - "============================================================================="
+      loop: "{{ user_sudo_test.results | default([]) }}"
+      when:
+        - debug_mode | default(false)
+        - user_sudo_test is defined
+        - user_sudo_test.results is defined
+      tags:
+        - debug
+        - validation
+        - login_test
+        - sudo
+
+    - name: Display user account status check
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "User Account Status Check:"
+          - "============================================================================="
+          - "User:                     {{ item.item.username }}"
+          - "Shell:                    {{ item.stdout | default('N/A') }}"
+          - "Status:                   {{ 'VALID' if (item.rc | default(-1) | int) == 0 else 'CHECK FAILED' }}"
+          - "============================================================================="
+      loop: "{{ user_shell_check.results | default([]) }}"
+      when:
+        - debug_mode | default(false)
+        - user_shell_check is defined
+      tags:
+        - debug
+        - validation
+        - login_test
+
+    - name: Display account lock status
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Account Lock Status:"
+          - "============================================================================="
+          - "User:                     {{ item.item.username }}"
+          - "Status:                   {{ item.stdout | default('N/A') | truncate(100) }}"
+          - "Locked:                   {{ 'YES' if 'L' in (item.stdout | default('')) else 'NO' if (item.rc | default(-1) | int) == 0 else 'UNKNOWN' }}"
+          - "============================================================================="
+      loop: "{{ user_account_status.results | default([]) }}"
+      when:
+        - debug_mode | default(false)
+        - user_account_status is defined
+      tags:
+        - debug
+        - validation
+        - login_test
+
+    - name: Display PAM configuration validation results
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "PAM Configuration Validation:"
+          - "============================================================================="
+          - "Status:                   {{ 'VALID' if (pam_config_validation.rc | default(-1) | int) == 0 else 'WARNING' if 'validation-skipped' in (pam_config_validation.stdout | default('')) else 'CHECK FAILED' }}"
+          - "Output:                   {{ pam_config_validation.stdout | default('N/A') | truncate(200) }}"
+          - "============================================================================="
+      when:
+        - debug_mode | default(false)
+        - pam_config_validation is defined
+      tags:
+        - debug
+        - validation
+        - pam
+
+    - name: Check for system-locked accounts
+      ansible.builtin.set_fact:
+        system_locked_users: "{{ user_account_status.results | default([]) | selectattr('stdout', 'defined') | selectattr('stdout', 'search', ' L ') | map(attribute='item') | map(attribute='username') | list }}"
+      tags:
+        - validation
+        - login_test
+
+    - name: Warn about locked users (faillock)
+      ansible.builtin.fail:
+        msg: "User '{{ locked_user }}' is locked by faillock. Unlock with: faillock --dir {{ pam_faillock_dir | default('/var/lib/faillock') }} --user {{ locked_user }} --reset"
+      vars:
+        locked_users: "{{ faillock_status_check.results | default([]) | selectattr('stdout', 'defined') | selectattr('stdout', 'search', 'denied') | map(attribute='item') | map(attribute='username') | list }}"
+        locked_user: "{{ locked_users | first | default('') }}"
+      when:
+        - configure_faillock | default(false)
+        - faillock_status_check is defined
+        - locked_users | length > 0
+      tags:
+        - validation
+        - login_test
+        - faillock
+
+    - name: Warn about system-locked accounts
+      ansible.builtin.fail:
+        msg: "User '{{ locked_user }}' is system-locked. Unlock with: passwd -u {{ locked_user }}"
+      vars:
+        locked_user: "{{ system_locked_users | first | default('') }}"
+      when:
+        - system_locked_users is defined
+        - system_locked_users | length > 0
+      tags:
+        - validation
+        - login_test
+
+    - name: Verify Proxmox compatibility (check for valid shell)
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "Proxmox Login Compatibility Check:"
+          - "============================================================================="
+          - "User:                     {{ item.item.username }}"
+          - "Shell:                    {{ item.stdout | default('N/A') }}"
+          - "Valid Shell:              {{ 'YES' if item.stdout in ['/bin/bash', '/bin/sh', '/usr/bin/bash', '/usr/bin/sh'] else 'MAY HAVE ISSUES' }}"
+          - "Note: Proxmox uses PAM authentication. Ensure PAM is configured correctly."
+          - "============================================================================="
+      loop: "{{ user_shell_check.results | default([]) }}"
+      when:
+        - debug_mode | default(false)
+        - user_shell_check is defined
+      tags:
+        - debug
+        - validation
+        - login_test
+        - proxmox
+
+    - name: Display login verification summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "LOGIN VERIFICATION SUMMARY:"
+          - "============================================================================="
+          - "Total Users Checked:      {{ users_to_add | length }}"
+          - "Successful Logins:        {{ successful_logins | length }}"
+          - "Failed Logins:            {{ failed_login_users | length }}"
+          - "Locked by Faillock:       {{ locked_by_faillock | length }}"
+          - "System Locked:            {{ system_locked_users | default([]) | length }}"
+          - "============================================================================="
+          - "For SSH Access:"
+          - "- Verify /etc/ssh/sshd_config allows password authentication"
+          - "- Check user shell is in /etc/shells"
+          - "- Ensure user home directory permissions are correct"
+          - "============================================================================="
+          - "For Proxmox Web Interface:"
+          - "- Users authenticate via PAM (already configured)"
+          - "- Verify user permissions in Proxmox web UI:"
+          - "  Datacenter -> Permissions -> Users"
+          - "- Assign appropriate roles (Admin, PVEAuditor, etc.)"
+          - "============================================================================="
+      vars:
+        successful_logins: "{{ user_login_test.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'equalto', 0) | map(attribute='item') | map(attribute='username') | list }}"
+        failed_login_users: "{{ user_login_test.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | map(attribute='item') | map(attribute='username') | list }}"
+        locked_by_faillock: "{{ faillock_status_check.results | default([]) | selectattr('stdout', 'defined') | selectattr('stdout', 'search', 'denied') | map(attribute='item') | map(attribute='username') | list }}"
+      when: debug_mode | default(false)
+      tags:
+        - debug
+        - validation
+        - login_test
+        - summary
+
+    - name: Warn about login test failures
+      ansible.builtin.debug:
+        msg:
+          - "============================================================================="
+          - "WARNING: Some users may have login issues!"
+          - "============================================================================="
+          - "Failed Users:             {{ failed_login_users | join(', ') }}"
+          - "Check PAM configuration and user account status"
+          - "For Proxmox: Verify user permissions in web interface"
+          - "For SSH: Check /etc/ssh/sshd_config and user shell"
+          - "============================================================================="
+      vars:
+        failed_login_users: "{{ user_login_test.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | map(attribute='item') | map(attribute='username') | list }}"
+      when:
+        - debug_mode | default(false)
+        - user_login_test is defined
+        - user_login_test.results is defined
+        - (user_login_test.results | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) > 0
+      tags:
+        - debug
+        - validation
+        - login_test
+
+  rescue:
+    - name: Login verification failed - log warning
+      ansible.builtin.debug:
+        msg: "Warning: User login verification encountered issues. Check logs and verify user access manually."
+      failed_when: false
+      tags:
+        - validation
+        - login_test
+
+  tags:
+    - validation
+    - login_test
+    - security
+    - always
 
 

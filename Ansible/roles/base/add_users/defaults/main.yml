@@ -3,13 +3,14 @@
 # RU: Переменные конфигурации по умолчанию
 
 # EN: Debug configuration / RU: Конфигурация отладки
-debug_mode: false                # Boolean. Enable detailed debug output / Логическое значение. Включить детальный вывод отладки
-debug_show_passwords: false      # Boolean. Show passwords in debug (INSECURE) / Логическое значение. Показывать пароли в отладке (НЕБЕЗОПАСНО)
+debug_mode: true                # Boolean. Enable detailed debug output / Логическое значение. Включить детальный вывод отладки
+debug_show_passwords: true      # Boolean. Show passwords in debug (INSECURE) / Логическое значение. Показывать пароли в отладке (НЕБЕЗОПАСНО)
 
 # EN: System-specific packages / RU: Системные пакеты
 required_packages:
   - sudo
   - passwd
+  
 
 # EN: User configuration / RU: Конфигурация пользователей
 users_to_add: []                 # List. Users to create or update / Список. Пользователи для создания или обновления
@@ -32,8 +33,8 @@ add_users_home_prefix: "/home"       # String. Home directory prefix / Стро�
 add_users_default_shell: "/bin/bash" # String. Default shell for users / Строка. Оболочка по умолчанию для пользователей
 
 # EN: Password validation / RU: Валидация паролей
-add_users_validate_passwords: true   # Boolean. Enable password validation / Логическое значение. Включить валидацию паролей
-add_users_min_password_length: 8     # Integer. Minimum password length / Целое число. Минимальная длина пароля
+add_users_validate_passwords: false   # Boolean. Enable password validation / Логическое значение. Включить валидацию паролей
+add_users_min_password_length: 8    # Integer. Minimum password length / Целое число. Минимальная длина пароля (PAM hardening standard)
 
 # EN: Rollback configuration / RU: Конфигурация отката
 enable_rollback: true                # Boolean. Enable automatic rollback on failure / Логическое значение. Включить автоматический откат при ошибке
@@ -54,13 +55,20 @@ password_warn_age: 14                # Integer. Password warning age in days / �
 account_inactive_days: 30            # Integer. Days until account locks after password expiry / Целое число. Дней до блокировки аккаунта после истечения пароля
 password_max_age_override: false     # Boolean. Allow individual password_max_age per user (enables password_max_age field in users_to_add) / Логическое значение. Разрешить индивидуальный password_max_age для каждого пользователя (включает поле password_max_age в users_to_add)
 pam_deny_attempts: 3                 # Integer. Failed login attempts before lockout / Целое число. Неудачных попыток входа до блокировки
-pam_unlock_time: 900                 # Integer. Account unlock time in seconds (15 min) / Целое число. Время разблокировки в секундах (15 мин)
-password_remember_count: 12          # Integer. Number of old passwords to remember / Целое число. Количество старых паролей для запоминания
+pam_unlock_time: 604800              # Integer. Account unlock time in seconds (1 week) / Целое число. Время разблокировки в секундах (1 неделя, PAM hardening standard)
+pam_fail_interval: 900               # Integer. Fail interval in seconds (15 min) / Целое число. Интервал оценки неудачных попыток в секундах (15 мин)
+pam_faillock_dir: /var/lib/faillock  # String. Faillock directory path (use /var/lib/faillock for containers, /var/run/faillock for regular systems) / Строка. Путь к директории faillock (используйте /var/lib/faillock для контейнеров, /var/run/faillock для обычных систем)
+password_remember_count: 10         # Integer. Number of old passwords to remember / Целое число. Количество старых паролей для запоминания (PAM hardening standard)
 password_history_file: /etc/security/opasswd  # String. Password history file / Строка. Файл истории паролей
 umask_system_users: '0027'           # String. Umask for system users / Строка. Umask для системных пользователей
 home_dir_permissions: '0750'         # String. Home directory permissions / Строка. Права на домашние директории
 min_uid: 1000                        # Integer. Minimum UID for regular users / Целое число. Минимальный UID для обычных пользователей
 max_uid: 60000                       # Integer. Maximum UID for regular users / Целое число. Максимальный UID для обычных пользователей
+
+# EN: PAM configuration control / RU: Управление конфигурацией PAM
+enable_pam_configuration: false        # Boolean. Enable PAM modules configuration / Логическое значение. Включить конфигурацию PAM модулей
+enable_pam_validation: false           # Boolean. Enable user credential validation before PAM setup / Логическое значение. Включить валидацию учетных данных перед настройкой PAM
+enable_faillock_in_containers: false   # Boolean. Force enable faillock in containers (NOT RECOMMENDED - see security.yml comments) / Логическое значение. Принудительно включить faillock в контейнерах (НЕ РЕКОМЕНДУЕТСЯ - см. комментарии в security.yml)
 
 # EN: Security groups configuration / RU: Конфигурация групп безопасности
 security_groups:                     # Dictionary. Security groups with members and allowed commands / Словарь. Группы безопасности с членами и разрешенными командами

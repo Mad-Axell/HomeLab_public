@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  author: Ansible NAS Server Role
+  description: Automated Ansible role for NAS server installation and configuration in Proxmox LXC container
+  license: MIT
+  min_ansible_version: "2.9"
+  platforms:
+    - name: Debian
+      versions:
+        - "11"
+        - "12"
+  galaxy_tags:
+    - nas
+    - samba
+    - cockpit
+    - nfs
+    - proxmox
+    - lxc
+    - zfs
+    - storage
+
+dependencies: []

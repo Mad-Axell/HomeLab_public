@@ -1,0 +1,35 @@
+---
+# Logging Configuration
+debug_mode: false
+
+# Configure Cockpit listener in cockpit.conf (may cause problems)
+# В случае проблем не использовать этот метод!
+cockpit_configure_listener: false
+cockpit_port: 9090
+cockpit_listen_address: "0.0.0.0"
+
+cockpit_modules:
+  - "cockpit-file-sharing"
+  - "cockpit-navigator"
+  - "cockpit-identities"
+
+# Samba Configuration
+samba_workgroup: "WORKGROUP"
+samba_security: "user"
+
+# Method for adding shares: 'samba' (config files) or 'registry' (net conf commands)
+samba_share_method: "registry" # 'samba' or 'registry'
+samba_users: []
+samba_groups: []
+samba_shares: []
+
+# NFS Configuration
+nfs_enabled: false
+nfs_exports: []
+
+# System Configuration
+backports_enabled: false
+essential_packages:
+  - curl
+  - wget
+  - net-tools

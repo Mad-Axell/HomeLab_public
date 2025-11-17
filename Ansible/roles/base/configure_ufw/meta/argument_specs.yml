@@ -1,0 +1,209 @@
+---
+# Argument specifications for role input validation / Спецификации аргументов для валидации входных параметров роли
+argument_specs:
+  main:
+    short_description: "Debian firewall configuration role supporting UFW with DDoS protection"
+    description: |
+      This role configures UFW (Uncomplicated Firewall) with security best practices for Debian/Ubuntu systems.
+      Provides comprehensive firewall configuration with DDoS protection, rate limiting, and security policies.
+      Implements minimal privilege principle with DROP policies and explicit allow rules.
+    author:
+      - "HomeLab DevOps Team"
+    
+    options:
+      ssh_port:
+        type: int
+        required: false
+        default: 22
+        description: |
+          SSH port number (1-65535)
+        
+      ssh_protocol:
+        type: str
+        required: false
+        default: "tcp"
+        choices: ['tcp', 'udp']
+        description: |
+          SSH protocol (tcp/udp)
+        
+      users_to_add:
+        type: list
+        required: false
+        default: []
+        description: |
+          List of users with their SSH access settings
+          Each user must have: username, password, groups, is_sudoers, shell, allowed_subnets, denied_subnets
+        
+      allowed_subnets:
+        type: list
+        required: false
+        default: []
+        description: |
+          List of allowed subnets for SSH access in CIDR notation
+          Example: ["192.168.1.0/24", "10.0.0.0/8"]
+        
+      denied_subnets:
+        type: list
+        required: false
+        default: []
+        description: |
+          List of denied subnets for SSH access in CIDR notation
+          Example: ["192.168.0.0/24", "10.10.10.0/24"]
+        
+          
+      ufw_logging:
+        type: str
+        required: false
+        default: "medium"
+        choices: ['off', 'low', 'medium', 'high', 'full']
+        description: |
+          UFW logging level
+          
+          
+      ufw_rules:
+        type: list
+        required: false
+        default: []
+        description: |
+          List of custom UFW rules
+          Each rule must have: rule, port, proto
+          Optional: from_ip, comment
+          
+      ssh_rate_limit:
+        type: bool
+        required: false
+        default: false
+        description: |
+          Enable SSH rate limiting to prevent brute force attacks
+          
+          
+      ufw_ipv6:
+        type: bool
+        required: false
+        default: false
+        description: |
+          Enable/disable IPv6 support in UFW
+          
+      ufw_auto_reset:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Automatically reset UFW for idempotency
+          
+      ufw_backup_enabled:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable configuration backup before changes
+          
+      ufw_backup_dir:
+        type: str
+        required: false
+        default: "/etc/ufw/backup"
+        description: |
+          Backup directory path
+          
+      ufw_backup_suffix:
+        type: str
+        required: false
+        default: ".bak"
+        description: |
+          Backup file suffix
+          
+          
+          
+      debug_mode:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable verbose debug output
+          
+          
+          
+      validate_configuration:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable input parameter validation
+          
+          
+      ddos_protection_enabled:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable DDoS protection features including SYN flood, ICMP flood, and invalid packet dropping
+          
+      syn_flood_protection:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable SYN flood protection with rate limiting
+          
+      icmp_flood_protection:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable ICMP flood protection with rate limiting
+          
+      invalid_packets_drop:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable dropping of invalid packets
+          
+      connection_tracking_limits:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable connection tracking limits via sysctl
+          
+      structured_logging:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable structured JSON logging to file
+          
+      log_file:
+        type: str
+        required: false
+        default: "/var/log/ansible-changes.log"
+        description: |
+          Path to structured log file
+          
+      verify_deployment:
+        type: bool
+        required: false
+        default: true
+        description: |
+          Enable post-deployment verification
+          
+      min_disk_space:
+        type: int
+        required: false
+        default: 1073741824
+        description: |
+          Minimum disk space in bytes (1GB default)
+          
+      required_mounts:
+        type: list
+        required: false
+        default: ['/']
+        description: |
+          Required mount points for disk space check
+          
+      enable_rollback:
+        type: bool
+        required: false
+        default: false
+        description: |
+          Enable rollback on failure

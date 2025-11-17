@@ -1,0 +1,24 @@
+---
+# Main entry point for nas_server role
+
+- name: Include storage setup tasks
+  ansible.builtin.include_tasks: storage.yml
+  tags:
+    - storage
+    - checks
+
+- name: Include Cockpit installation tasks
+  ansible.builtin.include_tasks: cockpit.yml
+  tags:
+    - cockpit
+
+- name: Include Samba configuration tasks
+  ansible.builtin.include_tasks: samba.yml
+  tags:
+    - samba
+
+- name: Include NFS configuration tasks
+  ansible.builtin.include_tasks: nfs.yml
+  tags:
+    - nfs
+  when: nfs_enabled | default(false)

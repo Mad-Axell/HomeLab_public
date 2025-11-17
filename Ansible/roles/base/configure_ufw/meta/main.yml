@@ -1,0 +1,40 @@
+---
+# Meta information for UFW Configuration Role / Мета-информация для роли конфигурации UFW
+galaxy_info:
+  role_name: configure_ufw
+  namespace: base
+  author: HomeLab DevOps Team
+  description: Debian firewall configuration role supporting UFW with security best practices
+  company: HomeLab Infrastructure Management
+  license: MIT
+  min_ansible_version: "2.14"
+  
+  # Supported platforms / Поддерживаемые платформы
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal      # 20.04 LTS
+        - jammy      # 22.04 LTS
+        - kinetic    # 22.10
+        - lunar      # 23.04
+    - name: Debian
+      versions:
+        - bullseye   # 11
+        - bookworm   # 12
+
+  # Galaxy tags for role discovery / Теги Galaxy для поиска роли
+  galaxy_tags:
+    - firewall
+    - security
+    - ufw
+    - iptables
+    - networking
+    - system
+    - administration
+    - debian
+    - ubuntu
+    - ddos-protection
+    - rate-limiting
+
+# Role dependencies / Зависимости роли
+dependencies: []

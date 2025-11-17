@@ -1,0 +1,451 @@
+---
+# Tasks for Samba installation and configuration
+
+- name: Initialize samba_groups_from_users
+  ansible.builtin.set_fact:
+    samba_groups_from_users: []
+  tags:
+    - samba
+    - users
+
+- name: Collect all groups from samba_users
+  ansible.builtin.set_fact:
+    samba_groups_from_users: "{{ samba_groups_from_users | union(item.groups | default([])) }}"
+  loop: "{{ samba_users | default([]) }}"
+  when: item.groups is defined and item.groups | length > 0
+  tags:
+    - samba
+    - users
+
+- name: Initialize samba_groups_gid_map
+  ansible.builtin.set_fact:
+    samba_groups_gid_map: {}
+  tags:
+    - samba
+    - users
+
+- name: Extract group names from samba_groups variable
+  ansible.builtin.set_fact:
+    samba_groups_names: "{{ samba_groups | default([]) | map(attribute='name') | list }}"
+  tags:
+    - samba
+    - users
+
+- name: Merge all groups with deduplication
+  ansible.builtin.set_fact:
+    samba_all_groups: "{{ (samba_groups_names | default([])) | union(samba_groups_from_users | default([])) | unique | list }}"
+  tags:
+    - samba
+    - users
+
+- name: Create dictionary mapping group names to gid from samba_groups
+  ansible.builtin.set_fact:
+    samba_groups_gid_map: "{{ samba_groups_gid_map | combine({item.name: item.gid}) }}"
+  loop: "{{ samba_groups | default([]) }}"
+  when: item.gid is defined
+  tags:
+    - samba
+    - users
+
+- name: Create Samba groups with gid
+  ansible.builtin.group:
+    name: "{{ item }}"
+    gid: "{{ samba_groups_gid_map[item] }}"
+    state: present
+  loop: "{{ samba_all_groups | default([]) }}"
+  register: samba_groups_create
+  when:
+    - samba_all_groups | default([]) | length > 0
+    - samba_groups_gid_map[item] is defined
+  tags:
+    - samba
+    - users
+
+- name: Create Samba groups without gid
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ samba_all_groups | default([]) }}"
+  register: samba_groups_create_no_gid
+  when:
+    - samba_all_groups | default([]) | length > 0
+    - samba_groups_gid_map[item] is not defined
+  tags:
+    - samba
+    - users
+
+- name: Create Samba users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ item.groups | default([]) | join(',') }}"
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    create_home: "{{ item.create_home | default(true) }}"
+    system: "{{ item.system_user | default(false) }}"
+    state: present
+  loop: "{{ samba_users | default([]) }}"
+  register: samba_users_create
+  tags:
+    - samba
+    - users
+
+- name: Set Samba passwords for users (add to Samba database)
+  ansible.builtin.shell:
+    cmd: "printf '%s\n%s\n' '{{ item.password }}' '{{ item.password }}' | smbpasswd -a -s {{ item.name }}"
+  loop: "{{ samba_users | default([]) }}"
+  register: samba_passwords_set
+  no_log: false
+  failed_when: >
+    samba_passwords_set.rc != 0 
+    and "already exists" not in (samba_passwords_set.stderr | default("") + samba_passwords_set.stdout | default(""))
+  tags:
+    - samba
+    - users
+
+- name: Verify all Samba users exist before enabling
+  ansible.builtin.shell:
+    cmd: pdbedit -L | grep -q "^{{ item.name }}:" || echo "not_found"
+  loop: "{{ samba_users | default([]) }}"
+  register: samba_user_verify_before_enable
+  changed_when: false
+  failed_when: false
+  tags:
+    - samba
+    - users
+
+- name: Enable Samba users
+  ansible.builtin.command:
+    cmd: smbpasswd -e {{ item.item.name }}
+  loop: "{{ samba_user_verify_before_enable.results | default([]) }}"
+  when: item.stdout != "not_found"
+  register: samba_users_enable
+  changed_when: "'Enabled' not in samba_users_enable.stdout | default('')"
+  tags:
+    - samba
+    - users
+
+- name: Check if Samba config includes registry
+  ansible.builtin.shell:
+    cmd: grep -q "^include = registry" /etc/samba/smb.conf || echo "not_found"
+  register: samba_registry_check
+  changed_when: false
+  failed_when: false
+  tags:
+    - samba
+    - config
+
+- name: Add registry include to Samba global section
+  ansible.builtin.lineinfile:
+    path: /etc/samba/smb.conf
+    insertafter: "^\\[global\\]"
+    line: "include = registry"
+    regexp: "^include = registry"
+  when: samba_registry_check.stdout == "not_found"
+  notify: reload_smbd
+  tags:
+    - samba
+    - config
+
+- name: Ensure Samba config directory exists
+  ansible.builtin.file:
+    path: /etc/samba/smb.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  tags:
+    - samba
+    - config
+
+- name: Backup original Samba config
+  ansible.builtin.copy:
+    src: /etc/samba/smb.conf
+    dest: /etc/samba/smb.conf.ansible-backup
+    remote_src: true
+  when: not ansible_check_mode | default(false)
+  failed_when: false
+  changed_when: false
+  tags:
+    - samba
+    - config
+
+- name: Generate Samba global configuration
+  ansible.builtin.template:
+    src: samba-global.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload_smbd
+  tags:
+    - samba
+    - config
+
+- name: Add include directive for share configs
+  ansible.builtin.lineinfile:
+    path: /etc/samba/smb.conf
+    insertafter: "^include = registry"
+    line: "include = /etc/samba/smb.conf.d/*.conf"
+    regexp: "^include = /etc/samba/smb.conf.d/"
+  notify: reload_smbd
+  when: samba_share_method | default('samba') == 'samba'
+  tags:
+    - samba
+    - config
+
+- name: Create Samba share directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.force_user | default('root') }}"
+    group: "{{ item.force_group | default('root') }}"
+    mode: '{{ item.directory_mask | default("0775") }}'
+  loop: "{{ samba_shares | default([]) }}"
+  register: samba_dirs_create
+  tags:
+    - samba
+    - shares
+
+- name: Set setgid bit on share directories
+  ansible.builtin.command:
+    cmd: chmod g+s "{{ item.path }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when: item.setgid | default(false)
+  tags:
+    - samba
+    - shares
+
+- name: Generate Samba share configurations
+  ansible.builtin.template:
+    src: samba-share.j2
+    dest: "/etc/samba/smb.conf.d/share-{{ item.name }}.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ samba_shares | default([]) }}"
+  register: samba_shares_config
+  notify: reload_smbd
+  when: samba_share_method | default('samba') == 'samba'
+  tags:
+    - samba
+    - shares
+
+- name: Check if Samba share exists in registry
+  ansible.builtin.shell:
+    cmd: net conf list | grep -q "^\[{{ item.name }}\]" || echo "not_found"
+  loop: "{{ samba_shares | default([]) }}"
+  register: samba_registry_share_check
+  changed_when: false
+  failed_when: false
+  when: samba_share_method | default('samba') == 'registry'
+  tags:
+    - samba
+    - shares
+
+- name: Add Samba share to registry
+  ansible.builtin.command:
+    cmd: net conf addshare "{{ item.item.name }}" "{{ item.item.path }}"
+  loop: "{{ samba_registry_share_check.results | default([]) }}"
+  when:
+    - samba_share_method | default('samba') == 'registry'
+    - item.stdout == "not_found"
+  register: samba_registry_addshare
+  tags:
+    - samba
+    - shares
+
+- name: Set comment parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "comment" "{{ item.comment | default('Samba Share') }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when: samba_share_method | default('samba') == 'registry'
+  register: samba_registry_set_comment
+  tags:
+    - samba
+    - shares
+
+- name: Set browseable parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "browseable" "{{ item.browseable | default(item.browsable | default(true)) | lower }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when: samba_share_method | default('samba') == 'registry'
+  register: samba_registry_set_browseable
+  tags:
+    - samba
+    - shares
+
+- name: Set writable parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "writable" "{{ item.writable | default(true) | lower }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when: samba_share_method | default('samba') == 'registry'
+  register: samba_registry_set_writable
+  tags:
+    - samba
+    - shares
+
+- name: Set read only parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "read only" "{{ item.read_only | default(false) | lower }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when: samba_share_method | default('samba') == 'registry'
+  register: samba_registry_set_readonly
+  tags:
+    - samba
+    - shares
+
+- name: Set public parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "public" "{{ item.public | default(false) | lower }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when: samba_share_method | default('samba') == 'registry'
+  register: samba_registry_set_public
+  tags:
+    - samba
+    - shares
+
+- name: Set guest ok parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "guest ok" "{{ item.guest_ok | default(false) | lower }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when: samba_share_method | default('samba') == 'registry'
+  register: samba_registry_set_guestok
+  tags:
+    - samba
+    - shares
+
+- name: Set create mask parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "create mask" "{{ item.create_mask }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when:
+    - samba_share_method | default('samba') == 'registry'
+    - item.create_mask is defined
+  register: samba_registry_set_createmask
+  tags:
+    - samba
+    - shares
+
+- name: Set directory mask parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "directory mask" "{{ item.directory_mask }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when:
+    - samba_share_method | default('samba') == 'registry'
+    - item.directory_mask is defined
+  register: samba_registry_set_dirmask
+  tags:
+    - samba
+    - shares
+
+- name: Set force user parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "force user" "{{ item.force_user }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when:
+    - samba_share_method | default('samba') == 'registry'
+    - item.force_user is defined
+  register: samba_registry_set_forceuser
+  tags:
+    - samba
+    - shares
+
+- name: Set force group parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "force group" "{{ item.force_group }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when:
+    - samba_share_method | default('samba') == 'registry'
+    - item.force_group is defined
+  register: samba_registry_set_forcegroup
+  tags:
+    - samba
+    - shares
+
+- name: Set valid users parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "valid users" "{{ item.valid_users | join(', ') }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when:
+    - samba_share_method | default('samba') == 'registry'
+    - item.valid_users is defined
+    - item.valid_users | length > 0
+  register: samba_registry_set_validusers
+  tags:
+    - samba
+    - shares
+
+- name: Set write list parameter for registry share
+  ansible.builtin.command:
+    cmd: net conf setparm "{{ item.name }}" "write list" "{{ item.write_list | join(', ') }}"
+  loop: "{{ samba_shares | default([]) }}"
+  when:
+    - samba_share_method | default('samba') == 'registry'
+    - item.write_list is defined
+    - item.write_list | length > 0
+  register: samba_registry_set_writelist
+  tags:
+    - samba
+    - shares
+
+- name: Test Samba configuration syntax
+  ansible.builtin.command:
+    cmd: testparm -s
+  register: samba_config_test
+  changed_when: false
+  tags:
+    - samba
+    - verification
+
+- name: Verify Samba configuration
+  ansible.builtin.assert:
+    that:
+      - samba_config_test.rc == 0
+    fail_msg: "Samba configuration test failed: {{ samba_config_test.stderr }}"
+    success_msg: "Samba configuration is valid"
+  tags:
+    - samba
+    - verification
+
+- name: Ensure Samba services are enabled and started
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - smbd
+    - nmbd
+  tags:
+    - samba
+    - services
+
+- name: Verify Samba services are running
+  ansible.builtin.command:
+    cmd: systemctl is-active "{{ item }}"
+  register: samba_service_check
+  changed_when: false
+  loop:
+    - smbd
+    - nmbd
+  tags:
+    - samba
+    - verification
+
+- name: Create simplified service status
+  ansible.builtin.set_fact:
+    samba_service_status_simple: "{{ samba_service_status_simple | default([]) + [{'name': item.item, 'active': item.rc == 0 and item.stdout == 'active', 'status': item.stdout | default('unknown')}] }}"
+  loop: "{{ samba_service_check.results | default([]) }}"
+  no_log: true
+  tags:
+    - samba
+    - verification
+
+- name: Assert Samba services are active
+  ansible.builtin.assert:
+    that:
+      - item.active == true
+    fail_msg: "Samba service {{ item.name }} is not running (status: {{ item.status }})"
+    success_msg: "Samba service {{ item.name }} is running"
+  loop: "{{ samba_service_status_simple | default([]) }}"
+  tags:
+    - samba
+    - verification

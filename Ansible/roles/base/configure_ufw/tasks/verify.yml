@@ -1,0 +1,96 @@
+---
+# Post-deployment verification tasks / Задачи проверки после развертывания
+
+# Verify firewall service is active
+# Проверка активности службы файрвола
+- name: "Verify firewall service is active"
+  ansible.builtin.command: "{{ service_status_command }} {{ firewall_service }}"
+  register: firewall_service_active_check
+  changed_when: false
+  failed_when: false
+
+# Verify firewall service is enabled
+# Проверка включения службы файрвола
+- name: "Verify firewall service is enabled"
+  ansible.builtin.command: "{{ service_enabled_command }} {{ firewall_service }}"
+  register: firewall_service_enabled_check
+  changed_when: false
+  failed_when: false
+
+# Get firewall service detailed status
+# Получение детального статуса службы файрвола
+- name: "Get firewall service detailed status"
+  ansible.builtin.command: "systemctl show {{ firewall_service }} --property=ActiveState,SubState,LoadState"
+  register: firewall_service_details
+  changed_when: false
+  failed_when: false
+
+# Verify UFW status
+# Проверка статуса UFW
+- name: "Verify UFW status"
+  ansible.builtin.command: ufw status verbose
+  register: ufw_status_check
+  changed_when: false
+  failed_when: false
+
+# Verify SSH port is accessible
+# Проверка доступности порта SSH
+- name: "Verify SSH port is accessible"
+  ansible.builtin.wait_for:
+    port: "{{ ssh_port }}"
+    host: "{{ ansible_default_ipv4.address | default('127.0.0.1') }}"
+    timeout: 10
+    state: started
+  register: ssh_port_check
+  failed_when: false
+
+# Verify firewall configuration files exist
+# Проверка существования файлов конфигурации файрвола
+- name: "Verify firewall configuration files exist"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: firewall_config_files
+  loop: "{{ firewall_backup_files | default([]) }}"
+
+# Display verification results (English)
+# Отображение результатов проверки (английский)
+- name: "Display verification results (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Post-Deployment Verification Summary:"
+      - "============================================================================="
+      - "Firewall Service:         {{ firewall_service }}"
+      - "Service Active:           {{ firewall_service_active_check.stdout | default('UNKNOWN') }}"
+      - "Service Enabled:          {{ firewall_service_enabled_check.stdout | default('UNKNOWN') }}"
+      - "Service Details:          {{ firewall_service_details.stdout | default('UNKNOWN') }}"
+      - "SSH Port:                 {{ ssh_port }}"
+      - "SSH Accessible:           {{ 'YES' if ssh_port_check is succeeded else 'NO' }}"
+      - "Configuration Files:      {{ firewall_config_files.results | selectattr('stat.exists') | list | length }} found"
+      - "Verification Status:      {{ 'SUCCESS' if (firewall_service_active_check.stdout == 'active' and firewall_service_enabled_check.stdout in ['enabled', 'static']) else 'WARNING' }}"
+      - "============================================================================="
+  when: debug_mode | default(false)
+
+
+# Display UFW status output
+# Отображение вывода статуса UFW
+- name: "Display UFW status output"
+  ansible.builtin.debug:
+    var: ufw_status_check.stdout_lines
+  when:
+    - debug_mode | default(false)
+    - ufw_status_check.stdout_lines is defined
+
+# Assert firewall service is properly configured
+# Проверка правильности конфигурации службы файрвола
+- name: "Assert firewall service is properly configured"
+  ansible.builtin.assert:
+    that:
+      - firewall_service_active_check.stdout == "active"
+      - firewall_service_enabled_check.stdout in ["enabled", "static"]
+    fail_msg: |
+      Firewall service is not properly configured. Active: {{ firewall_service_active_check.stdout }}, Enabled: {{ firewall_service_enabled_check.stdout }}
+      Служба файрвола неправильно настроена. Активна: {{ firewall_service_active_check.stdout }}, Включена: {{ firewall_service_enabled_check.stdout }}
+    success_msg: |
+      Firewall service is properly configured and running
+      Служба файрвола правильно настроена и работает
