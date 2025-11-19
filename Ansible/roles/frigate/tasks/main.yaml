@@ -1,0 +1,43 @@
+---
+
+# Reboot LXC container (optional)
+# Перезагрузка LXC контейнера (опционально)
+- name: Reboot LXC
+  ansible.builtin.reboot:
+    msg: "{{ frigate_reboot_msg }}"
+    reboot_timeout: "{{ frigate_reboot_timeout }}"
+  when: frigate_reboot_enabled | default(true)
+
+# Create work directories
+# Создание рабочих директорий
+- name: Create work directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    recurse: true
+    mode: '0755'
+  loop:
+    - "{{ frigate_clips_dir }}"
+    - "{{ frigate_config_dir }}"
+
+# Create Docker Compose file
+# Создание файла Docker Compose
+- name: Create Docker Compose file
+  ansible.builtin.template:
+    src: Docker_Compose_Frigate.j2
+    dest: "{{ frigate_docker_compose_path }}"
+    mode: '0644'
+
+# Create Frigate config file
+# Создание конфигурационного файла Frigate
+- name: Create Frigate config file
+  ansible.builtin.template:
+    src: Frigate_Config.j2
+    dest: "{{ frigate_config_dir }}/config.yml"
+    mode: '0644'
+
+# Run Frigate as service
+# Запуск Frigate как сервис
+- name: Run Frigate as service
+  ansible.builtin.shell:
+    cmd: "docker compose -f {{ frigate_docker_compose_path }} up -d"

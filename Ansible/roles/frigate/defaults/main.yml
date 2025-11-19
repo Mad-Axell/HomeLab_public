@@ -1,0 +1,240 @@
+---
+# Frigate NVR Role Default Variables
+# Переменные по умолчанию роли Frigate NVR
+
+# Base directories
+# Базовые директории
+frigate_base_dir: "/opt/frigate"                         # String. Base directory for Frigate data
+                                                         # Строка. Базовая директория для данных Frigate
+frigate_config_dir: "{{ frigate_base_dir }}/config"      # String. Configuration files directory
+                                                         # Строка. Директория для конфигурационных файлов
+frigate_docker_compose_path: "{{ frigate_config_dir }}/docker-compose.yml"  # String. Docker Compose file path
+                                                         # Строка. Путь к файлу Docker Compose                                                    
+frigate_content_dir: "/mnt/frigate"                      # String. Base directory for Frigate data
+                                                         # Строка. Базовая директория для данных Frigate
+frigate_clips_dir: "{{ frigate_content_dir }}/cctv_clips"  # String. Clips storage directory
+                                                         # Строка. Директория для хранения клипов
+frigate_media_dir: "{{ frigate_content_dir }}/media"       # String. Media files directory
+                                                         # Строка. Директория для медиа файлов
+
+# Volume mappings
+# Маппинг томов
+frigate_config_volume_host: "{{ frigate_config_dir }}"    # String. Config directory on host
+                                                          # Строка. Директория конфигурации на хосте
+frigate_config_volume_container: "/config"                # String. Config directory in container
+                                                          # Строка. Директория конфигурации в контейнере
+frigate_media_volume_host: "{{ frigate_media_dir }}"      # String. Media directory on host
+                                                          # Строка. Директория медиа на хосте
+frigate_media_volume_container: "/media"                  # String. Media directory in container
+                                                          # Строка. Директория медиа в контейнере
+
+# Docker Compose settings
+# Настройки Docker Compose
+frigate_container_name: "frigate_nvr"              # String. Docker container name
+                                                    # Строка. Имя Docker контейнера
+frigate_version: "stable"                          # String. Frigate Docker image version (can use 'stable')
+                                                    # Строка. Версия образа Docker Frigate (можно использовать 'stable')
+frigate_shm_size: "1Gb"                         # String. Shared memory size for container
+                                                    # Строка. Размер shared memory для контейнера
+frigate_tmpfs_size: 5000000000                     # Integer. tmpfs cache size in bytes (~5GB)
+                                                    # Целое число. Размер tmpfs кэша в байтах (~5GB)
+frigate_tmpfs_target: "/tmp/cache"                 # String. tmpfs mount target inside container
+                                                    # Строка. Точка монтирования tmpfs внутри контейнера
+
+# Device paths
+# Пути к устройствам
+frigate_usb_device_host: "/dev/bus/usb"            # String. USB device path on host
+                                                    # Строка. Путь к USB устройству на хосте
+frigate_usb_device_container: "/dev/bus/usb"       # String. USB device path in container
+                                                    # Строка. Путь к USB устройству в контейнере
+frigate_gpu_device: "/dev/dri/renderD128"          # String. GPU device path for hardware acceleration (Intel)
+                                                    # Строка. Путь к GPU устройству для аппаратного ускорения (Intel)
+frigate_timezone_host: "/etc/localtime"            # String. Timezone file path on host
+                                                     # Строка. Путь к файлу часового пояса на хосте
+frigate_timezone_container: "/etc/localtime"        # String. Timezone file path in container
+                                                    # Строка. Путь к файлу часового пояса в контейнере
+
+
+
+# Port settings
+# Настройки портов
+frigate_port_go2rtc_web: 1984                       # Integer. go2rtc web interface port
+                                                    # Целое число. Порт веб-интерфейса go2rtc
+frigate_port_authenticated: 8971                   # Integer. Authenticated UI and API port (for reverse proxy)
+                                                    # Целое число. Порт аутентифицированного UI и API (для reverse proxy)
+frigate_port_internal: 5000                        # Integer. Internal unauthenticated UI and API port (Docker network only)
+                                                    # Целое число. Порт внутреннего неаутентифицированного UI и API (только Docker сеть)
+frigate_port_rtmp: 1935                            # Integer. RTMP streams port
+                                                    # Целое число. Порт RTMP потоков
+frigate_port_webrtc_tcp: 8555                      # Integer. WebRTC over TCP port
+                                                    # Целое число. Порт WebRTC over TCP
+frigate_port_webrtc_udp: 8555                      # Integer. WebRTC over UDP port
+                                                    # Целое число. Порт WebRTC over UDP
+frigate_port_rtsp: 8554                            # Integer. RTSP restreaming port
+                                                    # Целое число. Порт RTSP рестриминга
+
+# MQTT settings
+# Настройки MQTT
+frigate_mqtt_enabled: false                        # Boolean. Enable MQTT integration
+                                                    # Логическое значение. Включить интеграцию с MQTT
+
+# Detector settings
+# Настройки детектора
+frigate_detector_type: "edgetpu"                   # String. Detector type: 'edgetpu' (Coral TPU), 'cpu' (CPU)
+                                                    # Строка. Тип детектора: 'edgetpu' (Coral TPU), 'cpu' (CPU)
+frigate_coral_device: "usb"                        # String. Coral TPU device type: 'usb' or 'pci'
+                                                    # Строка. Тип устройства Coral TPU: 'usb' или 'pci'
+
+# Birdseye settings
+# Настройки Birdseye
+frigate_birdseye_enabled: false                    # Boolean. Enable Birdseye view (overview of all cameras)
+                                                    # Логическое значение. Включить вид Birdseye (общий обзор всех камер)
+frigate_birdseye_width: 1280                       # Integer. Birdseye width
+                                                    # Целое число. Ширина Birdseye
+frigate_birdseye_height: 720                       # Integer. Birdseye height
+                                                    # Целое число. Высота Birdseye
+frigate_birdseye_quality: 15                       # Integer. Birdseye quality (1-31, lower = better quality)
+                                                    # Целое число. Качество Birdseye (1-31, меньше = лучше качество)
+frigate_birdseye_mode: "motion"                    # String. Birdseye mode: 'motion', 'continuous', 'objects'
+                                                    # Строка. Режим Birdseye: 'motion', 'continuous', 'objects'
+
+# UI settings
+# Настройки UI
+frigate_ui_time_format: "24hour"                   # String. Time format: '12hour' or '24hour'
+                                                    # Строка. Формат времени: '12hour' или '24hour'
+frigate_ui_timezone: "Europe/Moscow"               # String. Timezone for UI
+                                                    # Строка. Часовой пояс для UI
+frigate_ui_date_style: "medium"                    # String. Date display style
+                                                    # Строка. Стиль отображения даты
+frigate_ui_time_style: "medium"                    # String. Time display style
+                                                    # Строка. Стиль отображения времени
+frigate_ui_strftime_fmt: "%Y-%m-%d %H:%M:%S"      # String. strftime format string
+                                                    # Строка. Строка формата strftime
+
+# Object tracking settings
+# Настройки отслеживания объектов
+frigate_track_objects:                             # List. List of objects to track
+  - person                                          # Список. Список объектов для отслеживания
+frigate_alert_labels:                              # List. List of labels for alerts
+  - person                                          # Список. Список меток для алертов
+frigate_detection_labels:                          # List. List of labels for detections
+  - person                                          # Список. Список меток для детекций
+
+# Snapshot settings
+# Настройки снимков
+frigate_snapshots_enabled: true                    # Boolean. Enable snapshot creation
+                                                    # Логическое значение. Включить создание снимков
+frigate_snapshots_timestamp: true                  # Boolean. Add timestamp to snapshots
+                                                    # Логическое значение. Добавлять временную метку на снимки
+frigate_snapshots_bounding_box: true               # Boolean. Show detected object bounding box
+                                                    # Логическое значение. Показывать рамку обнаруженного объекта
+frigate_snapshots_crop: false                      # Boolean. Crop snapshot to object
+                                                    # Логическое значение. Обрезать снимок до объекта
+frigate_snapshots_clean_copy: false                 # Boolean. Create clean copy of snapshot
+                                                    # Логическое значение. Создавать чистую копию снимка
+frigate_snapshots_retain_default: 0                 # Integer. Default snapshot retention days
+                                                    # Целое число. Дней хранения снимков по умолчанию
+frigate_snapshots_retain_objects:                  # Dict. Snapshot retention days by object type
+  person: 0                                         # Словарь. Дней хранения снимков по типам объектов
+
+# Recording settings
+# Настройки записи
+frigate_record_enabled: true                       # Boolean. Enable video recording
+                                                    # Логическое значение. Включить запись видео
+frigate_record_expire_interval: 60                 # Integer. Expire interval in seconds
+                                                    # Целое число. Интервал истечения в секундах
+frigate_record_sync_recordings: false              # Boolean. Sync recordings
+                                                    # Логическое значение. Синхронизировать записи
+frigate_record_retain_days: 1                      # Integer. Number of days to retain recordings
+                                                    # Целое число. Количество дней хранения записей
+frigate_record_mode: "all"                         # String. Recording mode: 'all' (all), 'motion' (motion only)
+                                                    # Строка. Режим записи: 'all' (все), 'motion' (только движение)
+frigate_record_preview_quality: "medium"            # String. Preview quality: 'low', 'medium', 'high'
+                                                    # Строка. Качество превью: 'low', 'medium', 'high'
+frigate_pre_capture: 7                            # Integer. Seconds of recording before event
+                                                    # Целое число. Секунд записи до события
+frigate_post_capture: 7                            # Integer. Seconds of recording after event
+                                                    # Целое число. Секунд записи после события
+frigate_alerts_retain_days: 10                     # Integer. Number of days to retain alerts
+                                                    # Целое число. Количество дней хранения алертов
+frigate_alerts_retain_mode: "motion"                # String. Alerts retention mode: 'all', 'motion'
+                                                    # Строка. Режим хранения алертов: 'all', 'motion'
+frigate_detections_retain_days: 10                 # Integer. Number of days to retain detections
+                                                    # Целое число. Количество дней хранения детекций
+frigate_detections_retain_mode: "motion"            # String. Detections retention mode: 'all', 'motion'
+                                                    # Строка. Режим хранения детекций: 'all', 'motion'
+
+# FFmpeg settings
+# Настройки FFmpeg
+frigate_ffmpeg_hwaccel_args: "auto"                # String. FFmpeg hardware acceleration args (e.g., 'auto', 'vaapi', 'cuda')
+                                                    # Строка. Аргументы аппаратного ускорения FFmpeg (например, 'auto', 'vaapi', 'cuda')
+frigate_ffmpeg_output_args_record: "preset-record-generic-audio-aac"  # String. FFmpeg output args for recording
+                                                                        # Строка. Аргументы вывода FFmpeg для записи
+                                                                        # Recommended: 'preset-record-generic-audio-aac' (re-encodes audio to AAC, more stable)
+                                                                        # Alternative: 'preset-record-generic' (no audio, most stable)
+                                                                        # Рекомендуется: 'preset-record-generic-audio-aac' (перекодирует аудио в AAC, более стабильно)
+                                                                        # Альтернатива: 'preset-record-generic' (без аудио, самый стабильный)
+                                                                        # preset-record-generic-audio-copy: Copies audio stream as is, may cause instability
+                                                                        # preset-record-generic-audio-copy: Копирует аудио поток как есть, может вызвать нестабильность
+frigate_ffmpeg_input_args: "preset-rtsp-restream-low-latency"          # String. FFmpeg input args
+                                                                        # Строка. Аргументы ввода FFmpeg
+frigate_ffmpeg_retry_interval: 10                 # Integer. FFmpeg retry interval in seconds
+                                                    # Целое число. Интервал повтора FFmpeg в секундах
+
+# go2rtc settings
+# Настройки go2rtc
+frigate_go2rtc_rtsp_listen: ":8554"                # String. go2rtc RTSP listen address
+                                                    # Строка. Адрес прослушивания RTSP go2rtc
+frigate_go2rtc_host: "10.30.150.5"                 # String. go2rtc host IP address (usually localhost or container IP)
+                                                    # Строка. IP-адрес хоста go2rtc (обычно localhost или IP контейнера)
+
+# Camera configuration
+# Конфигурация камер
+# Example structure / Пример структуры:
+# frigate_cameras:
+#   Camera1:
+#     ip: "***.***.***.***"                    # String. Camera IP address
+#     port: **                                  # Integer. Camera RTSP port (optional, defaults to frigate_camera_port)
+#     rtsp_options: "channel=1&subtype=0"    # String. RTSP query string for main stream (e.g., "channel=1&subtype=0")
+#     rtsp_options_sub: "channel=1&subtype=1"  # String. RTSP query string for sub stream (optional, defaults to rtsp_options with subtype_sub)
+#     enabled: true                         # Boolean. Enable camera (optional, defaults to true)
+#     detect: true                          # Boolean. Enable detection on main stream (optional, defaults to true)
+#     display_name_main: "Camera1 Main"    # String. Display name for main stream in live view (optional)
+#     display_name_sub: "Camera1 Sub"     # String. Display name for sub stream in live view (optional)
+#   Camera2:
+#     ip: "***.***.***.***"
+#     port: **
+#     rtsp_options: "channel=1&subtype=0"
+#     rtsp_options_sub: "channel=1&subtype=1"
+
+
+
+
+frigate_cameras: {}                                 # Dict. Dictionary of camera configurations
+                                                    # Словарь. Словарь конфигураций камер
+frigate_camera_port: 554                            # Integer. IP camera RTSP port (default)
+                                                    # Целое число. Порт RTSP IP-камеры (по умолчанию)
+frigate_camera_rtsp_options: "channel=1&subtype=0"  # String. Default RTSP query string for main stream
+                                                    # Строка. RTSP query строка по умолчанию для основного потока
+frigate_camera_rtsp_options_sub: "channel=1&subtype=1"  # String. Default RTSP query string for sub stream
+                                                    # Строка. RTSP query строка по умолчанию для дополнительного потока
+
+# Reboot settings
+# Настройки перезагрузки
+frigate_reboot_enabled: true                       # Boolean. Perform LXC container reboot before installation
+                                                    # Логическое значение. Выполнять перезагрузку LXC контейнера перед установкой
+frigate_reboot_timeout: 3600                       # Integer. Reboot wait timeout in seconds
+                                                    # Целое число. Таймаут ожидания перезагрузки в секундах
+frigate_reboot_msg: "Rebooting LXC in 5 seconds"  # String. Reboot message
+                                                    # Строка. Сообщение при перезагрузке
+
+# Required variables (must be set in playbook or host_vars)
+# Обязательные переменные (должны быть заданы в playbook или host_vars)
+# frigate_go2rtc_rtsp_user: ""                      # String. Username for go2rtc RTSP streams
+                                                    # Строка. Имя пользователя для RTSP потоков go2rtc
+# frigate_go2rtc_rtsp_pswd: ""                      # String. Password for go2rtc RTSP streams
+                                                    # Строка. Пароль для RTSP потоков go2rtc
+# frigate_camera_user: ""                           # String. Username for IP camera access
+                                                    # Строка. Имя пользователя для доступа к IP-камерам
+# frigate_camera_pswd: ""                           # String. Password for IP camera access
+                                                    # Строка. Пароль для доступа к IP-камерам

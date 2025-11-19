@@ -1,0 +1,4 @@
+---
+- include_tasks: clean-up.yaml
+
+- include_tasks: install_portainer.yaml

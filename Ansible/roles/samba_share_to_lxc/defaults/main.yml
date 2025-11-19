@@ -1,0 +1,48 @@
+---
+# Samba Share to LXC Role Default Variables
+# Переменные по умолчанию роли для настройки SMB-шары в LXC
+
+# SMB server configuration
+# Конфигурация SMB сервера
+samba_smb_server: "10.20.30.200"              # String. SMB server IP address
+                                             # Строка. IP-адрес SMB сервера
+samba_smb_share: "frigate"                   # String. SMB share name
+                                             # Строка. Имя SMB шары
+
+# Mount configuration
+# Конфигурация монтирования
+samba_mount_point: "/mnt/frigate_host"      # String. Mount point on Proxmox host
+                                             # Строка. Точка монтирования на Proxmox хосте
+samba_container_mount: "/mnt/frigate"       # String. Mount point inside LXC container
+                                             # Строка. Точка монтирования внутри LXC контейнера
+
+# Credentials file
+# Файл с учетными данными
+samba_cred_file: "/root/.smb-frigate"       # String. Path to credentials file
+                                             # Строка. Путь к файлу с учетными данными
+
+# CIFS mount options
+# Опции монтирования CIFS
+samba_cifs_version: "3.0"                    # String. CIFS version
+                                             # Строка. Версия CIFS
+samba_cifs_options:                          # String. Additional CIFS mount options
+  - "iocharset=utf8"                         # Строка. Дополнительные опции монтирования CIFS
+  - "nofail"
+  - "_netdev"
+
+# LXC configuration
+# Конфигурация LXC
+samba_lxc_id: null                           # Integer. LXC container ID (required)
+                                             # Целое число. ID LXC контейнера (обязательно)
+samba_lxc_mp_id: "mp0"                       # String. LXC mount point ID (mp0, mp1, etc.)
+                                             # Строка. ID точки монтирования LXC (mp0, mp1, и т.д.)
+samba_lxc_restart: true                      # Boolean. Restart LXC container after configuration
+                                             # Логическое значение. Перезапустить LXC контейнер после настройки
+
+# Required variables (must be set in playbook or host_vars)
+# Обязательные переменные (должны быть заданы в playbook или host_vars)
+# samba_smb_user: ""                         # String. SMB username
+                                             # Строка. Имя пользователя SMB
+# samba_smb_password: ""                     # String. SMB password
+                                             # Строка. Пароль SMB
+

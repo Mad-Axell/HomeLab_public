@@ -1,0 +1,69 @@
+---
+- name: "Deploy Portainer to {{ inventory_hostname }}"
+  community.docker.docker_container:
+    name: "{{ container_name }}"
+    image: "{{ container_image }}"
+    labels: "{{ container_labels | default(omit) }}"
+    privileged: "{{ container_privileged | default(false) }}"
+    state: started
+    detach: true
+    recreate: "{{ container_recreate }}"
+    restart_policy: "{{ container_restart_policy }}"
+    links: "{{ container_links | default(omit) }}"
+    networks: "{{ container_network | default(omit, True) }}"
+    networks_cli_compatible: no # avoid ansible 2.12. Deprecation warning
+    published_ports: "{{ container_ports | default(omit, True) }}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - "{{ persistent_data_path }}"
+  register: portainer_docker
+
+- set_fact:
+    portainer_is_running: "{{ portainer_docker.container.State.Running | default(false) }}"
+
+- name: Get container IP address
+  set_fact:
+    portainer_ip: "{{ portainer_docker.container.NetworkSettings.IPAddress | default('127.0.0.1') }}"
+  when: 
+    - portainer_is_running | bool
+    - portainer_docker.container.NetworkSettings.IPAddress is defined
+
+- name: Get container IP address from Networks (new Docker format)
+  set_fact:
+    portainer_ip: "{{ portainer_docker.container.NetworkSettings.Networks | dict2items | map(attribute='value.IPAddress') | select('defined') | list | first | default('127.0.0.1') }}"
+  when:
+    - portainer_is_running | bool
+    - portainer_docker.container.NetworkSettings.IPAddress is not defined
+    - portainer_docker.container.NetworkSettings.Networks is defined
+
+- name: Set default IP if not found
+  set_fact:
+    portainer_ip: "127.0.0.1"
+  when:
+    - portainer_is_running | bool
+    - portainer_ip is not defined
+
+- set_fact:
+    portainer_endpoint: "http://{{ portainer_ip | default('127.0.0.1') }}:{{ host_port }}/api"
+  when: portainer_is_running | bool
+
+- name: "Check!!!"
+  debug:
+    msg: "{{ portainer_is_running }} // {{ portainer_endpoint | default('Container not running') }}"
+  when: portainer_is_running | bool
+
+- name: Check container status
+  fail:
+    msg: "Portainer did not start: {{ portainer_is_running }}"
+  when: not (portainer_is_running | bool)
+
+- name: Wait for Portainer web interface to get available
+  uri:
+    url: "http://{{ portainer_ip | default('127.0.0.1') }}:{{ host_port }}"
+    method: GET
+  register: wait_portainer_result
+  until: wait_portainer_result is succeeded
+  retries: 10
+  delay: 3
+  changed_when: false
+  when: portainer_is_running | bool

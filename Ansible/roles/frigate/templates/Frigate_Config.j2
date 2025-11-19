@@ -1,0 +1,196 @@
+mqtt:
+  enabled: {{ frigate_mqtt_enabled | lower }}
+
+#=============================================================================
+#=============================================================================
+#=============================================================================
+
+detectors:
+{% if frigate_detector_type == 'edgetpu' %}
+  coral:
+    type: edgetpu
+    device: {{ frigate_coral_device }}
+{% elif frigate_detector_type == 'cpu' %}
+  cpu:
+    type: cpu
+{% endif %}
+
+#=============================================================================
+
+birdseye:
+  enabled: {{ frigate_birdseye_enabled | lower }}
+  width: {{ frigate_birdseye_width }}
+  height: {{ frigate_birdseye_height }}
+  quality: {{ frigate_birdseye_quality }}
+  mode: {{ frigate_birdseye_mode }}
+
+ui:
+  time_format: {{ frigate_ui_time_format }}
+  timezone: {{ frigate_ui_timezone }}
+  date_style: {{ frigate_ui_date_style }}
+  time_style: {{ frigate_ui_time_style }}
+  strftime_fmt: '{{ frigate_ui_strftime_fmt }}'
+
+review:
+  alerts:
+    labels:
+{% for label in frigate_alert_labels %}
+      - {{ label }}
+{% endfor %}
+    # Optional: required zones for an object to be marked as an alert (default: none)
+    # NOTE: when settings required zones globally, this zone must exist on all cameras
+    #       or the config will be considered invalid. In that case the required_zones
+    #       should be configured at the camera level.
+    #required_zones:
+    #  - driveway
+  # Optional: detections configuration
+  detections:
+    # Optional: labels that qualify as a detection (default: all labels that are tracked / listened to)
+    labels:
+{% for label in frigate_detection_labels %}
+      - {{ label }}
+{% endfor %}
+    # Optional: required zones for an object to be marked as a detection (default: none)
+    # NOTE: when settings required zones globally, this zone must exist on all cameras
+    #       or the config will be considered invalid. In that case the required_zones
+    #       should be configured at the camera level.
+    #required_zones:
+    #  - driveway
+
+#=============================================================================
+#=============================================================================
+#=============================================================================
+
+go2rtc:
+  rtsp:
+    listen: {{ frigate_go2rtc_rtsp_listen }}
+    username: "{FRIGATE_GO2RTC_RTSP_USER}"
+    password: "{FRIGATE_GO2RTC_RTSP_PSWD}"
+  streams:
+{% if frigate_cameras is defined and frigate_cameras | length > 0 %}
+  ### ### ### Main FLOW ### ### ###
+{% for camera_name, camera_config in frigate_cameras.items() %}
+{% set rtsp_port = camera_config.port | default(frigate_camera_port) %}
+{% set rtsp_options_main = camera_config.rtsp_options | default(frigate_camera_rtsp_options) %}
+{% set rtsp_options_sub = camera_config.rtsp_options_sub | default(camera_config.rtsp_options | default(frigate_camera_rtsp_options_sub)) %}
+    {{ camera_name }}_main:
+      - rtsp://{FRIGATE_CAMERA_USER}:{FRIGATE_CAMERA_PSWD}@{{ camera_config.ip | default('127.0.0.1') }}:{{ rtsp_port }}/cam/realmonitor?{{ rtsp_options_main }}#video=copy#audio=copy#audio=opus#audio=aac
+      - ffmpeg:{{ camera_name }}_main#audio=aac
+      #- ffmpeg:rtsp://{FRIGATE_CAMERA_USER}:{FRIGATE_CAMERA_PSWD}@{{ camera_config.ip | default('127.0.0.1') }}:{{ rtsp_port }}/cam/realmonitor?{{ rtsp_options_main }}#video=copy#audio=copy#audio=opus#audio=aac
+{% endfor %}
+  
+  ### ### ### SUB FLOW ### ### ###
+{% for camera_name, camera_config in frigate_cameras.items() %}
+{% set rtsp_port = camera_config.port | default(frigate_camera_port) %}
+{% set rtsp_options_sub = camera_config.rtsp_options_sub | default(camera_config.rtsp_options | default(frigate_camera_rtsp_options_sub)) %}
+    {{ camera_name }}_sub:
+      - rtsp://{FRIGATE_CAMERA_USER}:{FRIGATE_CAMERA_PSWD}@{{ camera_config.ip | default('127.0.0.1') }}:{{ rtsp_port }}/cam/realmonitor?{{ rtsp_options_sub }}
+{% endfor %}
+{% if frigate_cameras is defined and frigate_cameras | length > 0 %}
+  live:
+    streams:
+{% for camera_name, camera_config in frigate_cameras.items() %}
+      {{ camera_config.display_name_main | default(camera_name + ' Main') }}: {{ camera_name }}_main
+      {{ camera_config.display_name_sub | default(camera_name + ' Sub') }}: {{ camera_name }}_sub
+{% endfor %}
+{% endif %}
+  #webrtc:
+{% endif %}
+  #  listen: :8555/tcp
+  #  candidates:
+  #    - XX.XX.XX.XXX:8555 # Public IP
+  #    - stun:8555
+
+#=============================================================================
+#=============================================================================
+#=============================================================================
+
+ffmpeg:
+{% if frigate_ffmpeg_hwaccel_args is defined %}
+  hwaccel_args: "{{ frigate_ffmpeg_hwaccel_args }}"
+{% endif %}
+  output_args:
+    record: {{ frigate_ffmpeg_output_args_record }}
+  input_args: 
+    {{ frigate_ffmpeg_input_args }}
+  retry_interval: {{ frigate_ffmpeg_retry_interval }}
+
+#=============================================================================
+
+#detect:
+#  width: 352
+#  height: 288
+#  fps: 5
+
+#=============================================================================
+
+objects:
+  track:
+{% for obj in frigate_track_objects %}
+    - {{ obj }}
+{% endfor %}
+
+#=============================================================================
+
+snapshots:
+  enabled: {{ frigate_snapshots_enabled | lower }}
+  timestamp: {{ frigate_snapshots_timestamp | lower }}
+  bounding_box: {{ frigate_snapshots_bounding_box | lower }}
+  crop: {{ frigate_snapshots_crop | lower }}
+  clean_copy: {{ frigate_snapshots_clean_copy | lower }}
+  retain:
+    default: {{ frigate_snapshots_retain_default }}
+    objects:
+{% for obj, days in frigate_snapshots_retain_objects.items() %}
+      {{ obj }}: {{ days }}
+{% endfor %}
+
+#=============================================================================
+
+record:
+  enabled: {{ frigate_record_enabled | lower }}
+  expire_interval: {{ frigate_record_expire_interval }}
+  sync_recordings: {{ frigate_record_sync_recordings | lower }}
+  retain:
+    days: {{ frigate_record_retain_days }}
+    mode: {{ frigate_record_mode }}
+  preview:
+    quality: {{ frigate_record_preview_quality }}
+  alerts:
+    pre_capture: {{ frigate_pre_capture }}
+    post_capture: {{ frigate_post_capture }}
+    retain:
+      days: {{ frigate_alerts_retain_days }}
+      mode: {{ frigate_alerts_retain_mode }}
+  detections:
+    pre_capture: {{ frigate_pre_capture }}
+    post_capture: {{ frigate_post_capture }}
+    retain:
+      days: {{ frigate_detections_retain_days }}
+      mode: {{ frigate_detections_retain_mode }}
+
+#=============================================================================
+#=============================================================================
+#=============================================================================
+
+cameras:
+{% if frigate_cameras is defined and frigate_cameras | length > 0 %}
+{% for camera_name, camera_config in frigate_cameras.items() %}
+  {{ camera_name }}:
+    enabled: {{ camera_config.enabled | default(true) | lower }}
+    ffmpeg:
+      inputs:
+        - path: rtsp://{FRIGATE_GO2RTC_RTSP_USER}:{FRIGATE_GO2RTC_RTSP_PSWD}@{{ frigate_go2rtc_host }}:{{ frigate_port_rtsp }}/{{ camera_name }}_main
+          roles:
+            - record
+{% if camera_config.detect | default(true) %}
+            #- detect
+{% endif %}
+        - path: rtsp://{FRIGATE_GO2RTC_RTSP_USER}:{FRIGATE_GO2RTC_RTSP_PSWD}@{{ frigate_go2rtc_host }}:{{ frigate_port_rtsp }}/{{ camera_name }}_sub
+          roles:
+            - detect
+{% endfor %}
+{% else %}
+  # Cameras configuration should be provided via frigate_cameras variable
+  # Конфигурация камер должна быть предоставлена через переменную frigate_cameras
+{% endif %}

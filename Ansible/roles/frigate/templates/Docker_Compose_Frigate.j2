@@ -1,0 +1,38 @@
+version: '3.9'
+
+services:
+
+  frigate:
+    container_name: {{ frigate_container_name }}
+    privileged: true
+    restart: unless-stopped
+    image: ghcr.io/blakeblackshear/frigate:{{ frigate_version }}
+    shm_size: "{{ frigate_shm_size }}"
+    devices:
+      - {{ frigate_usb_device_host }}:{{ frigate_usb_device_container }}
+      - {{ frigate_gpu_device }}
+    volumes:
+      - {{ frigate_timezone_host }}:{{ frigate_timezone_container }}
+      - {{ frigate_config_volume_host }}:{{ frigate_config_volume_container }}
+      - {{ frigate_media_volume_host }}:{{ frigate_media_volume_container }}
+      - type: tmpfs # Optional: 1GB of memory, reduces SSD/SD Card wear
+        target: {{ frigate_tmpfs_target }}
+        tmpfs:
+          size: {{ frigate_tmpfs_size }}
+    ports:
+      ## go2rtc
+      - "{{ frigate_port_go2rtc_web }}:{{ frigate_port_go2rtc_web }}"  # go2rtc web interface port
+      ## frigate
+      - "{{ frigate_port_authenticated }}:{{ frigate_port_authenticated }}"  # Authenticated UI and API access without TLS. Reverse proxies should use this port.
+      - "{{ frigate_port_internal }}:{{ frigate_port_internal }}"  # Internal unauthenticated UI and API access. Access to this port should be limited. Intended to be used within the docker network for services that integrate with Frigate.
+      ## streams
+      - "{{ frigate_port_rtmp }}:{{ frigate_port_rtmp }}" # RTMP feeds
+      - "{{ frigate_port_webrtc_tcp }}:{{ frigate_port_webrtc_tcp }}/tcp" # WebRTC over tcp
+      - "{{ frigate_port_webrtc_udp }}:{{ frigate_port_webrtc_udp }}/udp" # WebRTC over udp
+      - "{{ frigate_port_rtsp }}:{{ frigate_port_rtsp }}" # RTSP restreaming. By default, these streams are unauthenticated. Authentication can be configured in go2rtc section of config.
+      
+    environment:
+      FRIGATE_GO2RTC_RTSP_USER: "{{ frigate_go2rtc_rtsp_user }}"
+      FRIGATE_GO2RTC_RTSP_PSWD: "{{ frigate_go2rtc_rtsp_pswd }}"
+      FRIGATE_CAMERA_USER: "{{ frigate_camera_user }}"
+      FRIGATE_CAMERA_PSWD: "{{ frigate_camera_pswd }}"

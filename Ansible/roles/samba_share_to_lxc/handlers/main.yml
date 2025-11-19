@@ -1,0 +1,8 @@
+---
+# EN: Restart LXC container handler
+# RU: Обработчик перезапуска LXC контейнера
+- name: "restart lxc container"
+  ansible.builtin.shell: pct reboot {{ samba_lxc_id }}
+  become: true
+  when: samba_lxc_restart | bool
+

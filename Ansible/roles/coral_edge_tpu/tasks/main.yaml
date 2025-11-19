@@ -1,0 +1,97 @@
+
+---
+- name: Add Coral EDGE TPU repository
+  ansible.builtin.shell:
+    cmd: 'echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | sudo tee /etc/apt/sources.list.d/coral-edgetpu.list'
+  
+- name: Add Coral EDGE TPU key
+  ansible.builtin.shell:
+    cmd: 'curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -'
+
+- name: Update and upgrade apt packages
+  become: true
+  apt:
+    upgrade: true
+    update_cache: true
+
+- name: install
+  become: true
+  apt:
+    name: libedgetpu1-std
+    state: present
+
+- name: Seak forwarding some devices
+  ansible.builtin.lineinfile: 
+    name: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    #line: "lxc.cgroup2.devices.allow = c 188:* rwm" 
+    line: "lxc.cgroup2.devices.allow = a" 
+    state: present
+  check_mode: true
+  register: devices_allow
+
+- name: Seak forwarding iGPU to LXC
+  ansible.builtin.lineinfile: 
+    name: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    line: "lxc.mount.entry: /dev/dri/renderD128 dev/dri/renderD128 none bind,optional,create=file 0, 0" 
+    state: present
+  check_mode: true
+  register: iGPU_forwarding
+
+- name: Seak forwarding dri devices
+  ansible.builtin.lineinfile: 
+    name: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    line: "lxc.mount.entry: /dev/dri dev/dri none bind,optional,create=dir" 
+    state: present
+  check_mode: true
+  register: devices_dri
+
+- name: Seak forwarding USB Coral TPU to LXC Dev001
+  ansible.builtin.lineinfile: 
+    name: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    line: "lxc.mount.entry: /dev/bus/usb/001/ dev/bus/usb/001/ none bind,optional,create=dir 0,0" 
+    state: present
+  check_mode: true
+  register: Coral_forwarding_001
+
+- name: Seak forwarding USB Coral TPU to LXC Dev004
+  ansible.builtin.lineinfile: 
+    name: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    line: "lxc.mount.entry: /dev/bus/usb/004/ dev/bus/usb/004/ none bind,optional,create=dir 0,0" 
+    state: present
+  check_mode: true
+  register: Coral_forwarding_004
+
+- name: Forward some devices to LXC
+  ansible.builtin.lineinfile: 
+    line: "lxc.cgroup2.devices.allow = a" 
+    path: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    state: present
+  when: devices_allow
+
+- name: Forward iGPU to LXC
+  ansible.builtin.lineinfile: 
+    line: "lxc.mount.entry: /dev/dri/renderD128 dev/dri/renderD128 none bind,optional,create=file 0, 0" 
+    path: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    state: present
+  when: iGPU_forwarding
+
+- name: Forward iGPU to LXC
+  ansible.builtin.lineinfile: 
+    line: "lxc.mount.entry: /dev/dri dev/dri none bind,optional,create=dir" 
+    path: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    state: present
+  when: devices_dri
+
+- name: Forward USB Coral TPU to LXC Dev001
+  ansible.builtin.lineinfile: 
+    line: "lxc.mount.entry: /dev/bus/usb/001/ dev/bus/usb/001/ none bind,optional,create=dir 0,0" 
+    path: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    state: present
+  when: Coral_forwarding_001
+
+- name: Forward USB Coral TPU to LXC Dev004
+  ansible.builtin.lineinfile: 
+    line: "lxc.mount.entry: /dev/bus/usb/004/ dev/bus/usb/004/ none bind,optional,create=dir 0,0" 
+    path: "/etc/pve/lxc/{{ pve_lxc_vmid }}.conf"
+    state: present
+  when: Coral_forwarding_004

@@ -689,6 +689,15 @@
         - debug
         - config
 
+    # EN: Wait 5 seconds before rebooting container
+    # RU: Ожидание 5 секунд перед перезагрузкой контейнера
+    - name: "Wait 5 seconds before rebooting container"
+      ansible.builtin.pause:
+        seconds: 5
+      when: pve_lxc_additional_configurations_result is changed
+      tags:
+        - container
+        - reboot
 
     # EN: Reboot container if configuration file was modified
     # RU: Перезагрузка контейнера если файл конфигурации был изменен

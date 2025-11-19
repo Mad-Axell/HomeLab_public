@@ -1,0 +1,176 @@
+---
+
+# EN: Set computed variables
+# RU: Установка вычисляемых переменных
+- name: "Set computed variables"
+  ansible.builtin.set_fact:
+    samba_mount_src: "//{{ samba_smb_server }}/{{ samba_smb_share }}"
+    samba_lxc_conf: "/etc/pve/lxc/{{ samba_lxc_id }}.conf"
+    samba_cifs_options_str: "vers={{ samba_cifs_version }},credentials={{ samba_cred_file }},{{ samba_cifs_options | join(',') }}"
+  tags:
+    - always
+
+# EN: Check if running on Proxmox host
+# RU: Проверка, что выполнение происходит на Proxmox хосте
+- name: "Check if pct command exists"
+  ansible.builtin.shell: which pct
+  register: pct_check
+  changed_when: false
+  failed_when: false
+  tags:
+    - validation
+
+- name: "Fail if not on Proxmox host"
+  ansible.builtin.fail:
+    msg: "Command 'pct' not found. This role must be run on a Proxmox host."
+  when: pct_check.rc != 0
+  tags:
+    - validation
+
+# EN: Check if LXC container exists
+# RU: Проверка существования LXC контейнера
+- name: "Check if LXC container exists"
+  ansible.builtin.stat:
+    path: "{{ samba_lxc_conf }}"
+  register: lxc_conf_stat
+  tags:
+    - validation
+
+- name: "Fail if LXC container does not exist"
+  ansible.builtin.fail:
+    msg: "LXC container {{ samba_lxc_id }} does not exist. Config file {{ samba_lxc_conf }} not found."
+  when: not lxc_conf_stat.stat.exists
+  tags:
+    - validation
+
+# EN: Install cifs-utils package
+# RU: Установка пакета cifs-utils
+- name: "Install cifs-utils package"
+  ansible.builtin.package:
+    name: cifs-utils
+    state: present
+  become: true
+  tags:
+    - packages
+    - setup
+
+# EN: Create mount point directory on host
+# RU: Создание директории точки монтирования на хосте
+- name: "Create mount point directory on host"
+  ansible.builtin.file:
+    path: "{{ samba_mount_point }}"
+    state: directory
+    mode: '0755'
+  become: true
+  tags:
+    - setup
+    - mount
+
+# EN: Create credentials file
+# RU: Создание файла с учетными данными
+- name: "Create SMB credentials file"
+  ansible.builtin.copy:
+    content: |
+      username={{ samba_smb_user }}
+      password={{ samba_smb_password }}
+    dest: "{{ samba_cred_file }}"
+    mode: '0600'
+    owner: root
+    group: root
+  become: true
+  no_log: false
+  tags:
+    - setup
+    - credentials
+
+# EN: Check if fstab entry already exists
+# RU: Проверка наличия записи в fstab
+- name: "Check if fstab entry exists"
+  ansible.builtin.shell: grep -Fq "{{ samba_mount_src }}" /etc/fstab
+  register: fstab_check
+  become: true
+  changed_when: false
+  failed_when: false
+  tags:
+    - fstab
+
+# EN: Add fstab entry if not exists
+# RU: Добавление записи в fstab, если её нет
+- name: "Add fstab entry"
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "{{ samba_mount_src }}  {{ samba_mount_point }}  cifs  {{ samba_cifs_options_str }}  0  0"
+    state: present
+    regexp: "^{{ samba_mount_src | regex_escape() }}"
+  become: true
+  when: fstab_check.rc != 0
+  tags:
+    - fstab
+
+# EN: Mount SMB share
+# RU: Монтирование SMB шары
+- name: "Mount SMB share"
+  ansible.builtin.mount:
+    path: "{{ samba_mount_point }}"
+    src: "{{ samba_mount_src }}"
+    fstype: cifs
+    opts: "{{ samba_cifs_options_str }}"
+    state: mounted
+  become: true
+  tags:
+    - mount
+
+# EN: Verify mount is successful
+# RU: Проверка успешности монтирования
+- name: "Verify SMB share is mounted"
+  ansible.builtin.shell: mount | grep -F "on {{ samba_mount_point }} type cifs"
+  register: mount_verify
+  changed_when: false
+  failed_when: mount_verify.rc != 0
+  tags:
+    - mount
+    - validation
+
+# EN: Check if LXC mount point already exists
+# RU: Проверка наличия точки монтирования LXC
+- name: "Check if LXC mount point exists"
+  ansible.builtin.shell: grep -Fq "{{ samba_lxc_mp_id }}:" "{{ samba_lxc_conf }}"
+  register: lxc_mp_check
+  become: true
+  changed_when: false
+  failed_when: false
+  tags:
+    - lxc
+
+# EN: Add or update LXC mount point configuration
+# RU: Добавление или обновление конфигурации точки монтирования LXC
+- name: "Update existing LXC mount point"
+  ansible.builtin.replace:
+    path: "{{ samba_lxc_conf }}"
+    regexp: "^{{ samba_lxc_mp_id }}:.*"
+    replace: "{{ samba_lxc_mp_id }}: {{ samba_mount_point }},mp={{ samba_container_mount }}"
+  become: true
+  when: lxc_mp_check.rc == 0
+  tags:
+    - lxc
+
+- name: "Add new LXC mount point"
+  ansible.builtin.lineinfile:
+    path: "{{ samba_lxc_conf }}"
+    line: "{{ samba_lxc_mp_id }}: {{ samba_mount_point }},mp={{ samba_container_mount }}"
+    state: present
+  become: true
+  when: lxc_mp_check.rc != 0
+  tags:
+    - lxc
+
+# EN: Restart LXC container if requested
+# RU: Перезапуск LXC контейнера, если запрошено
+- name: "Restart LXC container"
+  ansible.builtin.shell: pct reboot {{ samba_lxc_id }}
+  become: true
+  when: samba_lxc_restart | bool
+  tags:
+    - lxc
+    - restart
+
