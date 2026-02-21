@@ -1,0 +1,85 @@
+---
+# =============================================================================
+# NetBox Docker Local Role - Default Variables
+# Роль NetBox Docker Local - Переменные по умолчанию
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Versions / Версии образов
+# -----------------------------------------------------------------------------
+netbox_version: "v4.5-4.0.0"
+netbox_postgres_version: "18-alpine"
+netbox_valkey_version: "9.0-alpine"
+
+# -----------------------------------------------------------------------------
+# Directories / Директории
+# -----------------------------------------------------------------------------
+netbox_base_dir: "/opt/netbox"
+netbox_docker_compose_path: >-
+  {{ netbox_base_dir }}/docker-compose.yml
+
+# -----------------------------------------------------------------------------
+# Container settings / Настройки контейнеров
+# -----------------------------------------------------------------------------
+netbox_container_prefix: "netbox"
+netbox_restart_policy: "unless-stopped"
+
+# -----------------------------------------------------------------------------
+# Networking / Сеть
+# -----------------------------------------------------------------------------
+netbox_port: 8080
+
+# -----------------------------------------------------------------------------
+# Database (PostgreSQL) / База данных
+# -----------------------------------------------------------------------------
+netbox_db_name: "netbox"
+netbox_db_user: "netbox"
+netbox_db_password: "changeme_db_password"
+
+# -----------------------------------------------------------------------------
+# Redis (Valkey) / Кэш и очереди
+# -----------------------------------------------------------------------------
+netbox_redis_password: "changeme_redis_password"
+netbox_redis_cache_password: "changeme_redis_cache_password"
+
+# -----------------------------------------------------------------------------
+# NetBox Application / Приложение NetBox
+# -----------------------------------------------------------------------------
+
+# IMPORTANT: Change this in production! At least 50 characters
+# ВАЖНО: Измените для production! Минимум 50 символов
+netbox_secret_key: "changeme_this_must_be_a_long_random_secret_key_50_chars_min"
+
+# API token pepper for enhanced security (NetBox 4.x+)
+# Перец для API-токенов для повышения безопасности
+netbox_api_token_pepper: ""
+
+netbox_cors_origin_allow_all: true
+netbox_graphql_enabled: true
+netbox_webhooks_enabled: true
+netbox_metrics_enabled: false
+
+# Granian web server workers / Воркеры веб-сервера Granian
+netbox_granian_workers: 4
+netbox_granian_backpressure: 4
+
+# Email / Почта (optional / опционально)
+netbox_email_server: "localhost"
+netbox_email_port: 25
+netbox_email_username: ""
+netbox_email_password: ""
+netbox_email_from: "netbox@example.com"
+netbox_email_use_ssl: false
+netbox_email_use_tls: false
+netbox_email_timeout: 5
+
+# -----------------------------------------------------------------------------
+# Superuser / Суперпользователь
+# -----------------------------------------------------------------------------
+# Set to true to skip superuser creation
+# Установить true чтобы пропустить создание суперпользователя
+netbox_skip_superuser: false
+netbox_superuser_name: "admin"
+netbox_superuser_email: "admin@example.com"
+netbox_superuser_password: "admin"
+netbox_superuser_api_token: ""

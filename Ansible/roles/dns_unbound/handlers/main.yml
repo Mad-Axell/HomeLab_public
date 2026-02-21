@@ -1,0 +1,19 @@
+---
+# =============================================================================
+# DNS Unbound Role - Handlers
+# Роль DNS Unbound - Обработчики
+# =============================================================================
+
+- name: reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: restart unbound
+  ansible.builtin.service:
+    name: unbound
+    state: restarted
+  when: unbound_service_started
+
+- name: reload unbound
+  ansible.builtin.command: unbound-control reload
+  changed_when: true

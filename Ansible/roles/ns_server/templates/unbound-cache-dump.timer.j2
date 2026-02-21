@@ -1,0 +1,15 @@
+# Unbound cache dump timer
+# Таймер сохранения кэша Unbound
+# {{ ansible_managed }}
+
+[Unit]
+Description=Periodically dump Unbound DNS cache
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec={{ unbound_cache_dump_interval }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+

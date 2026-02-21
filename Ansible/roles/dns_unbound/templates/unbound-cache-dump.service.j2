@@ -1,0 +1,12 @@
+# Unbound cache dump service
+# Сервис сохранения кэша Unbound
+# {{ ansible_managed }}
+
+[Unit]
+Description=Dump Unbound DNS cache to file
+After=unbound.service
+Requires=unbound.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '/usr/sbin/unbound-control dump_cache > {{ unbound_cache_dump_file }}'

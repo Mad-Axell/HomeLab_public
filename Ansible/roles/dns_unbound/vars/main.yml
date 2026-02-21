@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# DNS Unbound Role - Internal Variables
+# Роль DNS Unbound - Внутренние переменные
+# Do not override / Не переопределять
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Unbound paths / Пути Unbound
+# -----------------------------------------------------------------------------
+unbound_config_dir: "/etc/unbound/unbound.conf.d"
+unbound_config_file: "{{ unbound_config_dir }}/dns-unbound.conf"
+unbound_data_dir: "/var/lib/unbound"
+unbound_root_hints: "{{ unbound_data_dir }}/root.hints"
+unbound_trust_anchor: "{{ unbound_data_dir }}/root.key"
+
+# -----------------------------------------------------------------------------
+# Package names / Имена пакетов
+# -----------------------------------------------------------------------------
+unbound_packages_debian:
+  - unbound
+  - unbound-anchor
+  - dns-root-data
+  - dnsutils
+
+unbound_packages_redhat:
+  - unbound
+  - bind-utils

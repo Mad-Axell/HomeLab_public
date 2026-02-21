@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# AdGuard Home - Disable DNSStubResolver
+# AdGuard Home - Отключение DNSStubResolver
+# =============================================================================
+
+- name: Disable systemd-resolved DNSStubListener
+  community.general.ini_file:
+    path: /etc/systemd/resolved.conf
+    section: Resolve
+    option: DNSStubListener
+    value: "no"
+  notify: restart systemd-resolved
+
+- name: Symlink /etc/resolv.conf to /run/systemd/resolve/resolv.conf
+  ansible.builtin.file:
+    src: /run/systemd/resolve/resolv.conf
+    dest: /etc/resolv.conf
+    owner: "{{ adguardhome_user }}"
+    group: "{{ adguardhome_group }}"
+    state: link
+    force: true

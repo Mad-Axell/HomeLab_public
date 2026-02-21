@@ -1,0 +1,30 @@
+---
+galaxy_info:
+  author: Infrastructure Team
+  description: >-
+    AdGuard Home - Network-wide ad blocking DNS server with web interface
+  license: MIT
+  min_ansible_version: "2.10"
+  platforms:
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+        - noble
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - dns
+    - adguard
+    - adblock
+    - filtering
+    - privacy
+    - networking
+
+dependencies: []

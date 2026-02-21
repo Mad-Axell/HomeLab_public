@@ -1,0 +1,29 @@
+---
+galaxy_info:
+  author: Infrastructure Team
+  description: DNS Server with ad blocking (Unbound + AdGuard Home)
+  license: MIT
+  min_ansible_version: "2.10"
+  platforms:
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+        - noble
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - dns
+    - unbound
+    - adguard
+    - adblock
+    - networking
+
+dependencies: []
+

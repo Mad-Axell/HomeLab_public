@@ -1,0 +1,20 @@
+---
+# =============================================================================
+# DNS AdGuard Home Role - Handlers
+# Роль DNS AdGuard Home - Обработчики
+# =============================================================================
+
+- name: reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: restart adguardhome
+  ansible.builtin.service:
+    name: "{{ adguard_service_name }}"
+    state: restarted
+  when: adguard_service_start | default(true)
+
+- name: restart systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: restarted

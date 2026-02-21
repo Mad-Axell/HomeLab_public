@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# AdGuard Home - Path Permissions
+# AdGuard Home - Права доступа к путям
+# =============================================================================
+
+- name: Ensure AdGuard Home binary has correct permissions
+  ansible.builtin.file:
+    path: "{{ adguard_bin_file }}"
+    owner: "{{ adguard_user }}"
+    group: "{{ adguard_group }}"
+    mode: "0755"
+
+- name: Check state of AdGuard Home data directory
+  ansible.builtin.file:
+    path: "{{ adguard_data_dir }}"
+  register: _adguard_data_directory_state
+
+- name: Ensure AdGuard Home data directory exists with correct permissions
+  ansible.builtin.file:
+    path: "{{ adguard_data_dir }}"
+    owner: "{{ adguard_user }}"
+    group: "{{ adguard_group }}"
+    mode: "0755"
+    recurse: true
+    state: directory
+  when: >-
+    _adguard_data_directory_state.owner != adguard_user or
+    _adguard_data_directory_state.group != adguard_group or
+    _adguard_data_directory_state.mode != "0755"
+
+- name: Ensure AdGuard Home config directory exists with correct permissions
+  ansible.builtin.file:
+    path: "{{ adguard_config_dir }}"
+    owner: "{{ adguard_user }}"
+    group: "{{ adguard_group }}"
+    mode: "0755"
+    recurse: false
+    state: directory
+
+- name: Check if AdGuard Home config file exists
+  ansible.builtin.stat:
+    path: "{{ adguard_config_file }}"
+  register: _adguard_config_file_state
+
+- name: Ensure AdGuard Home config file has correct permissions
+  ansible.builtin.file:
+    path: "{{ adguard_config_file }}"
+    owner: "{{ adguard_user }}"
+    group: "{{ adguard_group }}"
+    mode: "0644"
+  when: _adguard_config_file_state.stat.exists

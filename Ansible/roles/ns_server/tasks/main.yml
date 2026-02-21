@@ -1,0 +1,141 @@
+---
+# =============================================================================
+# NS Server Role - Main Tasks
+# Роль NS Server - Основные задачи
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Unbound Installation / Установка Unbound
+# -----------------------------------------------------------------------------
+
+- name: Install Unbound packages (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: "{{ unbound_packages_debian }}"
+    state: present
+    update_cache: true
+  when: ansible_os_family == 'Debian'
+
+- name: Install Unbound packages (RHEL/CentOS)
+  ansible.builtin.dnf:
+    name: "{{ unbound_packages_redhat }}"
+    state: present
+  when: ansible_os_family == 'RedHat'
+
+# -----------------------------------------------------------------------------
+# Unbound Configuration / Конфигурация Unbound
+# -----------------------------------------------------------------------------
+
+- name: Download root hints file
+  ansible.builtin.get_url:
+    url: https://www.internic.net/domain/named.root
+    dest: "{{ unbound_root_hints }}"
+    owner: unbound
+    group: unbound
+    mode: "0644"
+  notify: restart unbound
+
+- name: Ensure unbound config directory exists
+  ansible.builtin.file:
+    path: "{{ unbound_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy Unbound configuration
+  ansible.builtin.template:
+    src: unbound.conf.j2
+    dest: "{{ unbound_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart unbound
+
+- name: Enable and start Unbound service
+  ansible.builtin.service:
+    name: unbound
+    enabled: "{{ unbound_service_enabled }}"
+    state: "{{ 'started' if unbound_service_started else 'stopped' }}"
+
+# -----------------------------------------------------------------------------
+# Cache Persistence / Сохранение кэша
+# -----------------------------------------------------------------------------
+
+- name: Deploy cache dump service
+  ansible.builtin.template:
+    src: unbound-cache-dump.service.j2
+    dest: /etc/systemd/system/unbound-cache-dump.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: unbound_cache_dump_enabled
+  notify: reload systemd daemon
+
+- name: Deploy cache dump timer
+  ansible.builtin.template:
+    src: unbound-cache-dump.timer.j2
+    dest: /etc/systemd/system/unbound-cache-dump.timer
+    owner: root
+    group: root
+    mode: "0644"
+  when: unbound_cache_dump_enabled
+  notify: reload systemd daemon
+
+- name: Deploy cache load service
+  ansible.builtin.template:
+    src: unbound-cache-load.service.j2
+    dest: /etc/systemd/system/unbound-cache-load.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: unbound_cache_dump_enabled
+  notify: reload systemd daemon
+
+- name: Flush handlers before enabling services
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable cache dump timer
+  ansible.builtin.service:
+    name: unbound-cache-dump.timer
+    enabled: true
+    state: started
+  when: unbound_cache_dump_enabled
+
+- name: Enable cache load service
+  ansible.builtin.service:
+    name: unbound-cache-load.service
+    enabled: true
+  when: unbound_cache_dump_enabled
+
+# -----------------------------------------------------------------------------
+# AdGuard Home / AdGuard Home
+# -----------------------------------------------------------------------------
+
+- name: Include AdGuard Home installation tasks
+  ansible.builtin.include_tasks: adguard/main.yml
+  when: ns_server_install_adguard
+
+- name: Deploy AdGuard Home configuration
+  ansible.builtin.template:
+    src: AdGuardHome.yml.j2
+    dest: "{{ adguardhome_config_file }}"
+    owner: "{{ adguardhome_user }}"
+    group: "{{ adguardhome_group }}"
+    mode: "0644"
+  when:
+    - ns_server_install_adguard
+    - adguard_deploy_config
+  notify: restart adguardhome
+
+# -----------------------------------------------------------------------------
+# Health Check Script / Скрипт проверки здоровья
+# -----------------------------------------------------------------------------
+
+- name: Deploy DNS health check script
+  ansible.builtin.template:
+    src: dns-health-check.sh.j2
+    dest: "{{ ns_server_healthcheck_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: ns_server_deploy_healthcheck

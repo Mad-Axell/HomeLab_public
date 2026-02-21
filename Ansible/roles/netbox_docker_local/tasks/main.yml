@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# NetBox Docker Local Role - Main Tasks
+# Роль NetBox Docker Local - Основные задачи
+# =============================================================================
+
+# Create base directory / Создание базовой директории
+- name: Create NetBox base directory
+  ansible.builtin.file:
+    path: "{{ netbox_base_dir }}"
+    state: directory
+    mode: '0755'
+  tags:
+    - netbox
+    - setup
+
+# Deploy Docker Compose configuration
+# Развёртывание конфигурации Docker Compose
+- name: Deploy Docker Compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ netbox_docker_compose_path }}"
+    mode: '0640'
+  notify: Recreate NetBox containers
+  tags:
+    - netbox
+    - config
+
+# Start NetBox stack / Запуск стека NetBox
+- name: Start NetBox services
+  ansible.builtin.shell:
+    cmd: >-
+      docker compose
+      -f {{ netbox_docker_compose_path }}
+      up -d --wait
+    chdir: "{{ netbox_base_dir }}"
+  register: _netbox_compose_up
+  changed_when: "'Started' in _netbox_compose_up.stderr"
+  tags:
+    - netbox
+    - deploy

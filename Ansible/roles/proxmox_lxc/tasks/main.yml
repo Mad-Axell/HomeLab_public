@@ -470,7 +470,7 @@
         force: "{{ pve_lxc_force | default(true) }}"
         state: "{{ pve_lxc_state }}"
       register: pve_lxc_container_created
-      no_log: true
+      no_log: false
       tags:
         - container
         - creation

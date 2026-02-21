@@ -1,0 +1,188 @@
+---
+# =============================================================================
+# DNS Unbound Role - Default Variables
+# Роль DNS Unbound - Переменные по умолчанию
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Network / Сеть
+# -----------------------------------------------------------------------------
+unbound_interface: "127.0.0.1"
+unbound_port: 5335
+
+# Protocols / Протоколы
+# Note: Use quotes to prevent YAML from interpreting yes/no as boolean
+# ВАЖНО: Используйте кавычки, чтобы YAML не интерпретировал yes/no как boolean
+unbound_do_ip4: "yes"
+unbound_do_ip6: "no"
+unbound_do_udp: "yes"
+unbound_do_tcp: "yes"
+
+# -----------------------------------------------------------------------------
+# Performance / Производительность
+# -----------------------------------------------------------------------------
+unbound_num_threads: "{{ ansible_processor_vcpus | default(2) }}"
+
+# Cache slabs (should be power of 2, close to num-threads)
+# Количество слотов кэша (должно быть степенью 2)
+unbound_msg_cache_slabs: 4
+unbound_rrset_cache_slabs: 4
+unbound_infra_cache_slabs: 4
+unbound_key_cache_slabs: 4
+
+# Socket buffers / Буферы сокетов
+unbound_so_rcvbuf: "1m"
+unbound_so_sndbuf: "1m"
+
+# -----------------------------------------------------------------------------
+# Cache Settings / Настройки кэша
+# -----------------------------------------------------------------------------
+unbound_msg_cache_size: "128m"
+unbound_rrset_cache_size: "256m"
+unbound_cache_min_ttl: 300
+unbound_cache_max_ttl: 14400
+
+# Negative cache / Кэш отрицательных ответов
+unbound_neg_cache_size: "4m"
+
+# Cache persistence / Сохранение кэша в файл
+unbound_cache_dump_enabled: true
+unbound_cache_dump_file: "/var/lib/unbound/cache.dump"
+unbound_cache_dump_interval: "30min"
+
+# -----------------------------------------------------------------------------
+# DNSSEC
+# -----------------------------------------------------------------------------
+unbound_dnssec_enabled: true
+unbound_harden_dnssec_stripped: true
+unbound_harden_below_nxdomain: true
+unbound_harden_glue: true
+
+# -----------------------------------------------------------------------------
+# Security Hardening / Усиление безопасности
+# -----------------------------------------------------------------------------
+
+# Identity hiding / Скрытие идентификации
+unbound_hide_identity: true
+unbound_hide_version: true
+
+# QNAME minimisation (RFC 7816) / Минимизация запросов
+unbound_qname_minimisation: true
+
+# CAPS randomization (защита от cache poisoning)
+unbound_use_caps_for_id: true
+
+# Additional hardening / Дополнительное усиление
+unbound_harden_referral_path: true
+unbound_harden_algo_downgrade: true
+# Note: harden-short-bufsize and harden-large-queries may not be
+# supported in Unbound < 1.18. Set to false if you get errors
+unbound_harden_short_bufsize: false
+unbound_harden_large_queries: false
+unbound_val_clean_additional: true
+
+# Aggressive NSEC (RFC 8198) - улучшенное кеширование NXDOMAIN
+unbound_aggressive_nsec: true
+
+# Unwanted reply threshold / Порог нежелательных ответов
+unbound_unwanted_reply_threshold: 10000000
+
+# -----------------------------------------------------------------------------
+# Rate Limiting / Ограничение частоты (защита от DDoS)
+# -----------------------------------------------------------------------------
+# 0 = disabled, recommended: 50-100 for home, 1000 for public
+# 0 = выключено, рекомендуется: 50-100 для дома, 1000 для публичного
+unbound_rate_limit: 100
+unbound_rate_limit_size: "4m"
+unbound_rate_limit_slabs: 4
+
+# -----------------------------------------------------------------------------
+# Optimization / Оптимизация
+# -----------------------------------------------------------------------------
+unbound_prefetch: true
+unbound_prefetch_key: true
+unbound_serve_expired: true
+unbound_serve_expired_ttl: 3600
+
+# EDNS buffer size (1232 recommended for most networks)
+unbound_edns_buffer_size: 1232
+
+# -----------------------------------------------------------------------------
+# Logging / Логирование
+# -----------------------------------------------------------------------------
+# Verbosity: 0=errors only, 1=operational, 2=detailed, 3-5=debug
+unbound_verbosity: 1
+unbound_log_queries: false
+unbound_log_replies: false
+unbound_log_local_actions: false
+unbound_log_servfail: true
+
+# -----------------------------------------------------------------------------
+# Access Control / Контроль доступа
+# -----------------------------------------------------------------------------
+unbound_access_control:
+  - subnet: "127.0.0.0/8"
+    action: "allow"
+  - subnet: "10.20.30.0/24"
+    action: "allow"
+  - subnet: "192.168.0.0/16"
+    action: "allow"
+
+# Private addresses (DNS rebinding protection)
+# Приватные адреса (защита от DNS rebinding)
+unbound_private_addresses:
+  - "192.168.0.0/16"
+  - "169.254.0.0/16"
+  - "172.16.0.0/12"
+  - "10.0.0.0/8"
+  - "127.0.0.0/8"
+
+# -----------------------------------------------------------------------------
+# Local Zones / Локальные зоны (опционально)
+# -----------------------------------------------------------------------------
+# unbound_local_zones:
+#   - name: "home."
+#     type: "static"
+#   - name: "local."
+#     type: "static"
+
+# unbound_local_data:
+#   - "server.home. 3600 IN A 192.168.1.100"
+#   - "nas.home. 3600 IN A 192.168.1.101"
+
+# unbound_local_data_ptr:
+#   - "192.168.1.100 server.home."
+#   - "192.168.1.101 nas.home."
+
+# -----------------------------------------------------------------------------
+# Forward Zones / Зоны пересылки (опционально)
+# -----------------------------------------------------------------------------
+# Use forward zone instead of recursive resolution
+# Использовать пересылку вместо рекурсивного разрешения
+unbound_use_forward_zone: false
+
+# Forward with TLS (DoT) / Пересылка с шифрованием
+unbound_forward_tls: false
+
+# Forward servers / Серверы пересылки
+unbound_forward_servers:
+  - addr: "1.1.1.1@853"
+    name: "cloudflare-dns.com"
+  - addr: "1.0.0.1@853"
+    name: "cloudflare-dns.com"
+  - addr: "9.9.9.9@853"
+    name: "dns.quad9.net"
+
+# Conditional forwarding / Условная пересылка
+# Для локальных доменов через внутренний DNS
+# unbound_conditional_forward:
+#   - zone: "corp.local"
+#     forward_addr: "192.168.1.1"
+#   - zone: "10.in-addr.arpa"
+#     forward_addr: "192.168.1.1"
+
+# -----------------------------------------------------------------------------
+# Service / Сервис
+# -----------------------------------------------------------------------------
+unbound_service_enabled: true
+unbound_service_started: true

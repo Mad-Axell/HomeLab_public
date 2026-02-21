@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+# =============================================================================
+# AdGuard Home Systemd Service Unit
+# Юнит сервиса AdGuard Home для Systemd
+# =============================================================================
+
+[Unit]
+Description=AdGuard Home - Network-wide ads & trackers blocking DNS server
+ConditionFileIsExecutable={{ adguard_bin_file }}
+After=syslog.target
+After=network-online.target
+
+[Service]
+Type=simple
+User={{ adguard_user }}
+Group={{ adguard_group }}
+StartLimitInterval=5
+StartLimitBurst=10
+WorkingDirectory={{ adguard_data_dir }}
+ExecStart="{{ adguard_bin_file }}" --work-dir "{{ adguard_data_dir }}" --config "{{ adguard_config_file }}"
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

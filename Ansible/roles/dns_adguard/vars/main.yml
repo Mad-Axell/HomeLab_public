@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# DNS AdGuard Home Role - Internal Variables
+# Роль DNS AdGuard Home - Внутренние переменные
+# Do not override / Не переопределять
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# AdGuard Home Paths / Пути AdGuard Home
+# -----------------------------------------------------------------------------
+adguard_service_name: "adguardhome"
+adguard_bin_name: "AdGuardHome"
+adguard_bin_dir: "/opt/{{ adguard_service_name }}/bin"
+adguard_bin_file: "{{ adguard_bin_dir }}/{{ adguard_bin_name }}"
+adguard_config_dir: "/opt/{{ adguard_service_name }}/config"
+adguard_config_name: "AdGuardHome.yaml"
+adguard_config_file: "{{ adguard_config_dir }}/{{ adguard_config_name }}"
+adguard_data_dir: "/opt/{{ adguard_service_name }}"
+adguard_tmp_dir: "/tmp"
+adguard_unpack_dir: "{{ adguard_tmp_dir }}/AdGuardHome-{{ adguard_version }}"
+
+# Architecture mapping / Соответствие архитектур
+adguard_arch: >-
+  {% if ansible_architecture == 'x86_64' %}amd64{% elif ansible_architecture == 'aarch64' %}arm64{% else %}arm{% endif %}
+adguard_archive: "AdGuardHome_linux_{{ adguard_arch }}.tar.gz"
+adguard_download_url_base: "https://github.com/AdguardTeam/AdGuardHome/releases/download"

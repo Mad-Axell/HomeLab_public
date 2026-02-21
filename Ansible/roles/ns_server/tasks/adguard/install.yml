@@ -1,0 +1,44 @@
+---
+# =============================================================================
+# AdGuard Home - Binary Installation
+# AdGuard Home - Установка бинарника
+# =============================================================================
+
+- name: Ensure AdGuard Home bin directory exists
+  ansible.builtin.file:
+    dest: "{{ adguardhome_bin_dir }}"
+    recurse: true
+    state: directory
+
+- name: Create AdGuard Home temporary directory
+  ansible.builtin.file:
+    dest: "{{ adguardhome_unpack_dir }}"
+    recurse: true
+    state: directory
+
+- name: "Download and extract AdGuard Home (v{{ adguardhome_version }} / {{ adguardhome_arch }})"
+  ansible.builtin.unarchive:
+    src: "{{ adguardhome_download_url_base }}/v{{ adguardhome_version }}/{{ adguardhome_archive }}"
+    dest: "{{ adguardhome_unpack_dir }}"
+    remote_src: true
+    extra_opts:
+      - "--strip-components=1"
+
+- name: Debug - show copy paths
+  ansible.builtin.debug:
+    msg: "Copy files from {{ adguardhome_unpack_dir }}/{{ adguardhome_bin_name }} to {{ adguardhome_bin_dir }}/"
+  when: debug_mode | default(false)
+
+- name: "Copy AdGuard Home binary to {{ adguardhome_bin_dir }}/"
+  ansible.builtin.copy:
+    src: "{{ adguardhome_unpack_dir }}/{{ adguardhome_bin_name }}/"
+    dest: "{{ adguardhome_bin_dir }}"
+    mode: "0755"
+    remote_src: true
+    force: true
+  notify: restart adguardhome
+
+- name: Remove AdGuard Home temporary directory
+  ansible.builtin.file:
+    path: "{{ adguardhome_unpack_dir }}"
+    state: absent

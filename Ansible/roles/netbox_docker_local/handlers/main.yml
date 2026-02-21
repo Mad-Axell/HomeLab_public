@@ -1,0 +1,15 @@
+---
+# =============================================================================
+# NetBox Docker Local Role - Handlers
+# Роль NetBox Docker Local - Обработчики
+# =============================================================================
+
+# Recreate containers on config change
+# Пересоздание контейнеров при изменении конфигурации
+- name: Recreate NetBox containers
+  ansible.builtin.shell:
+    cmd: >-
+      docker compose
+      -f {{ netbox_docker_compose_path }}
+      up -d --force-recreate --wait
+    chdir: "{{ netbox_base_dir }}"

@@ -1,0 +1,187 @@
+---
+# =============================================================================
+# DNS AdGuard Home Role - Default Variables
+# Роль DNS AdGuard Home - Переменные по умолчанию
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# DNS Settings / Настройки DNS
+# -----------------------------------------------------------------------------
+
+# Upstream DNS (default: local Unbound) / Основной DNS
+adguard_upstream_dns:
+  - "127.0.0.1:5335"
+
+# Bootstrap DNS (for resolving DoH/DoT hostnames)
+# Bootstrap DNS (для разрешения имён DoH/DoT серверов)
+adguard_bootstrap_dns:
+  - "1.1.1.1"
+  - "8.8.8.8"
+  - "9.9.9.9"
+
+# Fallback DNS (if upstream fails)
+# Резервный DNS (при недоступности upstream)
+adguard_fallback_dns: []
+  # - "1.1.1.1"
+  # - "8.8.8.8"
+
+# DNS port / Порт DNS
+adguard_dns_port: 53
+
+# Blocking mode: default, refused, nxdomain, null_ip, custom_ip
+# Режим блокировки
+adguard_blocking_mode: "default"
+adguard_blocking_ipv4: ""
+adguard_blocking_ipv6: ""
+
+# Rate limit (requests per second, 0 = unlimited)
+# Ограничение запросов в секунду
+adguard_ratelimit: 0
+
+# EDNS client subnet / Подсеть клиента EDNS
+adguard_edns_client_subnet: false
+
+# -----------------------------------------------------------------------------
+# Filtering / Фильтрация
+# -----------------------------------------------------------------------------
+
+# Enable filtering / Включить фильтрацию
+adguard_filtering_enabled: true
+
+# Safe browsing (blocks malware and phishing)
+# Безопасный просмотр (блокирует малварь и фишинг)
+adguard_safebrowsing_enabled: true
+
+# Parental control (blocks adult content)
+# Родительский контроль (блокирует взрослый контент)
+adguard_parental_enabled: false
+
+# Safe search (force safe search in search engines)
+# Безопасный поиск (принудительный в поисковиках)
+adguard_safesearch_enabled: false
+adguard_safesearch_services:
+  - bing
+  - duckduckgo
+  - google
+  - youtube
+
+# -----------------------------------------------------------------------------
+# Blocklists / Списки блокировки
+# -----------------------------------------------------------------------------
+
+# Default blocklists / Списки блокировки по умолчанию
+adguard_blocklists:
+  - name: "AdGuard DNS filter"
+    url: "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"
+    enabled: true
+  - name: "AdAway Default Blocklist"
+    url: "https://adaway.org/hosts.txt"
+    enabled: true
+  - name: "Steven Black's Unified Hosts"
+    url: "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+    enabled: true
+
+# Additional blocklists (will be merged with default)
+# Дополнительные списки (объединяются с основными)
+adguard_extra_blocklists: []
+  # - name: "OISD Big"
+  #   url: "https://big.oisd.nl"
+  #   enabled: true
+  # - name: "Energized Protection"
+  #   url: "https://block.energized.pro/basic/formats/hosts"
+  #   enabled: true
+
+# Allowlists / Списки разрешений
+adguard_allowlists: []
+  # - name: "My Allowlist"
+  #   url: "https://example.com/allowlist.txt"
+
+# -----------------------------------------------------------------------------
+# User Rules / Пользовательские правила
+# -----------------------------------------------------------------------------
+adguard_user_rules: []
+  # - "||ads.example.com^"           # Block domain
+  # - "@@||safe.example.com^"        # Allow domain
+  # - "/^ad[0-9]*\\./"               # Regex block
+
+# -----------------------------------------------------------------------------
+# DNS Rewrites / DNS перезаписи
+# -----------------------------------------------------------------------------
+adguard_dns_rewrites: []
+  # - domain: "*.home"
+  #   answer: "192.168.1.100"
+  # - domain: "router.local"
+  #   answer: "192.168.1.1"
+
+# -----------------------------------------------------------------------------
+# Authentication / Аутентификация
+# -----------------------------------------------------------------------------
+# Admin credentials (required for auto-setup)
+# Учётные данные администратора (для автонастройки)
+
+# Username / Имя пользователя
+adguard_admin_username: "admin"
+
+# Password (plain text - will be hashed with bcrypt)
+# Пароль (открытый текст - будет захеширован bcrypt)
+# IMPORTANT: Use ansible-vault to encrypt this variable!
+# ВАЖНО: Используйте ansible-vault для шифрования!
+adguard_admin_password: ""
+
+# Or provide pre-hashed password (bcrypt)
+# Или укажите готовый хеш пароля (bcrypt)
+# Generate with: htpasswd -bnBC 10 "" "password" | tr -d ':\n'
+# adguard_admin_password_hash: "$2y$10$..."
+adguard_admin_password_hash: ""
+
+# Session TTL / Время жизни сессии
+adguard_session_ttl: "720h"
+
+# Auth attempts before block / Попыток до блокировки
+adguard_auth_attempts: 5
+adguard_block_auth_min: 15
+
+# -----------------------------------------------------------------------------
+# Web Interface / Веб-интерфейс
+# -----------------------------------------------------------------------------
+adguard_web_port: 3000
+adguard_web_bind: "0.0.0.0"
+
+# Language (empty = browser default)
+# Язык (пусто = по умолчанию браузера)
+adguard_language: ""
+
+# Theme: auto, light, dark
+adguard_theme: "auto"
+
+# -----------------------------------------------------------------------------
+# Query Log / Журнал запросов
+# -----------------------------------------------------------------------------
+# Log retention: 24h, 168h (7d), 720h (30d), 2160h (90d)
+# Хранение логов: 24h, 168h (7 дней), 720h (30 дней), 2160h (90 дней)
+adguard_querylog_enabled: true
+adguard_querylog_interval: "168h"
+adguard_querylog_size_memory: 1000
+
+# -----------------------------------------------------------------------------
+# Statistics / Статистика
+# -----------------------------------------------------------------------------
+# Stats retention: 24h, 168h (7d), 720h (30d), 2160h (90d)
+# Хранение статистики
+adguard_stats_enabled: true
+adguard_stats_interval: "168h"
+
+# -----------------------------------------------------------------------------
+# Service Settings / Настройки сервиса
+# -----------------------------------------------------------------------------
+adguard_version: "latest"
+adguard_use_github_token: false
+adguard_user: root
+adguard_group: "{{ adguard_user }}"
+adguard_system_user: true
+adguard_service_enable: true
+adguard_service_start: true
+adguard_disable_systemd_dnsstubresolver: true
+
+# Deploy config template / Развернуть шаблон конфига
+adguard_deploy_config: true

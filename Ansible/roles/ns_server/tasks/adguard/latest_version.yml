@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# AdGuard Home - Check Latest Version
+# AdGuard Home - Проверка последней версии
+# =============================================================================
+
+- name: Install python dependencies for GitHub release lookup
+  ansible.builtin.pip:
+    name: github3.py
+    executable: pip3
+    extra_args: "--break-system-packages"
+    state: present
+
+- name: Lookup latest AdGuard Home release
+  community.general.github_release:
+    action: latest_release
+    user: AdguardTeam
+    repo: Adguardhome
+    token: "{% if adguardhome_use_github_token %}{{ lookup('env', 'GITHUB_TOKEN') }}{% endif %}"
+  register: adguardhome_latest_release
+
+- name: Set desired version to latest release version
+  ansible.builtin.set_fact:
+    adguardhome_version: >-
+      {{ adguardhome_latest_release.tag | regex_replace('^v', '') }}
+  when: adguardhome_latest_release.tag is defined

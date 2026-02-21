@@ -1,0 +1,92 @@
+---
+# =============================================================================
+# AdGuard Home Installation Tasks
+# Задачи установки AdGuard Home
+# =============================================================================
+
+- name: Print AdGuard Home variables
+  ansible.builtin.debug:
+    msg:
+      - "adguardhome_bin_name = {{ adguardhome_bin_name }}"
+      - "adguardhome_bin_file = {{ adguardhome_bin_file }}"
+      - "adguardhome_config_file = {{ adguardhome_config_file }}"
+      - "adguardhome_unpack_dir = {{ adguardhome_unpack_dir }}"
+      - "adguardhome_arch = {{ adguardhome_arch }}"
+      - "adguardhome_archive = {{ adguardhome_archive }}"
+      - "adguardhome_download_url_base = {{ adguardhome_download_url_base }}"
+      - "adguardhome_bin_dir = {{ adguardhome_bin_dir }}"
+      - "adguardhome_config_dir = {{ adguardhome_config_dir }}"
+      - "adguardhome_config_name = {{ adguardhome_config_name }}"
+      - "adguardhome_data_dir = {{ adguardhome_data_dir }}"
+      - "adguardhome_tmp_dir = {{ adguardhome_tmp_dir }}"
+  when: debug_mode | default(false)
+
+- name: Setup AdGuard Home dependencies (Debian)
+  ansible.builtin.include_tasks: adguard/setup_debian.yml
+  when: ansible_os_family == 'Debian'
+
+- name: Setup AdGuard Home dependencies (RedHat)
+  ansible.builtin.include_tasks: adguard/setup_redhat.yml
+  when: ansible_os_family == 'RedHat'
+
+- name: Check if AdGuard Home binary is installed
+  ansible.builtin.stat:
+    path: "{{ adguardhome_bin_file }}"
+  register: adguardhome_binary_check
+
+- name: Check latest released version
+  ansible.builtin.include_tasks: adguard/latest_version.yml
+  when: adguardhome_version == 'latest'
+
+- name: Check version of installed AdGuard Home binary
+  ansible.builtin.shell: >-
+    set -o pipefail
+    && "{{ adguardhome_bin_file }}" -c /dev/null --check-config 2>&1
+    | grep -m 1 -E 'v[0-9.]+' -o
+  args:
+    executable: /bin/bash
+  register: adguardhome_version_check
+  check_mode: false
+  changed_when: >-
+    adguardhome_version_check.stdout.find('v' + adguardhome_version) == -1
+  failed_when: >-
+    adguardhome_version_check.rc != 0 and
+    adguardhome_version_check.rc != 1 and
+    adguardhome_version_check.rc != 141
+  when: adguardhome_binary_check.stat.exists
+
+- name: Ensure AdGuard Home user exists
+  ansible.builtin.user:
+    name: "{{ adguardhome_user }}"
+    create_home: false
+    system: "{{ adguardhome_system_user }}"
+    state: present
+
+- name: "Install AdGuard Home binary (v{{ adguardhome_version }} / {{ adguardhome_arch }})"
+  ansible.builtin.include_tasks: adguard/install.yml
+  when: >-
+    adguardhome_version_check.changed
+    or (not adguardhome_binary_check.stat.exists)
+
+- name: Ensure AdGuard Home paths exist with correct permissions
+  ansible.builtin.include_tasks: adguard/paths.yml
+
+- name: Allow AdGuard Home to bind to ports lower than 1024 as non-root
+  ansible.builtin.capabilities:
+    path: "{{ adguardhome_bin_file }}"
+    capability: cap_net_bind_service+eip
+    state: present
+  when: adguardhome_user != "root"
+
+- name: Disallow AdGuard Home to bind to ports lower than 1024 as non-root
+  ansible.builtin.capabilities:
+    path: "{{ adguardhome_bin_file }}"
+    capability: cap_net_bind_service+eip
+    state: absent
+  when: adguardhome_user == "root"
+
+- name: Install AdGuard Home systemd service
+  ansible.builtin.include_tasks: adguard/systemd_service.yml
+  when:
+    - ansible_service_mgr == "systemd"
+    - adguardhome_service_enable
