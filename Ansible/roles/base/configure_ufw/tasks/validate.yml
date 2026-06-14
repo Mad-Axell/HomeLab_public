@@ -14,9 +14,9 @@
 - name: "Validate OS support"
   ansible.builtin.assert:
     that:
-      - ansible_os_family == 'Debian'
-    fail_msg: "Unsupported OS family: {{ ansible_os_family }}. Only Debian is supported"
-    success_msg: "OS family {{ ansible_os_family }} is supported"
+      - ansible_facts.os_family == 'Debian'
+    fail_msg: "Unsupported OS family: {{ ansible_facts.os_family }}. Only Debian is supported"
+    success_msg: "OS family {{ ansible_facts.os_family }} is supported"
 
 # Validate SSH port number
 # Валидация номера порта SSH
@@ -289,7 +289,7 @@
       - "============================================================================="
       - "Parameter Validation Summary:"
       - "============================================================================="
-      - "OS Family:              {{ ansible_os_family }} {{ '✓' if ansible_os_family == 'Debian' else '✗' }}"
+      - "OS Family:              {{ ansible_facts.os_family }} {{ '✓' if ansible_facts.os_family == 'Debian' else '✗' }}"
       - "SSH Port:               {{ ssh_port }} {{ '✓' if ssh_port is number and ssh_port >= 1 and ssh_port <= 65535 else '✗' }}"
       - "SSH Protocol:           {{ ssh_protocol }} {{ '✓' if ssh_protocol in ['tcp', 'udp'] else '✗' }}"
       - "Logging Level:          {{ ufw_logging }} {{ '✓' if ufw_logging in ['off', 'low', 'medium', 'high', 'full'] else '✗' }}"

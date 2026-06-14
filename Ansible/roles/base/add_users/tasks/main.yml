@@ -260,7 +260,7 @@
   block:
     - name: Set task start time
       ansible.builtin.set_fact:
-        user_creation_start_time: "{{ ansible_date_time.epoch }}"
+        user_creation_start_time: "{{ ansible_facts.date_time.epoch }}"
       
     # EN: Determine password hashing method for user creation
     # RU: Определение метода хеширования паролей для создания пользователей
@@ -275,13 +275,30 @@
         - users
         - facts
 
+    - name: Check passlib availability on Ansible controller
+      ansible.builtin.command: python3 -c "import passlib"
+      delegate_to: localhost
+      register: passlib_check
+      changed_when: false
+      failed_when: false
+      tags:
+        - users
+        - facts
+
+    - name: Set password handling strategy
+      ansible.builtin.set_fact:
+        use_password_hash_filter: "{{ passlib_check.rc == 0 }}"
+      tags:
+        - users
+        - facts
+
     - name: Create new system users
       ansible.builtin.user:
         name: "{{ item.username }}"
         shell: "{{ item.shell | default(add_users_default_shell) }}"
         groups: "{{ item.groups | default([]) }}"
         append: true
-        password: "{{ item.password | ansible.builtin.password_hash(user_password_hash_method | default('sha512_crypt')) }}"
+        password: "{{ (item.password | ansible.builtin.password_hash(user_password_hash_method | default('sha512_crypt'))) if use_password_hash_filter else omit }}"
         update_password: always
         createhome: "{{ item.create_home | default(add_users_create_home) }}"
         home: "{{ item.home | default(add_users_home_prefix + '/' + item.username) }}"
@@ -292,11 +309,24 @@
       loop: "{{ users_to_add }}"
       when: item.username not in existing_usernames
       register: user_creation_result
-      retries: "{{ retries | default(3) }}"
+      retries: "{{ add_users_retries | default(3) }}"
       delay: "{{ retry_delay | default(5) }}"
       until: user_creation_result is succeeded
       no_log: "{{ not debug_show_passwords | default(false) }}"
       notify: "notify user creation"
+      tags:
+        - users
+        - create
+
+    - name: Set password via chpasswd when passlib is unavailable (new users)
+      ansible.builtin.command: chpasswd
+      args:
+        stdin: "{{ item.username }}:{{ item.password }}"
+      loop: "{{ users_to_add }}"
+      when:
+        - item.username not in existing_usernames
+        - not use_password_hash_filter
+      no_log: "{{ not debug_show_passwords | default(false) }}"
       tags:
         - users
         - create
@@ -331,7 +361,7 @@
     - name: Set task completion status
       ansible.builtin.set_fact:
         user_creation_status: "{{ ansible_failed_task is undefined | ternary('SUCCESS', 'FAILED') }}"
-        user_creation_duration: "{{ (ansible_date_time.epoch | int) - (user_creation_start_time | default(ansible_date_time.epoch) | int) }}"
+        user_creation_duration: "{{ (ansible_facts.date_time.epoch | int) - (user_creation_start_time | default(ansible_facts.date_time.epoch) | int) }}"
         
     - name: Log user creation task result
       ansible.builtin.debug:
@@ -342,7 +372,7 @@
           - "Status:                    {{ user_creation_status }}"
           - "Duration:                  {{ user_creation_duration }}s"
           - "Users Processed:           {{ users_to_add | rejectattr('username', 'in', existing_usernames) | list | length }}"
-          - "Timestamp:                 {{ ansible_date_time.iso8601 }}"
+          - "Timestamp:                 {{ ansible_facts.date_time.iso8601 }}"
           - "============================================================================="
       when: debug_mode | default(false)
         
@@ -385,11 +415,24 @@
         name: "{{ item.username }}"
         groups: "{{ item.groups | default([]) }}"
         append: true
-        password: "{{ item.password | ansible.builtin.password_hash(user_password_hash_method | default('sha512_crypt')) }}"
+        password: "{{ (item.password | ansible.builtin.password_hash(user_password_hash_method | default('sha512_crypt'))) if use_password_hash_filter else omit }}"
         update_password: always
       loop: "{{ users_to_add }}"
       when: item.username in existing_usernames
       register: user_update_result
+      no_log: "{{ not debug_show_passwords | default(false) }}"
+      tags:
+        - users
+        - update
+
+    - name: Set password via chpasswd when passlib is unavailable (existing users)
+      ansible.builtin.command: chpasswd
+      args:
+        stdin: "{{ item.username }}:{{ item.password }}"
+      loop: "{{ users_to_add }}"
+      when:
+        - item.username in existing_usernames
+        - not use_password_hash_filter
       no_log: "{{ not debug_show_passwords | default(false) }}"
       tags:
         - users
@@ -435,7 +478,7 @@
 # Управление файлами конфигурации sudo с комплексной обработкой ошибок и логированием
 - name: Backup existing sudoers files before modification
   ansible.builtin.command: >
-    tar -czf /root/sudoers_backup_{{ ansible_date_time.epoch }}.tar.gz /etc/sudoers.d/
+    tar -czf /root/sudoers_backup_{{ ansible_facts.date_time.epoch }}.tar.gz /etc/sudoers.d/
   when: 
     - backup_config | default(true)
     - users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length > 0
@@ -512,7 +555,7 @@
       - "============================================================================="
       - "USER MANAGEMENT COMPLETED SUCCESSFULLY!"
       - "============================================================================="
-      - "Operating System:              {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Operating System:              {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
       - "Total Users Processed:         {{ users_to_add | length }}"
       - "Users with Sudo:               {{ users_to_add | selectattr('is_sudoers', 'equalto', true) | list | length }}"
       - "Groups Created:                {{ unique_groups | length if unique_groups is defined else 0 }}"

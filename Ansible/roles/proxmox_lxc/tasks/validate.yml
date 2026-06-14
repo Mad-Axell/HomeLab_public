@@ -8,11 +8,11 @@
       - "============================================================================="
       - "System Information:"
       - "============================================================================="
-      - "OS Family:               {{ ansible_os_family }}"
-      - "Distribution:            {{ ansible_distribution }}"
-      - "Version:                 {{ ansible_distribution_version }}"
-      - "Architecture:            {{ ansible_architecture }}"
-      - "Hostname:                {{ ansible_hostname }}"
+      - "OS Family:               {{ ansible_facts.os_family }}"
+      - "Distribution:            {{ ansible_facts.distribution }}"
+      - "Version:                 {{ ansible_facts.distribution_version }}"
+      - "Architecture:            {{ ansible_facts.architecture }}"
+      - "Hostname:                {{ ansible_facts.hostname }}"
       - "Debug Mode:              {{ debug_mode }}"
       - "Strict Validation:       {{ strict_validation }}"
       - "============================================================================="
@@ -48,7 +48,7 @@
     validate_certs: "{{ pve_validate_certs | default(false) }}"
     status_code: [200, 401, 403]
   register: api_connectivity_test
-  retries: "{{ retries | default(3) }}"
+  retries: "{{ proxmox_lxc_retries | default(3) }}"
   delay: "{{ retry_delay | default(5) }}"
   until: api_connectivity_test.status in [200, 401, 403]
   failed_when: false

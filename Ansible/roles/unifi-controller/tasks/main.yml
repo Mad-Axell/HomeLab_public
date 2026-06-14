@@ -1,0 +1,64 @@
+---
+- name: Install required packages
+  ansible.builtin.apt:
+    name: "{{ unifi_required_packages }}"
+    state: present
+    update_cache: true
+  become: true
+
+- name: Create apt keyrings directory
+  become: true
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Add UniFi repo key
+  become: true
+  ansible.builtin.get_url:
+    url: "{{ unifi_key_url }}"
+    dest: "{{ unifi_key_path }}"
+    mode: "0644"
+
+- name: Add MongoDB repo key
+  become: true
+  ansible.builtin.get_url:
+    url: "{{ mongo_key_url }}"
+    dest: "{{ mongo_key_path }}"
+    mode: "0644"
+  when: unifi_install_external_mongo
+
+- name: Add UniFi repo
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ unifi_repo_path }}"
+    content: "{{ unifi_repo_line }}\n"
+    mode: "0644"
+
+- name: Add MongoDB repo
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ mongo_repo_path }}"
+    content: "{{ mongo_repo_line }}\n"
+    mode: "0644"
+  when: unifi_install_external_mongo
+
+- name: Install UniFi
+  become: true
+  ansible.builtin.apt:
+    name: >-
+      {{
+        ([mongo_package] if unifi_install_external_mongo else [])
+        + [unifi_java_package, unifi_package]
+      }}
+    state: present
+    update_cache: true
+  notify: restart unifi
+
+- name: Enable and start UniFi service
+  become: true
+  ansible.builtin.systemd:
+    name: "{{ unifi_service_name }}"
+    state: started
+    enabled: true
+    daemon_reload: true

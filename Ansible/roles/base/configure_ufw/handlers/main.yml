@@ -8,31 +8,31 @@
     name: ufw
     state: reloaded
   listen: "reload ufw"
-  when: ansible_os_family == "Debian"
+  when: ansible_facts.os_family == "Debian"
 
 - name: "Restart UFW service"
   ansible.builtin.service:
     name: ufw
     state: restarted
   listen: "restart ufw"
-  when: ansible_os_family == "Debian"
+  when: ansible_facts.os_family == "Debian"
 
 - name: "Enable UFW"
   community.general.ufw:
     state: enabled
   listen: "enable ufw"
-  when: ansible_os_family == "Debian"
+  when: ansible_facts.os_family == "Debian"
 
 - name: "Reload firewalld service"
   ansible.builtin.service:
     name: firewalld
     state: reloaded
   listen: "reload firewalld"
-  when: ansible_os_family in ['RedHat', 'Suse']
+  when: ansible_facts.os_family in ['RedHat', 'Suse']
 
 - name: "Restart firewalld service"
   ansible.builtin.service:
     name: firewalld
     state: restarted
   listen: "restart firewalld"
-  when: ansible_os_family in ['RedHat', 'Suse']
+  when: ansible_facts.os_family in ['RedHat', 'Suse']

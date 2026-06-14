@@ -38,19 +38,19 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "ROLE_START",
       "role_name": "base.configure_ufw",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "UFW configuration role execution started",
       "metadata": {
-        "os_family": ansible_os_family,
-        "distribution": ansible_distribution,
-        "version": ansible_distribution_version,
+        "os_family": ansible_facts.os_family,
+        "distribution": ansible_facts.distribution,
+        "version": ansible_facts.distribution_version,
         "ssh_port": ssh_port,
         "ddos_protection": ddos_protection_enabled,
         "debug_mode": debug_mode
@@ -81,13 +81,13 @@
       - "============================================================================="
       - "System Information for Firewall Configuration:"
       - "============================================================================="
-      - "Distribution:          {{ ansible_distribution }}"
-      - "Version:               {{ ansible_distribution_version }}"
-      - "Architecture:          {{ ansible_architecture }}"
-      - "Kernel:                {{ ansible_kernel }}"
-      - "Hostname:              {{ ansible_hostname }}"
-      - "FQDN:                  {{ ansible_fqdn }}"
-      - "OS Family:             {{ ansible_os_family }}"
+      - "Distribution:          {{ ansible_facts.distribution }}"
+      - "Version:               {{ ansible_facts.distribution_version }}"
+      - "Architecture:          {{ ansible_facts.architecture }}"
+      - "Kernel:                {{ ansible_facts.kernel }}"
+      - "Hostname:              {{ ansible_facts.hostname }}"
+      - "FQDN:                  {{ ansible_facts.fqdn }}"
+      - "OS Family:             {{ ansible_facts.os_family }}"
       - "Firewall Type:         UFW"
       - "SSH Port:              {{ ssh_port }}"
       - "SSH Protocol:          {{ ssh_protocol }}"
@@ -185,15 +185,15 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "CONFIG_CHANGE",
       "service_name": "ufw",
       "status": ansible_failed_task is undefined | ternary("SUCCESS", "FAILED"),
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "UFW configuration change applied",
       "metadata": {
         "config_file": "/etc/ufw/ufw.conf",
@@ -224,20 +224,20 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "ROLE_COMPLETE",
       "role_name": "base.configure_ufw",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "UFW configuration role execution completed",
       "metadata": {
         "execution_status": ansible_failed_task is undefined | ternary("SUCCESS", "FAILED"),
-        "os_family": ansible_os_family,
-        "distribution": ansible_distribution,
-        "version": ansible_distribution_version,
+        "os_family": ansible_facts.os_family,
+        "distribution": ansible_facts.distribution,
+        "version": ansible_facts.distribution_version,
         "ssh_port": ssh_port,
         "ddos_protection": ddos_protection_enabled,
         "allowed_subnets": final_allowed_subnets | default([]) | length,
@@ -256,24 +256,24 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "ERROR",
       "event_type": "TASK_FAILURE",
       "service_name": "ufw",
       "error_message": ansible_failed_result.msg | default("Unknown error"),
       "error_type": ansible_failed_result.exception | default("Unknown"),
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
       "task": ansible_failed_task.name | default("unknown"),
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "UFW configuration task failed",
       "metadata": {
         "failed_task_args": ansible_failed_result.task | default({}),
         "rollback_attempted": enable_rollback | default(false),
         "backup_available": backup_result.dest is defined | ternary(true, false),
-        "os_family": ansible_os_family,
-        "distribution": ansible_distribution
+        "os_family": ansible_facts.os_family,
+        "distribution": ansible_facts.distribution
       }
     } | to_json }}'
     create: true
@@ -292,8 +292,8 @@
       - "============================================================================="
       - "FIREWALL CONFIGURATION COMPLETED SUCCESSFULLY!"
       - "============================================================================="
-      - "Operating System:          {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      - "OS Family:                 {{ ansible_os_family }}"
+      - "Operating System:          {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+      - "OS Family:                 {{ ansible_facts.os_family }}"
       - "Firewall Type:             UFW"
       - "SSH Port:                  {{ ssh_port }}"
       - "SSH Protocol:              {{ ssh_protocol }}"

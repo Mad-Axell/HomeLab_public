@@ -1,0 +1,26 @@
+---
+unifi_required_packages:
+  - ca-certificates
+  - curl
+  - gnupg
+
+unifi_version: "10.3.58-34147-1"
+unifi_package: "unifi={{ unifi_version }}"
+unifi_java_package: "openjdk-25-jre-headless"
+unifi_install_external_mongo: true
+
+unifi_key_url: "https://dl.ui.com/unifi/unifi-repo.gpg"
+unifi_key_path: "/etc/apt/keyrings/unifi-repo.gpg"
+unifi_repo_path: "/etc/apt/sources.list.d/unifi.list"
+unifi_repo_line: "deb [arch=amd64,arm64 signed-by={{ unifi_key_path }}] https://www.ui.com/downloads/unifi/debian stable ubiquiti"
+
+# UniFi declares a local MongoDB server dependency and currently requires < 8.1.
+mongo_package: "mongodb-org-server"
+mongo_version: "8.0"
+mongo_key_url: "https://pgp.mongodb.com/server-8.0.asc"
+mongo_key_path: "/etc/apt/keyrings/mongodb-server-8.0.asc"
+mongo_repo_path: "/etc/apt/sources.list.d/mongodb-org-8.0.list"
+mongo_repo_line: "deb [arch=amd64,arm64 signed-by={{ mongo_key_path }}] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/{{ mongo_version }} main"
+
+unifi_service_name: "unifi"
+

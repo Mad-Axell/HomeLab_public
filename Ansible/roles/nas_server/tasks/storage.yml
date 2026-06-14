@@ -3,8 +3,8 @@
 - name: Add backports repository
   ansible.builtin.lineinfile:
     path: /etc/apt/sources.list
-    line: "deb http://deb.debian.org/debian {{ ansible_distribution_release }}-backports main contrib"
-    regexp: "^{{ ansible_distribution_release }}-backports"
+    line: "deb http://deb.debian.org/debian {{ ansible_facts.distribution_release }}-backports main contrib"
+    regexp: "^{{ ansible_facts.distribution_release }}-backports"
     state: present
   when: backports_enabled | default(false)
   tags:

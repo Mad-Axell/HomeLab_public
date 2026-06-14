@@ -1,0 +1,30 @@
+---
+# EN: Default, overridable variables / RU: Настраиваемые переменные по умолчанию
+
+# EN: Base packages inside the container / RU: Базовые пакеты внутри контейнера
+dns_stack_base_packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - sudo
+  - less
+  - vim
+  - htop
+  - iproute2
+  - dnsutils
+  - bind9-host
+  - systemd-timesyncd
+  - jq
+
+# EN: Run apt full-upgrade on first run (disable for speed)
+# RU: Делать ли apt full-upgrade при первом прогоне (можно отключить для скорости)
+dns_stack_base_full_upgrade: true
+
+# Time sync service / Сервис синхронизации времени
+dns_stack_base_timesync_state: started   # String. started/stopped / Состояние сервиса
+dns_stack_base_timesync_enabled: true    # Bool.   Enable on boot / Автозапуск
+
+# Debug / Отладка
+debug_mode: false                # Bool.   Enable debug output / Включить отладочный вывод
+debug_lang: 'both'               # String. english/russian/both / Язык отладки
+debug_show_passwords: false      # Bool.   Show secrets in debug (INSECURE) / Показывать секреты

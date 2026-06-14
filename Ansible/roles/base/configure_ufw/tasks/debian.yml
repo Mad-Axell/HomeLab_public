@@ -83,20 +83,20 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "PACKAGE_INSTALL",
       "package_name": "ufw",
       "package_version": "latest",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "UFW package installed",
       "metadata": {
         "package_manager": package_manager,
-        "os_family": ansible_os_family,
-        "os_version": ansible_distribution_version,
+        "os_family": ansible_facts.os_family,
+        "os_version": ansible_facts.distribution_version,
         "installation_status": ufw_install_result.changed | default(false)
       }
     } | to_json }}'
@@ -370,14 +370,14 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "DDOS_PROTECTION",
       "service_name": "ufw",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "DDoS protection configured",
       "metadata": {
         "ddos_protection_enabled": ddos_protection_enabled,
@@ -410,16 +410,16 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "SERVICE_CHANGE",
       "service_name": "ufw",
       "service_state": "enabled",
       "service_enabled": true,
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "UFW service state changed",
       "metadata": {
         "previous_state": "unknown",
@@ -442,7 +442,7 @@
       - "Package:                 {{ firewall_package }}"
       - "Installation Status:     {{ 'SUCCESS' if ufw_install_result.changed else 'SKIPPED' }}"
       - "Message:                 Package installed successfully"
-      - "Timestamp:               {{ ansible_date_time.iso8601 }}"
+      - "Timestamp:               {{ ansible_facts.date_time.iso8601 }}"
       - "============================================================================="
   when:
     - ufw_install_result.changed

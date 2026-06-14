@@ -4,8 +4,8 @@
 #
 # User: {{ username }}
 # Security Groups: {{ user_security_groups | default([]) | join(', ') }}
-# Generated: {{ ansible_date_time.iso8601 }}
-# Host: {{ ansible_hostname }}
+# Generated: {{ ansible_facts.date_time.iso8601 }}
+# Host: {{ ansible_facts.hostname }}
 # Configuration Method: {{ 'users_to_add.security_groups' if user_security_groups is defined and user_security_groups | length > 0 else 'security_groups.members (legacy)' }}
 
 {% if user_security_groups is defined and user_security_groups | length > 0 %}

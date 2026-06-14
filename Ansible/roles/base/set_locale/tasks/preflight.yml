@@ -17,22 +17,22 @@
 - name: Check OS compatibility
   ansible.builtin.assert:
     that:
-      - ansible_os_family == 'Debian'
+      - ansible_facts.os_family == 'Debian'
     fail_msg: |
-      Unsupported OS family: {{ ansible_os_family | default('undefined') }}
+      Unsupported OS family: {{ ansible_facts.os_family | default('undefined') }}
       This role only supports Debian/Ubuntu systems
     success_msg: |
-      OS compatibility check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      OS compatibility check passed: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
   tags: ['preflight', 'always']
 
 - name: Check required Python version
   ansible.builtin.assert:
     that:
-      - ansible_python_version is version('3.6', '>=')
+      - ansible_facts.python_version is version('3.6', '>=')
     fail_msg: |
-      Python 3.6+ is required. Current version: {{ ansible_python_version }}
+      Python 3.6+ is required. Current version: {{ ansible_facts.python_version }}
     success_msg: |
-      Python version check passed: {{ ansible_python_version }}
+      Python version check passed: {{ ansible_facts.python_version }}
   tags: ['preflight', 'always']
 
 - name: Check disk space
@@ -43,7 +43,7 @@
       Insufficient disk space on {{ item.mount }}. Available: {{ item.size_available }} bytes
     success_msg: |
       Disk space check passed for {{ item.mount }}
-  loop: "{{ ansible_mounts }}"
+  loop: "{{ ansible_facts.mounts }}"
   when:
     - item.mount in ['/']
     - item.size_available is defined
@@ -56,10 +56,10 @@
       - "Preflight Checks Completed Successfully:"
       - "============================================================================="
       - "Ansible Version:       {{ ansible_version.full }}"
-      - "Python Version:        {{ ansible_python_version }}"
-      - "OS Family:             {{ ansible_os_family }}"
-      - "OS Distribution:       {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      - "Architecture:          {{ ansible_architecture }}"
+      - "Python Version:        {{ ansible_facts.python_version }}"
+      - "OS Family:             {{ ansible_facts.os_family }}"
+      - "OS Distribution:       {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+      - "Architecture:          {{ ansible_facts.architecture }}"
       - "All preflight checks passed - proceeding with role execution"
       - "============================================================================="
   when:

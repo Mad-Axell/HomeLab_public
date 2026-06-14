@@ -1,0 +1,49 @@
+---
+# EN: Manage and verify the Unbound service / RU: Управление и проверка сервиса Unbound
+
+- name: "Manage and verify Unbound service"
+  block:
+    - name: "Reload systemd units to pick up the DAEMON_OPTS override"
+      ansible.builtin.systemd:
+        daemon_reload: true
+      changed_when: false
+
+    - name: "Clear failed / start-limit state for unbound"
+      ansible.builtin.command: "systemctl reset-failed {{ unbound_service_name }}"
+      changed_when: false
+      failed_when: false
+
+    - name: "Reboot container before unbound readiness check"
+      ansible.builtin.reboot:
+        msg: "Ansible: rebooting to finalize unbound startup"
+        reboot_timeout: 600
+        post_reboot_delay: 10
+
+    - name: "Manage service state"
+      ansible.builtin.systemd:
+        name: "{{ unbound_service_name }}"
+        state: "{{ unbound_service_state }}"
+        enabled: "{{ unbound_service_enabled }}"
+
+    - name: "Apply pending restarts"
+      ansible.builtin.meta: flush_handlers
+
+    - name: "Check service is active"
+      ansible.builtin.command: "systemctl is-active {{ unbound_service_name }}"
+      register: unbound_is_active
+      changed_when: false
+      failed_when: unbound_is_active.rc != 0
+
+    - name: "Check service is enabled"
+      ansible.builtin.command: "systemctl is-enabled {{ unbound_service_name }}"
+      register: unbound_is_enabled
+      changed_when: false
+      failed_when: false
+      when: unbound_service_enabled | bool
+
+  rescue:
+    - name: "Report service failure"
+      ansible.builtin.fail:
+        msg: |
+          EN: Service {{ unbound_service_name }} failed to start or is not active.
+          RU: Сервис {{ unbound_service_name }} не запустился или не активен.

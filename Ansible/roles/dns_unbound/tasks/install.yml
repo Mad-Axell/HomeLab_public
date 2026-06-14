@@ -1,0 +1,47 @@
+---
+# EN: Install Unbound and prepare DNSSEC trust anchor / root hints
+# RU: Установка Unbound и подготовка DNSSEC trust anchor / root hints
+
+- name: "Install Unbound packages"
+  ansible.builtin.apt:
+    name: "{{ unbound_packages }}"
+    state: present
+    update_cache: true
+
+# EN: unbound-anchor returns rc=1 when the anchor was created/updated — this is
+#     normal, not an error (see 04 §2.1). Fail only on real errors (rc>1).
+# RU: unbound-anchor возвращает rc=1, когда anchor создан/обновлён — это НОРМА,
+#     а не ошибка (см. 04 §2.1). Падаем только на реальных ошибках (rc>1).
+- name: "Create root trust anchor (DNSSEC)"
+  ansible.builtin.command:
+    cmd: "unbound-anchor -a {{ unbound_root_key }}"
+    creates: "{{ unbound_root_key }}"
+  register: unbound_anchor
+  changed_when: unbound_anchor.rc is defined and unbound_anchor.rc in [0, 1]
+  failed_when: unbound_anchor.rc is defined and unbound_anchor.rc not in [0, 1]
+
+- name: "Set ownership on root.key"
+  ansible.builtin.file:
+    path: "{{ unbound_root_key }}"
+    owner: unbound
+    group: unbound
+
+- name: "Download root hints"
+  ansible.builtin.get_url:
+    url: "{{ unbound_root_hints_url }}"
+    dest: "{{ unbound_root_hints }}"
+    owner: unbound
+    group: unbound
+    mode: "0644"
+
+- name: "Schedule root hints refresh (cron)"
+  ansible.builtin.cron:
+    name: "unbound root hints update"
+    cron_file: unbound-roothints
+    user: unbound
+    minute: "{{ unbound_root_hints_cron.split()[0] }}"
+    hour: "{{ unbound_root_hints_cron.split()[1] }}"
+    day: "{{ unbound_root_hints_cron.split()[2] }}"
+    month: "{{ unbound_root_hints_cron.split()[3] }}"
+    weekday: "{{ unbound_root_hints_cron.split()[4] }}"
+    job: "curl -fsSL {{ unbound_root_hints_url }} -o {{ unbound_root_hints }}"

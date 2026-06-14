@@ -1,0 +1,38 @@
+---
+# EN: Role entry point. Prepares the adguard container OS: IPv6 off,
+#     systemd-resolved off (frees :53), base packages, hostname/hosts, and
+#     protection of /etc/resolv.conf from being overwritten. Switching the
+#     resolver to 127.0.0.1 is done by the adguard_home role (at the very end),
+#     so apt can reach pfSense during bootstrap.
+# RU: Точка входа роли. Подготовка ОС контейнера adguard: IPv6 off,
+#     systemd-resolved off (освобождаем :53), базовые пакеты, hostname/hosts,
+#     защита /etc/resolv.conf от перезаписи. Переключение резолвера на 127.0.0.1
+#     делает роль adguard_home (в самом конце), чтобы на bootstrap apt ходил
+#     через pfSense.
+
+# EN: Guard against unsupported OS families / RU: Защита от неподдерживаемых ОС
+- name: "Assert supported OS family"
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in supported_os_families
+    fail_msg: >-
+      EN: Unsupported OS family '{{ ansible_facts.os_family }}'. Supported: {{ supported_os_families | join(', ') }}.
+      RU: Неподдерживаемое семейство ОС '{{ ansible_facts.os_family }}'. Поддерживаются: {{ supported_os_families | join(', ') }}.
+  tags: ['always']
+
+- name: "Install"
+  ansible.builtin.include_tasks: install.yml
+  tags: ['install']
+
+- name: "Configure"
+  ansible.builtin.include_tasks: configure.yml
+  tags: ['configure']
+
+- name: "Manage service"
+  ansible.builtin.include_tasks: service.yml
+  tags: ['service']
+
+- name: "Show debug summary"
+  ansible.builtin.include_tasks: debug.yml
+  when: debug_mode | bool
+  tags: ['debug']

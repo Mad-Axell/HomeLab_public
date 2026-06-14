@@ -1,0 +1,6 @@
+---
+- name: restart unifi
+  become: true
+  ansible.builtin.systemd:
+    name: "{{ unifi_service_name }}"
+    state: restarted

@@ -10,14 +10,12 @@
 - name: Gather minimal facts
   ansible.builtin.setup:
     filter:
-      - ansible_date_time
-      - ansible_user_id
-      - inventory_hostname
-      - ansible_play_name
-      - ansible_os_family
-      - ansible_distribution
-      - ansible_distribution_version
-  when: ansible_date_time is not defined
+      - date_time
+      - user_id
+      - os_family
+      - distribution
+      - distribution_version
+  when: ansible_facts.date_time is not defined
   tags: ['always', 'facts']
 
 # EN: Validate role arguments (NEW - Automatic in Ansible 2.14+)
@@ -80,20 +78,20 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "SECRETS_IMPORT",
           "service_name": "proxmox_import_config",
           "status": "SUCCESS",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": "secrets_import",
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Secrets file imported successfully",
           "metadata": {
             "secrets_file_path": secrets_file_path,
-            "variables_loaded": vars.keys() | list | length,
+            "variables_loaded": hostvars[inventory_hostname].keys() | list | length,
             "host_vars_prefix": host_vars
           }
         } | to_json }}'
@@ -113,7 +111,7 @@
           - "============================================================================="
           - "File Path:             {{ secrets_file_path }}"
           - "Import Status:         ✓ SUCCESS"
-          - "Variables Loaded:      {{ vars.keys() | list | length }}"
+          - "Variables Loaded:      {{ hostvars[inventory_hostname].keys() | list | length }}"
           - "============================================================================="
       when:
         - debug_mode | default(false)
@@ -126,16 +124,16 @@
     - name: Overwrite variables from secrets
       ansible.builtin.set_fact:
         # Overwrite server variables / Перезапись переменных сервера
-        pve_node: "{{ vars[host_vars ~ '_pve_node'] }}"
-        pve_api_host: "{{ hostvars[vars[host_vars ~ '_pve_node']]['ansible_host'] }}"
-        pve_api_user: "{{ vars[host_vars ~ '_pve_api_user'] }}"
-        pve_api_password: "{{ vars[host_vars ~ '_pve_api_password'] }}"
+        pve_node: "{{ hostvars[inventory_hostname][host_vars ~ '_pve_node'] }}"
+        pve_api_host: "{{ hostvars[hostvars[inventory_hostname][host_vars ~ '_pve_node']]['ansible_host'] }}"
+        pve_api_user: "{{ hostvars[inventory_hostname][host_vars ~ '_pve_api_user'] }}"
+        pve_api_password: "{{ hostvars[inventory_hostname][host_vars ~ '_pve_api_password'] }}"
         # Overwrite LXC variables / Перезапись переменных LXC
-        pve_lxc_root_password: "{{ vars[host_vars ~ '_pve_lxc_root_password'] }}"
-        pve_lxc_root_authorized_pubkey: "{{ lookup('file', vars[host_vars ~ '_pve_lxc_root_authorized_pubkey']) }}"
+        pve_lxc_root_password: "{{ hostvars[inventory_hostname][host_vars ~ '_pve_lxc_root_password'] }}"
+        pve_lxc_root_authorized_pubkey: "{{ lookup('file', hostvars[inventory_hostname][host_vars ~ '_pve_lxc_root_authorized_pubkey']) }}"
         # Overwrite user to be added variables / Перезапись переменных добавляемого пользователя
-        admin_name: "{{ vars[host_vars ~ '_admin_user'] }}"
-        admin_password: "{{ vars[host_vars ~ '_admin_password'] }}"
+        admin_name: "{{ hostvars[inventory_hostname][host_vars ~ '_admin_user'] }}"
+        admin_password: "{{ hostvars[inventory_hostname][host_vars ~ '_admin_password'] }}"
       register: set_fact_result
       no_log: true
       tags:
@@ -149,16 +147,16 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "VARIABLES_CONFIG",
           "service_name": "proxmox_import_config",
           "status": "SUCCESS",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": "secrets_import",
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Variables configured from secrets",
           "metadata": {
             "pve_node": pve_node | default("not_set"),
@@ -259,16 +257,16 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "ERROR",
           "event_type": "SECRETS_IMPORT_FAILURE",
           "service_name": "proxmox_import_config",
           "status": "FAILED",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": ansible_failed_task.name | default("unknown"),
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Failed to import secrets from file",
           "metadata": {
             "secrets_file_path": secrets_file_path,
@@ -330,21 +328,21 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "HOST_VARS_IMPORT",
           "service_name": "proxmox_import_config",
           "status": "SUCCESS",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": "secrets_import",
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Host variables imported successfully",
           "metadata": {
             "host_vars_file": ansible_host_vars_dir + "/" + host_name + ".yml",
             "host_name": host_name,
-            "variables_loaded": vars.keys() | list | length
+            "variables_loaded": hostvars[inventory_hostname].keys() | list | length
           }
         } | to_json }}'
         create: true
@@ -402,16 +400,16 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "ERROR",
           "event_type": "HOST_VARS_IMPORT_FAILURE",
           "service_name": "proxmox_import_config",
           "status": "FAILED",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": ansible_failed_task.name | default("unknown"),
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Failed to import host variables from file",
           "metadata": {
             "host_vars_file": ansible_host_vars_dir + "/" + host_name + ".yml",
@@ -565,16 +563,16 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "ROLE_COMPLETION",
       "service_name": "proxmox_import_config",
       "status": "SUCCESS",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
       "task": "role_completion",
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Role execution completed successfully",
       "metadata": {
         "host_name": host_name,
@@ -582,7 +580,7 @@
         "secrets_imported": true,
         "host_vars_imported": true,
         "variables_configured": 7,
-        "execution_time": ansible_date_time.epoch,
+        "execution_time": ansible_facts.date_time.epoch,
         "debug_mode": debug_mode | default(false),
         "validation_enabled": validate_parameters | default(true)
       }

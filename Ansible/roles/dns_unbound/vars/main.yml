@@ -1,28 +1,19 @@
 ---
-# =============================================================================
-# DNS Unbound Role - Internal Variables
-# Роль DNS Unbound - Внутренние переменные
-# Do not override / Не переопределять
-# =============================================================================
+# EN: Static role variables (do not override) / RU: Статичные переменные роли
 
-# -----------------------------------------------------------------------------
-# Unbound paths / Пути Unbound
-# -----------------------------------------------------------------------------
-unbound_config_dir: "/etc/unbound/unbound.conf.d"
-unbound_config_file: "{{ unbound_config_dir }}/dns-unbound.conf"
-unbound_data_dir: "/var/lib/unbound"
-unbound_root_hints: "{{ unbound_data_dir }}/root.hints"
-unbound_trust_anchor: "{{ unbound_data_dir }}/root.key"
+# EN: Supported OS families (role is Debian-only) / RU: Поддерживаемые семейства ОС (роль только для Debian)
+supported_os_families:
+  - Debian
 
-# -----------------------------------------------------------------------------
-# Package names / Имена пакетов
-# -----------------------------------------------------------------------------
-unbound_packages_debian:
+# EN: Service identity / RU: Идентификация сервиса
+unbound_service_name: "unbound"
+
+# EN: Packages to install / RU: Устанавливаемые пакеты
+unbound_packages:
   - unbound
   - unbound-anchor
-  - dns-root-data
-  - dnsutils
 
-unbound_packages_redhat:
-  - unbound
-  - bind-utils
+# EN: Fixed filesystem paths / RU: Фиксированные пути в файловой системе
+unbound_config_path: "/etc/unbound/unbound.conf.d/10-server.conf"
+unbound_root_key: "/var/lib/unbound/root.key"
+unbound_root_hints: "/var/lib/unbound/root.hints"

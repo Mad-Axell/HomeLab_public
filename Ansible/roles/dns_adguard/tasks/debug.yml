@@ -1,0 +1,40 @@
+---
+# EN: Bilingual debug summary / RU: Двуязычная отладочная сводка
+
+- name: "Show AdGuard summary (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "AdGuard Home summary:"
+      - "============================================================================="
+      - "Service:       {{ adguard_service_name }}"
+      - "Web UI:        0.0.0.0:{{ adguard_web_port }}"
+      - "Admin user:    {{ adguard_admin_user }}"
+      - "Password hash: {{ adguard_admin_password_hash if debug_show_passwords | bool else '-- ** Use debug_show_passwords ** --' }}"
+      - "Upstream:      127.0.0.1:{{ dns.unbound_local_port }}"
+      - "Filters:       {{ adguard_filters | length }}"
+      - "Active:        {{ adguard_is_active.stdout | default('n/a') }}"
+      - "Enabled:       {{ adguard_is_enabled.stdout | default('n/a') }}"
+      - "============================================================================="
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: "Show AdGuard summary (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка по AdGuard Home:"
+      - "============================================================================="
+      - "Сервис:        {{ adguard_service_name }}"
+      - "Веб-интерфейс: 0.0.0.0:{{ adguard_web_port }}"
+      - "Админ:         {{ adguard_admin_user }}"
+      - "Хэш пароля:    {{ adguard_admin_password_hash if debug_show_passwords | bool else '-- ** Use debug_show_passwords ** --' }}"
+      - "Upstream:      127.0.0.1:{{ dns.unbound_local_port }}"
+      - "Фильтры:       {{ adguard_filters | length }}"
+      - "Активен:       {{ adguard_is_active.stdout | default('н/д') }}"
+      - "Автозапуск:    {{ adguard_is_enabled.stdout | default('н/д') }}"
+      - "============================================================================="
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

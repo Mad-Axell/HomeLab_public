@@ -14,13 +14,13 @@
       - "============================================================================="
       - "System Information for Validation:"
       - "============================================================================="
-      - "Operating System:      {{ ansible_distribution }}"
-      - "OS Version:            {{ ansible_distribution_version }}"
-      - "OS Family:             {{ ansible_os_family }}"
-      - "OS Major Version:      {{ ansible_distribution_major_version }}"
-      - "Architecture:          {{ ansible_architecture }}"
-      - "Kernel:                {{ ansible_kernel }}"
-      - "Python Version:        {{ ansible_python_version }}"
+      - "Operating System:      {{ ansible_facts.distribution }}"
+      - "OS Version:            {{ ansible_facts.distribution_version }}"
+      - "OS Family:             {{ ansible_facts.os_family }}"
+      - "OS Major Version:      {{ ansible_facts.distribution_major_version }}"
+      - "Architecture:          {{ ansible_facts.architecture }}"
+      - "Kernel:                {{ ansible_facts.kernel }}"
+      - "Python Version:        {{ ansible_facts.python_version }}"
       - "============================================================================="
   when: debug_mode | default(false)
   tags:
@@ -32,11 +32,11 @@
 - name: "Validate OS family compatibility"
   ansible.builtin.assert:
     that:
-      - ansible_os_family is defined
-      - ansible_os_family == 'Debian'
-    success_msg: "OS family {{ ansible_os_family }} is supported"
+      - ansible_facts.os_family is defined
+      - ansible_facts.os_family == 'Debian'
+    success_msg: "OS family {{ ansible_facts.os_family }} is supported"
     fail_msg: |
-      Unsupported OS family: {{ ansible_os_family | default('undefined') }}
+      Unsupported OS family: {{ ansible_facts.os_family | default('undefined') }}
       This role only supports Debian/Ubuntu systems
   tags:
     - validation
@@ -80,7 +80,7 @@
     fail_msg: "Invalid keyboard layout '{{ keyboard_layout }}' for Debian. Valid options: {{ valid_keyboard_layouts | join(', ') }}"
   when: 
     - strict_validation | bool
-    - ansible_os_family == 'Debian'
+    - ansible_facts.os_family == 'Debian'
     - keyboard_layout != ""
   tags:
     - validation
@@ -95,7 +95,7 @@
     fail_msg: "Invalid keyboard variant '{{ keyboard_variant }}'. Valid options: {{ valid_keyboard_variants | join(', ') }}"
   when: 
     - strict_validation | bool
-    - ansible_os_family == "Debian"
+    - ansible_facts.os_family == "Debian"
     - keyboard_variant != ""
   tags:
     - validation
@@ -135,7 +135,7 @@
       - "============================================================================="
       - "Parameter Validation Summary:"
       - "============================================================================="
-      - "OS Family:             {{ ansible_os_family }} {{ '✓' if ansible_os_family == 'Debian' else '✗' }}"
+      - "OS Family:             {{ ansible_facts.os_family }} {{ '✓' if ansible_facts.os_family == 'Debian' else '✗' }}"
       - "Locale Primary:        {{ locale_primary }} {{ '✓' if locale_primary is match(valid_locale_pattern) else '✗' }}"
       - "Timezone:              {{ timezone }} {{ '✓' if timezone is defined and timezone != '' and timezone is match(valid_timezone_pattern) else '✗' }}"
       - "Keyboard Layout:       {{ keyboard_layout }} {{ '✓' if keyboard_layout in valid_keyboard_layouts else '✗' }}"

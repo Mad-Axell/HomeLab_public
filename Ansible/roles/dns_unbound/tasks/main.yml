@@ -1,227 +1,29 @@
 ---
-# =============================================================================
-# DNS Unbound Role - Main Tasks
-# Роль DNS Unbound - Основные задачи
-# =============================================================================
+# EN: Role entry point / RU: Точка входа роли
 
-# -----------------------------------------------------------------------------
-# Installation / Установка
-# -----------------------------------------------------------------------------
+# EN: Guard against unsupported OS families / RU: Защита от неподдерживаемых ОС
+- name: "Assert supported OS family"
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in supported_os_families
+    fail_msg: >-
+      EN: Unsupported OS family '{{ ansible_facts.os_family }}'. Supported: {{ supported_os_families | join(', ') }}.
+      RU: Неподдерживаемое семейство ОС '{{ ansible_facts.os_family }}'. Поддерживаются: {{ supported_os_families | join(', ') }}.
+  tags: ['always']
 
-- name: Install Unbound packages (Debian/Ubuntu)
-  ansible.builtin.apt:
-    name: "{{ unbound_packages_debian }}"
-    state: present
-    update_cache: true
-  when: ansible_os_family == 'Debian'
+- name: "Install"
+  ansible.builtin.include_tasks: install.yml
+  tags: ['install']
 
-- name: Install Unbound packages (RHEL/CentOS)
-  ansible.builtin.dnf:
-    name: "{{ unbound_packages_redhat }}"
-    state: present
-  when: ansible_os_family == 'RedHat'
+- name: "Configure"
+  ansible.builtin.include_tasks: configure.yml
+  tags: ['configure']
 
-# -----------------------------------------------------------------------------
-# Data Directory Setup / Настройка директории данных
-# -----------------------------------------------------------------------------
+- name: "Manage service"
+  ansible.builtin.include_tasks: service.yml
+  tags: ['service']
 
-- name: Ensure unbound data directory exists
-  ansible.builtin.file:
-    path: "{{ unbound_data_dir }}"
-    state: directory
-    owner: unbound
-    group: unbound
-    mode: "0755"
-
-# -----------------------------------------------------------------------------
-# Root Hints / Root-подсказки
-# -----------------------------------------------------------------------------
-
-- name: Download root hints file
-  ansible.builtin.get_url:
-    url: https://www.internic.net/domain/named.root
-    dest: "{{ unbound_root_hints }}"
-    owner: unbound
-    group: unbound
-    mode: "0644"
-  notify: restart unbound
-
-# -----------------------------------------------------------------------------
-# DNSSEC Trust Anchor / DNSSEC якорь доверия
-# FIX: Prevent duplication in root.key file
-# ИСПРАВЛЕНИЕ: Предотвращение дублирования в файле root.key
-# -----------------------------------------------------------------------------
-
-- name: Check if root.key exists
-  ansible.builtin.stat:
-    path: "{{ unbound_trust_anchor }}"
-  register: _unbound_root_key_stat
-  when: unbound_dnssec_enabled
-
-- name: Check root.key for valid DNSKEY entries
-  ansible.builtin.shell: |
-    set -o pipefail
-    # Count unique DNSKEY lines (ignore comments and empty lines)
-    # Подсчёт уникальных строк DNSKEY (игнорируя комментарии и пустые строки)
-    grep -E '^\.\s+\S+\s+IN\s+DNSKEY' "{{ unbound_trust_anchor }}" 2>/dev/null | sort -u | wc -l
-  args:
-    executable: /bin/bash
-  register: _unbound_root_key_check
-  changed_when: false
-  failed_when: false
-  when:
-    - unbound_dnssec_enabled
-    - _unbound_root_key_stat.stat.exists | default(false)
-
-- name: Set fact for root.key validity
-  ansible.builtin.set_fact:
-    _unbound_root_key_valid: >-
-      {{ _unbound_root_key_stat.stat.exists | default(false) and
-         (_unbound_root_key_check.stdout | default('0') | int) > 0 }}
-  when: unbound_dnssec_enabled
-
-# Remove potentially corrupted/duplicated root.key before regeneration
-# Удаление потенциально повреждённого root.key перед регенерацией
-- name: Check for duplicate entries in root.key
-  ansible.builtin.shell: |
-    set -o pipefail
-    # Count total vs unique DNSKEY lines to detect duplicates
-    # Сравнение общего количества с уникальными для обнаружения дубликатов
-    total=$(grep -cE '^\.\s+\S+\s+IN\s+DNSKEY' "{{ unbound_trust_anchor }}" 2>/dev/null || echo 0)
-    unique=$(grep -E '^\.\s+\S+\s+IN\s+DNSKEY' "{{ unbound_trust_anchor }}" 2>/dev/null | sort -u | wc -l)
-    if [ "$total" -gt "$unique" ] && [ "$unique" -gt 0 ]; then
-      echo "duplicates_found"
-    else
-      echo "ok"
-    fi
-  args:
-    executable: /bin/bash
-  register: _unbound_root_key_duplicates
-  changed_when: false
-  failed_when: false
-  when:
-    - unbound_dnssec_enabled
-    - _unbound_root_key_stat.stat.exists | default(false)
-
-- name: Remove corrupted root.key with duplicates
-  ansible.builtin.file:
-    path: "{{ unbound_trust_anchor }}"
-    state: absent
-  when:
-    - unbound_dnssec_enabled
-    - _unbound_root_key_duplicates.stdout | default('ok') == 'duplicates_found'
-  notify: restart unbound
-
-# Initialize root.key using unbound-anchor (only if missing or invalid)
-# Инициализация root.key с помощью unbound-anchor (только если отсутствует)
-- name: Initialize DNSSEC trust anchor with unbound-anchor
-  ansible.builtin.command:
-    cmd: unbound-anchor -a "{{ unbound_trust_anchor }}"
-    creates: "{{ unbound_trust_anchor }}"
-  register: _unbound_anchor_result
-  # unbound-anchor returns 1 if anchor was updated (not an error)
-  # unbound-anchor возвращает 1 если якорь обновлён (не ошибка)
-  failed_when: _unbound_anchor_result.rc not in [0, 1]
-  when:
-    - unbound_dnssec_enabled
-    - not (_unbound_root_key_valid | default(false)) or
-      (_unbound_root_key_duplicates.stdout | default('ok') == 'duplicates_found')
-  notify: restart unbound
-
-- name: Set correct ownership for root.key
-  ansible.builtin.file:
-    path: "{{ unbound_trust_anchor }}"
-    owner: unbound
-    group: unbound
-    mode: "0644"
-  when: unbound_dnssec_enabled
-
-# -----------------------------------------------------------------------------
-# Configuration / Конфигурация
-# -----------------------------------------------------------------------------
-
-- name: Ensure unbound config directory exists
-  ansible.builtin.file:
-    path: "{{ unbound_config_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Deploy Unbound configuration
-  ansible.builtin.template:
-    src: unbound.conf.j2
-    dest: "{{ unbound_config_file }}"
-    owner: root
-    group: root
-    mode: "0644"
-    validate: "unbound-checkconf %s"
-  notify: restart unbound
-
-# -----------------------------------------------------------------------------
-# Fix root.key double semicolons / Исправление двойных точек с запятой в root.key
-# -----------------------------------------------------------------------------
-- name: Fix double semicolons in root.key file
-  ansible.builtin.replace:
-    path: "{{ unbound_trust_anchor }}"
-    regexp: ';;'
-    replace: ';'
-  when:
-    - unbound_dnssec_enabled
-    - unbound_trust_anchor is defined
-
-- name: Enable and start Unbound service
-  ansible.builtin.service:
-    name: unbound
-    enabled: "{{ unbound_service_enabled }}"
-    state: "{{ 'started' if unbound_service_started else 'stopped' }}"
-
-# -----------------------------------------------------------------------------
-# Cache Persistence / Сохранение кэша
-# -----------------------------------------------------------------------------
-
-- name: Deploy cache dump service
-  ansible.builtin.template:
-    src: unbound-cache-dump.service.j2
-    dest: /etc/systemd/system/unbound-cache-dump.service
-    owner: root
-    group: root
-    mode: "0644"
-  when: unbound_cache_dump_enabled
-  notify: reload systemd daemon
-
-- name: Deploy cache dump timer
-  ansible.builtin.template:
-    src: unbound-cache-dump.timer.j2
-    dest: /etc/systemd/system/unbound-cache-dump.timer
-    owner: root
-    group: root
-    mode: "0644"
-  when: unbound_cache_dump_enabled
-  notify: reload systemd daemon
-
-- name: Deploy cache load service
-  ansible.builtin.template:
-    src: unbound-cache-load.service.j2
-    dest: /etc/systemd/system/unbound-cache-load.service
-    owner: root
-    group: root
-    mode: "0644"
-  when: unbound_cache_dump_enabled
-  notify: reload systemd daemon
-
-- name: Flush handlers before enabling services
-  ansible.builtin.meta: flush_handlers
-
-- name: Enable cache dump timer
-  ansible.builtin.service:
-    name: unbound-cache-dump.timer
-    enabled: true
-    state: started
-  when: unbound_cache_dump_enabled
-
-- name: Enable cache load service
-  ansible.builtin.service:
-    name: unbound-cache-load.service
-    enabled: true
-  when: unbound_cache_dump_enabled
+- name: "Show debug summary"
+  ansible.builtin.include_tasks: debug.yml
+  when: debug_mode | bool
+  tags: ['debug']

@@ -42,7 +42,7 @@ backup_config: true                  # Boolean. Create backup before changes / �
 
 # EN: Performance settings / RU: Настройки производительности
 async_timeout: 300                   # Integer (seconds). Timeout for async operations / Целое число (секунды). Таймаут для асинхронных операций
-retries: 3                          # Integer. Number of retry attempts for failed tasks / Целое число. Количество попыток повтора для неудачных задач
+add_users_retries: 3                # Integer. Number of retry attempts for failed tasks / Целое число. Количество попыток повтора для неудачных задач
 retry_delay: 5                      # Integer (seconds). Delay between retry attempts / Целое число (секунды). Задержка между повторами
 
 # EN: Structured logging / RU: Структурированное логирование

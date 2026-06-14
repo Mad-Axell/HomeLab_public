@@ -21,7 +21,7 @@ unbound_do_tcp: "yes"
 # -----------------------------------------------------------------------------
 # Unbound - Performance / Производительность
 # -----------------------------------------------------------------------------
-unbound_num_threads: "{{ ansible_processor_vcpus | default(2) }}"
+unbound_num_threads: "{{ ansible_facts.processor_vcpus | default(2) }}"
 
 # Cache slabs (should be power of 2, close to num-threads)
 # Количество слотов кэша (должно быть степенью 2)

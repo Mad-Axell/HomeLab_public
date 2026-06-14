@@ -46,14 +46,14 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "PACKAGE_INSTALL",
           "service_name": "install_packages",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Unattended-upgrades package installed",
           "metadata": {
             "package_name": "unattended-upgrades",
@@ -128,14 +128,14 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "CONFIG_CHANGE",
           "service_name": "install_packages",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "APT security configuration applied",
           "metadata": {
             "config_type": "APT_SECURITY",
@@ -178,14 +178,14 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "CONFIG_CHANGE",
           "service_name": "install_packages",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Unattended-upgrades configuration applied",
           "metadata": {
             "config_type": "UNATTENDED_UPGRADES",
@@ -223,14 +223,14 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "CONFIG_CHANGE",
           "service_name": "install_packages",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Automatic updates schedule configured",
           "metadata": {
             "config_type": "AUTO_UPGRADES_SCHEDULE",
@@ -267,14 +267,14 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "SERVICE_MANAGE",
           "service_name": "install_packages",
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Unattended-upgrades service managed",
           "metadata": {
             "managed_service": "unattended-upgrades",

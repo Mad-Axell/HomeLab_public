@@ -202,7 +202,7 @@ argument_specs:
           EN: Create backup before changes
           RU: Создавать резервную копию перед изменениями
       
-      retries:
+      add_users_retries:
         type: int
         required: false
         default: 3

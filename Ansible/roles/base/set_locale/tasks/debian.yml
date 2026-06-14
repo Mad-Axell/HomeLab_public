@@ -40,19 +40,19 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "ERROR",
           "event_type": "PACKAGE_INSTALL_FAILED",
           "packages": debian_packages_to_install,
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Package installation failed",
           "metadata": {
             "rollback_enabled": enable_rollback | default(true),
-            "os_family": ansible_os_family,
-            "os_version": ansible_distribution_version,
+            "os_family": ansible_facts.os_family,
+            "os_version": ansible_facts.distribution_version,
             "package_manager": "apt",
             "error_type": "PACKAGE_INSTALL_ERROR"
           }
@@ -113,19 +113,19 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "ERROR",
           "event_type": "KEYBOARD_CONFIG_FAILED",
           "keyboard_layout": keyboard_layout,
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Keyboard configuration failed",
           "metadata": {
             "rollback_enabled": enable_rollback | default(true),
-            "os_family": ansible_os_family,
-            "os_version": ansible_distribution_version,
+            "os_family": ansible_facts.os_family,
+            "os_version": ansible_facts.distribution_version,
             "config_method": "debconf",
             "error_type": "KEYBOARD_CONFIG_ERROR"
           }
@@ -227,20 +227,20 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "KEYBOARD_CONFIGURED",
       "keyboard_layout": keyboard_layout,
       "keyboard_variant": keyboard_variant,
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Keyboard configuration applied",
       "metadata": {
         "changed": keyboard_layout_result.changed | default(false),
-        "os_family": ansible_os_family,
-        "os_version": ansible_distribution_version
+        "os_family": ansible_facts.os_family,
+        "os_version": ansible_facts.distribution_version
       }
     } | to_json }}'
     create: true
@@ -258,19 +258,19 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "CONSOLE_FONT_CONFIGURED",
       "console_font": console_font,
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Console font configuration applied",
       "metadata": {
         "changed": console_font_result.changed | default(false),
-        "os_family": ansible_os_family,
-        "os_version": ansible_distribution_version,
+        "os_family": ansible_facts.os_family,
+        "os_version": ansible_facts.distribution_version,
         "config_file": "/etc/default/console-setup"
       }
     } | to_json }}'

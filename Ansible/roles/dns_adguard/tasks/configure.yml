@@ -1,0 +1,18 @@
+---
+# EN: Render the full declarative AdGuard config (role owns the whole file)
+# RU: Полный декларативный конфиг AdGuard (роль владеет файлом целиком)
+
+# EN: Syntax-validated by the AdGuard binary before replacing. no_log because the
+#     rendered file embeds the admin password hash.
+# RU: Валидация синтаксиса бинарём AdGuard перед заменой. no_log, т.к. отрендеренный
+#     файл содержит хэш пароля администратора.
+- name: "Deploy AdGuardHome.yaml"
+  ansible.builtin.template:
+    src: AdGuardHome.yaml.j2
+    dest: "{{ adguard_config_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+    validate: "{{ adguard_binary }} --check-config -c %s"
+  no_log: true
+  notify: adguard_restart

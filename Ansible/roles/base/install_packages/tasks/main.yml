@@ -20,21 +20,21 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "ROLE_START",
       "service_name": "install_packages",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Role execution started",
       "metadata": {
-        "os_family": ansible_os_family,
-        "distribution": ansible_distribution,
-        "distribution_version": ansible_distribution_version,
-        "architecture": ansible_architecture,
-        "kernel": ansible_kernel
+        "os_family": ansible_facts.os_family,
+        "distribution": ansible_facts.distribution,
+        "distribution_version": ansible_facts.distribution_version,
+        "architecture": ansible_facts.architecture,
+        "kernel": ansible_facts.kernel
       }
     } | to_json }}'
     create: yes
@@ -46,7 +46,7 @@
 # Отслеживание времени начала выполнения роли для мониторинга производительности
 - name: "Initialize role execution tracking"
   ansible.builtin.set_fact:
-    role_start_time: "{{ ansible_date_time.epoch }}"
+    role_start_time: "{{ ansible_facts.date_time.epoch }}"
   when: debug_mode | bool
 
 # Gather comprehensive system information for platform-specific configuration
@@ -80,12 +80,12 @@
       - "============================================================================="
       - "install_packages Role Execution Context:"
       - "============================================================================="
-      - "Distribution:             {{ ansible_distribution }}"
-      - "Version:                  {{ ansible_distribution_version }}"
-      - "Architecture:             {{ ansible_architecture }}"
-      - "Kernel:                   {{ ansible_kernel }}"
-      - "Hostname:                 {{ ansible_hostname }}"
-      - "FQDN:                     {{ ansible_fqdn }}"
+      - "Distribution:             {{ ansible_facts.distribution }}"
+      - "Version:                  {{ ansible_facts.distribution_version }}"
+      - "Architecture:             {{ ansible_facts.architecture }}"
+      - "Kernel:                   {{ ansible_facts.kernel }}"
+      - "Hostname:                 {{ ansible_facts.hostname }}"
+      - "FQDN:                     {{ ansible_facts.fqdn }}"
       - "Validation Enabled:       {{ validate_parameters }}"
       - "Target Host:              {{ inventory_hostname }}"
       - "Debug Mode Enabled:       {{ debug_mode }}"
@@ -105,8 +105,8 @@
     - name: "Validate operating system compatibility"
       ansible.builtin.assert:
         that:
-          - ansible_os_family in ["Debian"]
-        fail_msg: "This role only supports Debian/Ubuntu systems. Current OS: {{ ansible_os_family }}"
+          - ansible_facts.os_family in ["Debian"]
+        fail_msg: "This role only supports Debian/Ubuntu systems. Current OS: {{ ansible_facts.os_family }}"
         success_msg: "System OS compatibility verification passed"
 
     # Verify apt command exists and is accessible
@@ -116,7 +116,7 @@
       register: apt_check
       failed_when: false
       changed_when: false
-      when: ansible_os_family == "Debian"
+      when: ansible_facts.os_family == "Debian"
 
 
     # Stop execution if package manager is missing to prevent further failures
@@ -124,7 +124,7 @@
     - name: "Terminate execution if package manager is unavailable"
       ansible.builtin.fail:
         msg: "Package manager is not available on this system. APT check: {{ apt_check.rc | default('N/A') }}"
-      when: ansible_os_family == "Debian" and apt_check.rc != 0
+      when: ansible_facts.os_family == "Debian" and apt_check.rc != 0
 
     # Collect system resource details for debugging
     # Сбор деталей системных ресурсов для отладки
@@ -144,18 +144,18 @@
           - "============================================================================="
           - "System Information:"
           - "============================================================================="
-          - "OS Family:               {{ ansible_os_family }}"
-          - "Distribution:            {{ ansible_distribution }}"
-          - "Version:                 {{ ansible_distribution_version }}"
-          - "Architecture:            {{ ansible_architecture }}"
-          - "Kernel:                  {{ ansible_kernel }}"
+          - "OS Family:               {{ ansible_facts.os_family }}"
+          - "Distribution:            {{ ansible_facts.distribution }}"
+          - "Version:                 {{ ansible_facts.distribution_version }}"
+          - "Architecture:            {{ ansible_facts.architecture }}"
+          - "Kernel:                  {{ ansible_facts.kernel }}"
           - "Package Manager:         APT"
-          - "APT Available:           {{ 'Yes' if (ansible_os_family == 'Debian' and apt_check.rc == 0) else 'No' }}"
-          - "Total Memory:            {{ ansible_memtotal_mb }} MB"
-          - "Available Memory:        {{ ansible_memfree_mb }} MB"
-          - "CPU Cores:               {{ ansible_processor_vcpus | default('Unknown') }}"
-          - "Virtualization:          {{ ansible_virtualization_type | default('Physical') }}"
-          - "Disk Space Available:    {{ ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_available') | first | default('Unknown') }} bytes"
+          - "APT Available:           {{ 'Yes' if (ansible_facts.os_family == 'Debian' and apt_check.rc == 0) else 'No' }}"
+          - "Total Memory:            {{ ansible_facts.memtotal_mb }} MB"
+          - "Available Memory:        {{ ansible_facts.memfree_mb }} MB"
+          - "CPU Cores:               {{ ansible_facts.processor_vcpus | default('Unknown') }}"
+          - "Virtualization:          {{ ansible_facts.virtualization_type | default('Physical') }}"
+          - "Disk Space Available:    {{ ansible_facts.mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_available') | first | default('Unknown') }} bytes"
           - "============================================================================="
       when: 
         - debug_mode | bool
@@ -175,7 +175,7 @@
 # Включение OS-специфичных задач конфигурации
 - name: "Include Debian/Ubuntu specific configuration tasks"
   ansible.builtin.include_tasks: debian.yml
-  when: ansible_os_family == "Debian"
+  when: ansible_facts.os_family == "Debian"
   tags:
     - debian
     - ubuntu
@@ -197,7 +197,7 @@
 - name: "Include Debian/Ubuntu automatic security updates configuration"
   ansible.builtin.include_tasks: autoupdate_debian.yml
   when: 
-    - ansible_os_family == "Debian"
+    - ansible_facts.os_family == "Debian"
     - autoupdates_enabled | bool
   tags:
     - debian
@@ -211,7 +211,7 @@
 # Отслеживание продолжительности выполнения роли для мониторинга производительности и анализа
 - name: "Calculate role execution time and performance metrics"
   ansible.builtin.set_fact:
-    role_end_time: "{{ ansible_date_time.epoch }}"
+    role_end_time: "{{ ansible_facts.date_time.epoch }}"
   when: debug_mode | bool
 
 # Show comprehensive execution summary including performance metrics and operation statistics
@@ -223,7 +223,7 @@
       - "install_packages Role Execution Summary with Performance Metrics:"
       - "============================================================================="
       - "Target Host:                   {{ inventory_hostname }}"
-      - "Operating System:              {{ ansible_os_family }}"
+      - "Operating System:              {{ ansible_facts.os_family }}"
       - "Package Manager:               APT"
       - "Total Execution Time:          {{ (role_end_time | int - role_start_time | int) }} seconds"
       - "Universal Essential Packages:  {{ essential_packages | length }}"
@@ -262,17 +262,17 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "ROLE_COMPLETE",
       "service_name": "install_packages",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Role execution completed successfully",
       "metadata": {
-        "execution_time_seconds": (ansible_date_time.epoch | int) - (role_start_time | default(ansible_date_time.epoch) | int),
+        "execution_time_seconds": (ansible_facts.date_time.epoch | int) - (role_start_time | default(ansible_facts.date_time.epoch) | int),
         "status": "SUCCESS",
         "essential_packages_count": essential_packages | length,
         "optional_packages_count": optional_packages | length if optional_packages is defined else 0,

@@ -1,0 +1,52 @@
+---
+# EN: Manage/verify AdGuard, then point the container's resolver at itself
+# RU: Управление/проверка AdGuard, затем перевод резолвера контейнера на самого себя
+
+- name: "Manage and verify AdGuard Home service"
+  block:
+    - name: "Manage service state"
+      ansible.builtin.systemd:
+        name: "{{ adguard_service_name }}"
+        state: "{{ adguard_service_state }}"
+        enabled: "{{ adguard_service_enabled }}"
+
+    # EN: Apply queued config restart before the health check
+    # RU: Применить отложенный рестарт конфигурации до проверки здоровья
+    - name: "Apply pending restarts"
+      ansible.builtin.meta: flush_handlers
+
+    - name: "Check service is active"
+      ansible.builtin.command: "systemctl is-active {{ adguard_service_name }}"
+      register: adguard_is_active
+      changed_when: false
+      failed_when: adguard_is_active.rc != 0
+
+    - name: "Check service is enabled"
+      ansible.builtin.command: "systemctl is-enabled {{ adguard_service_name }}"
+      register: adguard_is_enabled
+      changed_when: false
+      failed_when: false
+      when: adguard_service_enabled | bool
+
+    # EN: Final — container resolves through its own stack (AdGuard → Unbound)
+    # RU: Финал — контейнер резолвит сам через свой стек (AdGuard → Unbound)
+    - name: "Wait for AdGuard to listen on :53"
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 53
+        timeout: 30
+
+    - name: "Point /etc/resolv.conf at 127.0.0.1"
+      ansible.builtin.copy:
+        dest: /etc/resolv.conf
+        mode: "0644"
+        content: |
+          nameserver 127.0.0.1
+          search {{ adguard_segment }}.{{ network.base_domain }}
+
+  rescue:
+    - name: "Report service failure"
+      ansible.builtin.fail:
+        msg: |
+          EN: Service {{ adguard_service_name }} failed to start or is not active.
+          RU: Сервис {{ adguard_service_name }} не запустился или не активен.

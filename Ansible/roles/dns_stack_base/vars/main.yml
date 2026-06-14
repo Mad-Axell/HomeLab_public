@@ -1,0 +1,13 @@
+---
+# EN: Static role variables (do not override) / RU: Статичные переменные роли
+
+# EN: Supported OS families (role is Debian-only) / RU: Поддерживаемые семейства ОС (роль только для Debian)
+supported_os_families:
+  - Debian
+
+# EN: Service identity / RU: Идентификация сервиса
+dns_stack_base_timesync_service: "systemd-timesyncd"
+
+# EN: Fixed paths / RU: Фиксированные пути
+dns_stack_base_resolved_unit: "/lib/systemd/system/systemd-resolved.service"
+dns_stack_base_dhclient_hooks_dir: "/etc/dhcp/dhclient-enter-hooks.d"

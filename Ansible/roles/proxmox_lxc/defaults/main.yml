@@ -16,7 +16,7 @@ strict_validation: true            # Enable strict validation / Включить
 
 # Performance tuning / Настройка производительности
 async_timeout: 300                 # Integer. Async task timeout in seconds / Целое число. Таймаут асинхронных задач в секундах
-retries: 3                         # Integer. Number of retries for failed tasks / Целое число. Количество повторов для неудачных задач
+proxmox_lxc_retries: 3             # Integer. Number of retries for failed tasks / Целое число. Количество повторов для неудачных задач
 retry_delay: 5                     # Integer. Delay between retries in seconds / Целое число. Задержка между повторами в секундах
 
 # Logging configuration / Конфигурация логирования

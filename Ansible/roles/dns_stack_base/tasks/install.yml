@@ -1,0 +1,18 @@
+---
+# EN: Update apt, optional full-upgrade, install base packages
+# RU: Обновление apt, опциональный full-upgrade, установка базовых пакетов
+
+- name: "Update apt cache"
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: "Apt full-upgrade"
+  ansible.builtin.apt:
+    upgrade: full
+  when: dns_stack_base_full_upgrade
+
+- name: "Install base packages"
+  ansible.builtin.apt:
+    name: "{{ dns_stack_base_packages }}"
+    state: present

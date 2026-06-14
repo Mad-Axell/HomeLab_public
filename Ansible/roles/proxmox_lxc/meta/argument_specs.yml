@@ -439,7 +439,7 @@ argument_specs:
           EN: Async task timeout in seconds
           RU: Таймаут асинхронных задач в секундах
       
-      retries:
+      proxmox_lxc_retries:
         type: int
         required: false
         default: 3

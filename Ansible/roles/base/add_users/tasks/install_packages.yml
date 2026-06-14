@@ -10,7 +10,7 @@
     state: present
     update_cache: true
     cache_valid_time: 3600
-  retries: "{{ retries | default(3) }}"
+  retries: "{{ add_users_retries | default(3) }}"
   delay: "{{ retry_delay | default(5) }}"
   register: package_installation_result
   tags:
@@ -23,20 +23,20 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "PACKAGE_INSTALL",
       "package_list": required_packages,
       "package_manager": "apt",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Required packages installed",
       "metadata": {
-        "os_family": ansible_os_family,
-        "os_distribution": ansible_distribution,
-        "os_version": ansible_distribution_version,
+        "os_family": ansible_facts.os_family,
+        "os_distribution": ansible_facts.distribution,
+        "os_version": ansible_facts.distribution_version,
         "packages_installed": package_installation_result.changed | default(false),
         "packages_count": required_packages | length
       }

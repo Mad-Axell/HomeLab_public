@@ -9,7 +9,7 @@ Unattended-Upgrade::Allowed-Origins {
 {% if security_updates_only | bool %}
     // Security updates only / Только обновления безопасности
     "${distro_id}:${distro_codename}-security";
-{% if ansible_distribution == "Ubuntu" %}
+{% if ansible_facts.distribution == "Ubuntu" %}
     "${distro_id}ESMApps:${distro_codename}-apps-security";
     "${distro_id}ESM:${distro_codename}-infra-security";
 {% endif %}

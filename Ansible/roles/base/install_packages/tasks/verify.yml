@@ -6,6 +6,10 @@
 
 # Verify essential packages are installed
 # Проверка установки основных пакетов
+- name: "Prepare effective package list for verification"
+  ansible.builtin.set_fact:
+    essential_packages_for_verification: "{{ essential_packages_effective | default(essential_packages) }}"
+
 - name: "Verify essential packages are installed"
   ansible.builtin.package_facts:
     manager: auto
@@ -17,7 +21,7 @@
       - item in installed_packages.ansible_facts.packages
     fail_msg: "Essential package '{{ item }}' is not installed"
     success_msg: "Essential package '{{ item }}' is installed and verified"
-  loop: "{{ essential_packages }}"
+  loop: "{{ essential_packages_for_verification }}"
 
 # Verify optional packages are installed (if any)
 # Проверка установки дополнительных пакетов (если есть)
@@ -62,7 +66,7 @@
       - ssh_status.status.ActiveState == "active"
     fail_msg: "SSH service is not running"
     success_msg: "SSH service is running"
-  when: "'openssh-client' in essential_packages"
+  when: "'openssh-client' in essential_packages_for_verification"
 
 # Verify network tools are working
 # Проверка работы сетевых инструментов
@@ -78,7 +82,7 @@
       - ping_test.rc == 0
     fail_msg: "Network connectivity test failed"
     success_msg: "Network connectivity test passed"
-  when: "'iputils-ping' in essential_packages"
+  when: "'iputils-ping' in essential_packages_for_verification"
 
 # Verify DNS resolution
 # Проверка разрешения DNS
@@ -94,7 +98,7 @@
       - dns_test.rc == 0
     fail_msg: "DNS resolution test failed"
     success_msg: "DNS resolution test passed"
-  when: "'dnsutils' in essential_packages"
+  when: "'dnsutils' in essential_packages_for_verification or 'bind9-dnsutils' in essential_packages_for_verification"
 
 # Verify package manager cache is updated
 # Проверка обновления кэша менеджера пакетов
@@ -106,9 +110,9 @@
 - name: "Verify APT cache is recent"
   ansible.builtin.assert:
     that:
-      - (ansible_date_time.epoch | int) - (apt_cache_stat.stat.mtime | int) < package_cache_valid_time
-    fail_msg: "APT cache is too old ({{ ((ansible_date_time.epoch | int) - (apt_cache_stat.stat.mtime | int)) / 3600 | round(2) }} hours old)"
-    success_msg: "APT cache is recent ({{ ((ansible_date_time.epoch | int) - (apt_cache_stat.stat.mtime | int)) / 3600 | round(2) }} hours old)"
+      - (ansible_facts.date_time.epoch | int) - (apt_cache_stat.stat.mtime | int) < package_cache_valid_time
+    fail_msg: "APT cache is too old ({{ ((ansible_facts.date_time.epoch | int) - (apt_cache_stat.stat.mtime | int)) / 3600 | round(2) }} hours old)"
+    success_msg: "APT cache is recent ({{ ((ansible_facts.date_time.epoch | int) - (apt_cache_stat.stat.mtime | int)) / 3600 | round(2) }} hours old)"
   when: 
     - package_update_cache | bool
     - apt_cache_stat.stat.exists
@@ -129,17 +133,17 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "VERIFICATION_COMPLETE",
       "service_name": "install_packages",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Post-deployment verification completed successfully",
       "metadata": {
-        "essential_packages_verified": essential_packages | length,
+        "essential_packages_verified": essential_packages_for_verification | length,
         "optional_packages_verified": optional_packages | length if optional_packages is defined else 0,
         "total_packages_installed": installed_packages.ansible_facts.packages | length,
         "apt_functional": apt_working_check.rc == 0,

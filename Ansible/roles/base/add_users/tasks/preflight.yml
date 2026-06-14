@@ -17,14 +17,14 @@
 - name: Check OS compatibility
   ansible.builtin.assert:
     that:
-      - ansible_os_family == 'Debian'
-      - ansible_distribution_version is version(min_os_version, '>=')
+      - ansible_facts.os_family == 'Debian'
+      - ansible_facts.distribution_version is version(min_os_version, '>=')
     fail_msg: |
-      EN: Unsupported OS: {{ ansible_distribution }} {{ ansible_distribution_version }}. Only Debian family distributions are supported.
-      RU: Неподдерживаемая ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}. Поддерживаются только дистрибутивы семейства Debian.
+      EN: Unsupported OS: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}. Only Debian family distributions are supported.
+      RU: Неподдерживаемая ОС: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}. Поддерживаются только дистрибутивы семейства Debian.
     success_msg: |
-      EN: OS compatibility check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}
-      RU: Проверка совместимости ОС пройдена: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      EN: OS compatibility check passed: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+      RU: Проверка совместимости ОС пройдена: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
   vars:
     min_os_version: "11"
   tags: ['preflight']
@@ -32,13 +32,13 @@
 - name: Check required Python modules
   ansible.builtin.assert:
     that:
-      - ansible_python_version is version('3.8', '>=')
+      - ansible_facts.python_version is version('3.8', '>=')
     fail_msg: |
-      EN: Python 3.8+ is required. Current version: {{ ansible_python_version }}
-      RU: Требуется Python 3.8+. Текущая версия: {{ ansible_python_version }}
+      EN: Python 3.8+ is required. Current version: {{ ansible_facts.python_version }}
+      RU: Требуется Python 3.8+. Текущая версия: {{ ansible_facts.python_version }}
     success_msg: |
-      EN: Python version check passed: {{ ansible_python_version }}
-      RU: Проверка версии Python пройдена: {{ ansible_python_version }}
+      EN: Python version check passed: {{ ansible_facts.python_version }}
+      RU: Проверка версии Python пройдена: {{ ansible_facts.python_version }}
   tags: ['preflight']
 
 - name: Display preflight check results
@@ -48,11 +48,11 @@
       - "Preflight Checks Summary:"
       - "============================================================================="
       - "Ansible Version:          {{ ansible_version.full }}"
-      - "Python Version:           {{ ansible_python_version }}"
-      - "Operating System:         {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      - "OS Family:                {{ ansible_os_family }}"
-      - "System Architecture:      {{ ansible_architecture }}"
-      - "Hostname:                 {{ ansible_hostname }}"
+      - "Python Version:           {{ ansible_facts.python_version }}"
+      - "Operating System:         {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+      - "OS Family:                {{ ansible_facts.os_family }}"
+      - "System Architecture:      {{ ansible_facts.architecture }}"
+      - "Hostname:                 {{ ansible_facts.hostname }}"
       - "All Checks:               PASSED"
       - "============================================================================="
   when: debug_mode | default(false)

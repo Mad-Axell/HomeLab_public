@@ -113,7 +113,7 @@
           - "============================================================================="
           - "Parameter Validation Summary:"
           - "============================================================================="
-          - "Operating System:          {{ ansible_os_family }}"
+          - "Operating System:          {{ ansible_facts.os_family }}"
           - "Package Manager:           APT"
           - "Universal Essential:       {{ essential_packages | length }} packages defined"
           - "Universal Optional:        {{ optional_packages | length if optional_packages is defined else 0 }} packages defined"

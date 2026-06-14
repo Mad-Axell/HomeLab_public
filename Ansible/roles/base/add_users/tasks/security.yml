@@ -56,7 +56,7 @@
 - name: Backup /etc/login.defs before modification
   ansible.builtin.copy:
     src: /etc/login.defs
-    dest: /etc/login.defs.backup.{{ ansible_date_time.epoch }}
+    dest: /etc/login.defs.backup.{{ ansible_facts.date_time.epoch }}
     remote_src: true
     mode: '0644'
   when: backup_config | default(true)
@@ -165,7 +165,7 @@
     state: present
     update_cache: true
   when: enable_pam_configuration | default(true)
-  retries: "{{ retries | default(3) }}"
+  retries: "{{ add_users_retries | default(3) }}"
   delay: "{{ retry_delay | default(5) }}"
   tags:
     - pam
@@ -471,7 +471,7 @@
 
     - name: Determine password hashing method
       ansible.builtin.set_fact:
-        password_hash_method: "{{ 'yescrypt' if ((ansible_distribution == 'Debian' and ansible_distribution_major_version | int >= 11) or (ansible_distribution == 'Ubuntu' and ansible_distribution_major_version | int >= 20)) else 'sha512' }}"
+        password_hash_method: "{{ 'yescrypt' if ((ansible_facts.distribution == 'Debian' and ansible_facts.distribution_major_version | int >= 11) or (ansible_facts.distribution == 'Ubuntu' and ansible_facts.distribution_major_version | int >= 20)) else 'sha512' }}"
       tags:
         - pam
         - facts
@@ -497,7 +497,7 @@
     - name: Backup PAM common-password before modification
       ansible.builtin.copy:
         src: /etc/pam.d/common-password
-        dest: /etc/pam.d/common-password.backup.{{ ansible_date_time.epoch }}
+        dest: /etc/pam.d/common-password.backup.{{ ansible_facts.date_time.epoch }}
         remote_src: true
         mode: '0644'
       when: backup_config | default(true)
@@ -700,7 +700,7 @@
     - name: Backup PAM common-auth before modification
       ansible.builtin.copy:
         src: /etc/pam.d/common-auth
-        dest: /etc/pam.d/common-auth.backup.{{ ansible_date_time.epoch }}
+        dest: /etc/pam.d/common-auth.backup.{{ ansible_facts.date_time.epoch }}
         remote_src: true
         mode: '0644'
       when: 
@@ -843,7 +843,7 @@
     - name: Backup PAM common-account before modification
       ansible.builtin.copy:
         src: /etc/pam.d/common-account
-        dest: /etc/pam.d/common-account.backup.{{ ansible_date_time.epoch }}
+        dest: /etc/pam.d/common-account.backup.{{ ansible_facts.date_time.epoch }}
         remote_src: true
         mode: '0644'
       when: 
@@ -977,7 +977,7 @@
     - name: Backup PAM common-session before modification
       ansible.builtin.copy:
         src: /etc/pam.d/common-session
-        dest: /etc/pam.d/common-session.backup.{{ ansible_date_time.epoch }}
+        dest: /etc/pam.d/common-session.backup.{{ ansible_facts.date_time.epoch }}
         remote_src: true
         mode: '0644'
       when:
@@ -1021,7 +1021,7 @@
     - name: Backup PAM sshd before modification
       ansible.builtin.copy:
         src: /etc/pam.d/sshd
-        dest: /etc/pam.d/sshd.backup.{{ ansible_date_time.epoch }}
+        dest: /etc/pam.d/sshd.backup.{{ ansible_facts.date_time.epoch }}
         remote_src: true
         mode: '0644'
       when:

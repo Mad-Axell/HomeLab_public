@@ -1,0 +1,63 @@
+---
+# EN: OS configuration: IPv6, timezone, hostname/hosts, free :53, protect resolv.conf
+# RU: Конфигурация ОС: IPv6, timezone, hostname/hosts, освобождение :53, защита resolv.conf
+
+- name: "Disable IPv6 (sysctl)"
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_file: /etc/sysctl.d/99-disable-ipv6.conf
+    sysctl_set: true
+    reload: true
+  loop:
+    - net.ipv6.conf.all.disable_ipv6
+    - net.ipv6.conf.default.disable_ipv6
+    - net.ipv6.conf.lo.disable_ipv6
+  when: not ipv6_enabled
+
+- name: "Set timezone"
+  community.general.timezone:
+    name: "{{ dns_stack_timezone }}"
+
+- name: "Set hostname"
+  ansible.builtin.hostname:
+    name: "{{ pve_lxc_name | default('adguard') }}"
+
+- name: "Register host in /etc/hosts"
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^{{ adguard_ip | regex_escape }}\s'
+    line: "{{ adguard_ip }}  {{ adguard_fqdn }} {{ pve_lxc_name | default('adguard') }}"
+    state: present
+
+# EN: Free port 53 — disable systemd-resolved / RU: Освобождаем порт 53 — systemd-resolved
+- name: "Stat systemd-resolved unit"
+  ansible.builtin.stat:
+    path: "{{ dns_stack_base_resolved_unit }}"
+  register: resolved_unit
+
+- name: "Disable and mask systemd-resolved"
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: stopped
+    enabled: false
+    masked: true
+  when: resolved_unit.stat.exists
+
+# EN: Protect /etc/resolv.conf from dhclient overwrite. In an unprivileged LXC
+#     `chattr +i` is unavailable (no CAP_LINUX_IMMUTABLE), so we silence the hook.
+# RU: Защита /etc/resolv.conf от перезаписи dhclient. В unprivileged LXC
+#     `chattr +i` недоступен (нет CAP_LINUX_IMMUTABLE), поэтому глушим хук.
+- name: "Create dhclient hooks directory"
+  ansible.builtin.file:
+    path: "{{ dns_stack_base_dhclient_hooks_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: "Install hook preventing dhclient from rewriting resolv.conf"
+  ansible.builtin.copy:
+    dest: "{{ dns_stack_base_dhclient_hooks_dir }}/no-resolv-conf"
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      make_resolv_conf() { :; }

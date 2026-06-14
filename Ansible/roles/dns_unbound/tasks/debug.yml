@@ -1,0 +1,38 @@
+---
+# EN: Bilingual debug summary / RU: Двуязычная отладочная сводка
+
+- name: "Show Unbound summary (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Unbound summary:"
+      - "============================================================================="
+      - "Service:      {{ unbound_service_name }}"
+      - "Listen:       127.0.0.1@{{ dns.unbound_local_port }}"
+      - "Threads:      {{ unbound_num_threads }}"
+      - "Ratelimit:    {{ unbound_ratelimit }} (per-IP {{ unbound_ip_ratelimit }})"
+      - "Config:       {{ unbound_config_path }}"
+      - "Active:       {{ unbound_is_active.stdout | default('n/a') }}"
+      - "Enabled:      {{ unbound_is_enabled.stdout | default('n/a') }}"
+      - "============================================================================="
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: "Show Unbound summary (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка по Unbound:"
+      - "============================================================================="
+      - "Сервис:       {{ unbound_service_name }}"
+      - "Слушает:      127.0.0.1@{{ dns.unbound_local_port }}"
+      - "Потоки:       {{ unbound_num_threads }}"
+      - "Ratelimit:    {{ unbound_ratelimit }} (на IP {{ unbound_ip_ratelimit }})"
+      - "Конфиг:       {{ unbound_config_path }}"
+      - "Активен:      {{ unbound_is_active.stdout | default('н/д') }}"
+      - "Автозапуск:   {{ unbound_is_enabled.stdout | default('н/д') }}"
+      - "============================================================================="
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

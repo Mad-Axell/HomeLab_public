@@ -21,13 +21,13 @@
 - name: Check Python version
   ansible.builtin.assert:
     that:
-      - ansible_python_version is version('3.8', '>=')
+      - ansible_facts.python_version is version('3.8', '>=')
     fail_msg: |
-      EN: Python 3.8+ is required. Current version: {{ ansible_python_version }}
-      RU: Требуется Python 3.8+. Текущая версия: {{ ansible_python_version }}
+      EN: Python 3.8+ is required. Current version: {{ ansible_facts.python_version }}
+      RU: Требуется Python 3.8+. Текущая версия: {{ ansible_facts.python_version }}
     success_msg: |
-      EN: Python version check passed: {{ ansible_python_version }}
-      RU: Проверка версии Python пройдена: {{ ansible_python_version }}
+      EN: Python version check passed: {{ ansible_facts.python_version }}
+      RU: Проверка версии Python пройдена: {{ ansible_facts.python_version }}
   tags: ['preflight', 'always']
 
 # EN: Check required Python modules
@@ -63,7 +63,7 @@
     success_msg: |
       EN: Disk space check passed on {{ item.mount }}: {{ (item.size_available / 1024 / 1024 / 1024) | round(2) }}GB available
       RU: Проверка места на диске пройдена {{ item.mount }}: {{ (item.size_available / 1024 / 1024 / 1024) | round(2) }}ГБ доступно
-  loop: "{{ ansible_mounts }}"
+  loop: "{{ ansible_facts.mounts }}"
   when:
     - item.mount == '/'
   tags: ['preflight']
@@ -77,7 +77,7 @@
       - "Preflight Checks Summary:"
       - "============================================================================="
       - "Ansible Version:       {{ ansible_version.full }} ✓"
-      - "Python Version:        {{ ansible_python_version }} ✓"
+      - "Python Version:        {{ ansible_facts.python_version }} ✓"
       - "Control Node:          {{ ansible_controller | default('N/A') }}"
       - "Target Node:           {{ pve_node }}"
       - "API Host:              {{ pve_api_host }}"

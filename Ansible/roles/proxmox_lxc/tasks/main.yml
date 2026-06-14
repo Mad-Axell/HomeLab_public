@@ -47,12 +47,53 @@
         name:
           - python3
           - python3-pip
-          - python3-proxmoxer
         state: present
       register: python_packages_result
-      retries: "{{ retries | default(3) }}"
+      retries: "{{ proxmox_lxc_retries | default(3) }}"
       delay: "{{ retry_delay | default(5) }}"
       until: python_packages_result is succeeded
+      tags:
+        - packages
+        - dependencies
+
+    - name: "Remove distro proxmoxer package to avoid stale version"
+      ansible.builtin.package:
+        name: python3-proxmoxer
+        state: absent
+      register: proxmoxer_distro_removed
+      failed_when: false
+      tags:
+        - packages
+        - dependencies
+
+    - name: "Install latest proxmoxer from PyPI"
+      ansible.builtin.pip:
+        name: proxmoxer
+        state: latest
+        executable: pip3
+        extra_args: "{{ '--break-system-packages' if (ansible_facts.distribution == 'Debian' and (ansible_facts.distribution_major_version | int) >= 12) else '' }}"
+      register: proxmoxer_pip_result
+      retries: "{{ proxmox_lxc_retries | default(3) }}"
+      delay: "{{ retry_delay | default(5) }}"
+      until: proxmoxer_pip_result is succeeded
+      tags:
+        - packages
+        - dependencies
+
+    - name: "Check installed proxmoxer version"
+      ansible.builtin.command: python3 -c "import proxmoxer; print(getattr(proxmoxer, '__version__', '0.0.0'))"
+      register: proxmoxer_version_check
+      changed_when: false
+      tags:
+        - packages
+        - dependencies
+
+    - name: "Assert proxmoxer version is supported"
+      ansible.builtin.assert:
+        that:
+          - proxmoxer_version_check.stdout is version('2.0.0', '>=')
+        fail_msg: "Installed proxmoxer version {{ proxmoxer_version_check.stdout | default('unknown') }} is unsupported. Required: >= 2.0.0"
+        success_msg: "Installed proxmoxer version {{ proxmoxer_version_check.stdout }} is supported"
       tags:
         - packages
         - dependencies
@@ -63,8 +104,11 @@
           - "============================================================================="
           - "Python Packages Installation:"
           - "============================================================================="
-          - "Packages:                python3, python3-pip, python3-proxmoxer"
-          - "Changed:                 {{ python_packages_result.changed }}"
+          - "Packages:                python3, python3-pip, proxmoxer(latest via pip)"
+          - "Changed (apt):           {{ python_packages_result.changed }}"
+          - "Removed distro package:  {{ proxmoxer_distro_removed.changed | default('N/A') }}"
+          - "Changed (pip):           {{ proxmoxer_pip_result.changed | default('N/A') }}"
+          - "proxmoxer version:       {{ proxmoxer_version_check.stdout | default('N/A') }}"
           - "Status:                  {{ 'SUCCESS' if python_packages_result is succeeded else 'FAILED' }}"
           - "============================================================================="
       when: debug_mode | bool
@@ -79,24 +123,27 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "PACKAGE_INSTALL",
           "service_name": "proxmox_lxc",
-          "packages": ["python3", "python3-pip", "python3-proxmoxer"],
+          "packages": ["python3", "python3-pip", "proxmoxer(latest-via-pip)"],
           "changed": python_packages_result.changed,
+          "distro_proxmoxer_removed": proxmoxer_distro_removed.changed | default(false),
+          "pip_changed": proxmoxer_pip_result.changed | default(false),
+          "proxmoxer_version": proxmoxer_version_check.stdout | default("unknown"),
           "status": python_packages_result is succeeded | ternary("SUCCESS", "FAILED"),
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": "Log package installation to structured log file",
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Python packages installation completed",
           "metadata": {
             "package_manager": "apt",
-            "os_family": ansible_os_family,
-            "os_version": ansible_distribution_version,
-            "retries_used": retries | default(3),
+            "os_family": ansible_facts.os_family,
+            "os_version": ansible_facts.distribution_version,
+            "retries_used": proxmox_lxc_retries | default(3),
             "retry_delay": retry_delay | default(5)
           }
         } | to_json }}'
@@ -129,24 +176,24 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "ERROR",
           "event_type": "PACKAGE_INSTALL_FAILURE",
           "service_name": "proxmox_lxc",
-          "packages": ["python3", "python3-pip", "python3-proxmoxer"],
+          "packages": ["python3", "python3-pip", "proxmoxer(latest-via-pip)"],
           "error_message": ansible_failed_result.msg | default("Unknown error"),
           "error_type": ansible_failed_result.exception | default("Unknown"),
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": ansible_failed_task.name | default("unknown"),
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "Python packages installation failed",
           "metadata": {
             "package_manager": "apt",
-            "os_family": ansible_os_family,
-            "os_version": ansible_distribution_version,
-            "retries_attempted": retries | default(3),
+            "os_family": ansible_facts.os_family,
+            "os_version": ansible_facts.distribution_version,
+            "retries_attempted": proxmox_lxc_retries | default(3),
             "retry_delay": retry_delay | default(5)
           }
         } | to_json }}'
@@ -166,11 +213,12 @@
 # EN: Get VM information
 # RU: Получение информации о ВМ
 - name: "Get VM information"
-  community.general.proxmox_vm_info:
+  community.proxmox.proxmox_vm_info:
     api_host: "{{ pve_api_host }}"
     node: "{{ pve_node }}"
     api_user: "{{ pve_api_user | default(omit) }}"
     api_password: "{{ pve_api_password | default(omit) }}"
+    validate_certs: "{{ pve_validate_certs | default(omit) }}"
     vmid: "{{ pve_lxc_vmid | default(omit) }}"
   register: pve_vms_info
   tags:
@@ -272,7 +320,7 @@
         url: "{{ pve_lxc_ostemplate_url }}"
         dest: "{{ pve_lxc_ostemplate_src_dest }}"
       register: pve_lxc_ostemplate_downloaded
-      retries: "{{ retries | default(3) }}"
+      retries: "{{ proxmox_lxc_retries | default(3) }}"
       delay: "{{ retry_delay | default(5) }}"
       until: pve_lxc_ostemplate_downloaded is succeeded
       when: not pve_lxc_ostemplate_exists.stat.exists
@@ -331,7 +379,7 @@
     # EN: Upload container template
     # RU: Загрузка шаблона контейнера
     - name: "Upload container template"
-      community.general.proxmox_template:
+      community.proxmox.proxmox_template:
         node: "{{ pve_node }}"
         api_host: "{{ pve_api_host }}"
         api_user: "{{ pve_api_user | default(omit) }}"
@@ -347,7 +395,7 @@
         validate_certs: "{{ pve_validate_certs | default(omit) }}"
         state: "{{ pve_lxc_ostemplate_state  | default(omit) }}"
       register: pve_lxc_template_result
-      retries: "{{ retries | default(3) }}"
+      retries: "{{ proxmox_lxc_retries | default(3) }}"
       delay: "{{ retry_delay | default(5) }}"
       until: pve_lxc_template_result is succeeded
       tags:
@@ -431,7 +479,7 @@
     # EN: Create the container
     # RU: Создание контейнера
     - name: "Create the container"
-      community.general.proxmox:
+      community.proxmox.proxmox:
         vmid: "{{ pve_lxc_vmid | default(omit) }}"
         node: "{{ pve_node }}"
         api_user: "{{ pve_api_user | default(omit) }}"
@@ -481,7 +529,7 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "INFO",
           "event_type": "CONTAINER_CREATION",
           "service_name": "proxmox_lxc",
@@ -489,11 +537,11 @@
           "vmid": pve_lxc_vmid | default("auto-assigned"),
           "changed": pve_lxc_container_created.changed,
           "status": pve_lxc_container_created is succeeded | ternary("SUCCESS", "FAILED"),
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": "Log container creation to structured log file",
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "LXC container creation completed",
           "metadata": {
             "api_host": pve_api_host,
@@ -540,7 +588,7 @@
       ansible.builtin.lineinfile:
         path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
         line: '{{ {
-          "timestamp": ansible_date_time.iso8601,
+          "timestamp": ansible_facts.date_time.iso8601,
           "level": "ERROR",
           "event_type": "CONTAINER_CREATION_FAILURE",
           "service_name": "proxmox_lxc",
@@ -548,11 +596,11 @@
           "vmid": pve_lxc_vmid | default("auto-assigned"),
           "error_message": ansible_failed_result.msg | default("Unknown error"),
           "error_type": ansible_failed_result.exception | default("Unknown"),
-          "user": ansible_user_id,
+          "user": ansible_facts.user_id,
           "host": inventory_hostname,
           "playbook": ansible_play_name,
           "task": ansible_failed_task.name | default("unknown"),
-          "correlation_id": ansible_date_time.epoch,
+          "correlation_id": ansible_facts.date_time.epoch,
           "message": "LXC container creation failed",
           "metadata": {
             "api_host": pve_api_host,
@@ -702,7 +750,7 @@
     # EN: Reboot container if configuration file was modified
     # RU: Перезагрузка контейнера если файл конфигурации был изменен
     - name: "Reboot container if configuration file was modified"
-      community.general.proxmox:
+      community.proxmox.proxmox:
         node: "{{ pve_node }}"
         api_host: "{{ pve_api_host }}"
         api_user: "{{ pve_api_user | default(omit) }}"
@@ -756,7 +804,7 @@
     - start
 
 - name: "Ensure the container is turned on"
-  community.general.proxmox:
+  community.proxmox.proxmox:
     node: "{{ pve_node }}"
     api_host: "{{ pve_api_host }}"
     api_user: "{{ pve_api_user | default(omit) }}"
@@ -836,18 +884,18 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-proxmox-lxc.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "ROLE_EXECUTION_SUMMARY",
       "service_name": "proxmox_lxc",
       "container_name": pve_hostname,
       "vmid": pve_lxc_inferred_vmid | default("N/A"),
       "overall_status": operation_results.container_creation == "SUCCESS" | ternary("SUCCESS", "FAILED"),
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
       "task": "Log final role execution summary to structured log file",
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Proxmox LXC role execution completed",
       "metadata": {
         "validation": operation_results.validation,
@@ -863,7 +911,7 @@
         "api_host": pve_api_host,
         "node": pve_node,
         "template": pve_lxc_ostemplate_name,
-        "execution_time": ansible_date_time.epoch
+        "execution_time": ansible_facts.date_time.epoch
       }
     } | to_json }}'
     create: true

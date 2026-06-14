@@ -6,7 +6,7 @@ galaxy_info:
   license: MIT
   min_ansible_version: "2.9"
   platforms:
-    # Debian family distributions (ansible_os_family: Debian)
+    # Debian family distributions (ansible_facts.os_family: Debian)
     - name: Ubuntu
       versions:
         - focal

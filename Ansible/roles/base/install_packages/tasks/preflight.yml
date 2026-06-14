@@ -18,9 +18,9 @@
 - name: "Check OS compatibility"
   ansible.builtin.assert:
     that:
-      - ansible_os_family == 'Debian'
-    fail_msg: "Unsupported OS: {{ ansible_distribution }}. Only Debian family is supported."
-    success_msg: "OS compatibility check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - ansible_facts.os_family == 'Debian'
+    fail_msg: "Unsupported OS: {{ ansible_facts.distribution }}. Only Debian family is supported."
+    success_msg: "OS compatibility check passed: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
 
 # Check disk space
 # Проверка дискового пространства
@@ -30,7 +30,7 @@
       - item.size_available > min_disk_space | default(1073741824)  # 1GB default
     fail_msg: "Insufficient disk space on {{ item.mount }}. Available: {{ (item.size_available / 1024 / 1024) | round(2) }}MB, Required: {{ (min_disk_space | default(1073741824) / 1024 / 1024) | round(2) }}MB"
     success_msg: "Disk space check passed on {{ item.mount }}: {{ (item.size_available / 1024 / 1024) | round(2) }}MB available"
-  loop: "{{ ansible_mounts }}"
+  loop: "{{ ansible_facts.mounts }}"
   when: item.mount in required_mounts | default(['/'])
 
 # Check package manager availability
@@ -53,9 +53,9 @@
 - name: "Check system memory"
   ansible.builtin.assert:
     that:
-      - ansible_memtotal_mb > min_memory_mb | default(512)
-    fail_msg: "Insufficient memory. Available: {{ ansible_memtotal_mb }}MB, Required: {{ min_memory_mb | default(512) }}MB"
-    success_msg: "Memory check passed: {{ ansible_memtotal_mb }}MB available"
+      - ansible_facts.memtotal_mb > min_memory_mb | default(512)
+    fail_msg: "Insufficient memory. Available: {{ ansible_facts.memtotal_mb }}MB, Required: {{ min_memory_mb | default(512) }}MB"
+    success_msg: "Memory check passed: {{ ansible_facts.memtotal_mb }}MB available"
 
 # Check network connectivity
 # Проверка сетевого подключения
@@ -120,23 +120,23 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "PREFLIGHT_CHECKS",
       "service_name": "install_packages",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Preflight checks completed successfully",
       "metadata": {
         "ansible_version": ansible_version.full,
-        "os_family": ansible_os_family,
-        "distribution": ansible_distribution,
-        "distribution_version": ansible_distribution_version,
-        "architecture": ansible_architecture,
-        "memory_mb": ansible_memtotal_mb,
-        "disk_space_gb": (ansible_mounts | selectattr("mount", "equalto", "/") | map(attribute="size_available") | first | default(0) / 1024 / 1024 / 1024) | round(2),
+        "os_family": ansible_facts.os_family,
+        "distribution": ansible_facts.distribution,
+        "distribution_version": ansible_facts.distribution_version,
+        "architecture": ansible_facts.architecture,
+        "memory_mb": ansible_facts.memtotal_mb,
+        "disk_space_gb": (ansible_facts.mounts | selectattr("mount", "equalto", "/") | map(attribute="size_available") | first | default(0) / 1024 / 1024 / 1024) | round(2),
         "apt_available": apt_check.rc == 0,
         "network_connectivity": network_check.ping is defined,
         "filesystem_writable": write_test.rc == 0

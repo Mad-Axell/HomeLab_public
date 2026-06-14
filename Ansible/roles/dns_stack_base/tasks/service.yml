@@ -1,0 +1,49 @@
+---
+# EN: Manage and verify time sync (DNSSEC is sensitive to the clock)
+# RU: Управление и проверка синхронизации времени (DNSSEC чувствителен к часам)
+
+- name: "Manage and verify time sync service"
+  block:
+    - name: "Manage time sync service state"
+      ansible.builtin.systemd:
+        name: "{{ dns_stack_base_timesync_service }}"
+        state: "{{ dns_stack_base_timesync_state }}"
+        enabled: "{{ dns_stack_base_timesync_enabled }}"
+
+    - name: "Check time sync service is active"
+      ansible.builtin.command: "systemctl is-active {{ dns_stack_base_timesync_service }}"
+      register: timesync_is_active
+      changed_when: false
+      # In LXC/containers time sync is usually managed by the host kernel namespace.
+      # Keep strict validation on regular hosts, but do not fail on container guests.
+      failed_when: >-
+        (timesync_is_active.rc != 0)
+        and not (
+          (ansible_facts.virtualization_role | default('')) == 'guest'
+          and (ansible_facts.virtualization_type | default('')) in ['lxc', 'docker', 'containerd', 'podman']
+        )
+
+    - name: "Check time sync service is enabled"
+      ansible.builtin.command: "systemctl is-enabled {{ dns_stack_base_timesync_service }}"
+      register: timesync_is_enabled
+      changed_when: false
+      failed_when: false
+      when: dns_stack_base_timesync_enabled | bool
+
+    - name: "Note container time sync behavior"
+      ansible.builtin.debug:
+        msg:
+          - "EN: {{ dns_stack_base_timesync_service }} is '{{ timesync_is_active.stdout }}' inside container; host provides clock sync."
+          - "RU: {{ dns_stack_base_timesync_service }} в контейнере имеет статус '{{ timesync_is_active.stdout }}'; синхронизацию времени обеспечивает хост."
+      when:
+        - (ansible_facts.virtualization_role | default('')) == 'guest'
+        - (ansible_facts.virtualization_type | default('')) in ['lxc', 'docker', 'containerd', 'podman']
+        - timesync_is_active.stdout is defined
+        - timesync_is_active.stdout != 'active'
+
+  rescue:
+    - name: "Report time sync failure"
+      ansible.builtin.fail:
+        msg: |
+          EN: Service {{ dns_stack_base_timesync_service }} failed to start or is not active.
+          RU: Сервис {{ dns_stack_base_timesync_service }} не запустился или не активен.

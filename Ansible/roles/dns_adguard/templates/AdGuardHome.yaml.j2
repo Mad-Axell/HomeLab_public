@@ -1,0 +1,114 @@
+### EN: managed by Ansible (role: adguard_home) — do NOT edit via the UI
+### RU: управляется Ansible (роль: adguard_home) — НЕ редактировать через UI
+http:
+  pprof:
+    port: 6060
+    enabled: false
+  address: 0.0.0.0:{{ adguard_web_port }}
+  session_ttl: 720h
+
+users:
+  - name: {{ adguard_admin_user }}
+    password: "{{ adguard_admin_password_hash }}"
+
+dns:
+  bind_hosts:
+    - 0.0.0.0
+  port: 53
+  anonymize_client_ip: false
+  protection_enabled: true
+  blocking_mode: default
+  blocked_response_ttl: 10
+
+  # Upstream → Unbound на этом же хосте
+  upstream_dns:
+    - 127.0.0.1:{{ dns.unbound_local_port }}
+  upstream_dns_file: ""
+  bootstrap_dns:
+{% for ip in adguard_bootstrap_dns %}
+    - {{ ip }}
+{% endfor %}
+  fallback_dns: []
+  upstream_mode: load_balance
+  fastest_timeout: 1s
+
+  # Private reverse DNS — имена клиентов в логах
+  use_private_ptr_resolvers: true
+  local_ptr_upstreams:
+    - 127.0.0.1:{{ dns.unbound_local_port }}
+  resolve_clients: true
+
+  private_networks:
+{% for net in adguard_private_networks %}
+    - {{ net }}
+{% endfor %}
+
+  # Фильтрация
+  filtering_enabled: true
+  filters_update_interval: 24
+  parental_enabled: false
+  safesearch_enabled: false
+  safebrowsing_enabled: true
+
+  # DNSSEC и privacy
+  enable_dnssec: true
+  edns_client_subnet:
+    enabled: false
+  max_goroutines: 300
+
+  # Ratelimit
+  ratelimit: {{ adguard_ratelimit }}
+  ratelimit_subnet_len_ipv4: 24
+  ratelimit_subnet_len_ipv6: 56
+  ratelimit_whitelist: []
+
+  # Логирование
+  querylog:
+    enabled: true
+    file_enabled: true
+    interval: 90d
+    size_memory: 1000
+    ignored: []
+  statistics:
+    enabled: true
+    interval: 90d
+    ignored: []
+
+filters:
+{% for f in adguard_filters %}
+  - enabled: {{ f.enabled | lower }}
+    url: {{ f.url }}
+    name: {{ f.name }}
+    id: {{ f.id }}
+{% endfor %}
+
+whitelist_filters: []
+user_rules: []
+
+clients:
+  runtime_sources:
+    whois: false
+    arp: true
+    rdns: true
+    dhcp: false
+    hosts: true
+  persistent: []
+
+dhcp:
+  enabled: false   # DHCP исключительно на pfSense
+
+tls:
+  enabled: false   # DoT/DoH — после появления внутреннего CA
+
+log_file: {{ adguard_log_dir }}/access.log
+log_max_backups: 0
+log_max_size: 100
+log_max_age: 7
+log_compress: true
+log_localtime: false
+verbose: false
+os:
+  group: ""
+  user: ""
+  rlimit_nofile: 0
+schema_version: {{ adguard_schema_version }}

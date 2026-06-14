@@ -1,0 +1,38 @@
+---
+# EN: Bilingual debug summary / RU: Двуязычная отладочная сводка
+
+- name: "Show base summary (English)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "DNS stack base summary:"
+      - "============================================================================="
+      - "Hostname:     {{ pve_lxc_name | default('adguard') }}"
+      - "FQDN:         {{ adguard_fqdn }}"
+      - "IP:           {{ adguard_ip }}"
+      - "IPv6 enabled: {{ ipv6_enabled }}"
+      - "Timezone:     {{ dns_stack_timezone }}"
+      - "Packages:     {{ dns_stack_base_packages | length }}"
+      - "Time sync:    {{ timesync_is_active.stdout | default('n/a') }}"
+      - "============================================================================="
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: "Show base summary (Russian)"
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка базовой подготовки DNS-стека:"
+      - "============================================================================="
+      - "Hostname:     {{ pve_lxc_name | default('adguard') }}"
+      - "FQDN:         {{ adguard_fqdn }}"
+      - "IP:           {{ adguard_ip }}"
+      - "IPv6 вкл.:    {{ ipv6_enabled }}"
+      - "Таймзона:     {{ dns_stack_timezone }}"
+      - "Пакеты:       {{ dns_stack_base_packages | length }}"
+      - "Синхр. врем.: {{ timesync_is_active.stdout | default('н/д') }}"
+      - "============================================================================="
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

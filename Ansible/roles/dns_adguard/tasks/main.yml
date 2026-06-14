@@ -1,130 +1,29 @@
 ---
-# =============================================================================
-# DNS AdGuard Home Role - Main Tasks
-# Роль DNS AdGuard Home - Основные задачи
-# =============================================================================
+# EN: Role entry point / RU: Точка входа роли
 
-- name: Print AdGuard Home variables
-  ansible.builtin.debug:
-    msg:
-      - "adguard_bin_name = {{ adguard_bin_name }}"
-      - "adguard_bin_file = {{ adguard_bin_file }}"
-      - "adguard_config_file = {{ adguard_config_file }}"
-      - "adguard_unpack_dir = {{ adguard_unpack_dir }}"
-      - "adguard_arch = {{ adguard_arch }}"
-      - "adguard_archive = {{ adguard_archive }}"
-      - "adguard_download_url_base = {{ adguard_download_url_base }}"
-      - "adguard_bin_dir = {{ adguard_bin_dir }}"
-      - "adguard_config_dir = {{ adguard_config_dir }}"
-      - "adguard_config_name = {{ adguard_config_name }}"
-      - "adguard_data_dir = {{ adguard_data_dir }}"
-      - "adguard_tmp_dir = {{ adguard_tmp_dir }}"
-  when: debug_mode | default(false)
+# EN: Guard against unsupported OS families / RU: Защита от неподдерживаемых ОС
+- name: "Assert supported OS family"
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in supported_os_families
+    fail_msg: >-
+      EN: Unsupported OS family '{{ ansible_facts.os_family }}'. Supported: {{ supported_os_families | join(', ') }}.
+      RU: Неподдерживаемое семейство ОС '{{ ansible_facts.os_family }}'. Поддерживаются: {{ supported_os_families | join(', ') }}.
+  tags: ['always']
 
-# -----------------------------------------------------------------------------
-# Dependencies / Зависимости
-# -----------------------------------------------------------------------------
-
-- name: Setup AdGuard Home dependencies (Debian)
-  ansible.builtin.include_tasks: setup_debian.yml
-  when: ansible_os_family == 'Debian'
-
-- name: Setup AdGuard Home dependencies (RedHat)
-  ansible.builtin.include_tasks: setup_redhat.yml
-  when: ansible_os_family == 'RedHat'
-
-# -----------------------------------------------------------------------------
-# Version Check / Проверка версии
-# -----------------------------------------------------------------------------
-
-- name: Check if AdGuard Home binary is installed
-  ansible.builtin.stat:
-    path: "{{ adguard_bin_file }}"
-  register: _adguard_binary_check
-
-- name: Check latest released version
-  ansible.builtin.include_tasks: latest_version.yml
-  when: adguard_version == 'latest'
-
-- name: Check version of installed AdGuard Home binary
-  ansible.builtin.shell: >-
-    set -o pipefail
-    && "{{ adguard_bin_file }}" -c /dev/null --check-config 2>&1
-    | grep -m 1 -E 'v[0-9.]+' -o
-  args:
-    executable: /bin/bash
-  register: _adguard_version_check
-  check_mode: false
-  changed_when: >-
-    _adguard_version_check.stdout.find('v' + adguard_version) == -1
-  failed_when: >-
-    _adguard_version_check.rc != 0 and
-    _adguard_version_check.rc != 1 and
-    _adguard_version_check.rc != 141
-  when: _adguard_binary_check.stat.exists
-
-# -----------------------------------------------------------------------------
-# User Setup / Настройка пользователя
-# -----------------------------------------------------------------------------
-
-- name: Ensure AdGuard Home user exists
-  ansible.builtin.user:
-    name: "{{ adguard_user }}"
-    create_home: false
-    system: "{{ adguard_system_user }}"
-    state: present
-
-# -----------------------------------------------------------------------------
-# Installation / Установка
-# -----------------------------------------------------------------------------
-
-- name: "Install AdGuard Home binary (v{{ adguard_version }} / {{ adguard_arch }})"
+- name: "Install"
   ansible.builtin.include_tasks: install.yml
-  when: >-
-    _adguard_version_check.changed
-    or (not _adguard_binary_check.stat.exists)
+  tags: ['install']
 
-# -----------------------------------------------------------------------------
-# Permissions / Права доступа
-# -----------------------------------------------------------------------------
+- name: "Configure"
+  ansible.builtin.include_tasks: configure.yml
+  tags: ['configure']
 
-- name: Ensure AdGuard Home paths exist with correct permissions
-  ansible.builtin.include_tasks: paths.yml
+- name: "Manage service"
+  ansible.builtin.include_tasks: service.yml
+  tags: ['service']
 
-- name: Allow AdGuard Home to bind to ports lower than 1024 as non-root
-  ansible.builtin.capabilities:
-    path: "{{ adguard_bin_file }}"
-    capability: cap_net_bind_service+eip
-    state: present
-  when: adguard_user != "root"
-
-- name: Disallow AdGuard Home to bind to ports lower than 1024 as non-root
-  ansible.builtin.capabilities:
-    path: "{{ adguard_bin_file }}"
-    capability: cap_net_bind_service+eip
-    state: absent
-  when: adguard_user == "root"
-
-# -----------------------------------------------------------------------------
-# Systemd Service / Сервис Systemd
-# -----------------------------------------------------------------------------
-
-- name: Install AdGuard Home systemd service
-  ansible.builtin.include_tasks: systemd_service.yml
-  when:
-    - ansible_service_mgr == "systemd"
-    - adguard_service_enable
-
-# -----------------------------------------------------------------------------
-# Configuration / Конфигурация
-# -----------------------------------------------------------------------------
-
-- name: Deploy AdGuard Home configuration
-  ansible.builtin.template:
-    src: AdGuardHome.yml.j2
-    dest: "{{ adguard_config_file }}"
-    owner: "{{ adguard_user }}"
-    group: "{{ adguard_group }}"
-    mode: "0644"
-  when: adguard_deploy_config
-  notify: restart adguardhome
+- name: "Show debug summary"
+  ansible.builtin.include_tasks: debug.yml
+  when: debug_mode | bool
+  tags: ['debug']

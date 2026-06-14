@@ -339,12 +339,12 @@
 - name: Check required secrets variables exist
   ansible.builtin.assert:
     that:
-      - vars[host_vars ~ '_pve_node'] is defined
-      - vars[host_vars ~ '_pve_api_user'] is defined
-      - vars[host_vars ~ '_pve_api_password'] is defined
-      - vars[host_vars ~ '_pve_lxc_root_password'] is defined
-      - vars[host_vars ~ '_admin_user'] is defined
-      - vars[host_vars ~ '_admin_password'] is defined
+      - hostvars[inventory_hostname][host_vars ~ '_pve_node'] is defined
+      - hostvars[inventory_hostname][host_vars ~ '_pve_api_user'] is defined
+      - hostvars[inventory_hostname][host_vars ~ '_pve_api_password'] is defined
+      - hostvars[inventory_hostname][host_vars ~ '_pve_lxc_root_password'] is defined
+      - hostvars[inventory_hostname][host_vars ~ '_admin_user'] is defined
+      - hostvars[inventory_hostname][host_vars ~ '_admin_password'] is defined
     success_msg: "All required secrets variables are present / Все обязательные переменные секретов присутствуют ✓"
     fail_msg: "Missing required secrets variables for prefix '{{ host_vars }}' / Отсутствуют обязательные переменные секретов для префикса '{{ host_vars }}' ✗"
   when:
@@ -363,16 +363,16 @@
   ansible.builtin.lineinfile:
     path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
     line: '{{ {
-      "timestamp": ansible_date_time.iso8601,
+      "timestamp": ansible_facts.date_time.iso8601,
       "level": "INFO",
       "event_type": "VALIDATION_RESULTS",
       "service_name": "proxmox_import_config",
       "status": "COMPLETED",
-      "user": ansible_user_id,
+      "user": ansible_facts.user_id,
       "host": inventory_hostname,
       "playbook": ansible_play_name,
       "task": "validation_results",
-      "correlation_id": ansible_date_time.epoch,
+      "correlation_id": ansible_facts.date_time.epoch,
       "message": "Validation process completed",
       "metadata": {
         "validation_mode": "strict" if strict_validation else "normal",
