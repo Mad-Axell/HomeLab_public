@@ -1,0 +1,52 @@
+---
+# EN: Services without a native module — SNMP, Unbound resolver and outbound NAT
+#     mode — via idempotent PHP playback.
+# RU: Службы без нативного модуля — SNMP, резолвер Unbound и режим исходящего NAT
+#     — через идемпотентный PHP playback.
+
+- name: Configure services (SNMP, Unbound, NAT)
+  block:
+    - name: Render services PHP playback
+      ansible.builtin.template:
+        src: pfsense_services.php.j2
+        dest: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.services }}"
+        mode: "0600"
+      no_log: true
+
+    - name: Apply services configuration
+      ansible.builtin.command:
+        cmd: >-
+          {{ pfsense_php_bin }} -d include_path={{ pfsense_inc_path }}
+          -f {{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.services }}
+          {{ '1' if pfsense_apply | bool else '0' }}
+      register: pfsense_services_run
+      changed_when: pfsense_changed_marker in pfsense_services_run.stdout
+      failed_when: pfsense_services_run.rc != 0
+      no_log: true
+
+    - name: Remove rendered services PHP playback
+      ansible.builtin.file:
+        path: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.services }}"
+        state: absent
+
+  rescue:
+    - name: Report services failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure services (SNMP/Unbound/NAT).
+          RU: Не удалось настроить службы (SNMP/Unbound/NAT).
+  tags: ['services', 'snmp', 'unbound']
+
+- name: Show services change status (English)
+  ansible.builtin.debug:
+    msg: "Services changed: {{ pfsense_changed_marker in pfsense_services_run.stdout }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show services change status (Russian)
+  ansible.builtin.debug:
+    msg: "Службы изменены: {{ pfsense_changed_marker in pfsense_services_run.stdout }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

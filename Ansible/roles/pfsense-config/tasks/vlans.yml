@@ -1,0 +1,47 @@
+---
+# EN: VLAN interfaces on a parent NIC via pfsensible.core.pfsense_vlan.
+#     Empty by default (live config is a flat LAN on igc0). Populate
+#     `pfsense_vlans` for the VLAN target (02_pfsense_setup.md §3.1:
+#     igc0.10/.20/.30 = trust/iot/guest).
+# RU: VLAN-интерфейсы на родительском NIC через pfsensible.core.pfsense_vlan.
+#     По умолчанию пусто (live — плоский LAN на igc0). Заполните
+#     `pfsense_vlans` для целевой VLAN-схемы (02_pfsense_setup.md §3.1:
+#     igc0.10/.20/.30 = trust/iot/guest).
+
+- name: Configure VLANs
+  block:
+    - name: Ensure VLANs exist on their parent interface
+      pfsensible.core.pfsense_vlan:
+        interface: "{{ item.interface }}"
+        vlan_id:   "{{ item.vlan_id }}"
+        priority:  "{{ item.priority | default(omit) }}"
+        descr:     "{{ item.descr | default(omit) }}"
+        state: present
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      loop: "{{ pfsense_vlans }}"
+      loop_control:
+        label: "{{ item.interface }}.{{ item.vlan_id }} ({{ item.descr | default('') }})"
+      register: pfsense_vlan_result
+      notify: reload filter
+
+  rescue:
+    - name: Report VLAN failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure VLANs. Verify parent interface names (e.g. igc0).
+          RU: Не удалось настроить VLAN. Проверьте имена родительских интерфейсов (напр. igc0).
+  tags: ['vlans', 'interfaces']
+
+- name: Show VLAN change status (English)
+  ansible.builtin.debug:
+    msg: "VLANs changed: {{ pfsense_vlan_result.changed | default(false) }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show VLAN change status (Russian)
+  ansible.builtin.debug:
+    msg: "VLAN изменены: {{ pfsense_vlan_result.changed | default(false) }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

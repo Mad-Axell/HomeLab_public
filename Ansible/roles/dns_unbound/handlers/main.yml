@@ -2,6 +2,5 @@
 - name: unbound_restart
   ansible.builtin.systemd:
     name: "{{ unbound_service_name }}"
-    daemon_reload: true
     state: restarted
     enabled: true

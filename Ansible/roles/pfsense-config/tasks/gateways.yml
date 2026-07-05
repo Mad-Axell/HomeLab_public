@@ -1,0 +1,92 @@
+---
+# EN: Gateways. Static IPv4 gateways via pfsensible.core.pfsense_gateway; the
+#     dynamic WAN gateway, gateway groups and the default gateway have no module
+#     and are handled by an idempotent PHP playback. Finally the gateway is
+#     attached to its interface (opt1/Istranet).
+# RU: Шлюзы. Статические IPv4-шлюзы через pfsensible.core.pfsense_gateway;
+#     динамический WAN-шлюз, группы шлюзов и шлюз по умолчанию не имеют модуля
+#     и настраиваются идемпотентным PHP playback. В конце шлюз привязывается к
+#     своему интерфейсу (opt1/Istranet).
+
+- name: Configure gateways
+  block:
+    - name: Ensure static gateways exist
+      pfsensible.core.pfsense_gateway:
+        name:       "{{ item.name }}"
+        interface:  "{{ item.interface }}"
+        gateway:    "{{ item.gateway }}"
+        ipprotocol: "{{ item.ipprotocol | default('inet') }}"
+        monitor:    "{{ item.monitor | default(omit) }}"
+        weight:     "{{ item.weight | default(omit) }}"
+        state: present
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      loop: "{{ pfsense_gateways | rejectattr('gateway', 'equalto', 'dynamic') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: pfsense_gw_result
+
+    - name: Render gateways/groups PHP playback
+      ansible.builtin.template:
+        src: pfsense_gateways.php.j2
+        dest: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.gateways }}"
+        mode: "0600"
+
+    - name: Apply dynamic gateway, gateway groups and default gateway
+      ansible.builtin.command:
+        cmd: >-
+          {{ pfsense_php_bin }} -d include_path={{ pfsense_inc_path }}
+          -f {{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.gateways }}
+          {{ '1' if pfsense_apply | bool else '0' }}
+      register: pfsense_gwgroup_run
+      changed_when: pfsense_changed_marker in pfsense_gwgroup_run.stdout
+      failed_when: pfsense_gwgroup_run.rc != 0
+
+    - name: Remove rendered gateways PHP playback
+      ansible.builtin.file:
+        path: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.gateways }}"
+        state: absent
+
+    - name: Attach gateway to its interface
+      pfsensible.core.pfsense_interface:
+        descr:          "{{ item.descr }}"
+        interface:      "{{ item.interface }}"
+        enable:         "{{ item.enable }}"
+        ipv4_type:      "{{ item.ipv4_type }}"
+        ipv4_address:   "{{ item.ipv4_address | default(omit) }}"
+        ipv4_prefixlen: "{{ item.ipv4_prefixlen | default(omit) }}"
+        ipv4_gateway:   "{{ item.gateway }}"
+        state: present
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      loop: "{{ pfsense_interfaces | selectattr('gateway', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.descr }} -> {{ item.gateway }}"
+      register: pfsense_gw_attach
+      notify: reload filter
+
+  rescue:
+    - name: Report gateway failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure gateways/groups. Check interfaces and gateway names.
+          RU: Не удалось настроить шлюзы/группы. Проверьте интерфейсы и имена шлюзов.
+  tags: ['gateways']
+
+- name: Show gateway change status (English)
+  ansible.builtin.debug:
+    msg:
+      - "Static gateways changed: {{ pfsense_gw_result.changed }}"
+      - "Gateway groups changed:  {{ pfsense_changed_marker in pfsense_gwgroup_run.stdout }}"
+      - "Gateway attach changed:  {{ pfsense_gw_attach.changed }}"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show gateway change status (Russian)
+  ansible.builtin.debug:
+    msg:
+      - "Статические шлюзы изменены: {{ pfsense_gw_result.changed }}"
+      - "Группы шлюзов изменены:     {{ pfsense_changed_marker in pfsense_gwgroup_run.stdout }}"
+      - "Привязка шлюза изменена:    {{ pfsense_gw_attach.changed }}"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

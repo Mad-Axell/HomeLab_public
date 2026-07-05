@@ -1,0 +1,117 @@
+<?php
+/*
+ * EN: Rendered by Ansible role pfsense-config — advanced system tunables + Web GUI.
+ * RU: Сгенерировано ролью Ansible pfsense-config — расширенные тюнеры + Web GUI.
+ * Usage: php -f this.php <apply>   (apply: 1 = write & apply, 0 = dry-run report)
+ */
+require_once('/etc/inc/config.inc');
+require_once('/etc/inc/util.inc');
+require_once('/etc/inc/functions.inc');
+require_once('/etc/inc/filter.inc');
+
+global $config;
+$apply   = (isset($argv[1]) && $argv[1] === '1');
+$changed = false;
+
+/* EN: set a scalar value / RU: установить скалярное значение */
+function set_val(&$arr, $key, $val, &$changed) {
+    $cur = isset($arr[$key]) ? (string)$arr[$key] : null;
+    if ($cur !== (string)$val) { $arr[$key] = (string)$val; $changed = true; }
+}
+/* EN: set/clear an empty-tag boolean flag / RU: установить/снять булев тег-флаг */
+function set_flag(&$arr, $key, $on, &$changed) {
+    $cur = array_key_exists($key, $arr);
+    if ($on && !$cur)  { $arr[$key] = ''; $changed = true; }
+    if (!$on && $cur)  { unset($arr[$key]); $changed = true; }
+}
+
+if (!is_array($config['system'])) { $config['system'] = array(); }
+
+/* ---- System tunables / Системные тюнеры ---- */
+set_val($config['system'], 'optimization',        '{{ pfsense_advanced.optimization }}', $changed);
+set_val($config['system'], 'maximumtableentries', '{{ pfsense_advanced.maximumtableentries }}', $changed);
+set_val($config['system'], 'powerd_ac_mode',      '{{ pfsense_advanced.powerd_ac_mode }}', $changed);
+set_val($config['system'], 'powerd_battery_mode', '{{ pfsense_advanced.powerd_battery_mode }}', $changed);
+set_val($config['system'], 'powerd_normal_mode',  '{{ pfsense_advanced.powerd_normal_mode }}', $changed);
+set_val($config['system'], 'mds_disable',         '{{ pfsense_advanced.mds_disable }}', $changed);
+set_val($config['system'], 'gw_down_kill_states', '{{ pfsense_advanced.gw_down_kill_states }}', $changed);
+
+{% if pfsense_advanced.disablenatreflection %}
+set_val($config['system'], 'disablenatreflection', 'yes', $changed);
+{% else %}
+if (isset($config['system']['disablenatreflection'])) { unset($config['system']['disablenatreflection']); $changed = true; }
+{% endif %}
+
+set_flag($config['system'], 'powerd_enable', {{ 'true' if pfsense_advanced.powerd_enable else 'false' }}, $changed);
+
+/* ---------------------------------------------------------------------------
+ * EN: §02 target additions. Each key is managed ONLY when explicitly defined in
+ *     pfsense_advanced, so existing host_vars that omit it are left untouched
+ *     (no regression on the live router).
+ * RU: Дополнения под целевое §02. Каждый ключ управляется ТОЛЬКО если явно задан
+ *     в pfsense_advanced, поэтому существующие host_vars без него не трогаются
+ *     (нет регресса на живом роутере).
+ * ------------------------------------------------------------------------- */
+
+{# --- §1.1 Networking: hardware offloading Disable / IPv6 off / Prefer IPv4 --- #}
+{% if 'disablechecksumoffloading' in pfsense_advanced %}
+set_flag($config['system'], 'disablechecksumoffloading', {{ 'true' if pfsense_advanced.disablechecksumoffloading else 'false' }}, $changed);
+{% endif %}
+{% if 'disablesegmentationoffloading' in pfsense_advanced %}
+set_flag($config['system'], 'disablesegmentationoffloading', {{ 'true' if pfsense_advanced.disablesegmentationoffloading else 'false' }}, $changed);
+{% endif %}
+{% if 'disablelargereceiveoffloading' in pfsense_advanced %}
+set_flag($config['system'], 'disablelargereceiveoffloading', {{ 'true' if pfsense_advanced.disablelargereceiveoffloading else 'false' }}, $changed);
+{% endif %}
+{% if 'allow_ipv6' in pfsense_advanced %}
+{# EN: GUI "Allow IPv6" -> <ipv6allow>. Instruction wants it OFF (tag absent). #}
+set_flag($config['system'], 'ipv6allow', {{ 'true' if pfsense_advanced.allow_ipv6 else 'false' }}, $changed);
+{% endif %}
+{% if 'prefer_ipv4' in pfsense_advanced %}
+set_flag($config['system'], 'prefer_ipv4', {{ 'true' if pfsense_advanced.prefer_ipv4 else 'false' }}, $changed);
+{% endif %}
+
+{# --- §1.4 Firewall & NAT: Firewall Maximum States (NOT the table-entries key) --- #}
+{% if 'maximumstates' in pfsense_advanced %}
+set_val($config['system'], 'maximumstates', '{{ pfsense_advanced.maximumstates }}', $changed);
+{% endif %}
+
+{# --- §1.5 Miscellaneous: sticky connections + skip rules when gateway down --- #}
+{% if 'lb_use_sticky' in pfsense_advanced %}
+set_flag($config['system'], 'lb_use_sticky', {{ 'true' if pfsense_advanced.lb_use_sticky else 'false' }}, $changed);
+{% endif %}
+{% if 'skip_rules_gw_down' in pfsense_advanced %}
+set_flag($config['system'], 'skiprules', {{ 'true' if pfsense_advanced.skip_rules_gw_down else 'false' }}, $changed);
+{% endif %}
+
+/* ---- Bogons / Боги-сети ---- */
+if (!is_array($config['system']['bogons'])) { $config['system']['bogons'] = array(); }
+set_val($config['system']['bogons'], 'interval', '{{ pfsense_advanced.bogons_interval }}', $changed);
+
+/* ---- RRD graphing / Графики RRD ---- */
+if (!is_array($config['rrd'])) { $config['rrd'] = array(); }
+set_flag($config['rrd'], 'enable', {{ 'true' if pfsense_advanced.rrd_enable else 'false' }}, $changed);
+
+/* ---- Syslog / Системный журнал ---- */
+if (!is_array($config['syslog'])) { $config['syslog'] = array(); }
+set_val($config['syslog'], 'filterdescriptions', '{{ pfsense_advanced.syslog_filterdescriptions }}', $changed);
+
+/* ---- Web GUI presentation / Внешний вид Web GUI ---- */
+if (!is_array($config['system']['webgui'])) { $config['system']['webgui'] = array(); }
+set_val($config['system']['webgui'], 'protocol',           '{{ pfsense_webgui.protocol }}', $changed);
+set_val($config['system']['webgui'], 'dashboardcolumns',   '{{ pfsense_webgui.dashboardcolumns }}', $changed);
+set_val($config['system']['webgui'], 'webguicss',          '{{ pfsense_webgui.webguicss }}', $changed);
+set_val($config['system']['webgui'], 'logincss',           '{{ pfsense_webgui.logincss }}', $changed);
+set_val($config['system']['webgui'], 'webguihostnamemenu', '{{ pfsense_webgui.webguihostnamemenu }}', $changed);
+set_flag($config['system']['webgui'], 'loginautocomplete', {{ 'true' if pfsense_webgui.loginautocomplete else 'false' }}, $changed);
+
+if ($changed) {
+    if ($apply) {
+        write_config("{{ pfsense_change_reason }} (advanced/webgui)");
+        if (function_exists('activate_powerd')) { activate_powerd(); }
+        if (function_exists('filter_configure')) { filter_configure(); }
+    }
+    echo "{{ pfsense_changed_marker }}\n";
+} else {
+    echo "{{ pfsense_unchanged_marker }}\n";
+}

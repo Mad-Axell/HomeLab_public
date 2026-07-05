@@ -1,0 +1,56 @@
+---
+# EN: DHCP static mappings via pfsensible.core.pfsense_dhcp_static.
+#     Driven by the SINGLE host list (pfsense_hosts) — only entries that carry a
+#     `mac`. netif is derived from pfsense_segments[<segment>].netif. This is one
+#     half of the single source of truth for names; the other half is DNS host
+#     overrides (dns_resolver.yml), fed by the SAME list.
+# RU: Static mappings DHCP через pfsensible.core.pfsense_dhcp_static.
+#     Управляется ЕДИНЫМ списком хостов (pfsense_hosts) — только записи с `mac`.
+#     netif берётся из pfsense_segments[<segment>].netif. Это половина единого
+#     источника истины для имён; вторая половина — host overrides DNS
+#     (dns_resolver.yml) из ТОГО ЖЕ списка.
+
+- name: Configure DHCP static mappings
+  block:
+    - name: Ensure DHCP static mappings exist (hosts with a MAC)
+      pfsensible.core.pfsense_dhcp_static:
+        netif:    "{{ pfsense_segments[item.segment].netif }}"
+        macaddr:  "{{ item.mac }}"
+        ipaddr:   "{{ item.ip }}"
+        hostname: "{{ item.name }}"
+        descr:    "{{ item.descr | default(omit) }}"
+        arp_table_static_entry: "{{ item.static_arp | default(omit) }}"
+        state: present
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      loop: "{{ pfsense_hosts | selectattr('mac', 'defined') | list }}"
+      loop_control:
+        label: "{{ pfsense_segments[item.segment].netif }}: {{ item.name }} ({{ item.mac }})"
+      register: pfsense_static_result
+
+  rescue:
+    - name: Report static mapping failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure DHCP static mappings. Check MAC/IP and the
+              segment->netif map (pfsense_segments) for each host.
+          RU: Не удалось настроить static mappings DHCP. Проверьте MAC/IP и карту
+              segment->netif (pfsense_segments) для каждого хоста.
+  tags: ['dhcp', 'static', 'hosts']
+
+- name: Show static mapping change status (English)
+  ansible.builtin.debug:
+    msg: >-
+      Static mappings changed: {{ pfsense_static_result.changed | default(false) }}
+      ({{ pfsense_hosts | selectattr('mac', 'defined') | list | length }} with MAC, apply={{ pfsense_apply }})
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show static mapping change status (Russian)
+  ansible.builtin.debug:
+    msg: >-
+      Static mappings изменены: {{ pfsense_static_result.changed | default(false) }}
+      ({{ pfsense_hosts | selectattr('mac', 'defined') | list | length }} с MAC, apply={{ pfsense_apply }})
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

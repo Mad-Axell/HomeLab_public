@@ -1,0 +1,91 @@
+---
+# EN: Role entry point — configure a pfSense router to the desired state.
+# RU: Точка входа роли — настроить роутер pfSense до желаемого состояния.
+#
+# EN: Hybrid approach — native pfsensible.core modules where they exist, plus
+#     idempotent PHP playback for settings without a module (gateway groups,
+#     DHCP pools, SNMP, Unbound, system tunables, GUI cert, admin hash).
+# RU: Гибрид — нативные модули pfsensible.core там, где они есть, плюс
+#     идемпотентный PHP playback для настроек без модуля (группы шлюзов,
+#     DHCP-пулы, SNMP, Unbound, системные тюнеры, GUI-сертификат, хеш admin).
+
+- name: Validate inputs
+  ansible.builtin.include_tasks: validate.yml
+  tags: ['always']
+
+- name: Configure system settings
+  ansible.builtin.include_tasks: system.yml
+  when: pfsense_manage_system | bool
+  tags: ['system']
+
+- name: Configure GUI certificate and admin account
+  ansible.builtin.include_tasks: cert_admin.yml
+  when: pfsense_manage_certificate | bool or pfsense_manage_admin | bool
+  tags: ['certificate', 'admin']
+
+# EN: VLANs must exist before interfaces are assigned to them (greenfield).
+# RU: VLAN должны существовать до назначения на них интерфейсов (greenfield).
+- name: Configure VLANs
+  ansible.builtin.include_tasks: vlans.yml
+  when: pfsense_manage_vlans | bool
+  tags: ['vlans', 'interfaces']
+
+- name: Configure interfaces
+  ansible.builtin.include_tasks: interfaces.yml
+  when: pfsense_manage_interfaces | bool
+  tags: ['interfaces']
+
+- name: Configure gateways and gateway groups
+  ansible.builtin.include_tasks: gateways.yml
+  when: pfsense_manage_gateways | bool
+  tags: ['gateways']
+
+- name: Configure aliases
+  ansible.builtin.include_tasks: aliases.yml
+  when: pfsense_manage_aliases | bool
+  tags: ['aliases']
+
+- name: Configure firewall rules
+  ansible.builtin.include_tasks: firewall.yml
+  when: pfsense_manage_rules | bool
+  tags: ['rules', 'firewall']
+
+# EN: Force-DNS NAT redirects — needs the DNS_STACK alias (aliases.yml) first.
+# RU: Force-DNS NAT-redirect — нужен алиас DNS_STACK (aliases.yml) раньше.
+- name: Configure NAT (force-DNS port forwards)
+  ansible.builtin.include_tasks: nat.yml
+  when: pfsense_manage_nat | bool
+  tags: ['nat', 'force-dns', 'firewall']
+
+- name: Configure DHCP server
+  ansible.builtin.include_tasks: dhcp.yml
+  when: pfsense_manage_dhcp | bool
+  tags: ['dhcp']
+
+# EN: DHCP static mappings — after the DHCP pools/interfaces exist.
+# RU: Static mappings DHCP — после создания пулов/интерфейсов DHCP.
+- name: Configure DHCP static mappings (single host list)
+  ansible.builtin.include_tasks: dhcp_static.yml
+  when: pfsense_manage_dhcp_static | bool
+  tags: ['dhcp', 'static', 'hosts']
+
+- name: Configure services (SNMP, Unbound, NAT)
+  ansible.builtin.include_tasks: services.yml
+  when: pfsense_manage_snmp | bool or pfsense_manage_unbound | bool
+  tags: ['services', 'snmp', 'unbound']
+
+# EN: DNS Resolver host overrides — same single host list as static mappings.
+# RU: Host overrides DNS Resolver — тот же единый список хостов, что и static mappings.
+- name: Configure DNS Resolver host overrides (single host list)
+  ansible.builtin.include_tasks: dns_resolver.yml
+  when: pfsense_manage_dns_resolver | bool
+  tags: ['unbound', 'dns', 'overrides', 'hosts']
+
+- name: Configure advanced system tunables and Web GUI
+  ansible.builtin.include_tasks: advanced.yml
+  when: pfsense_manage_advanced | bool
+  tags: ['advanced']
+
+- name: Show summary
+  ansible.builtin.include_tasks: summary.yml
+  tags: ['debug', 'summary']

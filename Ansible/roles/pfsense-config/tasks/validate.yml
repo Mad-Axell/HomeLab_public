@@ -1,0 +1,32 @@
+---
+# EN: Validate required variables before touching the router.
+# RU: Проверка обязательных переменных до изменения роутера.
+
+- name: Assert connection variables are set
+  ansible.builtin.assert:
+    that:
+      - ansible_host | default('') | length > 0
+      - ansible_user | default('') | length > 0
+    fail_msg: >-
+      EN: ansible_host and ansible_user must be set (inventory + secrets).
+      RU: Должны быть заданы ansible_host и ansible_user (инвентарь + секреты).
+    success_msg: "EN: connecting to {{ ansible_host }} as {{ ansible_user }} / RU: подключение к {{ ansible_host }} как {{ ansible_user }}"
+    quiet: true
+
+- name: Assert at least one interface is defined
+  ansible.builtin.assert:
+    that:
+      - pfsense_interfaces | length > 0
+    fail_msg: >-
+      EN: pfsense_interfaces is empty — define interfaces in host_vars.
+      RU: pfsense_interfaces пуст — задайте интерфейсы в host_vars.
+    quiet: true
+
+- name: Warn when running in check-only mode (no enforcement)
+  ansible.builtin.debug:
+    msg:
+      - "EN: pfsense_apply=false -> CHECK-ONLY mode, no changes will be enforced."
+      - "RU: pfsense_apply=false -> режим ТОЛЬКО ПРОВЕРКА, изменения не применяются."
+  when:
+    - not (pfsense_apply | bool)
+    - debug_mode | bool

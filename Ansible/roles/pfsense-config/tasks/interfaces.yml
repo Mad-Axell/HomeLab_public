@@ -1,0 +1,50 @@
+---
+# EN: Interfaces via pfsensible.core.pfsense_interface. Identified by 'descr'.
+#     The gateway (opt1/Istranet) is attached later in gateways.yml, after the
+#     gateway object exists, to avoid a chicken-and-egg dependency.
+# RU: Интерфейсы через pfsensible.core.pfsense_interface. Идентификация по 'descr'.
+#     Шлюз (opt1/Istranet) привязывается позже в gateways.yml, после создания
+#     объекта шлюза, чтобы избежать циклической зависимости.
+
+- name: Configure interfaces
+  block:
+    - name: Ensure interfaces exist with addressing
+      pfsensible.core.pfsense_interface:
+        descr:          "{{ item.descr }}"
+        interface:      "{{ item.interface }}"
+        enable:         "{{ item.enable }}"
+        ipv4_type:      "{{ item.ipv4_type }}"
+        ipv4_address:   "{{ item.ipv4_address | default(omit) }}"
+        ipv4_prefixlen: "{{ item.ipv4_prefixlen | default(omit) }}"
+        blockpriv:      "{{ item.blockpriv | default(omit) }}"
+        blockbogons:    "{{ item.blockbogons | default(omit) }}"
+        mac:            "{{ item.mac | default(omit) }}"
+        mtu:            "{{ item.mtu | default(omit) }}"
+        state: present
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      loop: "{{ pfsense_interfaces }}"
+      loop_control:
+        label: "{{ item.descr }} ({{ item.interface }})"
+      register: pfsense_iface_result
+
+  rescue:
+    - name: Report interface failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure interfaces. Verify physical NICs and pfsensible.core.
+          RU: Не удалось настроить интерфейсы. Проверьте физические NIC и pfsensible.core.
+  tags: ['interfaces']
+
+- name: Show interface change status (English)
+  ansible.builtin.debug:
+    msg: "Interfaces changed: {{ pfsense_iface_result.changed }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show interface change status (Russian)
+  ansible.builtin.debug:
+    msg: "Интерфейсы изменены: {{ pfsense_iface_result.changed }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

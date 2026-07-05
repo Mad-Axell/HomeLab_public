@@ -1,0 +1,90 @@
+---
+# EN: DNS Resolver (Unbound) host overrides via pfsensible.core.pfsense_dns_resolver.
+#     The host-override list is assembled from the SAME single host list
+#     (pfsense_hosts) used for static mappings, PLUS optional virtual-name
+#     overrides (pfsense_dns_overrides_extra).
+#
+#     NOTE on Kea: under the Kea backend pfSense has NO "Register DHCP static"
+#     checkbox in the Resolver (02 §4.0/§5.1). Host overrides are backend-
+#     independent, so this gives guaranteed forward (A) + reverse (PTR) names
+#     regardless of Kea — which is exactly why we use them as the DNS half of
+#     the single source of truth.
+#
+#     NOTE on coexistence: dnssec is passed from the existing pfsense_unbound
+#     dict so this module does NOT fight the services.yml PHP playback (which
+#     manages enable/dnssec/qname). The module only sets parameters it is given.
+#
+# RU: Host overrides DNS Resolver (Unbound) через pfsensible.core.pfsense_dns_resolver.
+#     Список overrides собирается из ТОГО ЖЕ единого списка хостов (pfsense_hosts),
+#     что и static mappings, ПЛЮС опц. виртуальные имена (pfsense_dns_overrides_extra).
+#
+#     ПРО Kea: при бэкенде Kea в Resolver НЕТ галки «Register DHCP static»
+#     (02 §4.0/§5.1). Host overrides от бэкенда не зависят — дают гарантированные
+#     прямые (A) + обратные (PTR) имена независимо от Kea, поэтому они и есть
+#     DNS-половина единого источника истины.
+#
+#     ПРО сосуществование: dnssec передаётся из существующего pfsense_unbound,
+#     чтобы модуль НЕ конфликтовал с PHP playback services.yml (он управляет
+#     enable/dnssec/qname). Модуль трогает только переданные параметры.
+
+- name: Assemble DNS host overrides from the single host list
+  ansible.builtin.set_fact:
+    pfsense_dns_hosts: "{{ (pfsense_dns_hosts | default([])) + [_ovr] }}"
+  loop: "{{ pfsense_hosts }}"
+  loop_control:
+    loop_var: _h
+    label: "{{ _h.name }}.{{ pfsense_segments[_h.segment].domain }} -> {{ _h.ip }}"
+  vars:
+    _ovr:
+      host:    "{{ _h.name }}"
+      domain:  "{{ pfsense_segments[_h.segment].domain }}"
+      ip:      "{{ _h.ip }}"
+      descr:   "{{ _h.descr | default('') }}"
+      aliases: "{{ _h.aliases | default([]) }}"
+
+- name: Append extra (virtual-name) host overrides
+  ansible.builtin.set_fact:
+    pfsense_dns_hosts: "{{ (pfsense_dns_hosts | default([])) + pfsense_dns_overrides_extra }}"
+
+- name: Configure DNS Resolver host overrides
+  block:
+    - name: Ensure DNS Resolver host overrides match the single host list
+      pfsensible.core.pfsense_dns_resolver:
+        state: present
+        dnssec: "{{ pfsense_unbound.dnssec | default(omit) }}"
+        custom_options: "{{ pfsense_unbound_custom_options if (pfsense_unbound_custom_options | default('') | length > 0) else omit }}"
+        hosts: "{{ pfsense_dns_hosts }}"
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      register: pfsense_resolver_result
+      notify: reload filter
+      # EN: Safety — never run with an empty list (would wipe existing overrides).
+      # RU: Защита — не запускать с пустым списком (стёрло бы существующие overrides).
+      when: pfsense_dns_hosts | default([]) | length > 0
+
+  rescue:
+    - name: Report DNS Resolver failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure DNS Resolver host overrides. Check host/domain/ip
+              and that segments referenced by pfsense_hosts exist in pfsense_segments.
+          RU: Не удалось настроить host overrides DNS Resolver. Проверьте host/domain/ip
+              и наличие сегментов из pfsense_hosts в pfsense_segments.
+  tags: ['unbound', 'dns', 'overrides', 'hosts']
+
+- name: Show DNS Resolver change status (English)
+  ansible.builtin.debug:
+    msg: >-
+      DNS host overrides changed: {{ pfsense_resolver_result.changed | default(false) }}
+      ({{ pfsense_dns_hosts | default([]) | length }} overrides, apply={{ pfsense_apply }})
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show DNS Resolver change status (Russian)
+  ansible.builtin.debug:
+    msg: >-
+      Host overrides DNS изменены: {{ pfsense_resolver_result.changed | default(false) }}
+      ({{ pfsense_dns_hosts | default([]) | length }} overrides, apply={{ pfsense_apply }})
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

@@ -1,0 +1,101 @@
+---
+# EN: Default, overridable variables / RU: Настраиваемые переменные по умолчанию
+# EN: The real per-router data lives in host_vars/<host>.yml; these are safe
+#     fallbacks so the role never fails on an undefined variable.
+# RU: Реальные данные роутера лежат в host_vars/<host>.yml; здесь — безопасные
+#     значения по умолчанию, чтобы роль не падала на неопределённой переменной.
+
+# --- Apply / safety ----------------------------------------------------------
+# EN: false = check & report drift only; true = enforce changes on the router.
+# RU: false = только проверка и отчёт; true = применять изменения на роутере.
+pfsense_apply: false
+
+# EN: Config-change comment written into the pfSense config history.
+# RU: Комментарий изменения, записываемый в историю конфигурации pfSense.
+pfsense_change_reason: "Ansible: pfsense-config role"
+
+# --- Sections toggles (enable/disable parts of the role) ---------------------
+# EN: Turn whole sections on/off without editing tasks. / RU: Вкл/выкл секции роли без правки тасок.
+pfsense_manage_system:        true
+pfsense_manage_certificate:   true
+pfsense_manage_admin:         true
+pfsense_manage_interfaces:    true
+pfsense_manage_gateways:      true
+pfsense_manage_aliases:       true
+pfsense_manage_rules:         true
+pfsense_manage_dhcp:          true
+pfsense_manage_snmp:          true
+pfsense_manage_unbound:       true
+pfsense_manage_advanced:      true
+# EN: New native-module sections (pfsensible.core). Empty data -> no-op.
+# RU: Новые секции на нативных модулях (pfsensible.core). Пустые данные -> no-op.
+pfsense_manage_vlans:         true   # EN: pfsense_vlan / RU: VLAN на родительском NIC
+pfsense_manage_dhcp_static:   true   # EN: pfsense_dhcp_static (static mappings) / RU: static mappings
+pfsense_manage_dns_resolver:  true   # EN: pfsense_dns_resolver (host overrides) / RU: host overrides DNS
+pfsense_manage_nat:           true   # EN: pfsense_nat_port_forward (force-DNS) / RU: force-DNS NAT
+
+# --- Desired-state data (overridden in host_vars) ----------------------------
+pfsense_system:            {}
+pfsense_advanced:          {}
+pfsense_webgui:            {}
+pfsense_unbound:           {}
+pfsense_snmp:              {}
+pfsense_interfaces:        []
+pfsense_gateways:          []
+pfsense_gateway_groups:    []
+pfsense_aliases:           []
+pfsense_rules:             []
+pfsense_dhcp_servers:      []
+pfsense_dhcp_backend:      kea
+pfsense_nat_outbound_mode: automatic
+pfsense_default_gateway_v4: ""
+pfsense_default_gateway_v6: "-"
+
+# --- New native-module desired-state (overridden in host_vars) ---------------
+# EN: VLANs on a parent NIC (02 §3.1). Empty in live (flat LAN on igc0).
+# RU: VLAN на родительском NIC (02 §3.1). В live пусто (плоский LAN на igc0).
+pfsense_vlans:             []
+
+# EN: SINGLE host list — one source of truth. Each entry: name, segment, ip,
+#     optional mac (-> DHCP static mapping), optional descr/aliases/static_arp.
+#     Entries WITH mac -> DHCP static mapping + DNS host override.
+#     Entries WITHOUT mac -> DNS host override only (virtual/VIP names).
+# RU: ЕДИНЫЙ список хостов — один источник истины. Поля: name, segment, ip,
+#     опц. mac (-> static mapping DHCP), опц. descr/aliases/static_arp.
+#     Записи С mac -> static mapping DHCP + host override DNS.
+#     Записи БЕЗ mac -> только host override DNS (виртуальные/VIP-имена).
+pfsense_hosts:             []
+
+# EN: segment -> {netif: <pfSense iface id>, domain: <fqdn zone>}.
+# RU: сегмент -> {netif: <id интерфейса pfSense>, domain: <зона fqdn>}.
+pfsense_segments:          {}
+
+# EN: Extra DNS host overrides for names not tied to a segment (host/domain/ip/descr/aliases).
+# RU: Доп. host overrides DNS для имён вне сегментов (host/domain/ip/descr/aliases).
+pfsense_dns_overrides_extra: []
+
+# EN: Optional Unbound Custom options block (02 §5.4). Empty -> not managed.
+# RU: Опц. блок Custom options Unbound (02 §5.4). Пусто -> не управляется.
+pfsense_unbound_custom_options: ""
+
+# EN: Force-DNS NAT redirect (02 §7). enabled=false -> not created.
+# RU: Force-DNS NAT-redirect (02 §7). enabled=false -> не создаётся.
+pfsense_force_dns:
+  enabled:       false
+  target_ip:     ""
+  target_port:   53
+  exclude_alias: DNS_STACK
+  interfaces:    []
+
+# --- Admin / certificate (values come from VARS/secrets.yaml) ----------------
+pfsense_admin_user:        admin
+pfsense_admin_bcrypt_hash: ""
+pfsense_admin_shell_access: true
+pfsense_gui_cert_refid:    ""
+pfsense_gui_cert_crt_b64:  ""
+pfsense_gui_cert_prv_b64:  ""
+
+# --- Debug -------------------------------------------------------------------
+debug_mode: false                # Bool.   Enable debug output / Включить отладочный вывод
+debug_lang: 'both'               # String. english/russian/both / Язык отладки
+debug_show_passwords: false      # Bool.   Show secrets in debug (INSECURE) / Показывать секреты

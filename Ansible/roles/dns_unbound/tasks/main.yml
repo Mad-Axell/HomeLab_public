@@ -5,10 +5,10 @@
 - name: "Assert supported OS family"
   ansible.builtin.assert:
     that:
-      - ansible_facts.os_family in supported_os_families
+      - ansible_os_family in supported_os_families
     fail_msg: >-
-      EN: Unsupported OS family '{{ ansible_facts.os_family }}'. Supported: {{ supported_os_families | join(', ') }}.
-      RU: Неподдерживаемое семейство ОС '{{ ansible_facts.os_family }}'. Поддерживаются: {{ supported_os_families | join(', ') }}.
+      EN: Unsupported OS family '{{ ansible_os_family }}'. Supported: {{ supported_os_families | join(', ') }}.
+      RU: Неподдерживаемое семейство ОС '{{ ansible_os_family }}'. Поддерживаются: {{ supported_os_families | join(', ') }}.
   tags: ['always']
 
 - name: "Install"

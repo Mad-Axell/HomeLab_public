@@ -1,0 +1,138 @@
+<?php
+/*
+ * EN: Rendered by Ansible role pfsense-config — dynamic gateway, gateway groups,
+ *     default gateway. (Static gateways are handled by pfsense_gateway module.)
+ * RU: Сгенерировано ролью Ansible pfsense-config — динамический шлюз, группы
+ *     шлюзов, шлюз по умолчанию. (Статические шлюзы — модулем pfsense_gateway.)
+ * Usage: php -f this.php <apply>   (apply: 1 = write & apply, 0 = dry-run report)
+ */
+require_once('/etc/inc/config.inc');
+require_once('/etc/inc/util.inc');
+require_once('/etc/inc/functions.inc');
+require_once('/etc/inc/gwlb.inc');
+require_once('/etc/inc/filter.inc');
+
+global $config;
+$apply   = (isset($argv[1]) && $argv[1] === '1');
+$changed = false;
+
+function set_val(&$arr, $key, $val, &$changed) {
+    $cur = isset($arr[$key]) ? (string)$arr[$key] : null;
+    if ($cur !== (string)$val) { $arr[$key] = (string)$val; $changed = true; }
+}
+/* EN: ensure a config sub-array is a numeric list / RU: привести подмассив к числовому списку */
+function as_list($v) {
+    if (!is_array($v)) { return array(); }
+    if (isset($v['name'])) { return array($v); }
+    return $v;
+}
+
+if (!is_array($config['gateways'])) { $config['gateways'] = array(); }
+
+/* ---- Dynamic gateways / Динамические шлюзы ---- */
+$items = as_list($config['gateways']['gateway_item']);
+{% for gw in pfsense_gateways | selectattr('gateway', 'equalto', 'dynamic') | list %}
+$found = false;
+foreach ($items as $k => $it) {
+    if (isset($it['name']) && $it['name'] === '{{ gw.name }}') {
+        $found = true;
+        set_val($items[$k], 'interface',  '{{ gw.interface }}', $changed);
+        set_val($items[$k], 'gateway',    'dynamic', $changed);
+        set_val($items[$k], 'ipprotocol', '{{ gw.ipprotocol | default("inet") }}', $changed);
+        set_val($items[$k], 'weight',     '{{ gw.weight | default(1) }}', $changed);
+{% if gw.monitor is defined %}
+        {# EN: external Monitor IP for a DYNAMIC WAN (02 §2.2) — playback now writes it.
+           RU: внешний Monitor IP для ДИНАМИЧЕСКОГО WAN (02 §2.2) — playback теперь его пишет. #}
+        set_val($items[$k], 'monitor',    '{{ gw.monitor }}', $changed);
+{% endif %}
+    }
+}
+if (!$found) {
+    $items[] = array(
+        'name'       => '{{ gw.name }}',
+        'interface'  => '{{ gw.interface }}',
+        'gateway'    => 'dynamic',
+        'ipprotocol' => '{{ gw.ipprotocol | default("inet") }}',
+        'weight'     => '{{ gw.weight | default(1) }}',
+{% if gw.monitor is defined %}
+        'monitor'    => '{{ gw.monitor }}',
+{% endif %}
+        'descr'      => '',
+    );
+    $changed = true;
+}
+{% endfor %}
+/* ---- Monitoring thresholds (02 §2.2) — latency/loss, matched BY NAME ----
+ * EN: Applies to ANY gateway (static created by pfsense_gateway module, or
+ *     dynamic created above) that defines a `thresholds` dict. Sets only the
+ *     keys given, so gateways without thresholds are left untouched.
+ * RU: Применяется к ЛЮБОМУ шлюзу (статический создан модулем pfsense_gateway,
+ *     или динамический выше), у которого задан dict `thresholds`. Ставит только
+ *     переданные ключи — шлюзы без порогов не трогаются.                       */
+{% for gw in pfsense_gateways | selectattr('thresholds', 'defined') | list %}
+foreach ($items as $k => $it) {
+    if (isset($it['name']) && $it['name'] === '{{ gw.name }}') {
+{% if gw.thresholds.latencylow is defined %}
+        set_val($items[$k], 'latencylow',  '{{ gw.thresholds.latencylow }}', $changed);
+{% endif %}
+{% if gw.thresholds.latencyhigh is defined %}
+        set_val($items[$k], 'latencyhigh', '{{ gw.thresholds.latencyhigh }}', $changed);
+{% endif %}
+{% if gw.thresholds.losslow is defined %}
+        set_val($items[$k], 'losslow',     '{{ gw.thresholds.losslow }}', $changed);
+{% endif %}
+{% if gw.thresholds.losshigh is defined %}
+        set_val($items[$k], 'losshigh',    '{{ gw.thresholds.losshigh }}', $changed);
+{% endif %}
+    }
+}
+{% endfor %}
+
+$config['gateways']['gateway_item'] = $items;
+
+/* ---- Gateway groups / Группы шлюзов ---- */
+$groups = as_list($config['gateways']['gateway_group']);
+{% for grp in pfsense_gateway_groups %}
+$desired_items = array(
+{% for m in grp.members %}
+    '{{ m.gateway }}|{{ m.tier }}|{{ m.vip }}'{{ ',' if not loop.last else '' }}
+{% endfor %}
+);
+$found = false;
+foreach ($groups as $k => $g) {
+    if (isset($g['name']) && $g['name'] === '{{ grp.name }}') {
+        $found = true;
+        $cur_items = isset($g['item']) ? (array)$g['item'] : array();
+        if ($cur_items !== $desired_items) { $groups[$k]['item'] = $desired_items; $changed = true; }
+        set_val($groups[$k], 'trigger',              '{{ grp.trigger }}', $changed);
+        set_val($groups[$k], 'keep_failover_states', '{{ grp.keep_failover_states }}', $changed);
+        set_val($groups[$k], 'descr',                '{{ grp.descr }}', $changed);
+    }
+}
+if (!$found) {
+    $groups[] = array(
+        'name'                 => '{{ grp.name }}',
+        'item'                 => $desired_items,
+        'trigger'              => '{{ grp.trigger }}',
+        'keep_failover_states' => '{{ grp.keep_failover_states }}',
+        'descr'                => '{{ grp.descr }}',
+    );
+    $changed = true;
+}
+{% endfor %}
+$config['gateways']['gateway_group'] = $groups;
+
+/* ---- Default gateway / Шлюз по умолчанию ---- */
+set_val($config['gateways'], 'defaultgw4', '{{ pfsense_default_gateway_v4 }}', $changed);
+set_val($config['gateways'], 'defaultgw6', '{{ pfsense_default_gateway_v6 }}', $changed);
+
+if ($changed) {
+    if ($apply) {
+        write_config("{{ pfsense_change_reason }} (gateways/groups)");
+        if (function_exists('system_routing_configure')) { system_routing_configure(); }
+        if (function_exists('filter_configure'))         { filter_configure(); }
+    }
+    echo "{{ pfsense_changed_marker }}\n";
+} else {
+    echo "{{ pfsense_unchanged_marker }}\n";
+}

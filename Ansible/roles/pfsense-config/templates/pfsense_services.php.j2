@@ -1,0 +1,60 @@
+<?php
+/*
+ * EN: Rendered by Ansible role pfsense-config — SNMP, Unbound resolver, NAT mode.
+ * RU: Сгенерировано ролью Ansible pfsense-config — SNMP, резолвер Unbound, режим NAT.
+ * Usage: php -f this.php <apply>   (apply: 1 = write & apply, 0 = dry-run report)
+ */
+require_once('/etc/inc/config.inc');
+require_once('/etc/inc/util.inc');
+require_once('/etc/inc/functions.inc');
+require_once('/etc/inc/services.inc');
+require_once('/etc/inc/filter.inc');
+
+global $config;
+$apply   = (isset($argv[1]) && $argv[1] === '1');
+$changed = false;
+
+function set_val(&$arr, $key, $val, &$changed) {
+    $cur = isset($arr[$key]) ? (string)$arr[$key] : null;
+    if ($cur !== (string)$val) { $arr[$key] = (string)$val; $changed = true; }
+}
+function set_flag(&$arr, $key, $on, &$changed) {
+    $cur = array_key_exists($key, $arr);
+    if ($on && !$cur)  { $arr[$key] = ''; $changed = true; }
+    if (!$on && $cur)  { unset($arr[$key]); $changed = true; }
+}
+
+/* ---- SNMP ---- */
+$snmp_changed = false;
+if (!is_array($config['snmpd'])) { $config['snmpd'] = array(); }
+set_val($config['snmpd'], 'rocommunity', '{{ pfsense_snmp.rocommunity }}', $snmp_changed);
+set_val($config['snmpd'], 'syslocation', '{{ pfsense_snmp.syslocation }}', $snmp_changed);
+set_val($config['snmpd'], 'syscontact',  '{{ pfsense_snmp.syscontact }}', $snmp_changed);
+set_flag($config['snmpd'], 'enable', {{ 'true' if pfsense_snmp.enable else 'false' }}, $snmp_changed);
+
+/* ---- Unbound DNS resolver ---- */
+$unbound_changed = false;
+if (!is_array($config['unbound'])) { $config['unbound'] = array(); }
+set_flag($config['unbound'], 'enable',             {{ 'true' if pfsense_unbound.enable else 'false' }}, $unbound_changed);
+set_flag($config['unbound'], 'dnssec',             {{ 'true' if pfsense_unbound.dnssec else 'false' }}, $unbound_changed);
+set_flag($config['unbound'], 'qname-minimisation', {{ 'true' if pfsense_unbound.qname_minimisation else 'false' }}, $unbound_changed);
+
+/* ---- Outbound NAT mode ---- */
+$nat_changed = false;
+if (!is_array($config['nat'])) { $config['nat'] = array(); }
+if (!is_array($config['nat']['outbound'])) { $config['nat']['outbound'] = array(); }
+set_val($config['nat']['outbound'], 'mode', '{{ pfsense_nat_outbound_mode }}', $nat_changed);
+
+$changed = ($snmp_changed || $unbound_changed || $nat_changed);
+
+if ($changed) {
+    if ($apply) {
+        write_config("{{ pfsense_change_reason }} (services)");
+        if ($snmp_changed    && function_exists('services_snmpd_configure'))  { services_snmpd_configure(); }
+        if ($unbound_changed && function_exists('services_unbound_configure')) { services_unbound_configure(); }
+        if ($nat_changed     && function_exists('filter_configure'))          { filter_configure(); }
+    }
+    echo "{{ pfsense_changed_marker }}\n";
+} else {
+    echo "{{ pfsense_unchanged_marker }}\n";
+}

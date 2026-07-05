@@ -1,0 +1,100 @@
+<?php
+/*
+ * EN: Rendered by Ansible role pfsense-config — GUI TLS cert (keeping its refid),
+ *     Web GUI ssl-certref, and the admin account (exact bcrypt hash + shell priv).
+ * RU: Сгенерировано ролью Ansible pfsense-config — GUI TLS-сертификат (с
+ *     сохранением refid), ssl-certref Web GUI и учётка admin (точный bcrypt-хеш
+ *     + shell-привилегия).
+ * Usage: php -f this.php <apply>   (apply: 1 = write & apply, 0 = dry-run report)
+ * NOTE: certificate crt/prv are stored base64-encoded, exactly as in config.xml.
+ */
+require_once('/etc/inc/config.inc');
+require_once('/etc/inc/util.inc');
+require_once('/etc/inc/functions.inc');
+
+global $config;
+$apply   = (isset($argv[1]) && $argv[1] === '1');
+$changed = false;
+
+function set_val(&$arr, $key, $val, &$changed) {
+    $cur = isset($arr[$key]) ? (string)$arr[$key] : null;
+    if ($cur !== (string)$val) { $arr[$key] = (string)$val; $changed = true; }
+}
+
+{% if pfsense_manage_certificate and pfsense_gui_cert_refid | length > 0 %}
+/* ---- GUI certificate (base64 crt/prv preserved 1:1) ---- */
+if (!is_array($config['cert'])) { $config['cert'] = array(); }
+if (isset($config['cert']['refid'])) { $config['cert'] = array($config['cert']); } /* normalize single */
+
+$cert_refid = '{{ pfsense_gui_cert_refid }}';
+$cert_found = false;
+foreach ($config['cert'] as $k => $c) {
+    if (isset($c['refid']) && $c['refid'] === $cert_refid) {
+        $cert_found = true;
+        set_val($config['cert'][$k], 'crt', '{{ pfsense_gui_cert_crt_b64 }}', $changed);
+        set_val($config['cert'][$k], 'prv', '{{ pfsense_gui_cert_prv_b64 }}', $changed);
+        set_val($config['cert'][$k], 'type', 'server', $changed);
+    }
+}
+if (!$cert_found) {
+    $config['cert'][] = array(
+        'refid' => $cert_refid,
+        'descr' => 'GUI default (' . $cert_refid . ')',
+        'type'  => 'server',
+        'crt'   => '{{ pfsense_gui_cert_crt_b64 }}',
+        'prv'   => '{{ pfsense_gui_cert_prv_b64 }}',
+    );
+    $changed = true;
+}
+
+/* ---- Web GUI references this cert ---- */
+if (!is_array($config['system']['webgui'])) { $config['system']['webgui'] = array(); }
+set_val($config['system']['webgui'], 'ssl-certref', $cert_refid, $changed);
+$cert_changed = $changed;
+{% else %}
+$cert_changed = false;
+{% endif %}
+
+{% if pfsense_manage_admin and pfsense_admin_bcrypt_hash | length > 0 %}
+/* ---- Admin account (exact bcrypt hash + shell access) ---- */
+if (!is_array($config['system']['user'])) { $config['system']['user'] = array(); }
+$admin_found = false;
+foreach ($config['system']['user'] as $k => $u) {
+    if (isset($u['name']) && $u['name'] === '{{ pfsense_admin_user }}') {
+        $admin_found = true;
+        set_val($config['system']['user'][$k], 'bcrypt-hash', '{{ pfsense_admin_bcrypt_hash }}', $changed);
+        set_val($config['system']['user'][$k], 'scope', 'system', $changed);
+        set_val($config['system']['user'][$k], 'groupname', 'admins', $changed);
+{% if pfsense_admin_shell_access %}
+        $privs = isset($config['system']['user'][$k]['priv']) ? (array)$config['system']['user'][$k]['priv'] : array();
+        if (!in_array('user-shell-access', $privs)) {
+            $privs[] = 'user-shell-access';
+            $config['system']['user'][$k]['priv'] = $privs;
+            $changed = true;
+        }
+{% endif %}
+    }
+}
+if (!$admin_found) {
+    $config['system']['user'][] = array(
+        'name'        => '{{ pfsense_admin_user }}',
+        'descr'       => 'System Administrator',
+        'scope'       => 'system',
+        'groupname'   => 'admins',
+        'uid'         => '0',
+        'priv'        => array({{ "'user-shell-access'" if pfsense_admin_shell_access else '' }}),
+        'bcrypt-hash' => '{{ pfsense_admin_bcrypt_hash }}',
+    );
+    $changed = true;
+}
+{% endif %}
+
+if ($changed) {
+    if ($apply) {
+        write_config("{{ pfsense_change_reason }} (cert/admin)");
+        if ($cert_changed && function_exists('restart_webgui')) { restart_webgui(); }
+    }
+    echo "{{ pfsense_changed_marker }}\n";
+} else {
+    echo "{{ pfsense_unchanged_marker }}\n";
+}

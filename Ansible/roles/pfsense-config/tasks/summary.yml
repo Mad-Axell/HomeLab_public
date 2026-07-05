@@ -1,0 +1,55 @@
+---
+# EN: Final bilingual summary of the desired pfSense state.
+# RU: Итоговая двуязычная сводка желаемого состояния pfSense.
+
+- name: Show summary (English)
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "pfSense Configuration Summary"
+      - "============================================================================="
+      - "Host:            {{ inventory_hostname }} ({{ ansible_host }})"
+      - "Mode:            {{ 'ENFORCE' if pfsense_apply | bool else 'CHECK-ONLY' }}"
+      - "Hostname/domain: {{ pfsense_system.hostname }}.{{ pfsense_system.domain }}"
+      - "Interfaces:      {{ pfsense_interfaces | map(attribute='descr') | join(', ') }}"
+      - "Gateways:        {{ pfsense_gateways | map(attribute='name') | join(', ') }}"
+      - "Gateway groups:  {{ pfsense_gateway_groups | map(attribute='name') | join(', ') }}"
+      - "Default GW (v4): {{ pfsense_default_gateway_v4 }}"
+      - "Aliases:         {{ pfsense_aliases | map(attribute='name') | join(', ') }}"
+      - "Firewall rules:  {{ pfsense_rules | length }}"
+      - "DHCP pools:      {{ pfsense_dhcp_servers | length }} (backend: {{ pfsense_dhcp_backend }})"
+      - "VLANs:           {{ pfsense_vlans | length }}"
+      - "Hosts (1 list):  {{ pfsense_hosts | length }} total / {{ pfsense_hosts | selectattr('mac', 'defined') | list | length }} static mappings / {{ pfsense_hosts | length + (pfsense_dns_overrides_extra | length) }} DNS overrides"
+      - "Force-DNS NAT:   {{ pfsense_force_dns.enabled | default(false) }} on {{ pfsense_force_dns.interfaces | default([]) | join(', ') }}"
+      - "SNMP enabled:    {{ pfsense_snmp.enable }}"
+      - "Admin hash:      {{ pfsense_admin_bcrypt_hash if debug_show_passwords | bool else '-- ** Use debug_show_passwords ** --' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show summary (Russian)
+  ansible.builtin.debug:
+    msg:
+      - "============================================================================="
+      - "Сводка конфигурации pfSense"
+      - "============================================================================="
+      - "Хост:            {{ inventory_hostname }} ({{ ansible_host }})"
+      - "Режим:           {{ 'ПРИМЕНЕНИЕ' if pfsense_apply | bool else 'ТОЛЬКО ПРОВЕРКА' }}"
+      - "Hostname/домен:  {{ pfsense_system.hostname }}.{{ pfsense_system.domain }}"
+      - "Интерфейсы:      {{ pfsense_interfaces | map(attribute='descr') | join(', ') }}"
+      - "Шлюзы:           {{ pfsense_gateways | map(attribute='name') | join(', ') }}"
+      - "Группы шлюзов:   {{ pfsense_gateway_groups | map(attribute='name') | join(', ') }}"
+      - "Шлюз по умолч.:  {{ pfsense_default_gateway_v4 }}"
+      - "Алиасы:          {{ pfsense_aliases | map(attribute='name') | join(', ') }}"
+      - "Правила файрвола:{{ pfsense_rules | length }}"
+      - "DHCP-пулы:       {{ pfsense_dhcp_servers | length }} (бэкенд: {{ pfsense_dhcp_backend }})"
+      - "VLAN:            {{ pfsense_vlans | length }}"
+      - "Хосты (1 список):{{ pfsense_hosts | length }} всего / {{ pfsense_hosts | selectattr('mac', 'defined') | list | length }} static mappings / {{ pfsense_hosts | length + (pfsense_dns_overrides_extra | length) }} DNS overrides"
+      - "Force-DNS NAT:   {{ pfsense_force_dns.enabled | default(false) }} на {{ pfsense_force_dns.interfaces | default([]) | join(', ') }}"
+      - "SNMP включён:    {{ pfsense_snmp.enable }}"
+      - "Хеш admin:       {{ pfsense_admin_bcrypt_hash if debug_show_passwords | bool else '-- ** Use debug_show_passwords ** --' }}"
+      - "============================================================================="
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

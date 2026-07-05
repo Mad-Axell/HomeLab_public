@@ -10,33 +10,3 @@
     mode: "0644"
     validate: "unbound-checkconf %s"
   notify: unbound_restart
-
-- name: "Force unbound to use managed config via DAEMON_OPTS"
-  ansible.builtin.lineinfile:
-    path: /etc/default/unbound
-    regexp: '^DAEMON_OPTS='
-    line: 'DAEMON_OPTS="-c {{ unbound_config_path }}"'
-    create: true
-    owner: root
-    group: root
-    mode: "0644"
-  notify: unbound_restart
-
-- name: "Ensure systemd override directory exists for unbound"
-  ansible.builtin.file:
-    path: /etc/systemd/system/unbound.service.d
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: "Force DAEMON_OPTS in unbound systemd override"
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/unbound.service.d/override.conf
-    owner: root
-    group: root
-    mode: "0644"
-    content: |
-      [Service]
-      Environment="DAEMON_OPTS=-c {{ unbound_config_path }}"
-  notify: unbound_restart

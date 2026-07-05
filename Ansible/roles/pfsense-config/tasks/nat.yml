@@ -1,0 +1,65 @@
+---
+# EN: Force-DNS — NAT port-forward redirecting client :53 to the DNS stack
+#     (AdGuard) via pfsensible.core.pfsense_nat_port_forward (02 §7).
+#     One rule per client interface. The destination is INVERTED (!DNS_STACK)
+#     so the resolver's own traffic is not redirected into itself.
+#     associated_rule=pass auto-creates the matching firewall pass rule, so no
+#     separate pfsense_rule entry is needed.
+#     Requires the DNS_STACK alias (defined in aliases, applied before this).
+# RU: Force-DNS — NAT port-forward, заворачивающий клиентский :53 на DNS-стек
+#     (AdGuard) через pfsensible.core.pfsense_nat_port_forward (02 §7).
+#     По правилу на клиентский интерфейс. destination ИНВЕРТИРОВАН (!DNS_STACK),
+#     чтобы трафик самого резолвера не заворачивался в себя.
+#     associated_rule=pass создаёт соответствующее pass-правило файрвола
+#     автоматически — отдельная запись pfsense_rule не нужна.
+#     Требует алиас DNS_STACK (задаётся в aliases, применяется раньше).
+
+- name: Configure force-DNS NAT redirects
+  block:
+    - name: Ensure force-DNS port-forward exists per client interface
+      # EN: ports are embedded in destination/target strings ([!]ALIAS[:port], IP[:port]).
+      # RU: порты встроены в строки destination/target ([!]ALIAS[:port], IP[:port]).
+      pfsensible.core.pfsense_nat_port_forward:
+        descr:           "force-dns {{ item }}"
+        interface:       "{{ item }}"
+        protocol:        tcp/udp
+        source:          any
+        destination:     "!{{ pfsense_force_dns.exclude_alias }}:{{ pfsense_force_dns.target_port | default(53) }}"
+        target:          "{{ pfsense_force_dns.target_ip }}:{{ pfsense_force_dns.target_port | default(53) }}"
+        associated_rule: pass
+        state: present
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      loop: "{{ pfsense_force_dns.interfaces | default([]) }}"
+      loop_control:
+        label: "force-dns on {{ item }} -> {{ pfsense_force_dns.target_ip }}:{{ pfsense_force_dns.target_port | default(53) }}"
+      register: pfsense_forcedns_result
+      notify: reload filter
+      when: pfsense_force_dns.enabled | default(false) | bool
+
+  rescue:
+    - name: Report force-DNS NAT failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure force-DNS NAT. Check the DNS_STACK alias exists
+              and pfsense_force_dns.interfaces are valid pfSense interface ids.
+          RU: Не удалось настроить force-DNS NAT. Проверьте, что алиас DNS_STACK
+              существует и pfsense_force_dns.interfaces — валидные id интерфейсов.
+  tags: ['nat', 'force-dns', 'firewall']
+
+- name: Show force-DNS change status (English)
+  ansible.builtin.debug:
+    msg: >-
+      Force-DNS NAT changed: {{ pfsense_forcedns_result.changed | default(false) }}
+      (enabled={{ pfsense_force_dns.enabled | default(false) }}, apply={{ pfsense_apply }})
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show force-DNS change status (Russian)
+  ansible.builtin.debug:
+    msg: >-
+      Force-DNS NAT изменён: {{ pfsense_forcedns_result.changed | default(false) }}
+      (enabled={{ pfsense_force_dns.enabled | default(false) }}, apply={{ pfsense_apply }})
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

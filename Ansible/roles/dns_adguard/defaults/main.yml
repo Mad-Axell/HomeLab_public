@@ -1,5 +1,6 @@
 ---
 # EN: Default, overridable variables / RU: Настраиваемые переменные по умолчанию
+# EN: Synced from production adguard (172.25.26.11) / RU: Синхронизировано с prod adguard
 
 # Service / Сервис
 adguard_service_state: started   # String. started/stopped/restarted / Состояние сервиса
@@ -9,16 +10,17 @@ adguard_service_enabled: true    # Bool.   Enable on boot / Автозапуск
 adguard_install_dir: "/opt/AdGuardHome"
 adguard_log_dir: "/var/log/AdGuardHome"
 
-# EN: Distribution URL is chosen in tasks from adguard_version (host_vars/adguard.yml).
-#     We use GitHub releases for BOTH 'latest' and pinned versions: static.adguard.com
-#     is served via a CDN (*.qrcdn.net) whose TLS handshake black-holes from some
-#     networks, while GitHub release assets are reliably reachable here.
-# RU: URL дистрибутива формируется в tasks из adguard_version (host_vars/adguard.yml).
-#     Используем GitHub releases и для 'latest', и для закреплённых версий:
-#     static.adguard.com отдаётся через CDN (*.qrcdn.net), чей TLS-handshake местами
-#     не проходит, а ассеты релизов GitHub стабильно доступны.
-adguard_latest_url: "https://github.com/AdguardTeam/AdGuardHome/releases/latest/download/AdGuardHome_linux_amd64.tar.gz"
+# EN: Distribution URL is chosen in tasks from adguard_version (host_vars/adguard.yml)
+# RU: URL дистрибутива формируется в tasks из adguard_version (host_vars/adguard.yml)
+adguard_latest_url: "https://static.adguard.com/adguardhome/release/AdGuardHome_linux_amd64.tar.gz"
 adguard_github_url: "https://github.com/AdguardTeam/AdGuardHome/releases/download/{{ adguard_version }}/AdGuardHome_linux_amd64.tar.gz"
+
+# EN: Web UI / RU: Веб-интерфейс
+adguard_http_session_ttl: "30d"
+adguard_auth_attempts: 5
+adguard_block_auth_min: 15
+adguard_language: "ru"
+adguard_theme: "dark"
 
 # EN: Bootstrap resolvers (used ONLY for DoH/DoT upstreams; our upstream is plain
 #     127.0.0.1:5335, but AdGuard still requires a valid bootstrap)
@@ -30,21 +32,58 @@ adguard_bootstrap_dns:
 
 adguard_ratelimit: 50
 
-# EN: Blocklists (id/url/name). Verify current ids in HostlistsRegistry.
-# RU: Блок-листы (id/url/name). Проверь актуальные id в HostlistsRegistry.
-adguard_filters:
-  - { id: 1,   enabled: true, name: "AdGuard DNS filter",        url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt" }
-  - { id: 2,   enabled: true, name: "AdAway Default Blocklist",  url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt" }
-  - { id: 50,  enabled: true, name: "HaGeZi Pro",                url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_50.txt" }
-  - { id: 100, enabled: true, name: "EasyPrivacy",               url: "https://easylist-downloads.adblockplus.org/easyprivacy.txt" }
-  - { id: 200, enabled: true, name: "No-DoH bypass blocklist",   url: "https://raw.githubusercontent.com/dec0dOS/no-doh-servers/master/dns_blocklist_adblock.txt" }
+# EN: DNS cache / RU: DNS-кэш
+adguard_cache_enabled: true
+adguard_cache_size: 4194304
 
-# EN: Private networks for PTR (without 172.16.0.0/12 PTR for 172.20/25/30 fails)
-# RU: Приватные сети для PTR (без 172.16.0.0/12 PTR на 172.20/25/30 не пойдёт)
+# EN: Query log & statistics / RU: Query log и статистика
+adguard_querylog_interval: "90d"
+adguard_statistics_interval: "1d"
+
+# EN: Application log / RU: Лог приложения
+adguard_log_max_age: 3
+adguard_log_compress: false
+
+# EN: Filtering / RU: Фильтрация
+adguard_safebrowsing_enabled: false
+
+# EN: First-run SEED for AdGuardHome.yaml schema_version. After the first start the
+#     role auto-adopts whatever schema the installed binary migrated to (see
+#     tasks/configure.yml), so this matters only on a brand-new install.
+# RU: СИД schema_version для первого деплоя. После первого старта роль сама принимает
+#     схему, на которую мигрировал установленный бинарь (см. tasks/configure.yml).
+adguard_schema_version: 34
+
+# EN: Blocklists — runtime ids from production server (172.25.26.11).
+#     On a fresh install AdGuard may reassign ids; role preserves live ids when present.
+# RU: Блок-листы — runtime id с prod-сервера. На чистой установке AdGuard может
+#     переназначить id; роль сохраняет live id при повторном деплое.
+adguard_filters:
+  - { id: 1782056287, enabled: true, name: "HaGeZi's Ultimate Blocklist",                  url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_49.txt" }
+  - { id: 1782056288, enabled: true, name: "AdGuard DNS filter",                           url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt" }
+  - { id: 1782056289, enabled: true, name: "AdGuard DNS Popup Hosts filter",               url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_59.txt" }
+  - { id: 1782056290, enabled: true, name: "HaGeZi's Anti-Piracy Blocklist",               url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_46.txt" }
+  - { id: 1782056291, enabled: true, name: "HaGeZi's Apple Tracker Blocklist",             url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_67.txt" }
+  - { id: 1782056292, enabled: true, name: "HaGeZi's Gambling Blocklist",                  url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_47.txt" }
+  - { id: 1782056293, enabled: true, name: "HaGeZi's OPPO & Realme Tracker Blocklist",     url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_66.txt" }
+  - { id: 1782056294, enabled: true, name: "HaGeZi's Samsung Tracker Blocklist",           url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_61.txt" }
+  - { id: 1782056295, enabled: true, name: "HaGeZi's Vivo Tracker Blocklist",              url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_65.txt" }
+  - { id: 1782056296, enabled: true, name: "HaGeZi's Windows/Office Tracker Blocklist",    url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_63.txt" }
+  - { id: 1782056297, enabled: true, name: "HaGeZi's Xiaomi Tracker Blocklist",            url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_60.txt" }
+  - { id: 1782056298, enabled: true, name: "Phishing URL Blocklist (PhishTank and OpenPhish)", url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_30.txt" }
+  - { id: 1782056299, enabled: true, name: "Dandelion Sprout's Anti-Malware List",         url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_12.txt" }
+  - { id: 1782056300, enabled: true, name: "HaGeZi's Badware Hoster Blocklist",            url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_55.txt" }
+  - { id: 1782056301, enabled: true, name: "HaGeZi's DNS Rebind Protection",               url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_71.txt" }
+  - { id: 1782056302, enabled: true, name: "HaGeZi's DynDNS Blocklist",                    url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_54.txt" }
+  - { id: 1782056303, enabled: true, name: "HaGeZi's Encrypted DNS/VPN/TOR/Proxy Bypass",  url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_52.txt" }
+  - { id: 1782056304, enabled: true, name: "HaGeZi's Threat Intelligence Feeds",           url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_44.txt" }
+  - { id: 1782056305, enabled: true, name: "HaGeZi's URL Shortener Blocklist",             url: "https://adguardteam.github.io/HostlistsRegistry/assets/filter_68.txt" }
+
+# EN: Private networks for PTR (production: 10/8 + 172.16/12 only)
+# RU: Приватные сети для PTR (prod: только 10/8 + 172.16/12)
 adguard_private_networks:
   - "10.0.0.0/8"
   - "172.16.0.0/12"
-  - "192.168.0.0/16"
 
 # Debug / Отладка
 debug_mode: false                # Bool.   Enable debug output / Включить отладочный вывод

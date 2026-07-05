@@ -1,26 +1,36 @@
-### EN: managed by Ansible (role: adguard_home) — do NOT edit via the UI
-### RU: управляется Ansible (роль: adguard_home) — НЕ редактировать через UI
+### EN: managed by Ansible (role: dns_adguard) — do NOT edit via the UI
+### RU: управляется Ansible (роль: dns_adguard) — НЕ редактировать через UI
 http:
   pprof:
     port: 6060
     enabled: false
+  doh:
+    routes:
+      - GET /dns-query
+      - POST /dns-query
+      - GET /dns-query/{ClientID}
+      - POST /dns-query/{ClientID}
+    insecure_enabled: false
   address: 0.0.0.0:{{ adguard_web_port }}
-  session_ttl: 720h
-
+  session_ttl: {{ adguard_http_session_ttl }}
 users:
   - name: {{ adguard_admin_user }}
     password: "{{ adguard_admin_password_hash }}"
-
+auth_attempts: {{ adguard_auth_attempts }}
+block_auth_min: {{ adguard_block_auth_min }}
+http_proxy: ""
+language: {{ adguard_language }}
+theme: {{ adguard_theme }}
 dns:
   bind_hosts:
     - 0.0.0.0
   port: 53
   anonymize_client_ip: false
-  protection_enabled: true
-  blocking_mode: default
-  blocked_response_ttl: 10
-
-  # Upstream → Unbound на этом же хосте
+  ratelimit: {{ adguard_ratelimit }}
+  ratelimit_subnet_len_ipv4: 24
+  ratelimit_subnet_len_ipv6: 56
+  ratelimit_whitelist: []
+  refuse_any: true
   upstream_dns:
     - 127.0.0.1:{{ dns.unbound_local_port }}
   upstream_dns_file: ""
@@ -31,60 +41,137 @@ dns:
   fallback_dns: []
   upstream_mode: load_balance
   fastest_timeout: 1s
-
-  # Private reverse DNS — имена клиентов в логах
-  use_private_ptr_resolvers: true
-  local_ptr_upstreams:
-    - 127.0.0.1:{{ dns.unbound_local_port }}
-  resolve_clients: true
-
+  allowed_clients: []
+  disallowed_clients: []
+  blocked_hosts:
+    - version.bind
+    - id.server
+    - hostname.bind
+  trusted_proxies:
+    - 127.0.0.0/8
+    - ::1/128
+  cache_enabled: {{ adguard_cache_enabled | lower }}
+  cache_size: {{ adguard_cache_size }}
+  cache_ttl_min: 0
+  cache_ttl_max: 0
+  cache_optimistic: false
+  cache_optimistic_answer_ttl: 30s
+  cache_optimistic_max_age: 12h
+  bogus_nxdomain: []
+  aaaa_disabled: false
+  enable_dnssec: true
+  edns_client_subnet:
+    custom_ip: ""
+    enabled: false
+    use_custom: false
+  max_goroutines: 300
+  handle_ddr: true
+  ipset: []
+  ipset_file: ""
+  bootstrap_prefer_ipv6: false
+  upstream_timeout: 10s
   private_networks:
 {% for net in adguard_private_networks %}
     - {{ net }}
 {% endfor %}
-
-  # Фильтрация
-  filtering_enabled: true
-  filters_update_interval: 24
-  parental_enabled: false
-  safesearch_enabled: false
-  safebrowsing_enabled: true
-
-  # DNSSEC и privacy
-  enable_dnssec: true
-  edns_client_subnet:
-    enabled: false
-  max_goroutines: 300
-
-  # Ratelimit
-  ratelimit: {{ adguard_ratelimit }}
-  ratelimit_subnet_len_ipv4: 24
-  ratelimit_subnet_len_ipv6: 56
-  ratelimit_whitelist: []
-
-  # Логирование
-  querylog:
+  use_private_ptr_resolvers: true
+  local_ptr_upstreams:
+    - 127.0.0.1:{{ dns.unbound_local_port }}
+  use_dns64: false
+  dns64_prefixes: []
+  serve_http3: false
+  use_http3_upstreams: false
+  serve_plain_dns: true
+  hostsfile_enabled: true
+  pending_requests:
     enabled: true
-    file_enabled: true
-    interval: 90d
-    size_memory: 1000
-    ignored: []
-  statistics:
-    enabled: true
-    interval: 90d
-    ignored: []
-
+tls:
+  enabled: false
+  server_name: ""
+  force_https: false
+  port_https: 443
+  port_dns_over_tls: 853
+  port_dns_over_quic: 853
+  port_dnscrypt: 0
+  dnscrypt_config_file: ""
+  certificate_chain: ""
+  private_key: ""
+  certificate_path: ""
+  private_key_path: ""
+  strict_sni_check: false
+querylog:
+  dir_path: ""
+  ignored: []
+  interval: {{ adguard_querylog_interval }}
+  size_memory: 1000
+  enabled: true
+  ignored_enabled: false
+  file_enabled: true
+statistics:
+  dir_path: ""
+  ignored: []
+  interval: {{ adguard_statistics_interval }}
+  enabled: true
+  ignored_enabled: false
 filters:
 {% for f in adguard_filters %}
   - enabled: {{ f.enabled | lower }}
     url: {{ f.url }}
-    name: {{ f.name }}
+    name: "{{ f.name }}"
     id: {{ f.id }}
 {% endfor %}
-
 whitelist_filters: []
 user_rules: []
-
+dhcp:
+  enabled: false
+  interface_name: ""
+  local_domain_name: lan
+  dhcpv4:
+    gateway_ip: ""
+    subnet_mask: ""
+    range_start: ""
+    range_end: ""
+    lease_duration: 86400
+    icmp_timeout_msec: 1000
+    options: []
+  dhcpv6:
+    range_start: ""
+    lease_duration: 86400
+    ra_slaac_only: false
+    ra_allow_slaac: false
+filtering:
+  blocking_ipv4: ""
+  blocking_ipv6: ""
+  blocked_services:
+    schedule:
+      time_zone: Local
+    ids: []
+  protection_disabled_until: null
+  safe_search:
+    enabled: false
+    bing: true
+    duckduckgo: true
+    ecosia: true
+    google: true
+    pixabay: true
+    yandex: true
+    youtube: true
+  blocking_mode: default
+  parental_block_host: family-block.dns.adguard.com
+  safebrowsing_block_host: standard-block.dns.adguard.com
+  rewrites: []
+  safe_fs_patterns: []
+  safebrowsing_cache_size: 1048576
+  safesearch_cache_size: 1048576
+  parental_cache_size: 1048576
+  cache_time: 30
+  filters_update_interval: 24
+  blocked_response_ttl: 10
+  filtering_enabled: true
+  rewrites_enabled: true
+  parental_enabled: false
+  safebrowsing_enabled: {{ adguard_safebrowsing_enabled | lower }}
+  protection_enabled: true
 clients:
   runtime_sources:
     whois: false
@@ -93,20 +180,15 @@ clients:
     dhcp: false
     hosts: true
   persistent: []
-
-dhcp:
-  enabled: false   # DHCP исключительно на pfSense
-
-tls:
-  enabled: false   # DoT/DoH — после появления внутреннего CA
-
-log_file: {{ adguard_log_dir }}/access.log
-log_max_backups: 0
-log_max_size: 100
-log_max_age: 7
-log_compress: true
-log_localtime: false
-verbose: false
+log:
+  enabled: true
+  file: ""
+  max_backups: 0
+  max_size: 100
+  max_age: {{ adguard_log_max_age }}
+  compress: {{ adguard_log_compress | lower }}
+  local_time: false
+  verbose: false
 os:
   group: ""
   user: ""

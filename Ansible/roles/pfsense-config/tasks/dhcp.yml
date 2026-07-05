@@ -1,0 +1,50 @@
+---
+# EN: DHCP server (kea backend) — no native module, handled by idempotent PHP
+#     playback (per-interface pool range, DNS servers, enable flag, backend).
+# RU: DHCP-сервер (бэкенд kea) — нет нативного модуля, настраивается идемпотентным
+#     PHP playback (диапазон пула на интерфейс, DNS-серверы, флаг enable, бэкенд).
+
+- name: Configure DHCP server
+  block:
+    - name: Render DHCP PHP playback
+      ansible.builtin.template:
+        src: pfsense_dhcp.php.j2
+        dest: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.dhcp }}"
+        mode: "0600"
+
+    - name: Apply DHCP server configuration
+      ansible.builtin.command:
+        cmd: >-
+          {{ pfsense_php_bin }} -d include_path={{ pfsense_inc_path }}
+          -f {{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.dhcp }}
+          {{ '1' if pfsense_apply | bool else '0' }}
+      register: pfsense_dhcp_run
+      changed_when: pfsense_changed_marker in pfsense_dhcp_run.stdout
+      failed_when: pfsense_dhcp_run.rc != 0
+
+    - name: Remove rendered DHCP PHP playback
+      ansible.builtin.file:
+        path: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.dhcp }}"
+        state: absent
+
+  rescue:
+    - name: Report DHCP failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure DHCP server.
+          RU: Не удалось настроить DHCP-сервер.
+  tags: ['dhcp']
+
+- name: Show DHCP change status (English)
+  ansible.builtin.debug:
+    msg: "DHCP changed: {{ pfsense_changed_marker in pfsense_dhcp_run.stdout }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show DHCP change status (Russian)
+  ansible.builtin.debug:
+    msg: "DHCP изменён: {{ pfsense_changed_marker in pfsense_dhcp_run.stdout }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

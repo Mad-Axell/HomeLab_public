@@ -2,6 +2,33 @@
 # EN: Render the full declarative AdGuard config (role owns the whole file)
 # RU: Полный декларативный конфиг AdGuard (роль владеет файлом целиком)
 
+# EN: schema_version must never exceed the INSTALLED binary's schema (too low is safe
+#     — AdGuard migrates up; too high and it refuses to start). So we don't hard-pin
+#     it: read back the value the running AdGuard settled on and reuse it.
+#     `adguard_schema_version` (role default) is only the first-run seed.
+# RU: schema_version не должен превышать схему УСТАНОВЛЕННОГО бинаря (меньше — ок,
+#     AdGuard мигрирует вверх; больше — не стартует). Поэтому не пиним жёстко: читаем
+#     значение, на котором остановился живой AdGuard, и переиспользуем его.
+#     `adguard_schema_version` (дефолт роли) — лишь сид для первого деплоя.
+- name: "Detect installed AdGuard version"
+  ansible.builtin.command: "{{ adguard_binary }} --version"
+  register: adguard_version_out
+  changed_when: false
+  failed_when: false
+
+- name: "Read schema_version from the live config (if it already exists)"
+  ansible.builtin.slurp:
+    src: "{{ adguard_config_path }}"
+  register: adguard_live_cfg
+  failed_when: false
+
+- name: "Adopt the schema_version AdGuard settled on (else keep first-run seed)"
+  ansible.builtin.set_fact:
+    adguard_schema_version: "{{ (adguard_live_cfg.content | b64decode | regex_search('schema_version:\\s*(\\d+)', '\\1')) | int }}"
+  when:
+    - adguard_live_cfg.content is defined
+    - adguard_live_cfg.content | b64decode | regex_search('schema_version:\\s*\\d+') is not none
+
 # EN: Syntax-validated by the AdGuard binary before replacing. no_log because the
 #     rendered file embeds the admin password hash.
 # RU: Валидация синтаксиса бинарём AdGuard перед заменой. no_log, т.к. отрендеренный

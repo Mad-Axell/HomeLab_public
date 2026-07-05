@@ -1,0 +1,43 @@
+---
+# EN: General system settings via the native pfsensible.core.pfsense_setup module.
+# RU: Общие системные настройки через нативный модуль pfsensible.core.pfsense_setup.
+# EN: check_mode follows pfsense_apply: false -> report only, true -> enforce.
+# RU: check_mode зависит от pfsense_apply: false -> только отчёт, true -> применять.
+
+- name: Configure system setup
+  block:
+    - name: Apply system setup (hostname, domain, DNS, time, language)
+      pfsensible.core.pfsense_setup:
+        hostname:        "{{ pfsense_system.hostname }}"
+        domain:          "{{ pfsense_system.domain }}"
+        timezone:        "{{ pfsense_system.timezone }}"
+        timeservers:     "{{ pfsense_system.timeservers }}"
+        language:        "{{ pfsense_system.language }}"
+        dnsserver:       "{{ pfsense_system.dns_servers }}"
+        dnsallowoverride: "{{ pfsense_system.dns_allow_override }}"
+        dns1gw:          "{{ pfsense_system.dns1_gateway | default('none') }}"
+        dns2gw:          "{{ pfsense_system.dns2_gateway | default('none') }}"
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      register: pfsense_setup_result
+
+  rescue:
+    - name: Report system setup failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to apply pfSense system setup. Check connectivity and pfsensible.core install.
+          RU: Не удалось применить системные настройки pfSense. Проверьте связь и установку pfsensible.core.
+  tags: ['system']
+
+- name: Show system change status (English)
+  ansible.builtin.debug:
+    msg: "System setup changed: {{ pfsense_setup_result.changed }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show system change status (Russian)
+  ansible.builtin.debug:
+    msg: "Системные настройки изменены: {{ pfsense_setup_result.changed }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

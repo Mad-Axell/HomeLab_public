@@ -1,0 +1,22 @@
+---
+# EN: Static role variables (do not override) / RU: Статичные переменные роли
+
+# EN: pfSense binaries and paths used for PHP playback of settings without a module.
+# RU: Бинарники и пути pfSense для PHP playback настроек, у которых нет модуля.
+pfsense_php_bin:        /usr/local/bin/php
+pfsense_remote_tmp_dir: /tmp
+pfsense_inc_path:       ".:/etc/inc:/etc/inc/priv:/usr/local/pkg:/usr/local/www:/usr/local/captiveportal"
+
+# EN: PHP playback scripts rendered by the role and executed on the router.
+# RU: PHP playback-скрипты, рендерятся ролью и выполняются на роутере.
+pfsense_playbacks:
+  cert_admin:  pfsense_cert_admin.php
+  gateways:    pfsense_gateways.php
+  dhcp:        pfsense_dhcp.php
+  services:    pfsense_services.php   # EN: snmp + unbound + nat / RU: snmp + unbound + nat
+  advanced:    pfsense_advanced.php   # EN: system tunables + webgui / RU: системные тюнеры + webgui
+
+# EN: Marker the PHP scripts print so Ansible can detect a real change.
+# RU: Маркер, который печатают PHP-скрипты, чтобы Ansible определил реальное изменение.
+pfsense_changed_marker:   "PFSENSE_CHANGED"
+pfsense_unchanged_marker: "PFSENSE_UNCHANGED"

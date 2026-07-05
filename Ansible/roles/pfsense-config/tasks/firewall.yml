@@ -1,0 +1,67 @@
+---
+# EN: Firewall rules via pfsensible.core.pfsense_rule. Rules are matched by
+#     (descr + interface); 'protocol: any' means no L4 protocol restriction.
+# RU: Правила файрвола через pfsensible.core.pfsense_rule. Правила сопоставляются
+#     по (descr + interface); 'protocol: any' — без ограничения по L4-протоколу.
+
+- name: Configure firewall rules
+  block:
+    - name: Ensure firewall rules exist
+      pfsensible.core.pfsense_rule:
+        name:        "{{ item.descr }}"
+        interface:   "{{ item.interface }}"
+        action:      "{{ item.action | default('pass') }}"
+        ipprotocol:  "{{ item.ipprotocol | default('inet') }}"
+        protocol:    "{{ item.protocol | default('any') }}"
+        source:      "{{ item.source | default('any') }}"
+        destination: "{{ item.destination | default('any') }}"
+        statetype:   "{{ item.statetype | default('keep state') }}"
+        log:         "{{ item.log | default(omit) }}"
+        disabled:    "{{ item.disabled | default(omit) }}"
+        # EN: optional extras — only sent when defined, so existing simple rules
+        #     are untouched (floating rules §6.3, policy routing via a gateway/
+        #     gateway-group §6.2, L4 port match, explicit ordering).
+        # RU: опц. поля — отправляются только если заданы, поэтому существующие
+        #     простые правила не меняются (floating §6.3, policy-routing через
+        #     шлюз/группу §6.2, L4-порты, явный порядок).
+        floating:         "{{ item.floating | default(omit) }}"
+        direction:        "{{ item.direction | default(omit) }}"
+        quick:            "{{ item.quick | default(omit) }}"
+        gateway:          "{{ item.gateway | default(omit) }}"
+        source_port:      "{{ item.source_port | default(omit) }}"
+        destination_port: "{{ item.destination_port | default(omit) }}"
+        after:            "{{ item.after | default(omit) }}"
+        before:           "{{ item.before | default(omit) }}"
+        # EN: per-item state (default present). state: absent removes a leftover
+        #     rule by descr+interface — used to drop live allow-all rules on migration.
+        # RU: per-item state (по умолчанию present). state: absent удаляет остаточное
+        #     правило по descr+interface — для сноса live allow-all при миграции.
+        state: "{{ item.state | default('present') }}"
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      loop: "{{ pfsense_rules }}"
+      loop_control:
+        label: "{{ item.interface }}: {{ item.descr }}"
+      register: pfsense_rule_result
+      notify: reload filter
+
+  rescue:
+    - name: Report firewall rule failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure firewall rules. Check interface names and aliases.
+          RU: Не удалось настроить правила файрвола. Проверьте имена интерфейсов и алиасы.
+  tags: ['rules', 'firewall']
+
+- name: Show firewall change status (English)
+  ansible.builtin.debug:
+    msg: "Firewall rules changed: {{ pfsense_rule_result.changed }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show firewall change status (Russian)
+  ansible.builtin.debug:
+    msg: "Правила файрвола изменены: {{ pfsense_rule_result.changed }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

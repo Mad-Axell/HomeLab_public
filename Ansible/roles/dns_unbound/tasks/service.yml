@@ -3,28 +3,14 @@
 
 - name: "Manage and verify Unbound service"
   block:
-    - name: "Reload systemd units to pick up the DAEMON_OPTS override"
-      ansible.builtin.systemd:
-        daemon_reload: true
-      changed_when: false
-
-    - name: "Clear failed / start-limit state for unbound"
-      ansible.builtin.command: "systemctl reset-failed {{ unbound_service_name }}"
-      changed_when: false
-      failed_when: false
-
-    - name: "Reboot container before unbound readiness check"
-      ansible.builtin.reboot:
-        msg: "Ansible: rebooting to finalize unbound startup"
-        reboot_timeout: 600
-        post_reboot_delay: 10
-
     - name: "Manage service state"
       ansible.builtin.systemd:
         name: "{{ unbound_service_name }}"
         state: "{{ unbound_service_state }}"
         enabled: "{{ unbound_service_enabled }}"
 
+    # EN: Apply queued config restart before the health check
+    # RU: Применить отложенный рестарт конфигурации до проверки здоровья
     - name: "Apply pending restarts"
       ansible.builtin.meta: flush_handlers
 

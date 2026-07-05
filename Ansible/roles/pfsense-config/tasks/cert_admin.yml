@@ -1,0 +1,44 @@
+---
+# EN: GUI TLS certificate (preserving its refid) and the admin account
+#     (exact bcrypt hash + shell privilege). No native module covers the exact
+#     refid/hash 1:1, so an idempotent PHP playback script is used.
+# RU: GUI TLS-сертификат (с сохранением refid) и учётка admin (точный
+#     bcrypt-хеш + shell-привилегия). Нативный модуль не держит refid/хеш 1:1,
+#     поэтому используется идемпотентный PHP playback-скрипт.
+
+- name: Render certificate/admin PHP playback
+  ansible.builtin.template:
+    src: pfsense_cert_admin.php.j2
+    dest: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.cert_admin }}"
+    mode: "0600"
+  no_log: true
+
+- name: Apply certificate and admin account
+  ansible.builtin.command:
+    cmd: >-
+      {{ pfsense_php_bin }} -d include_path={{ pfsense_inc_path }}
+      -f {{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.cert_admin }}
+      {{ '1' if pfsense_apply | bool else '0' }}
+  register: pfsense_cert_admin_run
+  changed_when: pfsense_changed_marker in pfsense_cert_admin_run.stdout
+  failed_when: pfsense_cert_admin_run.rc != 0
+  no_log: true
+
+- name: Remove rendered certificate/admin PHP playback
+  ansible.builtin.file:
+    path: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.cert_admin }}"
+    state: absent
+
+- name: Show certificate/admin change status (English)
+  ansible.builtin.debug:
+    msg: "Certificate/admin changed: {{ pfsense_changed_marker in pfsense_cert_admin_run.stdout }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show certificate/admin change status (Russian)
+  ansible.builtin.debug:
+    msg: "Сертификат/admin изменён: {{ pfsense_changed_marker in pfsense_cert_admin_run.stdout }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

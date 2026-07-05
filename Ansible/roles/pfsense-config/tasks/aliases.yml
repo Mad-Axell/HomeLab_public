@@ -1,0 +1,41 @@
+---
+# EN: Firewall aliases via pfsensible.core.pfsense_alias.
+# RU: Алиасы файрвола через pfsensible.core.pfsense_alias.
+
+- name: Configure aliases
+  block:
+    - name: Ensure aliases exist
+      pfsensible.core.pfsense_alias:
+        name:    "{{ item.name }}"
+        type:    "{{ item.type }}"
+        address: "{{ item.address }}"
+        descr:   "{{ item.descr | default(omit) }}"
+        state: present
+      check_mode: "{{ not (pfsense_apply | bool) }}"
+      loop: "{{ pfsense_aliases }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: pfsense_alias_result
+      notify: reload filter
+
+  rescue:
+    - name: Report alias failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure aliases.
+          RU: Не удалось настроить алиасы.
+  tags: ['aliases']
+
+- name: Show alias change status (English)
+  ansible.builtin.debug:
+    msg: "Aliases changed: {{ pfsense_alias_result.changed }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show alias change status (Russian)
+  ansible.builtin.debug:
+    msg: "Алиасы изменены: {{ pfsense_alias_result.changed }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

@@ -1,0 +1,9 @@
+---
+# EN: Role handlers / RU: Обработчики роли
+
+# EN: Reload the firewall filter after rule/alias/interface changes.
+# RU: Перечитать фильтр файрвола после изменения правил/алиасов/интерфейсов.
+- name: reload filter
+  ansible.builtin.command: "{{ pfsense_php_bin }} -r 'require_once(\"/etc/inc/filter.inc\"); filter_configure_sync();'"
+  changed_when: false
+  when: pfsense_apply | bool

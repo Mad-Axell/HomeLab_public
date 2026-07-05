@@ -1,0 +1,52 @@
+---
+# EN: Advanced system tunables + Web GUI presentation — no native module,
+#     handled by idempotent PHP playback (NAT reflection, table entries, powerd,
+#     bogons, RRD, optimization, GUI theme/columns, etc.).
+# RU: Расширенные системные тюнеры + внешний вид Web GUI — нет нативного модуля,
+#     настраиваются идемпотентным PHP playback (NAT reflection, table entries,
+#     powerd, bogons, RRD, оптимизация, тема/колонки GUI и т.д.).
+
+- name: Configure advanced tunables and Web GUI
+  block:
+    - name: Render advanced PHP playback
+      ansible.builtin.template:
+        src: pfsense_advanced.php.j2
+        dest: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.advanced }}"
+        mode: "0600"
+
+    - name: Apply advanced tunables and Web GUI
+      ansible.builtin.command:
+        cmd: >-
+          {{ pfsense_php_bin }} -d include_path={{ pfsense_inc_path }}
+          -f {{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.advanced }}
+          {{ '1' if pfsense_apply | bool else '0' }}
+      register: pfsense_advanced_run
+      changed_when: pfsense_changed_marker in pfsense_advanced_run.stdout
+      failed_when: pfsense_advanced_run.rc != 0
+
+    - name: Remove rendered advanced PHP playback
+      ansible.builtin.file:
+        path: "{{ pfsense_remote_tmp_dir }}/{{ pfsense_playbacks.advanced }}"
+        state: absent
+
+  rescue:
+    - name: Report advanced configuration failure
+      ansible.builtin.fail:
+        msg: |
+          EN: Failed to configure advanced tunables / Web GUI.
+          RU: Не удалось настроить расширенные тюнеры / Web GUI.
+  tags: ['advanced']
+
+- name: Show advanced change status (English)
+  ansible.builtin.debug:
+    msg: "Advanced/GUI changed: {{ pfsense_changed_marker in pfsense_advanced_run.stdout }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['english', 'both']
+
+- name: Show advanced change status (Russian)
+  ansible.builtin.debug:
+    msg: "Расширенные/GUI изменены: {{ pfsense_changed_marker in pfsense_advanced_run.stdout }} (apply={{ pfsense_apply }})"
+  when:
+    - debug_mode | bool
+    - debug_lang in ['russian', 'both']

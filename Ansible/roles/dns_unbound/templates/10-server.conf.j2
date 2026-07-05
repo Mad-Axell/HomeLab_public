@@ -7,104 +7,85 @@ server:
   pidfile: "/run/unbound.pid"
   use-syslog: yes
   verbosity: {{ unbound_verbosity }}
-  log-queries: no
-  log-replies: no
-  log-servfail: yes
 
-  # ── интерфейсы ────────────────────────────────────────────
-  interface-automatic: no
-  port: {{ dns.unbound_local_port }}
   interface: 127.0.0.1@{{ dns.unbound_local_port }}
-{% if ipv6_enabled %}
-  interface: ::1@{{ dns.unbound_local_port }}
-{% endif %}
   do-ip4: yes
   do-ip6: {{ 'yes' if ipv6_enabled else 'no' }}
   do-udp: yes
   do-tcp: yes
   prefer-ip4: yes
-{% if not ipv6_enabled %}
-  prefer-ip6: no
-{% endif %}
-  outgoing-interface: 127.0.0.1
-{% if ipv6_enabled %}
-  outgoing-interface: ::1
-{% endif %}
 
-  # ── ACL ───────────────────────────────────────────────────
   access-control: 127.0.0.0/8 allow
   access-control: 0.0.0.0/0 refuse
 
-  # ── DNSSEC ────────────────────────────────────────────────
   auto-trust-anchor-file: "/var/lib/unbound/root.key"
   root-hints: "/var/lib/unbound/root.hints"
   harden-dnssec-stripped: yes
   harden-glue: yes
   harden-below-nxdomain: yes
-  harden-referral-path: yes
-  harden-large-queries: yes
-  val-clean-additional: yes
   module-config: "validator iterator"
 
-  # ── приватность ───────────────────────────────────────────
   qname-minimisation: yes
-  qname-minimisation-strict: no
   hide-identity: yes
   hide-version: yes
-  hide-trustanchor: yes
-  use-caps-for-id: no
   aggressive-nsec: yes
+  minimal-responses: yes
 
-  # ── защита от DoS / amplification ────────────────────────
   ratelimit: {{ unbound_ratelimit }}
   ip-ratelimit: {{ unbound_ip_ratelimit }}
-  ratelimit-slabs: 4
-  unwanted-reply-threshold: 10000000
 
-  # ── производительность ───────────────────────────────────
   num-threads: {{ unbound_num_threads }}
   msg-cache-size: {{ unbound_msg_cache_size }}
   rrset-cache-size: {{ unbound_rrset_cache_size }}
-  msg-cache-slabs: 4
-  rrset-cache-slabs: 4
-  infra-cache-slabs: 4
-  key-cache-slabs: 4
-  key-cache-size: 16m
-  neg-cache-size: 8m
-  cache-min-ttl: 0
-  cache-max-ttl: 86400
-  cache-max-negative-ttl: 3600
   prefetch: yes
   prefetch-key: yes
   serve-expired: yes
   serve-expired-ttl: 3600
-  serve-expired-reply-ttl: 30
+  cache-min-ttl: 0
+  cache-max-ttl: 86400
 
-  # ── сети ──────────────────────────────────────────────────
   edns-buffer-size: 1232
-  outgoing-range: 4096
-  num-queries-per-thread: 2048
-
-  so-rcvbuf: {{ unbound_so_rcvbuf }}
-  so-sndbuf: {{ unbound_so_sndbuf }}
   so-reuseport: yes
+{% if unbound_so_rcvbuf is defined and unbound_so_rcvbuf | string != '0' %}
+  so-rcvbuf: {{ unbound_so_rcvbuf }}
+{% endif %}
+{% if unbound_so_sndbuf is defined and unbound_so_sndbuf | string != '0' %}
+  so-sndbuf: {{ unbound_so_sndbuf }}
+{% endif %}
 
-  # ── приватные адреса не утекают наружу ───────────────────
+  # приватные адреса не утекают наружу
   private-address: 10.0.0.0/8
   private-address: 172.16.0.0/12
+  private-address: 192.168.0.0/16
 
-  # ── локальные приватные домены ───────────────────────────
   private-domain: "{{ network.base_domain }}."
   domain-insecure: "{{ network.base_domain }}."
 
-  # ── минимальные ответы ───────────────────────────────────
-  minimal-responses: yes
+  # ── КРИТИЧНО: снять дефолтные local-zone Unbound, иначе stub-зоны НЕ работают ──
+  # У Unbound «из коробки» заведены local-zone типа static, которые отвечают
+  # NXDOMAIN РАНЬШЕ, чем запрос дойдёт до stub-zone (local-zone обрабатываются
+  # до итератора/форвардинга). Под эту блокировку попадают наши зоны:
+  #   • home.arpa            → затеняет ВСЕ *.{{ network.base_domain }} (прямые имена)
+  #   • AS112 RFC1918 reverse → затеняет наши PTR-stub (16-31.172.in-addr.arpa …)
+  # insecure-lan-zones снимает только DNSSEC, но НЕ снимает саму блокировку —
+  # поэтому нужны все три строки:
+  local-zone: "{{ network.base_domain }}." transparent  # нет локальных данных → запрос проваливается в stub → pfSense
+  unblock-lan-zones: yes                              # отключает фильтрацию приватных reverse → PTR-stub начинают работать
+  insecure-lan-zones: yes                             # снимает DNSSEC-валидацию с приватных reverse (иначе SERVFAIL)
 
-# ── прямая зона: один parent stub покрывает все *.{{ network.base_domain }} ──
+# ── stub-zones к pfSense ({{ pfsense_dns_ip }}) — ПРЯМЫЕ ──────────────────────────
+# stub-addr — это адрес DNS-СЕРВИСА (pfSense), а не шлюза подсети; контейнер
+# в MGMT, первый хоп = {{ pfsense_dns_ip }}, спрашиваем pfSense напрямую без inter-VLAN.
 stub-zone:
   name: "{{ network.base_domain }}."
   stub-addr: {{ pfsense_dns_ip }}
   stub-prime: no
+{% for label in segments.keys() %}
+stub-zone:
+  name: "{{ label }}.{{ network.base_domain }}."
+  stub-addr: {{ pfsense_dns_ip }}
+  stub-prime: no
+{% endfor %}
 
 # ── обратные зоны (PTR) — СТРОГО /24, не /16! ─────────────────────────────
 # /16-делегирование увело бы на pfSense PTR соседних подсетей и сломало рекурсию.
