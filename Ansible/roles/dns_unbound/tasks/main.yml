@@ -1,29 +1,80 @@
 ---
-# EN: Role entry point / RU: Точка входа роли
-
-# EN: Guard against unsupported OS families / RU: Защита от неподдерживаемых ОС
-- name: "Assert supported OS family"
+# Validate the platform and resolver listener configuration.
+# Проверка платформы и конфигурации слушателя резолвера.
+- name: Validate Unbound configuration
   ansible.builtin.assert:
     that:
-      - ansible_os_family in supported_os_families
-    fail_msg: >-
-      EN: Unsupported OS family '{{ ansible_os_family }}'. Supported: {{ supported_os_families | join(', ') }}.
-      RU: Неподдерживаемое семейство ОС '{{ ansible_os_family }}'. Поддерживаются: {{ supported_os_families | join(', ') }}.
-  tags: ['always']
+      - ansible_facts.os_family == 'Debian'
+      - dns_unbound_listen_port | int > 0
+      - dns_unbound_listen_port | int < 65536
+    fail_msg: "dns_unbound supports Debian-family systems and requires a valid listener port."
 
-- name: "Install"
-  ansible.builtin.include_tasks: install.yml
-  tags: ['install']
+# Install the recursive resolver and its DNSSEC-anchor utility.
+# Установка рекурсивного резолвера и утилиты DNSSEC-anchor.
+- name: Install Unbound packages
+  ansible.builtin.apt:
+    name:
+      - "unbound"
+      - "unbound-anchor"
+    state: present
+    update_cache: true
+  register: dns_unbound_package_result
 
-- name: "Configure"
-  ansible.builtin.include_tasks: configure.yml
-  tags: ['configure']
+# Create the DNSSEC trust anchor only when it does not already exist.
+# Создание DNSSEC trust anchor только при его отсутствии.
+- name: Create Unbound DNSSEC trust anchor
+  ansible.builtin.command:
+    cmd: "unbound-anchor -a {{ dns_unbound_root_key_path }}"
+    creates: "{{ dns_unbound_root_key_path }}"
+  register: dns_unbound_anchor_result
+  changed_when: dns_unbound_anchor_result.rc in [0, 1]
+  failed_when: dns_unbound_anchor_result.rc not in [0, 1]
 
-- name: "Manage service"
-  ansible.builtin.include_tasks: service.yml
-  tags: ['service']
+# Download the root hints file used by the resolver.
+# Загрузка файла root hints, используемого резолвером.
+- name: Download Unbound root hints
+  ansible.builtin.get_url:
+    url: "{{ dns_unbound_root_hints_url }}"
+    dest: "{{ dns_unbound_root_hints_path }}"
+    owner: "unbound"
+    group: "unbound"
+    mode: "0644"
+  register: dns_unbound_hints_result
 
-- name: "Show debug summary"
-  ansible.builtin.include_tasks: debug.yml
-  when: debug_mode | bool
-  tags: ['debug']
+# Write and validate the resolver configuration before requesting a restart.
+# Запись и проверка конфигурации резолвера до запроса перезапуска.
+- name: Configure Unbound resolver
+  ansible.builtin.template:
+    src: "10-server.conf.j2"
+    dest: "{{ dns_unbound_config_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    validate: "unbound-checkconf %s"
+  notify: Restart Unbound
+  register: dns_unbound_configuration_result
+
+# Ensure the resolver reaches its requested steady state.
+# Обеспечение запрошенного устойчивого состояния резолвера.
+- name: Manage Unbound service
+  ansible.builtin.systemd:
+    name: "{{ dns_unbound_service_name }}"
+    state: "{{ dns_unbound_service_state }}"
+    enabled: "{{ dns_unbound_service_enabled }}"
+  register: dns_unbound_service_result
+
+# Report resolver changes without querying or exposing DNS traffic.
+# Вывод изменений резолвера без опроса или раскрытия DNS-трафика.
+- name: Display Unbound change summary
+  ansible.builtin.debug:
+    msg: "Unbound resolver {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - dns_unbound_debug_mode | bool
+    - >-
+      (dns_unbound_package_result.changed | default(false) | bool)
+      or (dns_unbound_anchor_result.changed | default(false) | bool)
+      or (dns_unbound_hints_result.changed | default(false) | bool)
+      or (dns_unbound_configuration_result.changed | default(false) | bool)
+      or (dns_unbound_service_result.changed | default(false) | bool)
+  tags:
+    - debug

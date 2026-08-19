@@ -1,0 +1,32 @@
+---
+- name: Configure NAS storage management
+  hosts: samba
+  become: true
+  gather_facts: false
+  vars:
+    playbook_debug_mode: false
+  pre_tasks:
+    # Wait until the NAS host accepts Ansible connections.
+    # Ожидание готовности NAS-хоста к подключениям Ansible.
+    - name: Wait for NAS host connection
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        sleep: 5
+        timeout: 300
+
+    # Gather facts explicitly after the NAS host becomes reachable.
+    # Явный сбор facts после доступности NAS-хоста.
+    - name: Gather NAS host facts
+      ansible.builtin.setup:
+  roles:
+    - role: base_update_debian
+    - role: cockpit
+  post_tasks:
+    # Report play completion only when orchestration debug output is enabled.
+    # Вывод завершения play только при включенном debug-выводе оркестрации.
+    - name: Display NAS storage management summary
+      ansible.builtin.debug:
+        msg: "NAS storage management roles completed."
+      when: playbook_debug_mode | bool
+      tags:
+        - debug

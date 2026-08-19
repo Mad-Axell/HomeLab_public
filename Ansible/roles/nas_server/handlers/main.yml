@@ -1,40 +1,14 @@
 ---
-# Handlers for nas_server role
-
-- name: restart cockpit
+# Restart Samba after its managed configuration changes.
+# Перезапуск Samba после изменения управляемой конфигурации.
+- name: Restart Samba
   ansible.builtin.systemd:
-    name: cockpit.socket
+    name: "smbd"
     state: restarted
-  listen: restart_cockpit
 
-- name: restart smbd
-  ansible.builtin.systemd:
-    name: smbd
-    state: restarted
-  listen: restart_smbd
-
-- name: restart nmbd
-  ansible.builtin.systemd:
-    name: nmbd
-    state: restarted
-  listen: restart_nmbd
-
-- name: reload smbd
-  ansible.builtin.systemd:
-    name: smbd
-    state: reloaded
-  listen: reload_smbd
-
-- name: restart nfs-kernel-server
-  ansible.builtin.systemd:
-    name: nfs-kernel-server
-    state: restarted
-  listen: restart_nfs
-  when: nfs_enabled | default(false)
-
-- name: reload nfs-kernel-server
-  ansible.builtin.systemd:
-    name: nfs-kernel-server
-    state: reloaded
-  listen: reload_nfs
-  when: nfs_enabled | default(false)
+# Reload NFS exports after the export definition changes.
+# Перезагрузка NFS exports после изменения определения экспорта.
+- name: Reload NFS exports
+  ansible.builtin.command:
+    cmd: "exportfs -ra"
+  changed_when: false

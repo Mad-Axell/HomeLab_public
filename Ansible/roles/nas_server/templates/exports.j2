@@ -1,0 +1,3 @@
+{% for nas_server_nfs_client in nas_server_nfs_clients %}
+{{ nas_server_share_path }} {{ nas_server_nfs_client }}(rw,sync,no_subtree_check)
+{% endfor %}

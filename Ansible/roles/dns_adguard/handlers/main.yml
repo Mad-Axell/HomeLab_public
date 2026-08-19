@@ -1,6 +1,7 @@
 ---
-- name: adguard_restart
+# Restart AdGuard Home after its managed configuration changes.
+# Перезапуск AdGuard Home после изменения управляемой конфигурации.
+- name: Restart AdGuard Home
   ansible.builtin.systemd:
-    name: "{{ adguard_service_name }}"
+    name: "{{ dns_adguard_service_name }}"
     state: restarted
-    enabled: true

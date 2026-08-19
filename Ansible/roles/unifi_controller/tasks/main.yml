@@ -1,0 +1,83 @@
+---
+# Validate the Debian platform and the explicit UniFi repository contract.
+# Проверка платформы Debian и явного контракта репозитория.
+- name: Validate UniFi controller configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - unifi_controller_repository is not none
+      - unifi_controller_repository_key_url is not none
+    fail_msg: "unifi_controller requires Debian and explicit repository and signing-key URLs."
+
+# Install prerequisites for the signed UniFi APT repository.
+# Установка зависимостей для подписанного APT-репозитория UniFi.
+- name: Install UniFi repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - "ca-certificates"
+      - "curl"
+    state: present
+    update_cache: true
+  register: unifi_controller_prerequisite_result
+
+# Create the APT keyring directory for the UniFi signing key.
+# Создание каталога APT keyring для ключа подписи UniFi.
+- name: Create UniFi APT keyring directory
+  ansible.builtin.file:
+    path: "/etc/apt/keyrings"
+    state: directory
+    mode: "0755"
+  register: unifi_controller_keyring_directory_result
+
+# Download the UniFi signing key without using apt-key.
+# Загрузка ключа подписи UniFi без использования apt-key.
+- name: Download UniFi repository signing key
+  ansible.builtin.get_url:
+    url: "{{ unifi_controller_repository_key_url }}"
+    dest: "/etc/apt/keyrings/unifi-controller.asc"
+    mode: "0644"
+  register: unifi_controller_key_result
+
+# Register the requested UniFi APT repository.
+# Регистрация запрошенного APT-репозитория UniFi.
+- name: Configure UniFi APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/unifi-controller.asc] {{ unifi_controller_repository }}"
+    filename: "unifi-controller"
+    state: present
+  register: unifi_controller_repository_result
+
+# Install the UniFi Network Server package.
+# Установка пакета UniFi Network Server.
+- name: Install UniFi Network Server
+  ansible.builtin.apt:
+    name: "{{ unifi_controller_package_name }}"
+    state: present
+    update_cache: true
+  register: unifi_controller_package_result
+
+# Ensure the UniFi service is running and enabled.
+# Обеспечение запуска и включения сервиса UniFi.
+- name: Manage UniFi service
+  ansible.builtin.systemd:
+    name: "{{ unifi_controller_service_name }}"
+    state: started
+    enabled: true
+  register: unifi_controller_service_result
+
+# Report installation changes without duplicating package output.
+# Вывод изменений установки без дублирования вывода пакетов.
+- name: Display UniFi controller change summary
+  ansible.builtin.debug:
+    msg: "UniFi Network Server {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - unifi_controller_debug_mode | bool
+    - >-
+      (unifi_controller_prerequisite_result.changed | default(false) | bool)
+      or (unifi_controller_keyring_directory_result.changed | default(false) | bool)
+      or (unifi_controller_key_result.changed | default(false) | bool)
+      or (unifi_controller_repository_result.changed | default(false) | bool)
+      or (unifi_controller_package_result.changed | default(false) | bool)
+      or (unifi_controller_service_result.changed | default(false) | bool)
+  tags:
+    - debug

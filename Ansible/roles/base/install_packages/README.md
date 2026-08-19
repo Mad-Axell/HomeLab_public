@@ -1,30 +1,13 @@
 # install_packages
 
-Debian package installation role supporting Debian OS family with comprehensive validation, advanced debugging capabilities, and production-ready error handling.
+## Русский
 
-## Quick Links
+Устанавливает или удаляет явно заданный список системных пакетов через стандартный модуль Ansible. Роль не обновляет всю ОС и не настраивает автоматические обновления.
 
-- [Complete English Documentation](README_eng.md)
-- [Полная документация на русском](README_rus.md)
+Полная документация: [README_RUS.md](README_RUS.md)
 
-## Overview
+## English
 
-This role installs essential packages on Debian/Ubuntu systems with:
-- Comprehensive validation and error handling
-- Automatic security updates configuration
-- Structured logging capabilities
-- Preflight checks and post-deployment verification
-- Support for both essential and optional packages
+Installs or removes an explicitly declared list of system packages through the standard Ansible module. The role does not upgrade the operating system or configure automatic updates.
 
-## Supported Platforms
-
-- Ubuntu (focal, jammy, noble)
-- Debian (bullseye, bookworm, trixie)
-
-## License
-
-MIT
-
-## Author
-
-System Administrator [mad.axell@gmail.com]
+Full documentation: [README_ENG.md](README_ENG.md)

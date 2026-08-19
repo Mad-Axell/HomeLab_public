@@ -1,0 +1,37 @@
+---
+# Safe pfsense_config transaction. The role is validation-only by default.
+pfsense_config_apply: false
+pfsense_config_apply_confirmation: ""
+
+# The desired XML may be passed directly or loaded from a controller-side file.
+pfsense_config_xml: "{{ vault_pfsense_config_xml | default('') }}"
+pfsense_config_source_file: ""
+
+# pfSense paths and tools.
+pfsense_config_destination_path: "/conf/config.xml"
+pfsense_config_file_mode: "0600"
+pfsense_config_staging_dir: "/root/.ansible-pfsense"
+pfsense_config_remote_backup_dir: "/conf/backup"
+pfsense_config_php_bin: "/usr/local/bin/php"
+pfsense_config_pfssh_bin: "/usr/local/sbin/pfSsh.php"
+pfsense_config_cache_path: "/tmp/config.cache"
+pfsense_config_rollback_script_path: "/usr/local/etc/rc.d/ansible-config-rollback.sh"
+
+# A copy fetched to the Ansible controller. Keep it outside the repositories.
+pfsense_config_local_backup_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/.ansible/backups/pfsense"
+
+# Preserve the management address unless a maintenance-window run opts out.
+pfsense_config_management_interface: "lan"
+pfsense_config_allow_management_change: false
+pfsense_config_management_change_confirmation: ""
+
+# The boot watchdog restores the previous XML if Ansible cannot confirm health.
+pfsense_config_rollback_timeout: 600
+pfsense_config_reboot_timeout: 420
+pfsense_config_healthcheck_timeout: 90
+pfsense_config_healthcheck_host: "{{ ansible_host | default(inventory_hostname) }}"
+pfsense_config_healthcheck_ports:
+  - 22
+  - 443
+
+pfsense_config_debug_mode: false

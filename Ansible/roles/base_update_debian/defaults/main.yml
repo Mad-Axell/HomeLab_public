@@ -1,0 +1,15 @@
+---
+# Debian operating-system update configuration
+# Конфигурация обновления операционной системы Debian
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+base_update_debian_debug_mode: false
+
+# Integer. Maximum age of the APT package index in seconds.
+# Целое число. Максимальный возраст индекса пакетов APT в секундах.
+base_update_debian_cache_valid_time: 86400
+
+# String. APT upgrade mode: safe, full, or dist.
+# Строка. Режим обновления APT: safe, full или dist.
+base_update_debian_upgrade_mode: "dist"

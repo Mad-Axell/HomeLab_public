@@ -1,98 +1,97 @@
 ---
-- name: Load OS-specific vars.
-  include_vars: "{{ lookup('first_found', params) }}"
-  vars:
-    params:
-      files:
-        - '{{ansible_facts.distribution}}.yml'
-        - '{{ansible_facts.os_family}}.yml'
-        - main.yml
-      paths:
-        - 'vars'
+# Validate the Debian platform and package configuration.
+# Проверка платформы Debian и конфигурации пакетов.
+- name: Validate Docker configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - docker_packages is sequence
+      - docker_packages | length > 0
+      - docker_users is sequence
+    fail_msg: "docker supports Debian-family systems and requires valid package and user lists."
 
-- include_tasks: setup-RedHat.yml
-  when: ansible_facts.os_family == 'RedHat'
+# Install tools required to use a signed APT repository.
+# Установка инструментов, требуемых для использования подписанного APT-репозитория.
+- name: Install Docker repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - "ca-certificates"
+      - "curl"
+    state: present
+    update_cache: true
+  register: docker_prerequisite_result
 
-- include_tasks: setup-Debian.yml
-  when: ansible_facts.os_family == 'Debian'
-
-- name: Install Docker packages.
-  package:
-    name: "{{ docker_packages }}"
-    state: "{{ docker_packages_state }}"
-  notify: restart docker
-  ignore_errors: "{{ ansible_check_mode }}"
-  when: "ansible_version.full is version_compare('2.12', '<') or ansible_facts.os_family not in ['RedHat', 'Debian']"
-
-- name: Install Docker packages (with downgrade option).
-  package:
-    name: "{{ docker_packages }}"
-    state: "{{ docker_packages_state }}"
-    allow_downgrade: true
-  notify: restart docker
-  ignore_errors: "{{ ansible_check_mode }}"
-  when: "ansible_version.full is version_compare('2.12', '>=') and ansible_facts.os_family in ['RedHat', 'Debian']"
-
-- name: Install docker-compose plugin.
-  package:
-    name: "{{ docker_compose_package }}"
-    state: "{{ docker_compose_package_state }}"
-  notify: restart docker
-  ignore_errors: "{{ ansible_check_mode }}"
-  when: "docker_install_compose_plugin | bool == true and (ansible_version.full is version_compare('2.12', '<') or ansible_facts.os_family not in ['RedHat', 'Debian'])"
-
-- name: Install docker-compose-plugin (with downgrade option).
-  package:
-    name: "{{ docker_compose_package }}"
-    state: "{{ docker_compose_package_state }}"
-    allow_downgrade: true
-  notify: restart docker
-  ignore_errors: "{{ ansible_check_mode }}"
-  when: "docker_install_compose_plugin | bool == true and ansible_version.full is version_compare('2.12', '>=') and ansible_facts.os_family in ['RedHat', 'Debian']"
-
-- name: Ensure /etc/docker/ directory exists.
-  file:
-    path: /etc/docker
+# Create the keyring directory for the Docker repository key.
+# Создание каталога keyring для ключа репозитория Docker.
+- name: Create Docker APT keyring directory
+  ansible.builtin.file:
+    path: "/etc/apt/keyrings"
     state: directory
-    mode: 0755
-  when: docker_daemon_options.keys() | length > 0
+    mode: "0755"
+  register: docker_keyring_directory_result
 
-- name: Configure Docker daemon options.
-  copy:
-    content: "{{ docker_daemon_options | to_nice_json }}"
-    dest: /etc/docker/daemon.json
-    mode: 0644
-  when: docker_daemon_options.keys() | length > 0
-  notify: restart docker
+# Download the Docker signing key without using apt-key.
+# Загрузка ключа подписи Docker без использования apt-key.
+- name: Download Docker APT signing key
+  ansible.builtin.get_url:
+    url: "{{ docker_repository_key_url }}"
+    dest: "/etc/apt/keyrings/docker.asc"
+    mode: "0644"
+  register: docker_key_result
 
-- name: Ensure Docker is started and enabled at boot.
-  service:
-    name: docker
+# Register the official Docker repository for the current Debian release.
+# Регистрация официального репозитория Docker для текущего релиза Debian.
+- name: Configure Docker APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ docker_apt_architecture }} signed-by=/etc/apt/keyrings/docker.asc]
+      {{ docker_repository_url }} {{ ansible_facts.distribution_release }} stable
+    filename: "docker"
+    state: present
+  register: docker_repository_result
+
+# Install Docker Engine and its declared plugins.
+# Установка Docker Engine и объявленных плагинов.
+- name: Install Docker packages
+  ansible.builtin.apt:
+    name: "{{ docker_packages }}"
+    state: present
+    update_cache: true
+  register: docker_package_result
+
+# Ensure Docker has the requested service state.
+# Обеспечение запрошенного состояния сервиса Docker.
+- name: Manage Docker service
+  ansible.builtin.systemd:
+    name: "{{ docker_service_name }}"
     state: "{{ docker_service_state }}"
     enabled: "{{ docker_service_enabled }}"
-  ignore_errors: "{{ ansible_check_mode }}"
-  when: docker_service_manage | bool
+  register: docker_service_result
 
-- name: Ensure handlers are notified now to avoid firewall conflicts.
-  meta: flush_handlers
+# Add declared existing users to the Docker group.
+# Добавление объявленных существующих пользователей в группу Docker.
+- name: Add users to Docker group
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: "docker"
+    append: true
+  loop: "{{ docker_users }}"
+  register: docker_user_result
 
-- include_tasks: docker-compose.yml
-  when: docker_install_compose | bool
-
-- name: Get docker group info using getent.
-  getent:
-    database: group
-    key: docker
-    split: ':'
-  when: docker_users | length > 0
-
-- name: Check if there are any users to add to the docker group.
-  set_fact:
-    at_least_one_user_to_modify: true
+# Report Docker installation changes without printing module results.
+# Вывод изменений установки Docker без печати результатов модулей.
+- name: Display Docker change summary
+  ansible.builtin.debug:
+    msg: "Docker Engine {{ 'would change' if ansible_check_mode else 'changed' }}."
   when:
-    - docker_users | length > 0
-    - item not in ansible_facts.getent_group["docker"][2]
-  with_items: "{{ docker_users }}"
-
-- include_tasks: docker-users.yml
-  when: at_least_one_user_to_modify is defined
+    - docker_debug_mode | bool
+    - >-
+      (docker_prerequisite_result.changed | default(false) | bool)
+      or (docker_keyring_directory_result.changed | default(false) | bool)
+      or (docker_key_result.changed | default(false) | bool)
+      or (docker_repository_result.changed | default(false) | bool)
+      or (docker_package_result.changed | default(false) | bool)
+      or (docker_service_result.changed | default(false) | bool)
+      or (docker_user_result.changed | default(false) | bool)
+  tags:
+    - debug

@@ -1,0 +1,23 @@
+---
+# Boolean. Apply storage changes. Pool creation also needs explicit confirmation.
+pve_storage_zfs_apply: false
+
+# String. Required only when a declared pool does not exist.
+pve_storage_zfs_apply_confirmation: ""
+pve_storage_zfs_required_confirmation: "CREATE_PVE_ZFS_POOLS"
+
+# Boolean. Pass -f to zpool create after explicit confirmation.
+pve_storage_zfs_force_create: false
+
+# Lists. Hardware-specific pool, dataset, and ownership declarations.
+pve_storage_zfs_pools: []
+pve_storage_zfs_datasets: []
+pve_storage_zfs_paths: []
+
+# Packages and services required for regular ZFS operation and monitoring.
+pve_storage_zfs_packages:
+  - smartmontools
+  - zfs-zed
+  - zfsutils-linux
+pve_storage_zfs_zed_enabled: true
+pve_storage_zfs_debug_mode: false

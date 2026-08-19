@@ -1,0 +1,10 @@
+[global]
+  workgroup = WORKGROUP
+  server role = standalone server
+  map to guest = Bad User
+
+[{{ nas_server_share_name }}]
+  path = {{ nas_server_share_path }}
+  read only = no
+  browseable = yes
+  guest ok = {{ 'yes' if nas_server_samba_guest_ok | bool else 'no' }}

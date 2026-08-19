@@ -1,0 +1,36 @@
+---
+# Main pfsense_config transaction flow.
+- name: Validate pfSense transaction input
+  ansible.builtin.include_tasks: validate.yml
+  tags:
+    - always
+
+- name: Stage, validate, and optionally apply the pfSense configuration
+  block:
+    - name: Stage and validate the candidate configuration
+      ansible.builtin.include_tasks: stage.yml
+
+    - name: Apply the validated configuration transaction
+      ansible.builtin.include_tasks: apply.yml
+      when:
+        - pfsense_config_changed | bool
+        - pfsense_config_apply | bool
+        - not ansible_check_mode
+  always:
+    - name: Remove temporary candidate files
+      ansible.builtin.include_tasks: cleanup.yml
+
+- name: Report pfSense configuration transaction result
+  ansible.builtin.debug:
+    msg: >-
+      pfSense config
+      {{
+        'differs from the validated candidate'
+        if pfsense_config_changed | bool
+        else 'already matches the validated candidate'
+      }};
+      mode={{ 'check' if ansible_check_mode or not (pfsense_config_apply | bool) else 'apply' }};
+      transaction={{ pfsense_config_transaction_id }}.
+  when: pfsense_config_debug_mode | bool
+  tags:
+    - debug

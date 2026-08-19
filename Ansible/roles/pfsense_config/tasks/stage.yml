@@ -1,0 +1,116 @@
+---
+# pfsense_config candidate staging.
+- name: Create the pfSense staging directory
+  ansible.builtin.file:
+    path: "{{ pfsense_config_staging_dir }}"
+    state: directory
+    mode: "0700"
+  check_mode: false
+
+- name: Upload the pfSense candidate configuration
+  ansible.builtin.copy:
+    content: "{{ pfsense_config_xml_effective }}"
+    dest: "{{ pfsense_config_candidate_path }}"
+    mode: "{{ pfsense_config_file_mode }}"
+  check_mode: false
+  diff: false
+  no_log: true
+
+- name: Validate the candidate as a complete pfSense XML document
+  ansible.builtin.command:
+    argv:
+      - "{{ pfsense_config_php_bin }}"
+      - "-r"
+      - >-
+        libxml_use_internal_errors(true);
+        $x=simplexml_load_file($argv[1]);
+        if ($x === false || $x->getName() !== 'pfsense') { fwrite(STDERR, 'invalid pfSense XML'.PHP_EOL); exit(2); }
+        if (!isset($x->version) || trim((string)$x->version) === '') {
+          fwrite(STDERR, 'missing config version'.PHP_EOL); exit(3);
+        }
+        echo trim((string)$x->version), PHP_EOL;
+      - "{{ pfsense_config_candidate_path }}"
+  register: pfsense_config_xml_validation
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Run the candidate through the pfSense configuration upgrader
+  ansible.builtin.command:
+    argv:
+      - "{{ pfsense_config_pfssh_bin }}"
+      - playback
+      - upgradeconfig
+      - "{{ pfsense_config_candidate_path }}"
+      - "{{ pfsense_config_upgraded_path }}"
+  register: pfsense_config_upgrade_validation
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Validate the upgraded candidate XML
+  ansible.builtin.command:
+    argv:
+      - "{{ pfsense_config_php_bin }}"
+      - "-r"
+      - >-
+        libxml_use_internal_errors(true);
+        $x=simplexml_load_file($argv[1]);
+        if ($x === false || $x->getName() !== 'pfsense') {
+          fwrite(STDERR, 'invalid upgraded pfSense XML'.PHP_EOL); exit(2);
+        }
+        if (!isset($x->version) || trim((string)$x->version) === '') {
+          fwrite(STDERR, 'missing upgraded config version'.PHP_EOL); exit(3);
+        }
+      - "{{ pfsense_config_upgraded_path }}"
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Protect the pfSense management interface address
+  ansible.builtin.command:
+    argv:
+      - "{{ pfsense_config_php_bin }}"
+      - "-r"
+      - >-
+        function mgmt($file, $id) {
+          libxml_use_internal_errors(true);
+          $x=simplexml_load_file($file);
+          if ($x === false || !isset($x->interfaces->{$id})) {
+            fwrite(STDERR, 'management interface missing'.PHP_EOL); exit(20);
+          }
+          return trim((string)$x->interfaces->{$id}->ipaddr).'/'.trim((string)$x->interfaces->{$id}->subnet);
+        }
+        $current=mgmt($argv[1], $argv[3]);
+        $candidate=mgmt($argv[2], $argv[3]);
+        if ($current !== $candidate) {
+          fwrite(STDERR, 'management address change blocked: ');
+          fwrite(STDERR, $current.' -> '.$candidate.PHP_EOL); exit(21);
+        }
+      - "{{ pfsense_config_destination_path }}"
+      - "{{ pfsense_config_upgraded_path }}"
+      - "{{ pfsense_config_management_interface }}"
+  changed_when: false
+  check_mode: false
+  when: not (pfsense_config_allow_management_change | bool)
+
+- name: Read the validated candidate checksum
+  ansible.builtin.stat:
+    path: "{{ pfsense_config_upgraded_path }}"
+    checksum_algorithm: sha256
+  register: pfsense_config_candidate_stat
+  check_mode: false
+
+- name: Determine pfSense configuration drift
+  ansible.builtin.set_fact:
+    pfsense_config_changed: >-
+      {{ pfsense_config_live_stat.stat.checksum != pfsense_config_candidate_stat.stat.checksum }}
+
+- name: Report validation-only drift
+  ansible.builtin.debug:
+    msg: >-
+      Validated candidate {{ 'differs from' if pfsense_config_changed | bool else 'matches' }}
+      {{ pfsense_config_destination_path }}. No live configuration was changed.
+  when:
+    - not (pfsense_config_apply | bool) or ansible_check_mode
+    - pfsense_config_debug_mode | bool

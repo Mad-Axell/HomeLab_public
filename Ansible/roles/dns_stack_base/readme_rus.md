@@ -1,50 +1,48 @@
-# dns_stack_base (Русский)
+# dns_stack_base
 
-Базовая подготовка ОС контейнера adguard. Выполняется **первой** в плее DNS-стека,
-до `unbound` и `adguard_home`. См. документ проекта `05_dns_naming.md` §7–8.
+Роль готовит Debian/Ubuntu к установке локального DNS-сервиса, не настраивая сам резолвер.
 
-## Зона ответственности
+## Что делает
 
-- `apt` update, опциональный `full-upgrade`, установка базовых пакетов
-  (`dnsutils`, `bind9-host`, `curl`, `jq`, …).
-- Отключение IPv6 через sysctl (когда `ipv6_enabled` = false).
-- Установка таймзоны и проверка active/enabled для `systemd-timesyncd` — DNSSEC
-  чувствителен к часам.
-- Установка hostname и запись хоста в `/etc/hosts`.
-- **Освобождение порта 53**: остановка, отключение и маскирование
-  `systemd-resolved`.
-- **Защита `/etc/resolv.conf`**: установка dhclient enter-hook, нейтрализующего
-  `make_resolv_conf` (в unprivileged LXC `chattr +i` недоступен). Само
-  переключение на `127.0.0.1` выполняется позже ролью `adguard_home`, чтобы на
-  bootstrap apt мог достучаться до pfSense.
+- Устанавливает список базовых пакетов.
+- По выбору останавливает, отключает и маскирует `systemd-resolved`.
 
-## Структура
+## Требования
 
+- Debian или Ubuntu.
+- `become: true`.
+
+## Изменяемые ресурсы
+
+- Packages: `dns_stack_base_packages`.
+- Files: none.
+- Services: `systemd-resolved`, только если включено отключение.
+- Users/groups: none.
+- Firewall/API objects: none.
+
+## Переменные
+
+| Variable | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `dns_stack_base_debug_mode` | boolean | no | `false` | Показывает факт изменения. |
+| `dns_stack_base_packages` | list | no | базовый список | Пакеты для DNS-хоста. |
+| `dns_stack_base_disable_systemd_resolved` | boolean | no | `true` | Освобождает порт 53 для локального резолвера. |
+
+## Использование
+
+```yaml
+---
+- name: Prepare DNS host
+  hosts: dns
+  become: true
+  roles:
+    - role: dns_stack_base
 ```
-dns_stack_base/
-├── defaults/main.yml      # настраиваемое: пакеты, full-upgrade, состояние timesync, debug
-├── vars/main.yml          # статика: имя сервиса timesync, фиксированные пути, поддерживаемые ОС
-└── tasks/
-    ├── main.yml           # точка входа: assert OS → install → configure → service → debug
-    ├── install.yml        # apt update / full-upgrade / базовые пакеты
-    ├── configure.yml      # IPv6, timezone, hostname/hosts, маскирование resolved, хук dhclient
-    ├── service.yml        # состояние systemd-timesyncd + проверка systemctl (block/rescue)
-    └── debug.yml          # двуязычная сводка под debug_mode
-```
 
-## Ключевые переменные
+## Check mode и diff mode
 
-| Переменная | По умолчанию | Назначение |
-|---|---|---|
-| `dns_stack_base_packages` | список | базовые пакеты для установки |
-| `dns_stack_base_full_upgrade` | `true` | запускать `apt full-upgrade` при первом прогоне |
-| `dns_stack_base_timesync_state` | `started` | состояние systemd-timesyncd |
-| `dns_stack_base_timesync_enabled` | `true` | автозапуск timesync |
-| `debug_mode` / `debug_lang` / `debug_show_passwords` | `false` / `both` / `false` | управление отладкой |
+Роль использует модули `apt` и `systemd`; они поддерживают `--check --diff` в пределах возможностей целевой системы.
 
-Внешние переменные: `ipv6_enabled`, `dns_stack_timezone`, `pve_lxc_name`,
-`adguard_ip`, `adguard_fqdn`.
+## Зависимости
 
-## Теги
-
-`install`, `configure`, `service`, `debug` (плюс `always` для assert ОС).
+- None

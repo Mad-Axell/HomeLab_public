@@ -1,0 +1,23 @@
+---
+# UniFi Network Server role configuration
+# Установка UniFi Network Server
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+unifi_controller_debug_mode: false
+
+# String. Required APT repository URI and distribution/components, without the deb prefix.
+# Строка. Обязательный URI APT-репозитория и distribution/components без префикса deb.
+unifi_controller_repository: null
+
+# String. Required URL of the repository signing key.
+# Строка. Обязательный URL ключа подписи репозитория.
+unifi_controller_repository_key_url: null
+
+# String. UniFi Network Server package name.
+# Строка. Имя пакета UniFi Network Server.
+unifi_controller_package_name: "unifi"
+
+# String. UniFi systemd service name.
+# Строка. Имя systemd-сервиса UniFi.
+unifi_controller_service_name: "unifi"

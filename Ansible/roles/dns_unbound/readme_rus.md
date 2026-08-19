@@ -1,68 +1,59 @@
-# unbound (Русский)
+# dns_unbound
 
-Устанавливает и настраивает **Unbound** как рекурсивный, валидирующий DNSSEC
-резолвер DNS-стека. Является upstream'ом для AdGuard Home и слушает только
-loopback (`127.0.0.1:{{ dns.unbound_local_port }}`). Архитектура описана в
-документе проекта `05_dns_naming.md` §7.
+Роль устанавливает Unbound, создает DNSSEC trust anchor, получает root hints и управляет локальным systemd-сервисом.
 
-## Зона ответственности
+## Что делает
 
-- Установка `unbound` и `unbound-anchor` (Debian/apt).
-- Инициализация корневого DNSSEC trust anchor (`root.key`) и root hints с
-  ежемесячным обновлением hints через cron.
-- Генерация `/etc/unbound/unbound.conf.d/10-server.conf` (проверяется
-  `unbound-checkconf` до активации):
-  - слушатель только на loopback, по умолчанию только IPv4;
-  - DNSSEC-hardening, QNAME-минимизация, aggressive NSEC;
-  - ratelimit'ы против DoS/amplification;
-  - защита от утечки приватных адресов/доменов;
-  - один родительский **stub-zone** для `*.{{ network.base_domain }}` на pfSense;
-  - посегментные **обратные stub-зоны**, генерируемые строго как `/24` из
-    `segments` (делегирование `/16` сломало бы рекурсию для соседних подсетей).
-- Управление systemd-юнитом `unbound` и проверка active/enabled.
+- Устанавливает `unbound` и `unbound-anchor`.
+- Создает trust anchor и скачивает root hints.
+- Создает проверяемую конфигурацию и управляет сервисом Unbound.
 
-## Структура
+## Требования
 
+- Debian или Ubuntu.
+- `become: true` и доступ к URL root hints.
+
+## Изменяемые ресурсы
+
+- Packages: `unbound`, `unbound-anchor`.
+- Files: root key, root hints и `/etc/unbound/unbound.conf.d/10-server.conf`.
+- Services: `unbound`.
+- Users/groups: none.
+- Firewall/API objects: none.
+
+## Переменные
+
+| Variable | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `dns_unbound_debug_mode` | boolean | no | `false` | Показывает факт изменения. |
+| `dns_unbound_service_name` | string | no | `"unbound"` | Имя сервиса. |
+| `dns_unbound_service_state` | string | no | `"started"` | Устойчивое состояние сервиса. |
+| `dns_unbound_service_enabled` | boolean | no | `true` | Включает сервис при загрузке. |
+| `dns_unbound_listen_address` | string | no | `"127.0.0.1"` | Адрес слушателя. |
+| `dns_unbound_listen_port` | integer | no | `5335` | Порт слушателя. |
+| `dns_unbound_num_threads` | integer | no | `2` | Число рабочих потоков. |
+| `dns_unbound_root_hints_url` | string | no | Internic URL | URL root hints. |
+| `dns_unbound_config_path` | string | no | путь Debian | Путь конфигурации. |
+| `dns_unbound_root_key_path` | string | no | путь Debian | Путь trust anchor. |
+| `dns_unbound_root_hints_path` | string | no | путь Debian | Путь root hints. |
+
+## Использование
+
+```yaml
+---
+- name: Configure local recursive DNS
+  hosts: dns
+  become: true
+  roles:
+    - role: dns_unbound
+      vars:
+        dns_unbound_listen_port: 5335
 ```
-unbound/
-├── defaults/main.yml      # настраиваемое: производительность, ratelimit, URL/cron root-hints, debug
-├── vars/main.yml          # статика: имя сервиса, пакеты, фиксированные пути, поддерживаемые ОС
-├── tasks/
-│   ├── main.yml           # точка входа: assert OS → install → configure → service → debug
-│   ├── install.yml        # пакеты, trust anchor, root hints, cron
-│   ├── configure.yml      # шаблон 10-server.conf (с валидацией)
-│   ├── service.yml        # состояние systemd + проверка systemctl (block/rescue)
-│   └── debug.yml          # двуязычная сводка под debug_mode
-├── handlers/main.yml      # unbound_restart
-└── templates/10-server.conf.j2
-```
 
-## Ключевые переменные
+## Check mode и diff mode
 
-| Переменная | По умолчанию | Назначение |
-|---|---|---|
-| `unbound_service_state` | `started` | целевое состояние systemd |
-| `unbound_service_enabled` | `true` | автозапуск |
-| `unbound_num_threads` | `2` | рабочие потоки |
-| `unbound_msg_cache_size` | `64m` | кэш сообщений |
-| `unbound_rrset_cache_size` | `128m` | кэш RRset |
-| `unbound_ratelimit` | `1000` | глобальный ratelimit (qps) |
-| `unbound_ip_ratelimit` | `200` | ratelimit на IP |
-| `unbound_root_hints_url` | internic named.cache | источник root hints |
-| `unbound_root_hints_cron` | `17 4 1 * *` | расписание обновления hints |
-| `debug_mode` / `debug_lang` / `debug_show_passwords` | `false` / `both` / `false` | управление отладкой |
+Создание trust anchor и скачивание root hints имеют ограничения check mode. Конфигурация перед заменой проверяется `unbound-checkconf`; ее изменение вызывает handler перезапуска.
 
-Внешние переменные (из inventory/group_vars): `dns.unbound_local_port`,
-`network.base_domain`, `pfsense_dns_ip`, `ipv6_enabled`, `segments`.
+## Зависимости
 
-## Теги
-
-`install`, `configure`, `service`, `debug` (плюс `always` для assert ОС).
-
-## Проверка
-
-```bash
-unbound-checkconf
-dig @127.0.0.1 -p {{ dns.unbound_local_port }} +short google.com
-dig @127.0.0.1 -p {{ dns.unbound_local_port }} +short pve-router.mgmt.{{ network.base_domain }}
-```
+- None

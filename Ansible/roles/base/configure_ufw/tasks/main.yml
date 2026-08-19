@@ -1,318 +1,81 @@
 ---
-# =============================================================================
-# UFW Configuration Role - Main Tasks
-# =============================================================================
-# This role configures UFW (Uncomplicated Firewall) with security best practices for Debian/Ubuntu
-# systems. Implements comprehensive security policies with DDoS protection and rate limiting.
-# =============================================================================
+# Validate the firewall contract before changing network access.
+# Проверка контракта файрвола до изменения сетевого доступа.
+- name: Validate UFW configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - configure_ufw_rules is not none
+      - configure_ufw_rules is sequence
+      - configure_ufw_rules | selectattr('rule', 'defined') | list | length == configure_ufw_rules | length
+      - configure_ufw_rules | selectattr('port', 'defined') | list | length == configure_ufw_rules | length
+      - configure_ufw_rules | selectattr('proto', 'defined') | list | length == configure_ufw_rules | length
+    fail_msg: "configure_ufw supports Debian-family systems and requires explicit rules with rule, port, and proto."
 
-# Gather comprehensive system information for firewall configuration
-# Сбор комплексной системной информации для конфигурации файрвола
-- name: "Gather comprehensive system facts for firewall configuration"
-  ansible.builtin.setup:
-    gather_subset:
-      - distribution
-      - os_family
-      - architecture
-      - kernel
-      - system
-      - hardware
-      - network
-  register: system_facts
-  failed_when: false
-  changed_when: false
+# Install the firewall package before applying its policy.
+# Установка пакета файрвола до применения его политики.
+- name: Install UFW
+  ansible.builtin.apt:
+    name: "ufw"
+    state: present
+    update_cache: true
+  register: configure_ufw_package_result
 
-# Include Debian-specific variables
-# Включение переменных, специфичных для Debian
-- name: "Include Debian-specific variables"
-  ansible.builtin.include_vars: "Debian.yml"
+# Set UFW default incoming and outgoing policies.
+# Установка политик UFW по умолчанию для входящего и исходящего трафика.
+- name: Set UFW default policies  # noqa args[module]
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - direction: "incoming"
+      policy: "{{ configure_ufw_default_incoming_policy }}"
+    - direction: "outgoing"
+      policy: "{{ configure_ufw_default_outgoing_policy }}"
+  loop_control:
+    label: "{{ item.direction }}: {{ item.policy }}"
+  register: configure_ufw_policy_result
 
-# Preflight checks
-# Предварительные проверки
-- name: "Preflight checks"
-  ansible.builtin.include_tasks: preflight.yml
+# Configure the requested UFW logging level.
+# Настройка запрошенного уровня журналирования UFW.
+- name: Configure UFW logging
+  community.general.ufw:
+    logging: "{{ configure_ufw_logging }}"
+  register: configure_ufw_logging_result
 
-# Log role execution start
-# Логирование начала выполнения роли
-- name: "Log role execution start"
-  ansible.builtin.lineinfile:
-    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
-    line: '{{ {
-      "timestamp": ansible_facts.date_time.iso8601,
-      "level": "INFO",
-      "event_type": "ROLE_START",
-      "role_name": "base.configure_ufw",
-      "user": ansible_facts.user_id,
-      "host": inventory_hostname,
-      "playbook": ansible_play_name,
-      "correlation_id": ansible_facts.date_time.epoch,
-      "message": "UFW configuration role execution started",
-      "metadata": {
-        "os_family": ansible_facts.os_family,
-        "distribution": ansible_facts.distribution,
-        "version": ansible_facts.distribution_version,
-        "ssh_port": ssh_port,
-        "ddos_protection": ddos_protection_enabled,
-        "debug_mode": debug_mode
-      }
-    } | to_json }}'
-    create: true
-    mode: '0644'
-  when: structured_logging | default(false)
+# Apply explicitly declared firewall rules.
+# Применение явно объявленных правил файрвола.
+- name: Apply UFW rules
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    from_ip: "{{ item.from_ip if item.from_ip is defined and item.from_ip is not none and item.from_ip != '' else omit }}"
+    comment: "{{ item.comment if item.comment is defined and item.comment is not none and item.comment != '' else omit }}"
+  loop: "{{ configure_ufw_rules }}"
+  loop_control:
+    label: "{{ item.rule }} {{ item.port }}/{{ item.proto }}"
+  register: configure_ufw_rule_result
 
-# Validate role arguments using argument_specs
-# Валидация аргументов роли с использованием argument_specs
-- name: "Validate role arguments"
-  ansible.builtin.validate_argument_spec:
-    argument_spec: "{{ (lookup('ansible.builtin.file', role_path + '/meta/argument_specs.yml') | from_yaml)['argument_specs']['main']['options'] }}"
+# Enable UFW after its policy and rules are in place.
+# Включение UFW после настройки политики и правил.
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+  register: configure_ufw_enable_result
 
-# Validate input parameters before configuration
-# Валидация входных параметров перед конфигурацией
-- name: "Include parameter validation tasks"
-  ansible.builtin.include_tasks: validate.yml
-  when: validate_configuration | bool
-  register: validation_result
-
-# Display comprehensive system information for debugging
-# Отображение комплексной системной информации для отладки
-- name: "Display comprehensive system information for firewall configuration"
+# Report firewall changes without printing the complete rule set.
+# Вывод изменений файрвола без печати полного набора правил.
+- name: Display UFW change summary
   ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "System Information for Firewall Configuration:"
-      - "============================================================================="
-      - "Distribution:          {{ ansible_facts.distribution }}"
-      - "Version:               {{ ansible_facts.distribution_version }}"
-      - "Architecture:          {{ ansible_facts.architecture }}"
-      - "Kernel:                {{ ansible_facts.kernel }}"
-      - "Hostname:              {{ ansible_facts.hostname }}"
-      - "FQDN:                  {{ ansible_facts.fqdn }}"
-      - "OS Family:             {{ ansible_facts.os_family }}"
-      - "Firewall Type:         UFW"
-      - "SSH Port:              {{ ssh_port }}"
-      - "SSH Protocol:          {{ ssh_protocol }}"
-      - "Logging Level:         {{ ufw_logging }}"
-      - "IPv6 Support:          {{ 'enabled' if ufw_ipv6 | bool else 'disabled' }}"
-      - "Rate Limiting:         {{ 'enabled' if ssh_rate_limit | bool else 'disabled' }}"
-      - "DDoS Protection:       {{ 'enabled' if ddos_protection_enabled | bool else 'disabled' }}"
-      - "SYN Flood Protection:  {{ 'enabled' if syn_flood_protection | bool else 'disabled' }}"
-      - "ICMP Flood Protection: {{ 'enabled' if icmp_flood_protection | bool else 'disabled' }}"
-      - "Invalid Packets Drop:  {{ 'enabled' if invalid_packets_drop | bool else 'disabled' }}"
-      - "Connection Tracking:   {{ 'enabled' if connection_tracking_limits | bool else 'disabled' }}"
-      - "Auto Reset:            {{ 'enabled' if ufw_auto_reset | bool else 'disabled' }}"
-      - "Backup Enabled:        {{ ufw_backup_enabled }}"
-      - "Validation Enabled:    {{ validate_configuration }}"
-      - "Debug Mode:            {{ debug_mode }}"
-      - "============================================================================="
-  when: debug_mode | default(false)
-  register: system_info_display
-
-# Check if firewall package is installed
-# Проверка установлен ли пакет файрвола
-- name: "Check if firewall package is installed"
-  ansible.builtin.package_facts:
-    manager: "{{ package_manager }}"
-  register: package_facts
-  failed_when: false
-
-# Create backup copies of existing firewall configuration files
-- name: "Create backup copies of existing firewall configuration files"
-  block:
-    # Create firewall backup directory
-    # Создание директории резервного копирования файрвола
-    - name: "Create firewall backup directory"
-      ansible.builtin.file:
-        path: "{{ ufw_backup_dir }}"
-        state: directory
-        mode: '0700'
-        owner: root
-        group: root
-      register: backup_dir_result
-    
-    # Backup firewall configuration files
-    # Резервное копирование файлов конфигурации файрвола
-    - name: "Backup firewall configuration files"
-      ansible.builtin.copy:
-        src: "{{ item }}"
-        dest: "{{ ufw_backup_dir }}/{{ item | basename }}{{ ufw_backup_suffix }}"
-        remote_src: true
-        backup: no
-        mode: '0644'
-      loop: "{{ firewall_backup_files | default([]) }}"
-      register: backup_result
-  rescue:
-    # Backup operation failed - continuing without backup
-    # Операция резервного копирования не удалась - продолжаем без резервной копии
-    - name: "Backup operation failed - continuing without backup"
-      ansible.builtin.debug:
-        msg: "Warning: Could not create backup copies. Continuing with configuration. / Предупреждение: Не удалось создать резервные копии. Продолжаем с конфигурацией."
-      register: backup_result
-      failed_when: false
-  when: ufw_backup_enabled | bool
-  become: true
-
-# Display detailed backup operation results
-# Отображение детальных результатов операции резервного копирования
-- name: "Display detailed backup operation results"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "Backup Operation Results:"
-      - "============================================================================="
-      - "Backup Directory:       {{ ufw_backup_dir }}"
-      - "Directory Created:      {{ 'YES' if backup_dir_result is defined and backup_dir_result.changed else 'NO' }}"
-      - "Source File:            {{ item.src }}"
-      - "Backup File:            {{ item.dest }}"
-      - "Operation Status:       {{ 'SUCCESS' if item.changed else 'SKIPPED' }}"
-      - "File Exists:            {{ 'YES' if item.src is file else 'NO' }}"
-      - "Backup Created:         {{ 'YES' if item.changed else 'NO' }}"
-      - "============================================================================="
-  loop: "{{ backup_result.results | default([]) }}"
-  no_log: true
-  when: 
-    - debug_mode | default(false)
-    - ufw_backup_enabled | bool
-    - backup_result is defined
-
-# Install and configure UFW for Debian/Ubuntu
-# Установка и настройка UFW для Debian/Ubuntu
-- name: "Install and configure UFW for Debian/Ubuntu"
-  ansible.builtin.include_tasks: debian.yml
-
-# Log configuration change
-# Логирование изменения конфигурации
-- name: "Log configuration change"
-  ansible.builtin.lineinfile:
-    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
-    line: '{{ {
-      "timestamp": ansible_facts.date_time.iso8601,
-      "level": "INFO",
-      "event_type": "CONFIG_CHANGE",
-      "service_name": "ufw",
-      "status": ansible_failed_task is undefined | ternary("SUCCESS", "FAILED"),
-      "user": ansible_facts.user_id,
-      "host": inventory_hostname,
-      "playbook": ansible_play_name,
-      "correlation_id": ansible_facts.date_time.epoch,
-      "message": "UFW configuration change applied",
-      "metadata": {
-        "config_file": "/etc/ufw/ufw.conf",
-        "backup_created": backup_result.dest is defined | ternary(true, false),
-        "ssh_port": ssh_port,
-        "ddos_protection": ddos_protection_enabled,
-        "rate_limiting": ssh_rate_limit,
-        "allowed_subnets": final_allowed_subnets | default([]) | length,
-        "denied_subnets": final_denied_subnets | default([]) | length,
-        "custom_rules": ufw_rules | length
-      }
-    } | to_json }}'
-    create: true
-    mode: '0644'
-  when: 
-    - structured_logging | default(false)
-    - ansible_failed_task is defined or ansible_failed_task is undefined
-
-# Post-deployment verification
-# Проверка после развертывания
-- name: "Post-deployment verification"
-  ansible.builtin.include_tasks: verify.yml
-  when: verify_deployment | default(true)
-
-# Log role execution completion
-# Логирование завершения выполнения роли
-- name: "Log role execution completion"
-  ansible.builtin.lineinfile:
-    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
-    line: '{{ {
-      "timestamp": ansible_facts.date_time.iso8601,
-      "level": "INFO",
-      "event_type": "ROLE_COMPLETE",
-      "role_name": "base.configure_ufw",
-      "user": ansible_facts.user_id,
-      "host": inventory_hostname,
-      "playbook": ansible_play_name,
-      "correlation_id": ansible_facts.date_time.epoch,
-      "message": "UFW configuration role execution completed",
-      "metadata": {
-        "execution_status": ansible_failed_task is undefined | ternary("SUCCESS", "FAILED"),
-        "os_family": ansible_facts.os_family,
-        "distribution": ansible_facts.distribution,
-        "version": ansible_facts.distribution_version,
-        "ssh_port": ssh_port,
-        "ddos_protection": ddos_protection_enabled,
-        "allowed_subnets": final_allowed_subnets | default([]) | length,
-        "denied_subnets": final_denied_subnets | default([]) | length,
-        "custom_rules": ufw_rules | length,
-        "backup_created": backup_result.dest is defined | ternary(true, false)
-      }
-    } | to_json }}'
-    create: true
-    mode: '0644'
-  when: structured_logging | default(false)
-
-# Log error event
-# Логирование события ошибки
-- name: "Log error event"
-  ansible.builtin.lineinfile:
-    path: "{{ log_file | default('/var/log/ansible-changes.log') }}"
-    line: '{{ {
-      "timestamp": ansible_facts.date_time.iso8601,
-      "level": "ERROR",
-      "event_type": "TASK_FAILURE",
-      "service_name": "ufw",
-      "error_message": ansible_failed_result.msg | default("Unknown error"),
-      "error_type": ansible_failed_result.exception | default("Unknown"),
-      "user": ansible_facts.user_id,
-      "host": inventory_hostname,
-      "playbook": ansible_play_name,
-      "task": ansible_failed_task.name | default("unknown"),
-      "correlation_id": ansible_facts.date_time.epoch,
-      "message": "UFW configuration task failed",
-      "metadata": {
-        "failed_task_args": ansible_failed_result.task | default({}),
-        "rollback_attempted": enable_rollback | default(false),
-        "backup_available": backup_result.dest is defined | ternary(true, false),
-        "os_family": ansible_facts.os_family,
-        "distribution": ansible_facts.distribution
-      }
-    } | to_json }}'
-    create: true
-    mode: '0644'
-  when: 
-    - structured_logging | default(false)
-    - ansible_failed_task is defined
-
-# Final configuration summary / Итоговая сводка конфигурации
-
-# Display final configuration summary / Отображение итоговой сводки конфигурации
-
-- name: "Display comprehensive final configuration summary (English)"
-  ansible.builtin.debug:
-    msg:
-      - "============================================================================="
-      - "FIREWALL CONFIGURATION COMPLETED SUCCESSFULLY!"
-      - "============================================================================="
-      - "Operating System:          {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
-      - "OS Family:                 {{ ansible_facts.os_family }}"
-      - "Firewall Type:             UFW"
-      - "SSH Port:                  {{ ssh_port }}"
-      - "SSH Protocol:              {{ ssh_protocol }}"
-      - "Logging Level:             {{ ufw_logging }}"
-      - "IPv6 Support:              {{ 'enabled' if ufw_ipv6 | bool else 'disabled' }}"
-      - "Rate Limiting:             {{ 'enabled' if ssh_rate_limit | bool else 'disabled' }}"
-      - "DDoS Protection:           {{ 'enabled' if ddos_protection_enabled | bool else 'disabled' }}"
-      - "SYN Flood Protection:      {{ 'enabled' if syn_flood_protection | bool else 'disabled' }}"
-      - "ICMP Flood Protection:     {{ 'enabled' if icmp_flood_protection | bool else 'disabled' }}"
-      - "Invalid Packets Drop:      {{ 'enabled' if invalid_packets_drop | bool else 'disabled' }}"
-      - "Connection Tracking:       {{ 'enabled' if connection_tracking_limits | bool else 'disabled' }}"
-      - "Auto Reset:                {{ 'enabled' if ufw_auto_reset | bool else 'disabled' }}"
-      - "Configuration Mode:        {{ 'Direct subnets' if (allowed_subnets is defined and allowed_subnets | length > 0) else 'Users-based' }}"
-      - "Allowed Subnets:           {{ final_allowed_subnets | length }} configured"
-      - "Denied Subnets:            {{ final_denied_subnets | length }} configured"
-      - "Custom Rules:              {{ ufw_rules | length }} configured"
-      - "Users Configured:          {{ users_to_add | length if (users_to_add is defined and users_to_add | length > 0) else '0' }}"
-      - "Backup Enabled:            {{ ufw_backup_enabled }}"
-      - "Validation Enabled:        {{ validate_configuration }}"
-      - "Debug Mode:                {{ debug_mode }}"
-      - "============================================================================="
-  when: debug_mode | default(false)
+    msg: "UFW configuration {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - configure_ufw_debug_mode | bool
+    - >-
+      (configure_ufw_package_result.changed | default(false) | bool)
+      or (configure_ufw_policy_result.changed | default(false) | bool)
+      or (configure_ufw_logging_result.changed | default(false) | bool)
+      or (configure_ufw_rule_result.changed | default(false) | bool)
+      or (configure_ufw_enable_result.changed | default(false) | bool)
+  tags:
+    - debug

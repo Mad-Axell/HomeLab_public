@@ -1,0 +1,27 @@
+---
+# Coral Edge TPU configuration
+# Конфигурация Coral Edge TPU
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+coral_edge_tpu_debug_mode: false
+
+# String. Coral APT repository URL.
+# Строка. URL APT-репозитория Coral.
+coral_edge_tpu_repository_url: "https://packages.cloud.google.com/apt"
+
+# String. Coral repository signing-key URL.
+# Строка. URL ключа подписи репозитория Coral.
+coral_edge_tpu_repository_key_url: "https://packages.cloud.google.com/apt/doc/apt-key.gpg"
+
+# String. Coral runtime package installed on the Proxmox host.
+# Строка. Пакет среды выполнения Coral, устанавливаемый на хосте Proxmox.
+coral_edge_tpu_package_name: "libedgetpu1-std"
+
+# Integer. Required Proxmox LXC VMID.
+# Целое число. Обязательный VMID контейнера Proxmox LXC.
+coral_edge_tpu_lxc_vmid: null
+
+# List. Required LXC configuration lines granting only the intended devices.
+# Список. Обязательные строки конфигурации LXC, предоставляющие доступ только к нужным устройствам.
+coral_edge_tpu_lxc_device_lines: null

@@ -1,0 +1,39 @@
+---
+# Validate that the host and selected APT upgrade mode are supported.
+# Проверка поддержки хоста и выбранного режима обновления APT.
+- name: Validate Debian update configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Debian"
+      - base_update_debian_cache_valid_time is number
+      - base_update_debian_cache_valid_time | int >= 0
+      - base_update_debian_upgrade_mode in ["safe", "full", "dist"]
+    fail_msg: "base_update_debian requires a Debian-family host, a non-negative cache lifetime, and a supported upgrade mode."
+
+# Refresh the APT package index when its cache lifetime has elapsed.
+# Обновление индекса пакетов APT по истечении заданного срока его актуальности.
+- name: Refresh APT package index
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ base_update_debian_cache_valid_time }}"
+  register: base_update_debian_cache_result
+
+# Upgrade installed packages according to the selected APT policy.
+# Обновление установленных пакетов согласно выбранной политике APT.
+- name: Upgrade Debian operating system packages
+  ansible.builtin.apt:
+    upgrade: "{{ base_update_debian_upgrade_mode }}"
+  register: base_update_debian_upgrade_result
+
+# Report the result without exposing package-manager output.
+# Вывод результата без раскрытия вывода менеджера пакетов.
+- name: Display Debian update change summary
+  ansible.builtin.debug:
+    msg: "Debian package index or operating system packages {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - base_update_debian_debug_mode | bool
+    - >-
+      base_update_debian_cache_result.changed | default(false) | bool
+      or base_update_debian_upgrade_result.changed | default(false) | bool
+  tags:
+    - debug

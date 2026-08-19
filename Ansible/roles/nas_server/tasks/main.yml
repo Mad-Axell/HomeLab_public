@@ -1,24 +1,101 @@
 ---
-# Main entry point for nas_server role
+# Validate the export path and enabled sharing protocols.
+# Проверка пути экспорта и включенных протоколов общего доступа.
+- name: Validate NAS share configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - nas_server_share_path is not none
+      - nas_server_share_path | length > 0
+      - nas_server_samba_enabled | bool or nas_server_nfs_enabled | bool
+      - not nas_server_nfs_enabled | bool or nas_server_nfs_clients | length > 0
+    fail_msg: "nas_server requires a share path, at least one protocol, and NFS clients when NFS is enabled."
 
-- name: Include storage setup tasks
-  ansible.builtin.include_tasks: storage.yml
-  tags:
-    - storage
-    - checks
+# Create the directory exported by Samba and NFS.
+# Создание каталога, экспортируемого Samba и NFS.
+- name: Create NAS share directory
+  ansible.builtin.file:
+    path: "{{ nas_server_share_path }}"
+    state: directory
+    mode: "0775"
+  register: nas_server_directory_result
 
-- name: Include Cockpit installation tasks
-  ansible.builtin.include_tasks: cockpit.yml
-  tags:
-    - cockpit
+# Install Samba only when the SMB export is requested.
+# Установка Samba только когда запрошен SMB-экспорт.
+- name: Install Samba server
+  ansible.builtin.apt:
+    name: "samba"
+    state: present
+    update_cache: true
+  when: nas_server_samba_enabled | bool
+  register: nas_server_samba_package_result
 
-- name: Include Samba configuration tasks
-  ansible.builtin.include_tasks: samba.yml
-  tags:
-    - samba
+# Write the complete Samba configuration for the managed share.
+# Запись полной конфигурации Samba для управляемого ресурса.
+- name: Configure Samba share
+  ansible.builtin.template:
+    src: "smb.conf.j2"
+    dest: "/etc/samba/smb.conf"
+    mode: "0644"
+  when: nas_server_samba_enabled | bool
+  notify: Restart Samba
+  register: nas_server_samba_configuration_result
 
-- name: Include NFS configuration tasks
-  ansible.builtin.include_tasks: nfs.yml
+# Ensure the Samba service is active for the managed export.
+# Обеспечение активности сервиса Samba для управляемого экспорта.
+- name: Manage Samba service
+  ansible.builtin.systemd:
+    name: "smbd"
+    state: started
+    enabled: true
+  when: nas_server_samba_enabled | bool
+  register: nas_server_samba_service_result
+
+# Install NFS only when the NFS export is requested.
+# Установка NFS только когда запрошен NFS-экспорт.
+- name: Install NFS server
+  ansible.builtin.apt:
+    name: "nfs-kernel-server"
+    state: present
+    update_cache: true
+  when: nas_server_nfs_enabled | bool
+  register: nas_server_nfs_package_result
+
+# Write the NFS exports file for the managed share.
+# Запись файла NFS exports для управляемого ресурса.
+- name: Configure NFS export
+  ansible.builtin.template:
+    src: "exports.j2"
+    dest: "/etc/exports.d/{{ nas_server_share_name }}.exports"
+    mode: "0644"
+  when: nas_server_nfs_enabled | bool
+  notify: Reload NFS exports
+  register: nas_server_nfs_configuration_result
+
+# Ensure the NFS server is active for the managed export.
+# Обеспечение активности NFS-сервера для управляемого экспорта.
+- name: Manage NFS service
+  ansible.builtin.systemd:
+    name: "nfs-server"
+    state: started
+    enabled: true
+  when: nas_server_nfs_enabled | bool
+  register: nas_server_nfs_service_result
+
+# Report NAS share changes without displaying export client details.
+# Вывод изменений NAS-ресурса без отображения данных клиентов экспорта.
+- name: Display NAS share change summary
+  ansible.builtin.debug:
+    msg: "NAS share configuration {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - nas_server_debug_mode | bool
+    - >-
+      (nas_server_directory_result.changed | default(false) | bool)
+      or (nas_server_samba_package_result is defined and nas_server_samba_package_result.changed | default(false) | bool)
+      or (nas_server_samba_configuration_result is defined and nas_server_samba_configuration_result.changed | default(false) | bool)
+      or (nas_server_samba_service_result is defined and nas_server_samba_service_result.changed | default(false) | bool)
+      or (nas_server_nfs_package_result is defined and nas_server_nfs_package_result.changed | default(false) | bool)
+      or (nas_server_nfs_configuration_result is defined and nas_server_nfs_configuration_result.changed | default(false) | bool)
+      or (nas_server_nfs_service_result is defined and nas_server_nfs_service_result.changed | default(false) | bool)
   tags:
-    - nfs
-  when: nfs_enabled | default(false)
+    - debug

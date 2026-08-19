@@ -1,142 +1,62 @@
-# coral-edge-tpu
+# coral_edge_tpu
 
-Ansible role for installing and configuring Google Coral EDGE TPU support in Proxmox LXC containers.
+This role adds the Coral repository, installs the runtime, and writes the supplied device-forwarding lines to an existing Proxmox LXC configuration file.
 
-## Description
+## What it does
 
-This role automates the installation of Google Coral EDGE TPU runtime libraries and configures Proxmox LXC containers to enable USB device forwarding for Coral TPU accelerators. It adds the official Google repository, installs the required libraries, and configures the LXC container configuration file to forward USB devices and GPU devices.
+- Adds the Coral signing key and APT repository.
+- Installs `libedgetpu1-std` on the Proxmox host.
+- Adds only explicitly supplied lines to `/etc/pve/lxc/<vmid>.conf`.
 
 ## Requirements
 
-### Control Node Requirements
+- Debian-based Proxmox VE host.
+- `become: true`.
+- An existing LXC container.
 
-- Ansible 2.14 or higher
-- Python 3.9 or higher
+## Managed resources
 
-### Managed Node Requirements
+- Packages: `libedgetpu1-std`.
+- Files: `/etc/apt/keyrings/coral-edge-tpu.gpg`, the APT repository file, and `/etc/pve/lxc/<vmid>.conf`.
+- Services: none.
+- Users/groups: none.
+- Firewall/API objects: none.
 
-- Debian family distribution (Debian, Ubuntu)
-- Proxmox VE environment
-- Root or sudo access
-- Internet connectivity for package installation
+## Variables
 
-### Dependencies
+| Variable | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `coral_edge_tpu_debug_mode` | boolean | no | `false` | Reports whether the role changed anything. |
+| `coral_edge_tpu_repository_url` | string | no | Google URL | Coral repository URL. |
+| `coral_edge_tpu_repository_key_url` | string | no | Google URL | Signing-key URL. |
+| `coral_edge_tpu_package_name` | string | no | `"libedgetpu1-std"` | Runtime package. |
+| `coral_edge_tpu_lxc_vmid` | integer | yes | `null` | Existing LXC VMID. |
+| `coral_edge_tpu_lxc_device_lines` | list | yes | `null` | Exact LXC device-forwarding lines. |
 
-None
-
-## Role Variables
-
-### Required Variables
-
-| Variable | Type | Description |
-|----------|------|-------------|
-| `pve_lxc_vmid` | string | Proxmox LXC container VM ID. Used to identify the container configuration file at `/etc/pve/lxc/{{ pve_lxc_vmid }}.conf` |
-
-### Optional Variables
-
-None
-
-## Example Playbook
-
-### Basic Usage
+## Usage
 
 ```yaml
 ---
-- name: Configure Coral EDGE TPU for LXC container
-  hosts: proxmox_hosts
+- name: Configure Coral USB pass-through
+  hosts: proxmox
   become: true
-  vars:
-    pve_lxc_vmid: "100"
   roles:
-    - coral-edge-tpu
+    - role: coral_edge_tpu
+      vars:
+        coral_edge_tpu_lxc_vmid: 101
+        coral_edge_tpu_lxc_device_lines:
+          - "lxc.cgroup2.devices.allow: c 189:* rwm"
+          - "lxc.mount.entry: /dev/bus/usb/001 dev/bus/usb/001 none bind,optional,create=dir 0 0"
 ```
 
-### Multiple Containers
+## Check mode and diff mode
 
-```yaml
----
-- name: Configure Coral EDGE TPU for multiple containers
-  hosts: proxmox_hosts
-  become: true
-  vars:
-    pve_lxc_vmid: "{{ item }}"
-  roles:
-    - coral-edge-tpu
-  loop:
-    - "100"
-    - "101"
-    - "102"
-```
+Key download, repository, and package tasks support `--check --diff` within Ansible-module capabilities. The LXC configuration is changed predictably with `lineinfile`; the role does not restart the container.
 
-## What This Role Does
+## Dependencies
 
-1. **Adds Coral EDGE TPU Repository**
-   - Adds Google's official Coral EDGE TPU repository to the system's APT sources
-
-2. **Adds GPG Key**
-   - Imports the GPG key for the Coral EDGE TPU repository
-
-3. **Updates Package Cache**
-   - Updates the APT package cache to include packages from the new repository
-
-4. **Installs Coral EDGE TPU Library**
-   - Installs `libedgetpu1-std` package (standard runtime library for Coral EDGE TPU)
-
-5. **Configures LXC Container**
-   - Configures device forwarding in the Proxmox LXC container configuration file
-   - Enables forwarding of USB devices (Coral TPU devices on /dev/bus/usb/001/ and /dev/bus/usb/004/)
-   - Enables forwarding of GPU devices (/dev/dri/renderD128 and /dev/dri)
-   - Sets device permissions (cgroup2.devices.allow)
-
-## Device Forwarding Configuration
-
-The role configures the following device forwards in the LXC container:
-
-- **USB Devices**: `/dev/bus/usb/001/` and `/dev/bus/usb/004/` (Coral TPU devices)
-- **GPU Devices**: `/dev/dri/renderD128` and `/dev/dri` (for GPU acceleration)
-- **Device Permissions**: `lxc.cgroup2.devices.allow = a` (allows all devices)
+- None
 
 ## Notes
 
-- This role is specifically designed for Proxmox VE LXC containers
-- The role modifies the LXC container configuration file directly
-- USB device paths (001, 004) are hardcoded and may need adjustment based on your hardware configuration
-- The role uses check mode for initial validation before applying changes
-- After configuration, the LXC container may need to be restarted for changes to take effect
-
-## Troubleshooting
-
-### USB Device Not Found
-
-If your Coral TPU device is on a different USB bus, you may need to:
-1. Identify the correct USB bus: `lsusb | grep Coral`
-2. Check the device path: `ls -la /dev/bus/usb/`
-3. Modify the role tasks to use the correct device path
-
-### Permission Denied Errors
-
-Ensure that:
-- The playbook runs with `become: true`
-- The user has permissions to modify `/etc/pve/lxc/` directory
-- The LXC container configuration file exists and is writable
-
-### Package Installation Fails
-
-Verify:
-- Internet connectivity is available
-- DNS resolution works correctly
-- The GPG key import was successful
-- The repository URL is accessible
-
-## License
-
-MIT
-
-## Author
-
-Mad-Axell [mad.axell@gmail.com]
-
-## Support
-
-For issues and questions, please contact the author or open an issue in the repository.
-
+- Declare only exact lines for the intended devices. `lxc.cgroup2.devices.allow: a` is deliberately not a default.

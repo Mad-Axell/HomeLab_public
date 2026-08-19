@@ -1,102 +1,31 @@
 ---
-# EN: Default configuration variables
-# RU: Переменные конфигурации по умолчанию
+# User account configuration
+# Конфигурация учетных записей пользователей
 
-# EN: Debug configuration / RU: Конфигурация отладки
-debug_mode: true                # Boolean. Enable detailed debug output / Логическое значение. Включить детальный вывод отладки
-debug_show_passwords: true      # Boolean. Show passwords in debug (INSECURE) / Логическое значение. Показывать пароли в отладке (НЕБЕЗОПАСНО)
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+add_users_debug_mode: false
 
-# EN: System-specific packages / RU: Системные пакеты
-required_packages:
-  - sudo
-  - passwd
-  
+# Boolean. Create home directories unless an item overrides the value.
+# Логическое значение. Создает домашние каталоги, если элемент не переопределяет значение.
+add_users_create_home: true
 
-# EN: User configuration / RU: Конфигурация пользователей
-users_to_add: []                 # List. Users to create or update / Список. Пользователи для создания или обновления
-  # Example configuration / Пример конфигурации:
-  # - username: test_user_1       # String. Username (lowercase, numbers, underscores) / Строка. Имя пользователя (строчные, цифры, подчеркивания)
-  #   password: "SecurePass123"   # String. Plain text password (will be hashed) / Строка. Пароль открытым текстом (будет захеширован)
-  #   groups: ["docker", "wheel"]  # List. User groups / Список. Группы пользователя
-  #   security_groups: ["operators"]  # List. Security groups for sudo privileges / Список. Группы безопасности для sudo привилегий
-  #   is_sudoers: true             # Boolean. Grant sudo privileges / Логическое значение. Предоставить sudo привилегии
-  #   uid: null                    # Integer. User ID (null for auto) / Целое число. ID пользователя (null для авто)
-  #   gid: null                    # Integer. Group ID (null for auto) / Целое число. ID группы (null для авто)
-  #   shell: /bin/bash             # String. User shell / Строка. Оболочка пользователя
-  #   create_home: true            # Boolean. Create home directory / Логическое значение. Создать домашнюю директорию
-  #   home: "/home/test_user_1"    # String. Home directory path / Строка. Путь домашней директории
-  #   password_max_age: -1         # Integer. Password max age in days (-1=never expires, 0=must change, >0=days) / Целое число. Максимальный возраст пароля в днях (-1=никогда не истекает, 0=должен быть изменен, >0=дни)
+# String. Default shell for managed users.
+# Строка. Оболочка по умолчанию для управляемых пользователей.
+add_users_default_shell: "/bin/bash"
 
-# EN: Global settings for user creation / RU: Глобальные настройки для создания пользователей
-add_users_create_home: true          # Boolean. Create home directory by default / Логическое значение. Создавать домашнюю директорию по умолчанию
-add_users_home_prefix: "/home"       # String. Home directory prefix / Строка. Префикс домашней директории
-add_users_default_shell: "/bin/bash" # String. Default shell for users / Строка. Оболочка по умолчанию для пользователей
+# String. Parent directory used for default home paths.
+# Строка. Родительский каталог для путей домашних каталогов по умолчанию.
+add_users_home_prefix: "/home"
 
-# EN: Password validation / RU: Валидация паролей
-add_users_validate_passwords: false   # Boolean. Enable password validation / Логическое значение. Включить валидацию паролей
-add_users_min_password_length: 8    # Integer. Minimum password length / Целое число. Минимальная длина пароля (PAM hardening standard)
+# String. Permissions applied to managed home directories.
+# Строка. Права, применяемые к управляемым домашним каталогам.
+add_users_home_mode: "0750"
 
-# EN: Rollback configuration / RU: Конфигурация отката
-enable_rollback: true                # Boolean. Enable automatic rollback on failure / Логическое значение. Включить автоматический откат при ошибке
-backup_config: true                  # Boolean. Create backup before changes / Логическое значение. Создавать резервную копию перед изменениями
+# List. Users to create or update; password_hash_var refers to vault_add_users_<name>_password_hash.
+# Список. Пользователи для создания или обновления; password_hash_var ссылается на vault_add_users_<name>_password_hash.
+add_users_users: []
 
-# EN: Performance settings / RU: Настройки производительности
-async_timeout: 300                   # Integer (seconds). Timeout for async operations / Целое число (секунды). Таймаут для асинхронных операций
-add_users_retries: 3                # Integer. Number of retry attempts for failed tasks / Целое число. Количество попыток повтора для неудачных задач
-retry_delay: 5                      # Integer (seconds). Delay between retry attempts / Целое число (секунды). Задержка между повторами
-
-# EN: Structured logging / RU: Структурированное логирование
-log_file: "/var/log/ansible-changes.log"  # String. Path to structured log file / Строка. Путь к файлу структурированного лога
-
-
-# EN: Password and account security policies / RU: Политики безопасности паролей и аккаунтов
-password_max_age: 90                 # Integer. Maximum password age in days / Целое число. Максимальный возраст пароля в днях
-password_warn_age: 14                # Integer. Password warning age in days / Целое число. Предупреждение о смене пароля за N дней
-account_inactive_days: 30            # Integer. Days until account locks after password expiry / Целое число. Дней до блокировки аккаунта после истечения пароля
-password_max_age_override: false     # Boolean. Allow individual password_max_age per user (enables password_max_age field in users_to_add) / Логическое значение. Разрешить индивидуальный password_max_age для каждого пользователя (включает поле password_max_age в users_to_add)
-pam_deny_attempts: 3                 # Integer. Failed login attempts before lockout / Целое число. Неудачных попыток входа до блокировки
-pam_unlock_time: 604800              # Integer. Account unlock time in seconds (1 week) / Целое число. Время разблокировки в секундах (1 неделя, PAM hardening standard)
-pam_fail_interval: 900               # Integer. Fail interval in seconds (15 min) / Целое число. Интервал оценки неудачных попыток в секундах (15 мин)
-pam_faillock_dir: /var/lib/faillock  # String. Faillock directory path (use /var/lib/faillock for containers, /var/run/faillock for regular systems) / Строка. Путь к директории faillock (используйте /var/lib/faillock для контейнеров, /var/run/faillock для обычных систем)
-password_remember_count: 10         # Integer. Number of old passwords to remember / Целое число. Количество старых паролей для запоминания (PAM hardening standard)
-password_history_file: /etc/security/opasswd  # String. Password history file / Строка. Файл истории паролей
-umask_system_users: '0027'           # String. Umask for system users / Строка. Umask для системных пользователей
-home_dir_permissions: '0750'         # String. Home directory permissions / Строка. Права на домашние директории
-min_uid: 1000                        # Integer. Minimum UID for regular users / Целое число. Минимальный UID для обычных пользователей
-max_uid: 60000                       # Integer. Maximum UID for regular users / Целое число. Максимальный UID для обычных пользователей
-
-# EN: PAM configuration control / RU: Управление конфигурацией PAM
-enable_pam_configuration: false        # Boolean. Enable PAM modules configuration / Логическое значение. Включить конфигурацию PAM модулей
-enable_pam_validation: false           # Boolean. Enable user credential validation before PAM setup / Логическое значение. Включить валидацию учетных данных перед настройкой PAM
-enable_faillock_in_containers: false   # Boolean. Force enable faillock in containers (NOT RECOMMENDED - see security.yml comments) / Логическое значение. Принудительно включить faillock в контейнерах (НЕ РЕКОМЕНДУЕТСЯ - см. комментарии в security.yml)
-
-# EN: Security groups configuration / RU: Конфигурация групп безопасности
-security_groups:                     # Dictionary. Security groups with members and allowed commands / Словарь. Группы безопасности с членами и разрешенными командами
-  admins:                            # EN: Full administrative access / RU: Полный административный доступ
-    members: []                      # List. Usernames of admins / Список. Имена пользователей-администраторов
-    commands:                        # List. Allowed commands (empty = ALL) / Список. Разрешенные команды (пусто = ALL)
-      - ALL
-    nopasswd: false                  # Boolean. Allow NOPASSWD for these commands / Логическое значение. Разрешить NOPASSWD для этих команд
-    
-  operators:                         # EN: Limited operational access / RU: Ограниченный операционный доступ
-    members: []                      # List. Usernames of operators / Список. Имена пользователей-операторов
-    commands:                        # List. Allowed commands / Список. Разрешенные команды
-      - /bin/systemctl restart *
-      - /bin/systemctl stop *
-      - /bin/systemctl start *
-      - /bin/systemctl status *
-      - /bin/journalctl *
-      - /usr/bin/docker *
-      - /usr/local/bin/docker-compose *
-    nopasswd: false                  # Boolean. Require password for these commands / Логическое значение. Требовать пароль для этих команд
-    
-  auditors:                          # EN: Read-only audit access / RU: Доступ только на чтение для аудита
-    members: []                      # List. Usernames of auditors / Список. Имена пользователей-аудиторов
-    commands:                        # List. Allowed commands / Список. Разрешенные команды
-      - /bin/cat /var/log/*
-      - /bin/tail /var/log/*
-      - /bin/grep * /var/log/*
-      - /bin/journalctl *
-      - /bin/systemctl status *
-      - /usr/bin/find /var/log/*
-    nopasswd: false                  # Boolean. Allow NOPASSWD for read-only commands / Логическое значение. Разрешить NOPASSWD для команд только на чтение
+# List. Supplementary groups created before managing users.
+# Список. Дополнительные группы, создаваемые до управления пользователями.
+add_users_groups: []

@@ -1,39 +1,13 @@
 # set_locale
 
-System locale configuration role for Debian/Ubuntu systems.
+## Русский
 
-## Overview
+Генерирует и устанавливает одну системную локаль на Debian/Ubuntu. Роль не настраивает часовой пояс и не изменяет дополнительные региональные параметры.
 
-This role configures system locale, timezone, keyboard layout and console font for Debian/Ubuntu systems with comprehensive validation and debugging capabilities.
+Полная документация: [README_RUS.md](README_RUS.md)
 
-## Documentation
+## English
 
-- [Complete English Documentation](README_eng.md)
-- [Полная документация на русском](README_rus.md)
+Generates and configures one system locale on Debian/Ubuntu. The role does not configure time zones or additional regional settings.
 
-## Quick Start
-
-```yaml
-- hosts: all
-  roles:
-    - role: base.set_locale
-      vars:
-        locale_primary: "en_US.UTF-8"
-        timezone: "Europe/Moscow"
-        keyboard_layout: "us"
-        console_font: "Lat2-Terminus16"
-```
-
-## Requirements
-
-- Ansible 2.14+
-- Debian/Ubuntu systems
-- Python 3.6+
-
-## License
-
-MIT
-
-## Author
-
-Mad-Axell [mad.axell@gmail.com]
+Full documentation: [README_ENG.md](README_ENG.md)

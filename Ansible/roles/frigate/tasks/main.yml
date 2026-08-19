@@ -1,0 +1,69 @@
+---
+# Validate the required Frigate configuration secret and public lists.
+# Проверка обязательного секрета конфигурации Frigate и публичных списков.
+- name: Validate Frigate deployment configuration
+  ansible.builtin.assert:
+    that:
+      - vault_frigate_config is defined
+      - frigate_devices is sequence
+      - frigate_ports is sequence
+    fail_msg: "frigate requires vault_frigate_config from VARS/secrets.yml and valid device and port lists."
+  no_log: true
+
+# Create the Compose project and persistent media directories.
+# Создание каталога Compose-проекта и каталога постоянных медиа.
+- name: Create Frigate directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ frigate_project_directory }}"
+    - "{{ frigate_project_directory }}/config"
+    - "{{ frigate_media_directory }}"
+  register: frigate_directory_result
+
+# Deploy the Compose definition for the managed Frigate container.
+# Развертывание определения Compose для управляемого контейнера Frigate.
+- name: Configure Frigate Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_Frigate.j2"
+    dest: "{{ frigate_project_directory }}/compose.yml"
+    mode: "0644"
+  register: frigate_compose_result
+
+# Deploy the secret-bearing Frigate application configuration safely.
+# Безопасное развертывание конфигурации приложения Frigate, содержащей секреты.
+- name: Configure Frigate application
+  ansible.builtin.copy:
+    content: "{{ vault_frigate_config }}"
+    dest: "{{ frigate_project_directory }}/config/config.yml"
+    mode: "0640"
+  no_log: true
+  diff: false
+  register: frigate_configuration_result
+
+# Start or update Frigate through the Docker Compose v2 module.
+# Запуск или обновление Frigate через модуль Docker Compose v2.
+- name: Deploy Frigate container
+  community.docker.docker_compose_v2:
+    project_src: "{{ frigate_project_directory }}"
+    files:
+      - "compose.yml"
+    state: present
+  register: frigate_deployment_result
+
+# Report the deployment result without exposing the application configuration.
+# Вывод результата развертывания без раскрытия конфигурации приложения.
+- name: Display Frigate change summary
+  ansible.builtin.debug:
+    msg: "Frigate deployment {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - frigate_debug_mode | bool
+    - >-
+      (frigate_directory_result.changed | default(false) | bool)
+      or (frigate_compose_result.changed | default(false) | bool)
+      or (frigate_configuration_result.changed | default(false) | bool)
+      or (frigate_deployment_result.changed | default(false) | bool)
+  tags:
+    - debug

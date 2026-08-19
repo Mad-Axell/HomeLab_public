@@ -1,41 +1,53 @@
 ---
-# =============================================================================
-# NetBox Docker Local Role - Main Tasks
-# Роль NetBox Docker Local - Основные задачи
-# =============================================================================
+# Validate the secret Compose definition before changing the host.
+# Проверка секретного определения Compose до изменения хоста.
+- name: Validate NetBox Compose configuration
+  ansible.builtin.assert:
+    that:
+      - vault_netbox_docker_local_compose is defined
+    fail_msg: "vault_netbox_docker_local_compose must be supplied from VARS/secrets.yml."
+  no_log: true
 
-# Create base directory / Создание базовой директории
-- name: Create NetBox base directory
+# Create the directory containing the managed Compose project.
+# Создание каталога с управляемым Compose-проектом.
+- name: Create NetBox Compose project directory
   ansible.builtin.file:
-    path: "{{ netbox_base_dir }}"
+    path: "{{ netbox_docker_local_project_directory }}"
     state: directory
-    mode: '0755'
-  tags:
-    - netbox
-    - setup
+    mode: "0750"
+  register: netbox_docker_local_directory_result
 
-# Deploy Docker Compose configuration
-# Развёртывание конфигурации Docker Compose
-- name: Deploy Docker Compose file
-  ansible.builtin.template:
-    src: docker-compose.yml.j2
-    dest: "{{ netbox_docker_compose_path }}"
-    mode: '0640'
-  notify: Recreate NetBox containers
-  tags:
-    - netbox
-    - config
+# Write the complete NetBox Compose definition without exposing credentials.
+# Запись полного определения NetBox Compose без раскрытия учетных данных.
+- name: Configure NetBox Compose project
+  ansible.builtin.copy:
+    content: "{{ vault_netbox_docker_local_compose }}"
+    dest: "{{ netbox_docker_local_project_directory }}/compose.yml"
+    mode: "0640"
+  no_log: true
+  diff: false
+  register: netbox_docker_local_compose_result
 
-# Start NetBox stack / Запуск стека NetBox
-- name: Start NetBox services
-  ansible.builtin.shell:
-    cmd: >-
-      docker compose
-      -f {{ netbox_docker_compose_path }}
-      up -d --wait
-    chdir: "{{ netbox_base_dir }}"
-  register: _netbox_compose_up
-  changed_when: "'Started' in _netbox_compose_up.stderr"
+# Deploy the NetBox stack through Docker Compose v2.
+# Развертывание стека NetBox через Docker Compose v2.
+- name: Deploy NetBox Docker Compose stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ netbox_docker_local_project_directory }}"
+    files:
+      - "compose.yml"
+    state: present
+  register: netbox_docker_local_deployment_result
+
+# Report deployment changes without exposing the Compose definition.
+# Вывод изменений развертывания без раскрытия определения Compose.
+- name: Display NetBox deployment change summary
+  ansible.builtin.debug:
+    msg: "NetBox Docker Compose deployment {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - netbox_docker_local_debug_mode | bool
+    - >-
+      (netbox_docker_local_directory_result.changed | default(false) | bool)
+      or (netbox_docker_local_compose_result.changed | default(false) | bool)
+      or (netbox_docker_local_deployment_result.changed | default(false) | bool)
   tags:
-    - netbox
-    - deploy
+    - debug

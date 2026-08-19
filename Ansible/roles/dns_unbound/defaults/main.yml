@@ -1,34 +1,47 @@
 ---
-# EN: Default, overridable variables / RU: Настраиваемые переменные по умолчанию
-# EN: Base aligned with production adguard (172.25.26.11); extras only when non-breaking
-# RU: База с prod adguard; доп. параметры — только если не ломают поведение
+# Unbound resolver configuration
+# Конфигурация резолвера Unbound
 
-# Service / Сервис
-unbound_service_state: started   # String. started/stopped/restarted / Состояние сервиса
-unbound_service_enabled: true    # Bool.   Enable on boot / Автозапуск
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+dns_unbound_debug_mode: false
 
-# EN: Performance / cache (production values)
-# RU: Производительность/кэш (значения с prod)
-unbound_num_threads: 2
-unbound_msg_cache_size: "64m"
-unbound_rrset_cache_size: "128m"
-unbound_verbosity: 1
+# String. Unbound systemd service name.
+# Строка. Имя systemd-сервиса Unbound.
+dns_unbound_service_name: "unbound"
 
-# EN: DoS / ratelimit / RU: Защита от DoS / ratelimit
-unbound_ratelimit: 1000
-unbound_ip_ratelimit: 200
+# String. Desired stable service state.
+# Строка. Желаемое устойчивое состояние сервиса.
+dns_unbound_service_state: "started"
 
-# EN: Socket buffers. "0" = omit (kernel defaults; required for unprivileged LXC)
-# RU: Буферы сокетов. "0" = не задавать (дефолты ядра; для unprivileged LXC)
-unbound_so_rcvbuf: "0"
-unbound_so_sndbuf: "0"
+# Boolean. Enable the resolver at boot.
+# Логическое значение. Включает резолвер при загрузке.
+dns_unbound_service_enabled: true
 
-# EN: Root hints URL + refresh schedule (cron.d)
-# RU: URL root hints + расписание обновления (cron.d)
-unbound_root_hints_url: "https://www.internic.net/domain/named.cache"
-unbound_root_hints_cron: "17 4 1 * *"
+# String. Local address used by the resolver.
+# Строка. Локальный адрес, используемый резолвером.
+dns_unbound_listen_address: "127.0.0.1"
 
-# Debug / Отладка
-debug_mode: false                # Bool.   Enable debug output / Включить отладочный вывод
-debug_lang: 'both'               # String. english/russian/both / Язык отладки
-debug_show_passwords: false      # Bool.   Show secrets in debug (INSECURE) / Показывать секреты
+# Integer. Local resolver listener port.
+# Целое число. Порт локального слушателя резолвера.
+dns_unbound_listen_port: 5335
+
+# Integer. Number of Unbound worker threads.
+# Целое число. Число рабочих потоков Unbound.
+dns_unbound_num_threads: 2
+
+# String. URL of the DNS root hints file.
+# Строка. URL файла корневых DNS-подсказок.
+dns_unbound_root_hints_url: "https://www.internic.net/domain/named.cache"
+
+# String. Managed Unbound configuration path.
+# Строка. Путь к управляемой конфигурации Unbound.
+dns_unbound_config_path: "/etc/unbound/unbound.conf.d/10-server.conf"
+
+# String. DNSSEC trust-anchor path.
+# Строка. Путь к DNSSEC trust anchor.
+dns_unbound_root_key_path: "/var/lib/unbound/root.key"
+
+# String. Root hints destination path.
+# Строка. Путь назначения root hints.
+dns_unbound_root_hints_path: "/var/lib/unbound/root.hints"

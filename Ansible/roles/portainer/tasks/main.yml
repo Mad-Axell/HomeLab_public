@@ -1,0 +1,45 @@
+---
+# Validate the public Portainer deployment settings.
+# Проверка публичных настроек развертывания Portainer.
+- name: Validate Portainer configuration
+  ansible.builtin.assert:
+    that:
+      - portainer_published_ports is sequence
+      - portainer_published_ports | length > 0
+    fail_msg: "portainer_published_ports must be a non-empty list."
+
+# Create the persistent data directory for the Portainer container.
+# Создание каталога постоянных данных контейнера Portainer.
+- name: Create Portainer data directory
+  ansible.builtin.file:
+    path: "{{ portainer_data_directory }}"
+    state: directory
+    mode: "0750"
+  register: portainer_directory_result
+
+# Run Portainer with Docker socket and persistent-data mounts.
+# Запуск Portainer с монтированием Docker socket и постоянных данных.
+- name: Deploy Portainer container
+  community.docker.docker_container:
+    name: "{{ portainer_container_name }}"
+    image: "{{ portainer_image }}"
+    state: started
+    restart_policy: "unless-stopped"
+    published_ports: "{{ portainer_published_ports }}"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "{{ portainer_data_directory }}:/data"
+  register: portainer_container_result
+
+# Report container deployment changes without querying the web interface.
+# Вывод изменений развертывания контейнера без опроса веб-интерфейса.
+- name: Display Portainer change summary
+  ansible.builtin.debug:
+    msg: "Portainer container {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - portainer_debug_mode | bool
+    - >-
+      (portainer_directory_result.changed | default(false) | bool)
+      or (portainer_container_result.changed | default(false) | bool)
+  tags:
+    - debug

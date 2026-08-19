@@ -1,141 +1,55 @@
 ---
-# =============================================================================
-# NS Server Role - Main Tasks
-# Роль NS Server - Основные задачи
-# =============================================================================
+# Validate the platform and DNS forwarding input.
+# Проверка платформы и входных данных DNS-пересылки.
+- name: Validate local DNS server configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - ns_server_listen_port | int > 0
+      - ns_server_listen_port | int < 65536
+      - ns_server_forward_addresses is sequence
+      - ns_server_forward_addresses | length > 0
+    fail_msg: "ns_server supports Debian-family systems and requires a valid port and at least one upstream resolver."
 
-# -----------------------------------------------------------------------------
-# Unbound Installation / Установка Unbound
-# -----------------------------------------------------------------------------
-
-- name: Install Unbound packages (Debian/Ubuntu)
+# Install the Unbound DNS server package.
+# Установка пакета DNS-сервера Unbound.
+- name: Install Unbound DNS server
   ansible.builtin.apt:
-    name: "{{ unbound_packages_debian }}"
+    name: "unbound"
     state: present
     update_cache: true
-  when: ansible_facts.os_family == 'Debian'
+  register: ns_server_package_result
 
-- name: Install Unbound packages (RHEL/CentOS)
-  ansible.builtin.dnf:
-    name: "{{ unbound_packages_redhat }}"
-    state: present
-  when: ansible_facts.os_family == 'RedHat'
-
-# -----------------------------------------------------------------------------
-# Unbound Configuration / Конфигурация Unbound
-# -----------------------------------------------------------------------------
-
-- name: Download root hints file
-  ansible.builtin.get_url:
-    url: https://www.internic.net/domain/named.root
-    dest: "{{ unbound_root_hints }}"
-    owner: unbound
-    group: unbound
-    mode: "0644"
-  notify: restart unbound
-
-- name: Ensure unbound config directory exists
-  ansible.builtin.file:
-    path: "{{ unbound_config_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Deploy Unbound configuration
+# Write and validate the forwarding resolver configuration.
+# Запись и проверка конфигурации резолвера с пересылкой.
+- name: Configure Unbound DNS server
   ansible.builtin.template:
-    src: unbound.conf.j2
-    dest: "{{ unbound_config_file }}"
-    owner: root
-    group: root
+    src: "unbound.conf.j2"
+    dest: "/etc/unbound/unbound.conf.d/ns-server.conf"
     mode: "0644"
-  notify: restart unbound
+    validate: "unbound-checkconf %s"
+  notify: Restart Unbound DNS server
+  register: ns_server_configuration_result
 
-- name: Enable and start Unbound service
-  ansible.builtin.service:
-    name: unbound
-    enabled: "{{ unbound_service_enabled }}"
-    state: "{{ 'started' if unbound_service_started else 'stopped' }}"
-
-# -----------------------------------------------------------------------------
-# Cache Persistence / Сохранение кэша
-# -----------------------------------------------------------------------------
-
-- name: Deploy cache dump service
-  ansible.builtin.template:
-    src: unbound-cache-dump.service.j2
-    dest: /etc/systemd/system/unbound-cache-dump.service
-    owner: root
-    group: root
-    mode: "0644"
-  when: unbound_cache_dump_enabled
-  notify: reload systemd daemon
-
-- name: Deploy cache dump timer
-  ansible.builtin.template:
-    src: unbound-cache-dump.timer.j2
-    dest: /etc/systemd/system/unbound-cache-dump.timer
-    owner: root
-    group: root
-    mode: "0644"
-  when: unbound_cache_dump_enabled
-  notify: reload systemd daemon
-
-- name: Deploy cache load service
-  ansible.builtin.template:
-    src: unbound-cache-load.service.j2
-    dest: /etc/systemd/system/unbound-cache-load.service
-    owner: root
-    group: root
-    mode: "0644"
-  when: unbound_cache_dump_enabled
-  notify: reload systemd daemon
-
-- name: Flush handlers before enabling services
-  ansible.builtin.meta: flush_handlers
-
-- name: Enable cache dump timer
-  ansible.builtin.service:
-    name: unbound-cache-dump.timer
-    enabled: true
+# Ensure the local DNS service is started and enabled.
+# Обеспечение запуска и включения локального DNS-сервиса.
+- name: Manage Unbound DNS service
+  ansible.builtin.systemd:
+    name: "unbound"
     state: started
-  when: unbound_cache_dump_enabled
-
-- name: Enable cache load service
-  ansible.builtin.service:
-    name: unbound-cache-load.service
     enabled: true
-  when: unbound_cache_dump_enabled
+  register: ns_server_service_result
 
-# -----------------------------------------------------------------------------
-# AdGuard Home / AdGuard Home
-# -----------------------------------------------------------------------------
-
-- name: Include AdGuard Home installation tasks
-  ansible.builtin.include_tasks: adguard/main.yml
-  when: ns_server_install_adguard
-
-- name: Deploy AdGuard Home configuration
-  ansible.builtin.template:
-    src: AdGuardHome.yml.j2
-    dest: "{{ adguardhome_config_file }}"
-    owner: "{{ adguardhome_user }}"
-    group: "{{ adguardhome_group }}"
-    mode: "0644"
+# Report DNS server changes without listing client queries.
+# Вывод изменений DNS-сервера без перечисления клиентских запросов.
+- name: Display DNS server change summary
+  ansible.builtin.debug:
+    msg: "Local DNS server {{ 'would change' if ansible_check_mode else 'changed' }}."
   when:
-    - ns_server_install_adguard
-    - adguard_deploy_config
-  notify: restart adguardhome
-
-# -----------------------------------------------------------------------------
-# Health Check Script / Скрипт проверки здоровья
-# -----------------------------------------------------------------------------
-
-- name: Deploy DNS health check script
-  ansible.builtin.template:
-    src: dns-health-check.sh.j2
-    dest: "{{ ns_server_healthcheck_path }}"
-    owner: root
-    group: root
-    mode: "0755"
-  when: ns_server_deploy_healthcheck
+    - ns_server_debug_mode | bool
+    - >-
+      (ns_server_package_result.changed | default(false) | bool)
+      or (ns_server_configuration_result.changed | default(false) | bool)
+      or (ns_server_service_result.changed | default(false) | bool)
+  tags:
+    - debug

@@ -1,0 +1,192 @@
+---
+# Transactional pfsense_config apply and rollback flow.
+- name: Apply the pfSense configuration with an automatic rollback guard
+  block:
+    - name: Create a controller-side pfSense backup directory
+      ansible.builtin.file:
+        path: "{{ pfsense_config_local_backup_dir }}/{{ inventory_hostname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+
+    - name: Create the pfSense rollback-copy directory
+      ansible.builtin.file:
+        path: "{{ pfsense_config_remote_backup_dir }}"
+        state: directory
+        mode: "0750"
+
+    - name: Create the rollback copy on pfSense
+      ansible.builtin.copy:
+        src: "{{ pfsense_config_destination_path }}"
+        dest: "{{ pfsense_config_remote_backup_path }}"
+        remote_src: true
+        mode: "{{ pfsense_config_file_mode }}"
+      diff: false
+      no_log: true
+
+    - name: Fetch the rollback copy to the Ansible controller
+      ansible.builtin.fetch:
+        src: "{{ pfsense_config_remote_backup_path }}"
+        dest: "{{ pfsense_config_local_backup_path }}"
+        flat: true
+      diff: false
+      no_log: true
+
+    - name: Read the pfSense boot timestamp before apply
+      ansible.builtin.command:
+        argv:
+          - /sbin/sysctl
+          - -n
+          - kern.boottime
+      register: pfsense_config_boot_before
+      changed_when: false
+
+    - name: Install the one-shot boot rollback watchdog
+      ansible.builtin.template:
+        src: ansible-config-rollback.sh.j2
+        dest: "{{ pfsense_config_rollback_script_path }}"
+        mode: "0700"
+
+    - name: Atomically install the validated pfSense configuration
+      ansible.builtin.copy:
+        src: "{{ pfsense_config_upgraded_path }}"
+        dest: "{{ pfsense_config_destination_path }}"
+        remote_src: true
+        mode: "{{ pfsense_config_file_mode }}"
+        backup: false
+      register: pfsense_config_live_deployment_result
+      diff: false
+      no_log: true
+
+    - name: Mark that the live configuration was written
+      ansible.builtin.set_fact:
+        pfsense_config_live_written: true
+
+    - name: Clear the pfSense configuration cache
+      ansible.builtin.file:
+        path: "{{ pfsense_config_cache_path }}"
+        state: absent
+
+    - name: Reboot pfSense and re-establish the Ansible connection
+      ansible.builtin.reboot:
+        boot_time_command: "/sbin/sysctl -n kern.boottime"
+        connect_timeout: 10
+        reboot_timeout: "{{ pfsense_config_reboot_timeout }}"
+        test_command: "/usr/bin/true"
+
+    - name: Verify that pfSense actually rebooted
+      ansible.builtin.command:
+        argv:
+          - /sbin/sysctl
+          - -n
+          - kern.boottime
+      register: pfsense_config_boot_after
+      changed_when: false
+      failed_when:
+        - pfsense_config_boot_after.rc != 0
+          or pfsense_config_boot_after.stdout == pfsense_config_boot_before.stdout
+
+    - name: Validate the running pfSense XML after reboot
+      ansible.builtin.command:
+        argv:
+          - "{{ pfsense_config_php_bin }}"
+          - "-r"
+          - >-
+            libxml_use_internal_errors(true);
+            $x=simplexml_load_file($argv[1]);
+            if ($x === false || $x->getName() !== 'pfsense') { exit(2); }
+          - "{{ pfsense_config_destination_path }}"
+      changed_when: false
+      no_log: true
+
+    - name: Read the running pfSense configuration checksum
+      ansible.builtin.stat:
+        path: "{{ pfsense_config_destination_path }}"
+        checksum_algorithm: sha256
+      register: pfsense_config_running_stat
+
+    - name: Require the running configuration to match the validated candidate
+      ansible.builtin.assert:
+        that:
+          - pfsense_config_running_stat.stat.checksum == pfsense_config_candidate_stat.stat.checksum
+        fail_msg: "The running pfSense config checksum differs from the validated candidate."
+        quiet: true
+
+    - name: Check pfSense management services from the controller
+      ansible.builtin.wait_for:
+        host: "{{ pfsense_config_healthcheck_host }}"
+        port: "{{ item }}"
+        state: started
+        timeout: "{{ pfsense_config_healthcheck_timeout }}"
+      loop: "{{ pfsense_config_healthcheck_ports }}"
+      loop_control:
+        label: "{{ pfsense_config_healthcheck_host }}:{{ item }}"
+      delegate_to: localhost
+      become: false
+
+    - name: Confirm the pfSense transaction to the rollback watchdog
+      ansible.builtin.file:
+        path: "{{ pfsense_config_confirmation_path }}"
+        state: touch
+        mode: "0600"
+
+    - name: Remove the rollback launcher after successful confirmation
+      ansible.builtin.file:
+        path: "{{ pfsense_config_rollback_script_path }}"
+        state: absent
+
+  rescue:
+    - name: Prevent an already-running watchdog from racing the immediate rollback
+      ansible.builtin.file:
+        path: "{{ pfsense_config_confirmation_path }}"
+        state: touch
+        mode: "0600"
+      failed_when: false
+      ignore_unreachable: true
+
+    - name: Restore the previous pfSense configuration immediately
+      ansible.builtin.copy:
+        src: "{{ pfsense_config_remote_backup_path }}"
+        dest: "{{ pfsense_config_destination_path }}"
+        remote_src: true
+        mode: "{{ pfsense_config_file_mode }}"
+      diff: false
+      no_log: true
+      when: pfsense_config_live_written | default(false) | bool
+      ignore_unreachable: true
+
+    - name: Clear the pfSense configuration cache after rollback
+      ansible.builtin.file:
+        path: "{{ pfsense_config_cache_path }}"
+        state: absent
+      when: pfsense_config_live_written | default(false) | bool
+      ignore_unreachable: true
+
+    - name: Remove the rollback launcher after immediate rollback
+      ansible.builtin.file:
+        path: "{{ pfsense_config_rollback_script_path }}"
+        state: absent
+      failed_when: false
+      ignore_unreachable: true
+
+    - name: Reboot pfSense with the restored configuration
+      ansible.builtin.command:
+        argv:
+          - /sbin/shutdown
+          - -r
+          - now
+      async: 1
+      poll: 0
+      changed_when: true
+      when: pfsense_config_live_written | default(false) | bool
+      ignore_unreachable: true
+
+    - name: Fail the pfSense transaction
+      ansible.builtin.fail:
+        msg: >-
+          pfSense apply transaction {{ pfsense_config_transaction_id }} failed.
+          An immediate rollback was attempted; if the firewall was unreachable,
+          the boot watchdog will restore {{ pfsense_config_remote_backup_path }}.
+      delegate_to: localhost
+      become: false

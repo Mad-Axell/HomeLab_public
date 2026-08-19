@@ -1,0 +1,15 @@
+---
+# pfsense_config staging cleanup.
+- name: Remove staged pfSense candidate files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ pfsense_config_candidate_path | default(pfsense_config_staging_dir ~ '/missing-candidate') }}"
+    - "{{ pfsense_config_upgraded_path | default(pfsense_config_staging_dir ~ '/missing-upgraded') }}"
+  loop_control:
+    label: "{{ item }}"
+  check_mode: false
+  no_log: true
+  failed_when: false
+  ignore_unreachable: true

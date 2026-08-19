@@ -1,0 +1,161 @@
+---
+- name: Check the Proxmox VE command
+  ansible.builtin.stat:
+    path: /usr/bin/pveversion
+  register: pve_comfort_pveversion_stat
+
+- name: Validate PVE comfort input
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - pve_comfort_pveversion_stat.stat.exists
+      - pve_comfort_admin_user is string
+      - pve_comfort_admin_user | length > 0
+      - pve_comfort_admin_user != 'root'
+      - pve_comfort_admin_password is string
+      - pve_comfort_admin_password | length > 0
+      - pve_comfort_admin_groups is sequence
+      - pve_comfort_admin_authorized_keys is sequence
+      - pve_comfort_packages is sequence
+    fail_msg: "pve_comfort requires a Proxmox VE host and a non-root administrator."
+  no_log: true
+
+- name: Install repository management prerequisites
+  ansible.builtin.apt:
+    name:
+      - python3-apt
+      - python3-debian
+    state: present
+    update_cache: false
+
+- name: Remove legacy enterprise repository entries
+  ansible.builtin.apt_repository:
+    repo: "{{ item }}"
+    state: absent
+    update_cache: false
+  loop:
+    - >-
+      deb https://enterprise.proxmox.com/debian/pve
+      {{ ansible_facts.distribution_release }} pve-enterprise
+    - >-
+      deb https://enterprise.proxmox.com/debian/ceph-{{ pve_comfort_ceph_release }}
+      {{ ansible_facts.distribution_release }} enterprise
+  when: pve_comfort_disable_enterprise_repositories | bool
+  register: pve_comfort_legacy_repository_result
+
+- name: Disable Proxmox enterprise repositories
+  ansible.builtin.deb822_repository:
+    name: "{{ item.name }}"
+    types:
+      - deb
+    uris:
+      - "{{ item.uri }}"
+    suites:
+      - "{{ ansible_facts.distribution_release }}"
+    components:
+      - "{{ item.component }}"
+    signed_by: "{{ pve_comfort_repository_key }}"
+    enabled: false
+    state: present
+  loop:
+    - name: pve-enterprise
+      uri: https://enterprise.proxmox.com/debian/pve
+      component: pve-enterprise
+    - name: ceph
+      uri: >-
+        https://enterprise.proxmox.com/debian/ceph-{{ pve_comfort_ceph_release }}
+      component: enterprise
+  loop_control:
+    label: "{{ item.name }}"
+  when: pve_comfort_disable_enterprise_repositories | bool
+  register: pve_comfort_enterprise_repository_result
+
+- name: Enable the Proxmox no-subscription repository
+  ansible.builtin.deb822_repository:
+    name: proxmox
+    types:
+      - deb
+    uris:
+      - https://download.proxmox.com/debian/pve
+    suites:
+      - "{{ ansible_facts.distribution_release }}"
+    components:
+      - pve-no-subscription
+    signed_by: "{{ pve_comfort_repository_key }}"
+    enabled: true
+    state: present
+  when: pve_comfort_enable_no_subscription_repository | bool
+  register: pve_comfort_no_subscription_repository_result
+
+- name: Update package indexes and install PVE upgrades
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: dist
+    cache_valid_time: 0
+  when: pve_comfort_upgrade_packages | bool
+  register: pve_comfort_upgrade_result
+
+- name: Install PVE comfort packages
+  ansible.builtin.apt:
+    name: "{{ pve_comfort_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: pve_comfort_package_result
+
+- name: Create PVE administrator groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ pve_comfort_admin_groups }}"
+  register: pve_comfort_group_result
+
+- name: Derive a stable host-specific password salt
+  ansible.builtin.set_fact:
+    pve_comfort_admin_password_salt: >-
+      {{ (inventory_hostname | hash('sha256'))[:16] }}
+  no_log: true
+
+- name: Create the non-root PVE administrator
+  ansible.builtin.user:
+    name: "{{ pve_comfort_admin_user }}"
+    groups: "{{ pve_comfort_admin_groups }}"
+    append: true
+    shell: "{{ pve_comfort_admin_shell }}"
+    create_home: true
+    password: >-
+      {{
+        pve_comfort_admin_password
+        | password_hash('sha512', pve_comfort_admin_password_salt)
+      }}
+    update_password: always
+    state: present
+  no_log: true
+  diff: false
+  register: pve_comfort_admin_result
+
+- name: Install PVE administrator SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ pve_comfort_admin_user }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ pve_comfort_admin_authorized_keys }}"
+  loop_control:
+    label: redacted key
+  no_log: true
+  when: pve_comfort_admin_authorized_keys | length > 0
+  register: pve_comfort_authorized_key_result
+
+- name: Check whether the PVE host requires a reboot
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: pve_comfort_reboot_required
+
+- name: Display PVE comfort summary
+  ansible.builtin.debug:
+    msg: >-
+      PVE comfort configuration completed for {{ inventory_hostname }};
+      reboot_required={{ pve_comfort_reboot_required.stat.exists }}.
+  when: pve_comfort_debug_mode | bool
+  tags:
+    - debug

@@ -1,0 +1,198 @@
+---
+- name: Validate PVE ZFS storage input
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - pve_storage_zfs_pools is sequence
+      - pve_storage_zfs_pools | length > 0
+      - pve_storage_zfs_datasets is sequence
+      - pve_storage_zfs_paths is sequence
+      - pve_storage_zfs_pools | selectattr('name', 'defined') | list | length == pve_storage_zfs_pools | length
+      - pve_storage_zfs_pools | map(attribute='name') | list | unique | length == pve_storage_zfs_pools | length
+      - pve_storage_zfs_pools | selectattr('topology', 'defined') | list | length == pve_storage_zfs_pools | length
+      - pve_storage_zfs_pools | map(attribute='topology') | difference(['stripe', 'mirror', 'raidz', 'raidz2', 'raidz3']) | length == 0
+      - pve_storage_zfs_pools | selectattr('devices', 'defined') | list | length == pve_storage_zfs_pools | length
+    fail_msg: "pve_storage_zfs requires Debian and valid pool, dataset, and path lists."
+
+- name: Install PVE ZFS storage packages
+  ansible.builtin.apt:
+    name: "{{ pve_storage_zfs_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: pve_storage_zfs_package_result
+
+- name: Read existing ZFS pool names
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/zpool
+      - list
+      - -H
+      - -o
+      - name
+  register: pve_storage_zfs_pool_list_before
+  changed_when: false
+  failed_when: pve_storage_zfs_pool_list_before.rc not in [0, 1]
+
+- name: Resolve missing ZFS pools
+  ansible.builtin.set_fact:
+    pve_storage_zfs_existing_pool_names: >-
+      {{ pve_storage_zfs_pool_list_before.stdout_lines | default([]) }}
+    pve_storage_zfs_missing_pools: >-
+      {{
+        pve_storage_zfs_pools
+        | rejectattr(
+          'name',
+          'in',
+          pve_storage_zfs_pool_list_before.stdout_lines | default([])
+        )
+        | list
+      }}
+
+- name: Require explicit confirmation before creating ZFS pools
+  ansible.builtin.assert:
+    that:
+      - pve_storage_zfs_apply | bool
+      - pve_storage_zfs_apply_confirmation == pve_storage_zfs_required_confirmation
+    fail_msg: >-
+      One or more ZFS pools are absent. Re-run with pve_storage_zfs_apply=true
+      and pve_storage_zfs_apply_confirmation={{ pve_storage_zfs_required_confirmation }}
+      only after verifying every /dev/disk/by-id path.
+  when: pve_storage_zfs_missing_pools | length > 0
+
+- name: Validate declared ZFS pool topology
+  ansible.builtin.assert:
+    that:
+      - item.devices is sequence
+      - item.devices | length >= 2
+      - item.topology != 'mirror' or item.devices | length == 2
+      - item.topology not in ['raidz2'] or item.devices | length >= 4
+      - item.topology not in ['raidz3'] or item.devices | length >= 5
+    fail_msg: "ZFS pool {{ item.name }} has an invalid device count for {{ item.topology }}."
+  loop: "{{ pve_storage_zfs_missing_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Check stable device paths for missing ZFS pools
+  ansible.builtin.stat:
+    path: "{{ item.1 }}"
+    follow: true
+  loop: "{{ query('subelements', pve_storage_zfs_missing_pools, 'devices') }}"
+  loop_control:
+    label: "{{ item.0.name }}: {{ item.1 }}"
+  register: pve_storage_zfs_device_stats
+
+- name: Require every declared ZFS device to exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isblk
+    fail_msg: "Declared ZFS device {{ item.item.1 }} does not exist or is not a block device."
+  loop: "{{ pve_storage_zfs_device_stats.results }}"
+  loop_control:
+    label: "{{ item.item.1 }}"
+
+- name: Create missing ZFS pools
+  ansible.builtin.command:
+    argv: >-
+      {{
+        ['/usr/sbin/zpool', 'create']
+        + (['-f'] if pve_storage_zfs_force_create | bool else [])
+        + ['-o', 'ashift=' ~ (item.ashift | default(12) | string), item.name]
+        + ([item.topology] if item.topology != 'stripe' else [])
+        + item.devices
+      }}
+  loop: "{{ pve_storage_zfs_missing_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - pve_storage_zfs_apply | bool
+    - not ansible_check_mode
+  changed_when: true
+  register: pve_storage_zfs_pool_create_result
+
+- name: Refresh ZFS pool names
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/zpool
+      - list
+      - -H
+      - -o
+      - name
+  register: pve_storage_zfs_pool_list_after
+  changed_when: false
+  failed_when: pve_storage_zfs_pool_list_after.rc not in [0, 1]
+
+- name: Require declared ZFS pools after apply
+  ansible.builtin.assert:
+    that:
+      - item.name in pve_storage_zfs_pool_list_after.stdout_lines | default([])
+    fail_msg: "Declared ZFS pool {{ item.name }} is not available."
+  loop: "{{ pve_storage_zfs_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not ansible_check_mode
+
+- name: Configure ZFS datasets and properties
+  community.general.zfs:
+    name: "{{ item.name }}"
+    state: present
+    extra_zfs_properties: "{{ item.properties | default({}) }}"
+  loop: "{{ pve_storage_zfs_datasets }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - pve_storage_zfs_apply | bool
+    - item.name.split('/')[0] in pve_storage_zfs_pool_list_after.stdout_lines | default([])
+  register: pve_storage_zfs_dataset_result
+
+- name: Configure ZFS dataset ownership and permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop: "{{ pve_storage_zfs_paths }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: pve_storage_zfs_apply | bool
+  register: pve_storage_zfs_path_result
+
+- name: Manage the ZFS event daemon
+  ansible.builtin.systemd_service:
+    name: zfs-zed.service
+    state: started
+    enabled: "{{ pve_storage_zfs_zed_enabled }}"
+  when: pve_storage_zfs_apply | bool
+  register: pve_storage_zfs_zed_result
+
+- name: Gather ZFS pool health facts
+  community.general.zpool_facts:
+    properties: health,size,free
+
+- name: Require every declared ZFS pool to be online
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_zfs_pools
+        | selectattr('name', 'equalto', item.name)
+        | map(attribute='health')
+        | first
+        == 'ONLINE'
+    fail_msg: "ZFS pool {{ item.name }} is not ONLINE."
+  loop: "{{ pve_storage_zfs_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - not ansible_check_mode
+    - item.name in pve_storage_zfs_pool_list_after.stdout_lines | default([])
+
+- name: Display PVE ZFS storage summary
+  ansible.builtin.debug:
+    msg: >-
+      ZFS storage validation completed; missing pools before apply:
+      {{ pve_storage_zfs_missing_pools | map(attribute='name') | list }}.
+  when: pve_storage_zfs_debug_mode | bool
+  tags:
+    - debug

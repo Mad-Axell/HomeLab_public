@@ -1,6 +1,7 @@
 ---
-- name: unbound_restart
+# Restart Unbound after its validated configuration changes.
+# Перезапуск Unbound после изменения проверенной конфигурации.
+- name: Restart Unbound
   ansible.builtin.systemd:
-    name: "{{ unbound_service_name }}"
+    name: "{{ dns_unbound_service_name }}"
     state: restarted
-    enabled: true

@@ -1,0 +1,21 @@
+---
+# Cockpit installation configuration
+# Конфигурация установки Cockpit
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+cockpit_debug_mode: false
+
+# List. Cockpit packages installed from configured Debian repositories.
+# Список. Пакеты Cockpit, устанавливаемые из настроенных репозиториев Debian.
+cockpit_packages:
+  - "cockpit"
+  - "cockpit-storaged"
+
+# Integer. Maximum age of the APT package index in seconds.
+# Целое число. Максимальный возраст индекса пакетов APT в секундах.
+cockpit_cache_valid_time: 3600
+
+# String. Systemd socket unit that exposes the Cockpit web interface.
+# Строка. Unit сокета systemd, предоставляющий веб-интерфейс Cockpit.
+cockpit_socket_name: "cockpit.socket"

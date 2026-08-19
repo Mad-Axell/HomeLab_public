@@ -1,314 +1,51 @@
-# Роль настройки системной локализации
+# set_locale
 
-## Обзор
+Роль генерирует выбранную локаль и устанавливает ее в `/etc/default/locale` на Debian/Ubuntu.
 
-Эта роль Ansible настраивает системную локализацию, часовой пояс, раскладку клавиатуры и консольный шрифт для систем Debian/Ubuntu с комплексной валидацией и возможностями отладки.
+## Что делает
 
-## Возможности
-
-- **Настройка системной локализации**: Устанавливает основную и дополнительные локали
-- **Управление часовым поясом**: Настраивает системный часовой пояс
-- **Раскладка клавиатуры**: Устанавливает раскладку, вариант и опции клавиатуры
-- **Консольный шрифт**: Настраивает консольный шрифт для лучшего отображения
-- **Комплексная валидация**: Проверяет все параметры перед конфигурацией
-- **Структурированное логирование**: Записывает все изменения в формате JSON
-- **Поддержка отката**: Автоматический откат при ошибках конфигурации
-- **Создание резервных копий**: Создает резервные копии перед изменениями
-- **Режим отладки**: Подробный вывод для диагностики
+- Устанавливает пакет `locales`.
+- Генерирует указанную локаль.
+- Устанавливает `LANG` и `LC_ALL` в `/etc/default/locale`.
 
 ## Требования
 
-### Требования Ansible
-- Ansible 2.14 или выше
-- Python 3.6 или выше
+- Debian или Ubuntu.
+- `become: true`.
+- Коллекция `community.general`, зафиксированная в project-level `requirements.yml`.
 
-### Системные требования
-- Debian 9, 10, 11, 12
-- Ubuntu 18.04, 20.04, 22.04, 24.04
-- Права root или sudo
+## Изменяемые ресурсы
 
-### Необходимые коллекции
-- `ansible.builtin`
-- `community.general`
+- Packages: `locales`.
+- Files: `/etc/default/locale`.
+- Services: none.
+- Users/groups: none.
+- Firewall/API objects: none.
 
-## Переменные роли
+## Переменные
 
-### Настройки отладки и резервного копирования
-| Переменная | Тип | По умолчанию | Описание |
-|------------|-----|--------------|----------|
-| `debug_mode` | bool | `true` | Включить детальный отладочный вывод |
-| `backup_enabled` | bool | `true` | Включить резервное копирование файлов конфигурации перед изменениями |
-| `backup_suffix` | str | `".backup"` | Суффикс для файлов резервных копий |
+| Variable | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `set_locale_debug_mode` | boolean | no | `false` | Показывает факт изменения локали. |
+| `set_locale_name` | string | no | `"en_US.UTF-8"` | Локаль для генерации и установки. |
 
-### Конфигурация часового пояса
-| Переменная | Тип | По умолчанию | Описание |
-|------------|-----|--------------|----------|
-| `timezone` | str | `"Europe/Moscow"` | Системный часовой пояс (например, UTC, Europe/Moscow, America/New_York) |
-| `timezone_manage` | bool | `true` | Управлять ли конфигурацией часового пояса |
+## Использование
 
-### Конфигурация локализации
-| Переменная | Тип | По умолчанию | Описание |
-|------------|-----|--------------|----------|
-| `locale_primary` | str | `"en_US.UTF-8"` | Основная системная локализация (формат: язык_СТРАНА.КОДИРОВКА) |
-| `locale_additional` | list | `["ru_RU.UTF-8", "en_GB.UTF-8"]` | Дополнительные локализации для многоязычной поддержки |
-| `locale_variables` | dict | См. defaults | Системные переменные окружения локализации |
+```yaml
+---
+- name: Configure locale
+  hosts: debian
+  become: true
+  roles:
+    - role: base/set_locale
+      vars:
+        set_locale_name: "ru_RU.UTF-8"
+```
 
-### Конфигурация консольного шрифта
-| Переменная | Тип | По умолчанию | Описание |
-|------------|-----|--------------|----------|
-| `console_font` | str | `"Lat2-Terminus16"` | Название консольного шрифта (например, Lat2-Terminus16, Uni3-Terminus14) |
-| `console_font_manage` | bool | `true` | Управлять ли конфигурацией консольного шрифта |
+## Check mode и diff mode
 
-### Конфигурация клавиатуры
-| Переменная | Тип | По умолчанию | Описание |
-|------------|-----|--------------|----------|
-| `keyboard_layout` | str | `"us"` | Раскладка клавиатуры (например, us, ru, de, fr) |
-| `keyboard_variant` | str | `""` | Вариант клавиатуры (например, dvorak, phonetic, nodeadkeys) |
-| `keyboard_options` | str | `""` | Дополнительные опции клавиатуры |
-
-### Настройки валидации
-| Переменная | Тип | По умолчанию | Описание |
-|------------|-----|--------------|----------|
-| `validate_parameters` | bool | `true` | Включить валидацию параметров перед конфигурацией |
-| `strict_validation` | bool | `true` | Включить строгий режим валидации с комплексными проверками |
-
-### Логирование и откат
-| Переменная | Тип | По умолчанию | Описание |
-|------------|-----|--------------|----------|
-| `log_file` | str | `"/var/log/ansible-changes.log"` | Путь к файлу лога изменений |
-| `enable_rollback` | bool | `true` | Включить автоматический откат при ошибке |
+Изменение `/etc/default/locale` поддерживает `--check --diff`; поддержка генерации локали зависит от возможностей `community.general.locale_gen` на целевой системе.
 
 ## Зависимости
 
-Отсутствуют
-
-## Пример плейбука
-
-### Базовое использование
-```yaml
----
-- hosts: all
-  become: true
-  roles:
-    - role: base.set_locale
-      vars:
-        locale_primary: "en_US.UTF-8"
-        timezone: "UTC"
-        keyboard_layout: "us"
-        console_font: "Lat2-Terminus16"
-```
-
-### Расширенная конфигурация
-```yaml
----
-- hosts: all
-  become: true
-  roles:
-    - role: base.set_locale
-      vars:
-        # Настройки отладки
-        debug_mode: true
-        backup_enabled: true
-        
-        # Конфигурация локализации
-        locale_primary: "en_US.UTF-8"
-        locale_additional:
-          - "ru_RU.UTF-8"
-          - "en_GB.UTF-8"
-          - "de_DE.UTF-8"
-        
-        # Часовой пояс
-        timezone: "Europe/Moscow"
-        timezone_manage: true
-        
-        # Клавиатура
-        keyboard_layout: "us"
-        keyboard_variant: "dvorak"
-        keyboard_options: "compose:rctrl"
-        
-        # Консоль
-        console_font: "Lat2-Terminus16"
-        console_font_manage: true
-        
-        # Валидация
-        validate_parameters: true
-        strict_validation: true
-        
-        # Логирование
-        log_file: "/var/log/ansible-changes.log"
-        enable_rollback: true
-```
-
-### Многоязычная среда
-```yaml
----
-- hosts: all
-  become: true
-  roles:
-    - role: base.set_locale
-      vars:
-        locale_primary: "en_US.UTF-8"
-        locale_additional:
-          - "ru_RU.UTF-8"
-          - "en_GB.UTF-8"
-          - "de_DE.UTF-8"
-          - "fr_FR.UTF-8"
-          - "es_ES.UTF-8"
-        timezone: "Europe/Moscow"
-        keyboard_layout: "us"
-        console_font: "Uni2-Terminus16"
-```
-
-## Теги задач
-
-Роль поддерживает следующие теги для выборочного выполнения:
-
-- `facts` - Сбор системной информации
-- `preflight` - Предварительные проверки
-- `validation` - Валидация параметров
-- `backup` - Операции резервного копирования
-- `locale` - Конфигурация локализации
-- `timezone` - Конфигурация часового пояса
-- `keyboard` - Конфигурация клавиатуры
-- `console` - Конфигурация консольного шрифта
-- `debug` - Отладочный вывод
-- `handlers` - Выполнение обработчиков
-
-### Пример: Выполнить только валидацию
-```bash
-ansible-playbook playbook.yml --tags validation
-```
-
-### Пример: Пропустить операции резервного копирования
-```bash
-ansible-playbook playbook.yml --skip-tags backup
-```
-
-## Структурированное логирование
-
-Роль реализует комплексное структурированное логирование в формате JSON. Все изменения конфигурации записываются в `/var/log/ansible-changes.log` по умолчанию.
-
-### События лога
-- `CONFIG_CHANGE` - Изменения файлов конфигурации
-- `SERVICE_CHANGE` - Изменения состояния сервисов
-- `PACKAGE_INSTALL` - Установка пакетов
-- `PERMISSION_CHANGE` - Изменения прав доступа к файлам
-- `KEYBOARD_CONFIGURED` - Конфигурация клавиатуры
-- `CONSOLE_FONT_CONFIGURED` - Конфигурация консольного шрифта
-- `PRIMARY_LOCALE_GEN_FAILED` - Ошибки генерации основной локали
-- `ADDITIONAL_LOCALES_ROLLBACK_ATTEMPTED` - Попытки отката
-- `LOCALE_VARS_ROLLBACK_ATTEMPTED` - Откат переменных локализации
-- `TIMEZONE_CONFIG_FAILED` - Ошибки конфигурации часового пояса
-- `KEYBOARD_CONFIG_FAILED` - Ошибки конфигурации клавиатуры
-- `PACKAGE_INSTALL_FAILED` - Ошибки установки пакетов
-
-### Формат лога
-```json
-{
-  "timestamp": "2024-01-15T10:30:45.123456Z",
-  "level": "INFO",
-  "event_type": "CONFIG_CHANGE",
-  "service_name": "locale",
-  "status": "SUCCESS",
-  "user": "root",
-  "host": "server01",
-  "playbook": "locale_setup",
-  "correlation_id": "1705312245",
-  "message": "Configuration change applied",
-  "metadata": {
-    "config_file": "/etc/default/locale",
-    "backup_created": true
-  }
-}
-```
-
-## Обработка ошибок и откат
-
-Роль реализует комплексную обработку ошибок с возможностями автоматического отката:
-
-### Возможности отката
-- Автоматическое создание резервных копий перед изменениями
-- Откат при ошибках конфигурации
-- Структурированное логирование ошибок
-- Плавная деградация при некритических ошибках
-
-### Восстановление после ошибок
-- Продолжает выполнение с доступными локалями при частичных ошибках
-- Восстанавливает предыдущую конфигурацию при критических ошибках
-- Записывает все попытки отката для аудита
-
-## Валидация
-
-### Валидация параметров
-- Валидация формата локали (ll_CC.ENCODING)
-- Валидация формата часового пояса
-- Валидация раскладки клавиатуры против поддерживаемых раскладок
-- Валидация консольного шрифта против поддерживаемых шрифтов
-- Валидация формата дополнительных локалей
-
-### Поддерживаемые раскладки клавиатуры
-- us, ru, de, fr, es, it, pt, nl, sv, no, da, fi, pl, cs, hu, tr, ja, ko, zh, ar, he
-
-### Поддерживаемые консольные шрифты
-- Lat2-Terminus16, Lat2-Terminus14, Lat2-Terminus12, Lat2-Terminus10
-- Lat15-Terminus16, Lat15-Terminus14, Lat15-Terminus12, Lat15-Terminus10
-- Lat7-Terminus16, Lat7-Terminus14, Lat7-Terminus12, Lat7-Terminus10
-- Uni1-Terminus16, Uni1-Terminus14, Uni1-Terminus12, Uni1-Terminus10
-- Uni2-Terminus16, Uni2-Terminus14, Uni2-Terminus12, Uni2-Terminus10
-- Uni3-Terminus16, Uni3-Terminus14, Uni3-Terminus12, Uni3-Terminus10
-- CyrSlav-Terminus16, CyrSlav-Terminus14, CyrSlav-Terminus12, CyrSlav-Terminus10
-- И многие другие...
-
-## Изменяемые файлы
-
-Роль изменяет следующие системные файлы:
-- `/etc/default/locale` - Системные переменные локализации
-- `/etc/environment` - Переменные окружения
-- `/etc/locale.gen` - Конфигурация генерации локалей
-- `/etc/default/console-setup` - Конфигурация консольного шрифта
-- `/etc/default/keyboard` - Конфигурация клавиатуры
-
-## Устранение неполадок
-
-### Частые проблемы
-
-1. **Отказ в доступе**
-   - Убедитесь, что плейбук запускается с `become: true`
-   - Проверьте, что у пользователя есть права sudo
-
-2. **Неверный формат локали**
-   - Используйте формат: `язык_СТРАНА.КОДИРОВКА` (например, `en_US.UTF-8`)
-   - Проверьте, что локали доступна в системе
-
-3. **Часовой пояс не найден**
-   - Проверьте существование часового пояса: `timedatectl list-timezones`
-   - Используйте правильный формат: `Континент/Город` (например, `Europe/Moscow`)
-
-4. **Раскладка клавиатуры не поддерживается**
-   - Проверьте поддерживаемые раскладки в `valid_keyboard_layouts`
-   - Используйте стандартные коды раскладок (us, ru, de, и т.д.)
-
-### Режим отладки
-Включите режим отладки для подробного вывода:
-```yaml
-vars:
-  debug_mode: true
-```
-
-### Проверка логов
-Просмотр структурированных логов:
-```bash
-tail -f /var/log/ansible-changes.log | jq .
-```
-
-## Лицензия
-
-MIT
-
-## Автор
-
-Mad-Axell [mad.axell@gmail.com]
-
-## Поддержка
-
-По вопросам и проблемам обращайтесь к автору или создайте issue в репозитории проекта.
+- `community.general`

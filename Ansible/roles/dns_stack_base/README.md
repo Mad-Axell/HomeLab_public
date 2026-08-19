@@ -1,12 +1,13 @@
 # dns_stack_base
 
-[English](readme_eng.md) | [Русский](readme_rus.md)
+## Русский
 
-EN: Prepares the adguard container OS before Unbound and AdGuard Home are installed:
-base packages, IPv6 off, time sync, hostname/`/etc/hosts`, freeing port 53
-(disabling `systemd-resolved`) and protecting `/etc/resolv.conf` from dhclient.
+Подготавливает Debian-хост для локального DNS-сервиса: устанавливает базовые пакеты и при необходимости освобождает порт 53 от `systemd-resolved`.
 
-RU: Готовит ОС контейнера adguard перед установкой Unbound и AdGuard Home: базовые
-пакеты, отключение IPv6, синхронизация времени, hostname/`/etc/hosts`,
-освобождение порта 53 (отключение `systemd-resolved`) и защита `/etc/resolv.conf`
-от dhclient.
+Полная документация: [README_RUS.md](README_RUS.md)
+
+## English
+
+Prepares a Debian host for a local DNS service: installs base packages and, when requested, frees port 53 from `systemd-resolved`.
+
+Full documentation: [README_ENG.md](README_ENG.md)

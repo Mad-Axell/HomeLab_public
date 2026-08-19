@@ -1,0 +1,24 @@
+---
+# Portainer deployment configuration
+# Конфигурация развертывания Portainer
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+portainer_debug_mode: false
+
+# String. Portainer container image.
+# Строка. Образ контейнера Portainer.
+portainer_image: "portainer/portainer-ce:latest"
+
+# String. Portainer container name.
+# Строка. Имя контейнера Portainer.
+portainer_container_name: "portainer"
+
+# String. Host directory for persistent Portainer data.
+# Строка. Каталог хоста для постоянных данных Portainer.
+portainer_data_directory: "/opt/portainer"
+
+# List. Published Portainer ports.
+# Список. Публикуемые порты Portainer.
+portainer_published_ports:
+  - "9000:9000"

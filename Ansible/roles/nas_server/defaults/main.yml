@@ -1,35 +1,31 @@
 ---
-# Logging Configuration
-debug_mode: false
+# NAS share configuration
+# Конфигурация NAS-ресурса
 
-# Configure Cockpit listener in cockpit.conf (may cause problems)
-# В случае проблем не использовать этот метод!
-cockpit_configure_listener: false
-cockpit_port: 9090
-cockpit_listen_address: "0.0.0.0"
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+nas_server_debug_mode: false
 
-cockpit_modules:
-  - "cockpit-file-sharing"
-  - "cockpit-navigator"
-  - "cockpit-identities"
+# String. Required directory exported by the NAS services.
+# Строка. Обязательный каталог, экспортируемый NAS-сервисами.
+nas_server_share_path: null
 
-# Samba Configuration
-samba_workgroup: "WORKGROUP"
-samba_security: "user"
+# String. Samba share name.
+# Строка. Имя общего ресурса Samba.
+nas_server_share_name: "data"
 
-# Method for adding shares: 'samba' (config files) or 'registry' (net conf commands)
-samba_share_method: "registry" # 'samba' or 'registry'
-samba_users: []
-samba_groups: []
-samba_shares: []
+# Boolean. Publish the share using Samba.
+# Логическое значение. Публикует ресурс через Samba.
+nas_server_samba_enabled: true
 
-# NFS Configuration
-nfs_enabled: false
-nfs_exports: []
+# Boolean. Allow guest access to the Samba share.
+# Логическое значение. Разрешает гостевой доступ к ресурсу Samba.
+nas_server_samba_guest_ok: false
 
-# System Configuration
-backports_enabled: false
-essential_packages:
-  - curl
-  - wget
-  - net-tools
+# Boolean. Publish the share using NFS.
+# Логическое значение. Публикует ресурс через NFS.
+nas_server_nfs_enabled: false
+
+# List. NFS client CIDRs or host addresses allowed to mount the share.
+# Список. CIDR или адреса NFS-клиентов, которым разрешено монтировать ресурс.
+nas_server_nfs_clients: []

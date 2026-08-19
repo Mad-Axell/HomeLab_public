@@ -1,0 +1,20 @@
+#!/bin/sh
+
+# pfsense_config one-shot watchdog installed before a full config.xml apply.
+# It runs in the background so it does not block the pfSense boot sequence.
+(
+    sleep {{ pfsense_config_rollback_timeout | int }}
+
+    if [ -f "{{ pfsense_config_confirmation_path }}" ]; then
+        rm -f "{{ pfsense_config_confirmation_path }}" "{{ pfsense_config_rollback_script_path }}"
+        exit 0
+    fi
+
+    if [ -s "{{ pfsense_config_remote_backup_path }}" ]; then
+        cp -p "{{ pfsense_config_remote_backup_path }}" "{{ pfsense_config_destination_path }}"
+        rm -f "{{ pfsense_config_cache_path }}" "{{ pfsense_config_rollback_script_path }}"
+        /sbin/shutdown -r now
+    fi
+) >/var/log/ansible-config-rollback.log 2>&1 &
+
+exit 0

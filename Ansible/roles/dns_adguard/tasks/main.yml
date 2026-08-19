@@ -1,29 +1,81 @@
 ---
-# EN: Role entry point / RU: Точка входа роли
-
-# EN: Guard against unsupported OS families / RU: Защита от неподдерживаемых ОС
-- name: "Assert supported OS family"
+# Validate the supported platform and required administrator secret.
+# Проверка поддерживаемой платформы и обязательного секрета администратора.
+- name: Validate AdGuard Home configuration
   ansible.builtin.assert:
     that:
-      - ansible_os_family in supported_os_families
-    fail_msg: >-
-      EN: Unsupported OS family '{{ ansible_os_family }}'. Supported: {{ supported_os_families | join(', ') }}.
-      RU: Неподдерживаемое семейство ОС '{{ ansible_os_family }}'. Поддерживаются: {{ supported_os_families | join(', ') }}.
-  tags: ['always']
+      - ansible_facts.os_family == 'Debian'
+      - dns_adguard_upstream_dns is sequence
+      - dns_adguard_upstream_dns | length > 0
+      - vault_dns_adguard_admin_password_hash is defined
+    fail_msg: "dns_adguard requires Debian, at least one upstream DNS server, and vault_dns_adguard_admin_password_hash from VARS/secrets.yml."
+  no_log: true
 
-- name: "Install"
-  ansible.builtin.include_tasks: install.yml
-  tags: ['install']
+# Create the application directory before unpacking the release archive.
+# Создание каталога приложения до распаковки архива релиза.
+- name: Create AdGuard Home installation directory
+  ansible.builtin.file:
+    path: "{{ dns_adguard_install_dir }}"
+    state: directory
+    mode: "0755"
+  register: dns_adguard_directory_result
 
-- name: "Configure"
-  ansible.builtin.include_tasks: configure.yml
-  tags: ['configure']
+# Download and unpack AdGuard Home only when its binary is absent.
+# Загрузка и распаковка AdGuard Home только при отсутствии бинарного файла.
+- name: Download and unpack AdGuard Home
+  ansible.builtin.unarchive:
+    src: "{{ dns_adguard_archive_url }}"
+    dest: "/opt"
+    remote_src: true
+    creates: "{{ dns_adguard_install_dir }}/AdGuardHome"
+  register: dns_adguard_archive_result
 
-- name: "Manage service"
-  ansible.builtin.include_tasks: service.yml
-  tags: ['service']
+# Register AdGuard Home as a systemd service when no unit exists yet.
+# Регистрация AdGuard Home как systemd-сервиса при отсутствии unit-файла.
+- name: Install AdGuard Home systemd service
+  ansible.builtin.command:
+    cmd: "./AdGuardHome -s install"
+    chdir: "{{ dns_adguard_install_dir }}"
+    creates: "/etc/systemd/system/{{ dns_adguard_service_name }}.service"
+  register: dns_adguard_service_install_result
+  changed_when: dns_adguard_service_install_result.rc == 0
 
-- name: "Show debug summary"
-  ansible.builtin.include_tasks: debug.yml
-  when: debug_mode | bool
-  tags: ['debug']
+# Write the complete AdGuard Home configuration without exposing the password hash.
+# Запись полной конфигурации AdGuard Home без раскрытия хэша пароля.
+- name: Configure AdGuard Home
+  ansible.builtin.template:
+    src: "AdGuardHome.yaml.j2"
+    dest: "{{ dns_adguard_install_dir }}/AdGuardHome.yaml"
+    owner: "root"
+    group: "root"
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify: Restart AdGuard Home
+  register: dns_adguard_configuration_result
+
+# Ensure the DNS service reaches its requested steady state.
+# Обеспечение запрошенного устойчивого состояния DNS-сервиса.
+- name: Manage AdGuard Home service
+  ansible.builtin.systemd:
+    name: "{{ dns_adguard_service_name }}"
+    state: "{{ dns_adguard_service_state }}"
+    enabled: "{{ dns_adguard_service_enabled }}"
+    daemon_reload: true
+  register: dns_adguard_service_result
+
+# Report the aggregate result without printing secrets or configuration contents.
+# Вывод агрегированного результата без печати секретов или содержимого конфигурации.
+- name: Display AdGuard Home change summary
+  ansible.builtin.debug:
+    msg: "AdGuard Home {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - dns_adguard_debug_mode | bool
+    - >-
+      (dns_adguard_directory_result.changed | default(false) | bool)
+      or (dns_adguard_archive_result.changed | default(false) | bool)
+      or (dns_adguard_service_install_result.changed | default(false) | bool)
+      or (dns_adguard_configuration_result.changed | default(false) | bool)
+      or (dns_adguard_service_result.changed | default(false) | bool)
+  tags:
+    - debug

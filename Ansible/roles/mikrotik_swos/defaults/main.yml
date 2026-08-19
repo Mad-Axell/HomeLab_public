@@ -1,0 +1,55 @@
+---
+# MikroTik SwOS connection settings
+# Настройки подключения к MikroTik SwOS
+
+# String or null. Required switch IPv4 address or HTTP URL
+# Строка или null. Обязательный IPv4-адрес коммутатора или HTTP URL
+mikrotik_swos_host: null
+
+# String. SwOS administrative user name
+# Строка. Имя административного пользователя SwOS
+mikrotik_swos_username: "admin"
+
+# Dictionary or null. Required desired System, Link, VLAN, and VLANs configuration
+# Словарь или null. Обязательная целевая конфигурация System, Link, VLAN и VLANs
+mikrotik_swos_configuration: null
+
+# MikroTik SwOS hardware guardrails
+# Защитные ограничения оборудования MikroTik SwOS
+
+# String. Exact supported switch model
+# Строка. Точная поддерживаемая модель коммутатора
+mikrotik_swos_expected_model: "CSS326-24G-2S+"
+
+# String. Exact supported SwOS version
+# Строка. Точная поддерживаемая версия SwOS
+mikrotik_swos_expected_version: "2.18"
+
+# Integer. Exact number of managed switch ports
+# Целое число. Точное количество управляемых портов коммутатора
+mikrotik_swos_expected_port_count: 26
+
+# Change safety gates
+# Защитные флаги изменения
+
+# Boolean. Explicitly permit real network configuration changes
+# Логическое значение. Явно разрешить реальные изменения сетевой конфигурации
+mikrotik_swos_allow_network_changes: false
+
+# Boolean. Confirm tested physical recovery access before a real change
+# Логическое значение. Подтвердить проверенный физический recovery-доступ до реального изменения
+mikrotik_swos_recovery_access_confirmed: false
+
+# Controller-side backup settings
+# Настройки резервной копии на Ansible-контроллере
+
+# String. Directory outside Git for pre-change binary .swb backups
+# Строка. Каталог вне Git для бинарных .swb-копий перед изменением
+mikrotik_swos_backup_directory: "/var/backups/mikrotik-swos"
+
+# Role output settings
+# Настройки вывода роли
+
+# Boolean. Enable safe debug summaries after significant changes
+# Логическое значение. Включить безопасные debug-сводки после значимых изменений
+mikrotik_swos_debug_mode: false

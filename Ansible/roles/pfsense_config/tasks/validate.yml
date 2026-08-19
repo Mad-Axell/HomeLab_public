@@ -1,0 +1,128 @@
+---
+# pfsense_config transaction validation.
+- name: Validate the pfSense configuration source selection
+  ansible.builtin.assert:
+    that:
+      - pfsense_config_source_file is string
+      - pfsense_config_xml is string
+      - >-
+        (pfsense_config_source_file | length > 0)
+        != (pfsense_config_xml | trim | length > 0)
+    fail_msg: >-
+      Define exactly one source: pfsense_config_source_file or
+      pfsense_config_xml (vault_pfsense_config_xml is accepted by default).
+    quiet: true
+
+- name: Resolve the desired pfSense XML
+  ansible.builtin.set_fact:
+    pfsense_config_xml_effective: >-
+      {{
+        lookup('ansible.builtin.file', pfsense_config_source_file)
+        if pfsense_config_source_file | length > 0
+        else pfsense_config_xml
+      }}
+  no_log: true
+
+- name: Validate pfSense configuration role variables
+  ansible.builtin.assert:
+    that:
+      - pfsense_config_xml_effective is string
+      - pfsense_config_xml_effective | trim | length > 0
+      - pfsense_config_xml_effective is search('<pfsense(?:\\s|>)')
+      - pfsense_config_xml_effective is search('</pfsense>')
+      - pfsense_config_destination_path is match('^/')
+      - pfsense_config_staging_dir is match('^/')
+      - pfsense_config_remote_backup_dir is match('^/')
+      - pfsense_config_management_interface | length > 0
+      - pfsense_config_healthcheck_host | length > 0
+      - pfsense_config_rollback_timeout | int >= 60
+      - pfsense_config_rollback_timeout | int <= 1800
+      - pfsense_config_reboot_timeout | int >= 60
+      - pfsense_config_healthcheck_timeout | int >= 1
+      - pfsense_config_healthcheck_ports is sequence
+      - pfsense_config_healthcheck_ports is not string
+      - pfsense_config_healthcheck_ports | length > 0
+      - pfsense_config_healthcheck_ports | map('int') | min >= 1
+      - pfsense_config_healthcheck_ports | map('int') | max <= 65535
+      - >-
+        (pfsense_config_rollback_timeout | int)
+        >= ((pfsense_config_healthcheck_timeout | int)
+        * (pfsense_config_healthcheck_ports | length)) + 120
+    fail_msg: "pfSense requires a complete <pfsense> XML document and valid transaction settings."
+    quiet: true
+  no_log: true
+
+- name: Require an explicit confirmation for a live apply
+  ansible.builtin.assert:
+    that:
+      - pfsense_config_apply_confirmation == 'APPLY_PFSENSE_CONFIG'
+    fail_msg: >-
+      Live apply is blocked. Pass pfsense_config_apply=true and
+      pfsense_config_apply_confirmation=APPLY_PFSENSE_CONFIG.
+    quiet: true
+  when:
+    - pfsense_config_apply | bool
+    - not ansible_check_mode
+
+- name: Require an explicit confirmation before allowing a management address change
+  ansible.builtin.assert:
+    that:
+      - >-
+        pfsense_config_management_change_confirmation
+        == 'CHANGE_PFSENSE_MANAGEMENT_ADDRESS'
+    fail_msg: >-
+      Management address changes are blocked. In an approved maintenance window,
+      also pass
+      pfsense_config_management_change_confirmation=CHANGE_PFSENSE_MANAGEMENT_ADDRESS.
+    quiet: true
+  when: pfsense_config_allow_management_change | bool
+
+- name: Create a unique pfSense transaction identifier
+  ansible.builtin.set_fact:
+    pfsense_config_transaction_id: >-
+      {{ now(utc=true, fmt='%Y%m%dT%H%M%SZ') }}-{{ 1000000 | random }}
+
+- name: Define pfSense transaction paths
+  ansible.builtin.set_fact:
+    pfsense_config_candidate_path: "{{ pfsense_config_staging_dir }}/config-{{ pfsense_config_transaction_id }}.xml"
+    pfsense_config_upgraded_path: >-
+      {{ pfsense_config_staging_dir }}/config-{{ pfsense_config_transaction_id }}-upgraded.xml
+    pfsense_config_remote_backup_path: >-
+      {{ pfsense_config_remote_backup_dir }}/config-ansible-{{ pfsense_config_transaction_id }}.xml
+    pfsense_config_local_backup_path: >-
+      {{
+        pfsense_config_local_backup_dir
+        ~ '/' ~ inventory_hostname
+        ~ '/config-ansible-' ~ pfsense_config_transaction_id
+        ~ '.xml'
+      }}
+    pfsense_config_confirmation_path: "{{ pfsense_config_staging_dir }}/confirmed-{{ pfsense_config_transaction_id }}"
+
+- name: Check the live pfSense configuration
+  ansible.builtin.stat:
+    path: "{{ pfsense_config_destination_path }}"
+    checksum_algorithm: sha256
+  register: pfsense_config_live_stat
+
+- name: Require an existing live pfSense configuration
+  ansible.builtin.assert:
+    that:
+      - pfsense_config_live_stat.stat.exists
+      - pfsense_config_live_stat.stat.isreg
+      - pfsense_config_live_stat.stat.size | int > 0
+    fail_msg: "The live pfSense config.xml is missing or empty; refusing to continue."
+    quiet: true
+
+- name: Check for an unfinished rollback watchdog
+  ansible.builtin.stat:
+    path: "{{ pfsense_config_rollback_script_path }}"
+  register: pfsense_config_rollback_script_stat
+
+- name: Refuse to overlap pfSense configuration transactions
+  ansible.builtin.assert:
+    that:
+      - not pfsense_config_rollback_script_stat.stat.exists
+    fail_msg: >-
+      {{ pfsense_config_rollback_script_path }} exists. A previous transaction may
+      still be pending confirmation; inspect it before another apply.
+    quiet: true

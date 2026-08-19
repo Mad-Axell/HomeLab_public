@@ -1,13 +1,13 @@
-# unbound
+# dns_unbound
 
-[English](readme_eng.md) | [Русский](readme_rus.md)
+## Русский
 
-EN: Installs and configures Unbound as a validating, recursive, caching DNS
-resolver bound to `127.0.0.1:{{ dns.unbound_local_port }}` inside the DNS-stack
-LXC. Provides DNSSEC validation, QNAME minimisation, ratelimiting and stub-zones
-to pfSense for local forward/reverse zones.
+Устанавливает и настраивает локальный рекурсивный резолвер Unbound с DNSSEC trust anchor и root hints на Debian.
 
-RU: Устанавливает и настраивает Unbound как валидирующий рекурсивный кэширующий
-DNS-резолвер на `127.0.0.1:{{ dns.unbound_local_port }}` внутри LXC DNS-стека.
-Обеспечивает DNSSEC-валидацию, QNAME-минимизацию, ratelimit и stub-зоны к pfSense
-для локальных прямых/обратных зон.
+Полная документация: [README_RUS.md](README_RUS.md)
+
+## English
+
+Installs and configures a local recursive Unbound resolver with a DNSSEC trust anchor and root hints on Debian.
+
+Full documentation: [README_ENG.md](README_ENG.md)

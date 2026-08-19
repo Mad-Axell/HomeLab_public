@@ -1,0 +1,35 @@
+---
+# Required non-root administrative account.
+pve_comfort_admin_user: null
+pve_comfort_admin_password: null
+pve_comfort_admin_groups:
+  - adm
+  - sudo
+pve_comfort_admin_shell: /bin/bash
+pve_comfort_admin_authorized_keys: []
+
+# Repository management for supported Proxmox VE releases.
+pve_comfort_disable_enterprise_repositories: true
+pve_comfort_enable_no_subscription_repository: true
+pve_comfort_ceph_release: >-
+  {{ 'squid' if ansible_facts.distribution_release == 'trixie' else 'reef' }}
+pve_comfort_repository_key: /usr/share/keyrings/proxmox-archive-keyring.gpg
+
+# Upgrade and workstation packages.
+pve_comfort_upgrade_packages: true
+pve_comfort_packages:
+  - bash-completion
+  - ca-certificates
+  - curl
+  - git
+  - htop
+  - jq
+  - rsync
+  - smartmontools
+  - sudo
+  - tmux
+  - vim
+  - wget
+
+# Never reboot automatically; only report the marker.
+pve_comfort_debug_mode: false

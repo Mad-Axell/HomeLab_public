@@ -1,0 +1,89 @@
+---
+# Validate the target container and explicit device-forwarding configuration.
+# Проверка целевого контейнера и явной конфигурации проброса устройств.
+- name: Validate Coral Edge TPU configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - coral_edge_tpu_lxc_vmid is not none
+      - coral_edge_tpu_lxc_device_lines is not none
+      - coral_edge_tpu_lxc_device_lines is sequence
+      - coral_edge_tpu_lxc_device_lines | length > 0
+    fail_msg: "A Debian Proxmox host, coral_edge_tpu_lxc_vmid, and explicit coral_edge_tpu_lxc_device_lines are required."
+
+# Check that the selected LXC configuration file already exists.
+# Проверка существования выбранного файла конфигурации LXC.
+- name: Check LXC configuration file
+  ansible.builtin.stat:
+    path: "/etc/pve/lxc/{{ coral_edge_tpu_lxc_vmid }}.conf"
+  register: coral_edge_tpu_lxc_config_stat
+
+# Stop before modifying an unknown or missing LXC container.
+# Остановка до изменения неизвестного или отсутствующего контейнера LXC.
+- name: Assert LXC configuration file exists
+  ansible.builtin.assert:
+    that:
+      - coral_edge_tpu_lxc_config_stat.stat.exists
+    fail_msg: "LXC configuration file /etc/pve/lxc/{{ coral_edge_tpu_lxc_vmid }}.conf does not exist."
+
+# Create the keyring directory used by the Coral APT repository.
+# Создание каталога keyring, используемого APT-репозиторием Coral.
+- name: Create Coral APT keyring directory
+  ansible.builtin.file:
+    path: "/etc/apt/keyrings"
+    state: directory
+    mode: "0755"
+  register: coral_edge_tpu_keyring_directory_result
+
+# Download the repository signing key without using the deprecated apt-key command.
+# Загрузка ключа подписи репозитория без устаревшей команды apt-key.
+- name: Download Coral APT signing key
+  ansible.builtin.get_url:
+    url: "{{ coral_edge_tpu_repository_key_url }}"
+    dest: "/etc/apt/keyrings/coral-edge-tpu.gpg"
+    mode: "0644"
+  register: coral_edge_tpu_key_result
+
+# Register the Coral repository for the target host.
+# Регистрация репозитория Coral для целевого хоста.
+- name: Configure Coral APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/coral-edge-tpu.gpg] {{ coral_edge_tpu_repository_url }} coral-edgetpu-stable main"
+    filename: "coral-edge-tpu"
+    state: present
+  register: coral_edge_tpu_repository_result
+
+# Install the Coral runtime package after the repository is available.
+# Установка пакета среды выполнения Coral после подключения репозитория.
+- name: Install Coral runtime package
+  ansible.builtin.apt:
+    name: "{{ coral_edge_tpu_package_name }}"
+    state: present
+    update_cache: true
+  register: coral_edge_tpu_package_result
+
+# Add only the explicitly requested device-forwarding lines to the container.
+# Добавление в контейнер только явно запрошенных строк проброса устройств.
+- name: Configure Coral device forwarding for LXC
+  ansible.builtin.lineinfile:
+    path: "/etc/pve/lxc/{{ coral_edge_tpu_lxc_vmid }}.conf"
+    line: "{{ item }}"
+    state: present
+  loop: "{{ coral_edge_tpu_lxc_device_lines }}"
+  register: coral_edge_tpu_forwarding_result
+
+# Report whether the runtime or container configuration changed.
+# Вывод информации об изменении среды выполнения или конфигурации контейнера.
+- name: Display Coral Edge TPU change summary
+  ansible.builtin.debug:
+    msg: "Coral Edge TPU configuration {{ 'would change' if ansible_check_mode else 'changed' }} for LXC {{ coral_edge_tpu_lxc_vmid }}."
+  when:
+    - coral_edge_tpu_debug_mode | bool
+    - >-
+      (coral_edge_tpu_keyring_directory_result.changed | default(false) | bool)
+      or (coral_edge_tpu_key_result.changed | default(false) | bool)
+      or (coral_edge_tpu_repository_result.changed | default(false) | bool)
+      or (coral_edge_tpu_package_result.changed | default(false) | bool)
+      or (coral_edge_tpu_forwarding_result.changed | default(false) | bool)
+  tags:
+    - debug

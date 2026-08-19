@@ -1,0 +1,47 @@
+---
+# Validate the Debian host and Cockpit package list before installation.
+# Проверка Debian-хоста и списка пакетов Cockpit до установки.
+- name: Validate Cockpit installation configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Debian"
+      - cockpit_packages is sequence
+      - cockpit_packages is not string
+      - cockpit_packages | length > 0
+      - cockpit_cache_valid_time is number
+      - cockpit_cache_valid_time | int >= 0
+      - cockpit_socket_name is not none
+      - cockpit_socket_name | length > 0
+    fail_msg: "cockpit requires a Debian-family host, a non-empty package list, a non-negative cache lifetime, and a socket unit name."
+
+# Install Cockpit and its storage-management interface from configured repositories.
+# Установка Cockpit и его интерфейса управления хранилищем из настроенных репозиториев.
+- name: Install Cockpit packages
+  ansible.builtin.apt:
+    name: "{{ cockpit_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: "{{ cockpit_cache_valid_time }}"
+  register: cockpit_package_result
+
+# Enable Cockpit socket activation for the web interface.
+# Включение socket-активации Cockpit для веб-интерфейса.
+- name: Enable and start Cockpit socket
+  ansible.builtin.systemd:
+    name: "{{ cockpit_socket_name }}"
+    enabled: true
+    state: started
+  register: cockpit_socket_result
+
+# Report managed-state changes without making an HTTP request from the controller.
+# Вывод изменений управляемого состояния без HTTP-запроса с контроллера.
+- name: Display Cockpit change summary
+  ansible.builtin.debug:
+    msg: "Cockpit packages or socket {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - cockpit_debug_mode | bool
+    - >-
+      cockpit_package_result.changed | default(false) | bool
+      or cockpit_socket_result.changed | default(false) | bool
+  tags:
+    - debug

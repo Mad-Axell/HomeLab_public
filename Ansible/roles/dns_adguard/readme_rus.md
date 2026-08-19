@@ -1,68 +1,59 @@
-# adguard_home (Русский)
+# dns_adguard
 
-Устанавливает и настраивает **AdGuard Home** как клиентский DNS-сервер стека.
-Слушает `:53`, применяет блок-листы, резолвит имена клиентов через приватный PTR
-и форвардит всё на локальный Unbound. Архитектура — в документе проекта
-`05_dns_naming.md` §8.
+Роль устанавливает AdGuard Home, создает минимальную DNS-конфигурацию и управляет его systemd-сервисом на Debian.
 
-## Зона ответственности
+## Что делает
 
-- Скачивание релиза AdGuard Home (`latest` или закреплённый `adguard_version`) и
-  регистрация его как systemd-сервиса.
-- Генерация полного декларативного `AdGuardHome.yaml` (роль владеет файлом
-  целиком), с валидацией `AdGuardHome --check-config` до активации:
-  - upstream `127.0.0.1:{{ dns.unbound_local_port }}` (Unbound);
-  - приватный обратный DNS (`use_private_ptr_resolvers`, `local_ptr_upstreams`);
-  - блок-листы из `adguard_filters`, DNSSEC, ratelimit;
-  - DHCP отключён (DHCP — исключительно на pfSense).
-- Управление systemd-юнитом `AdGuardHome` и проверка active/enabled.
-- После запуска — ожидание `:53` и переключение `/etc/resolv.conf` на `127.0.0.1`.
+- Загружает и устанавливает AdGuard Home.
+- Создает конфигурацию DNS и веб-интерфейса.
+- Управляет сервисом `AdGuardHome`; изменение конфигурации вызывает handler перезапуска.
 
-Шаблон конфига содержит хэш пароля администратора, поэтому таска деплоя использует
-`no_log: true`, а отладочная сводка скрывает хэш, если не задано
-`debug_show_passwords: true`.
+## Требования
 
-## Структура
+- Debian или Ubuntu, `become: true` и доступ к URL архива.
+- Обязательный секрет `vault_dns_adguard_admin_password_hash` из `VARS/secrets.yml`.
 
+## Изменяемые ресурсы
+
+- Packages: none.
+- Files: `/opt/AdGuardHome`, systemd unit и `AdGuardHome.yaml`.
+- Services: `AdGuardHome`.
+- Users/groups: none.
+- Firewall/API objects: none.
+
+## Переменные
+
+| Variable | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `dns_adguard_debug_mode` | boolean | no | `false` | Показывает факт изменения. |
+| `dns_adguard_archive_url` | string | no | официальный URL | Архив AdGuard Home. |
+| `dns_adguard_install_dir` | string | no | `"/opt/AdGuardHome"` | Каталог установки. |
+| `dns_adguard_service_name` | string | no | `"AdGuardHome"` | Имя systemd-сервиса. |
+| `dns_adguard_service_state` | string | no | `"started"` | Устойчивое состояние сервиса. |
+| `dns_adguard_service_enabled` | boolean | no | `true` | Включает сервис при загрузке. |
+| `dns_adguard_dns_port` | integer | no | `53` | Порт DNS. |
+| `dns_adguard_web_port` | integer | no | `3000` | Порт веб-интерфейса. |
+| `dns_adguard_admin_user` | string | no | `"admin"` | Пользователь веб-интерфейса. |
+| `dns_adguard_upstream_dns` | list | no | `["127.0.0.1:5335"]` | Вышестоящие DNS-серверы. |
+| `vault_dns_adguard_admin_password_hash` | string | yes | - | Хэш пароля администратора из Vault. |
+
+## Использование
+
+```yaml
+---
+- name: Configure AdGuard Home
+  hosts: dns
+  become: true
+  roles:
+    - role: dns_adguard
+      vars:
+        dns_adguard_upstream_dns: ["127.0.0.1:5335"]
 ```
-adguard_home/
-├── defaults/main.yml      # настраиваемое: каталоги, URL, фильтры, ratelimit, приватные сети, debug
-├── vars/main.yml          # статика: имя сервиса, производные пути, поддерживаемые ОС
-├── tasks/
-│   ├── main.yml           # точка входа: assert OS → install → configure → service → debug
-│   ├── install.yml        # каталоги, скачивание/распаковка, установка systemd
-│   ├── configure.yml      # шаблон AdGuardHome.yaml (валидация, no_log)
-│   ├── service.yml        # состояние systemd + проверка + переключение resolv.conf (block/rescue)
-│   └── debug.yml          # двуязычная сводка под debug_mode (пароль скрыт)
-├── handlers/main.yml      # adguard_restart
-└── templates/AdGuardHome.yaml.j2
-```
 
-## Ключевые переменные
+## Check mode и diff mode
 
-| Переменная | По умолчанию | Назначение |
-|---|---|---|
-| `adguard_service_state` | `started` | целевое состояние systemd |
-| `adguard_service_enabled` | `true` | автозапуск |
-| `adguard_install_dir` | `/opt/AdGuardHome` | каталог установки |
-| `adguard_log_dir` | `/var/log/AdGuardHome` | каталог логов |
-| `adguard_ratelimit` | `50` | ratelimit (qps) на клиента |
-| `adguard_filters` | 5 списков | блок-листы (id/url/name) |
-| `adguard_bootstrap_dns` | Quad9/Cloudflare | bootstrap для DoH/DoT upstream'ов |
-| `adguard_private_networks` | RFC1918 | сети для PTR-резолвинга |
-| `debug_mode` / `debug_lang` / `debug_show_passwords` | `false` / `both` / `false` | управление отладкой |
+Скачивание архива и регистрация сервиса имеют ограничения check mode. Шаблон конфигурации использует `no_log: true` и `diff: false`, поэтому секретный хэш не выводится.
 
-Внешние переменные: `adguard_version`, `adguard_web_port`, `adguard_admin_user`,
-`adguard_admin_password_hash`, `adguard_schema_version`, `dns.unbound_local_port`,
-`adguard_segment`, `network.base_domain`. Секреты — из `ansible/VARS/secrets.yaml`.
+## Зависимости
 
-## Теги
-
-`install`, `configure`, `service`, `debug` (плюс `always` для assert ОС).
-
-## Проверка
-
-```bash
-dig @127.0.0.1 -p 53 +short google.com
-dig @127.0.0.1 -p 53 +short doubleclick.net    # блок → '' или 0.0.0.0
-```
+- None

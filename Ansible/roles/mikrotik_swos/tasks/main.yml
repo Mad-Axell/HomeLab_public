@@ -1,0 +1,83 @@
+---
+# Validate required inputs and safety gates before any possible switch change
+# Проверка обязательных входов и защитных флагов до любого возможного изменения коммутатора
+- name: Assert required MikroTik SwOS variables are defined
+  ansible.builtin.assert:
+    that:
+      - mikrotik_swos_host is string
+      - (mikrotik_swos_host | trim | length) > 0
+      - mikrotik_swos_configuration is mapping
+      - "'system' in mikrotik_swos_configuration"
+      - "'ports' in mikrotik_swos_configuration"
+      - "'port_vlans' in mikrotik_swos_configuration"
+      - "'vlans' in mikrotik_swos_configuration"
+      - mikrotik_swos_expected_model is string
+      - (mikrotik_swos_expected_model | trim | length) > 0
+      - mikrotik_swos_expected_version is string
+      - (mikrotik_swos_expected_version | trim | length) > 0
+      - mikrotik_swos_expected_port_count | int > 0
+      - mikrotik_swos_backup_directory is string
+      - (mikrotik_swos_backup_directory | trim | length) > 0
+      - >-
+        vault_mikrotik_swos_passwords is defined
+        and vault_mikrotik_swos_passwords is mapping
+        and inventory_hostname in vault_mikrotik_swos_passwords
+        and vault_mikrotik_swos_passwords[inventory_hostname] is string
+        and (vault_mikrotik_swos_passwords[inventory_hostname]
+        | trim | length) > 0
+      - >-
+        ansible_check_mode
+        or (
+          mikrotik_swos_allow_network_changes | bool
+          and mikrotik_swos_recovery_access_confirmed | bool
+        )
+    fail_msg: >-
+      Required MikroTik SwOS inputs are missing, or a real run was attempted
+      without both network-change and recovery-access confirmations
+    quiet: true
+
+# Reconcile the switch through the role-local module without exposing HTTP credentials
+# Сверка и настройка коммутатора локальным модулем без раскрытия HTTP-учётных данных
+- name: Reconcile MikroTik SwOS configuration
+  ansible.legacy.mikrotik_swos_config:
+    host: "{{ mikrotik_swos_host }}"
+    username: "{{ mikrotik_swos_username }}"
+    password: "{{ vault_mikrotik_swos_passwords[inventory_hostname] }}"
+    expected_model: "{{ mikrotik_swos_expected_model }}"
+    expected_version: "{{ mikrotik_swos_expected_version }}"
+    expected_port_count: "{{ mikrotik_swos_expected_port_count }}"
+    configuration: "{{ mikrotik_swos_configuration }}"
+    backup_directory: "{{ mikrotik_swos_backup_directory }}"
+    allow_network_changes: "{{ mikrotik_swos_allow_network_changes }}"
+    recovery_access_confirmed: "{{ mikrotik_swos_recovery_access_confirmed }}"
+  register: mikrotik_swos_reconcile_result
+  no_log: true
+  diff: false
+
+# Display a safe configuration change summary
+# Отображение безопасной сводки изменения конфигурации
+- name: Display MikroTik SwOS configuration change
+  ansible.builtin.debug:
+    msg: >-
+      Switch {{ inventory_hostname }} configuration:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - mikrotik_swos_debug_mode | bool
+    - >-
+      mikrotik_swos_reconcile_result is defined
+      and (mikrotik_swos_reconcile_result.changed
+      | default(false) | bool)
+  tags:
+    - debug
+
+# Display a safe pre-change backup summary
+# Отображение безопасной сводки резервного копирования перед изменением
+- name: Display MikroTik SwOS backup creation
+  ansible.builtin.debug:
+    msg: "Pre-change backup created for switch {{ inventory_hostname }}"
+  when:
+    - mikrotik_swos_debug_mode | bool
+    - mikrotik_swos_reconcile_result is defined
+    - mikrotik_swos_reconcile_result.backup_created | default(false) | bool
+  tags:
+    - debug

@@ -1,31 +1,13 @@
-# coral-edge-tpu
+# coral_edge_tpu
 
-Ansible role for installing and configuring Google Coral EDGE TPU support in Proxmox LXC containers.
+## Русский
 
-## Quick Links
+Устанавливает Coral Edge TPU runtime на хосте Proxmox и добавляет явно заданные строки проброса устройств в один LXC-контейнер. Роль не открывает контейнеру доступ ко всем устройствам.
 
-- **[English Documentation](README_eng.md)** - Complete English documentation
-- **[Русская Документация](README_rus.md)** - Полная русская документация
+Полная документация: [README_RUS.md](README_RUS.md)
 
-## Overview
+## English
 
-This role automates the installation of Coral EDGE TPU libraries and configuration of Proxmox LXC containers to enable USB device forwarding for Coral TPU accelerators.
+Installs the Coral Edge TPU runtime on a Proxmox host and adds explicitly declared device-forwarding lines to one LXC container. The role never grants access to all devices.
 
-## Quick Start
-
-```yaml
-- hosts: proxmox_hosts
-  roles:
-    - role: coral-edge-tpu
-      vars:
-        pve_lxc_vmid: 100
-```
-
-## License
-
-MIT
-
-## Author
-
-Mad-Axell [mad.axell@gmail.com]
-
+Full documentation: [README_ENG.md](README_ENG.md)

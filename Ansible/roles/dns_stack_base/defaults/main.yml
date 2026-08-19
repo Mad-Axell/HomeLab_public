@@ -1,30 +1,18 @@
 ---
-# EN: Default, overridable variables / RU: Настраиваемые переменные по умолчанию
+# DNS host preparation configuration
+# Конфигурация подготовки DNS-хоста
 
-# EN: Base packages inside the container / RU: Базовые пакеты внутри контейнера
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+dns_stack_base_debug_mode: false
+
+# List. Base packages required by DNS-service roles.
+# Список. Базовые пакеты, требуемые DNS-ролями сервисов.
 dns_stack_base_packages:
-  - ca-certificates
-  - curl
-  - gnupg
-  - sudo
-  - less
-  - vim
-  - htop
-  - iproute2
-  - dnsutils
-  - bind9-host
-  - systemd-timesyncd
-  - jq
+  - "ca-certificates"
+  - "curl"
+  - "dnsutils"
 
-# EN: Run apt full-upgrade on first run (disable for speed)
-# RU: Делать ли apt full-upgrade при первом прогоне (можно отключить для скорости)
-dns_stack_base_full_upgrade: true
-
-# Time sync service / Сервис синхронизации времени
-dns_stack_base_timesync_state: started   # String. started/stopped / Состояние сервиса
-dns_stack_base_timesync_enabled: true    # Bool.   Enable on boot / Автозапуск
-
-# Debug / Отладка
-debug_mode: false                # Bool.   Enable debug output / Включить отладочный вывод
-debug_lang: 'both'               # String. english/russian/both / Язык отладки
-debug_show_passwords: false      # Bool.   Show secrets in debug (INSECURE) / Показывать секреты
+# Boolean. Stop and disable systemd-resolved to free local DNS port 53.
+# Логическое значение. Останавливает и отключает systemd-resolved для освобождения локального порта DNS 53.
+dns_stack_base_disable_systemd_resolved: true
