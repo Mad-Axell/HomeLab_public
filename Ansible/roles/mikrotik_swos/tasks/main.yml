@@ -50,6 +50,7 @@
     backup_directory: "{{ mikrotik_swos_backup_directory }}"
     allow_network_changes: "{{ mikrotik_swos_allow_network_changes }}"
     recovery_access_confirmed: "{{ mikrotik_swos_recovery_access_confirmed }}"
+  delegate_to: localhost
   register: mikrotik_swos_reconcile_result
   no_log: true
   diff: false

@@ -5,6 +5,7 @@ This role compares and configures a MikroTik CSS326 switch through the unofficia
 ## What it does
 
 - Verifies the exact switch model, SwOS version, and port count.
+- Explicitly uses the classic SwOS adapter for CSS326, bypassing the incorrect SwOS Lite auto-detection in `mikrotik-swos==1.3.2`.
 - Compares desired `System`, `Link`, `VLAN`, and `VLANs` sections with the device.
 - Reads state and reports predicted changes without writing in check mode.
 - Saves a controller-side `.swb` file with mode `0600` before a real change.
@@ -18,7 +19,7 @@ There is no automatic rollback. If management access is lost, recovery is physic
 
 - Ansible runs on a controller with Python 3 and `mikrotik-swos==1.3.2`.
 - The library is installed from the project-level `requirements-controller.txt` with hash verification.
-- The controller can reach the switch over HTTP on a trusted management network; the pinned library performs HTTP Digest with the supplied username and password.
+- The controller can reach the switch over HTTP on a trusted management network; the pinned library performs HTTP Digest with the supplied username and password. SSH access to the switch is neither used nor required.
 - The controller user can create files in `mikrotik_swos_backup_directory`, which resides on encrypted storage outside Git.
 - Default target platform: `CSS326-24G-2S+`, SwOS `2.18`, 26 ports.
 - A manual backup, tested physical recovery access, and a maintenance window are required before a real run.
@@ -56,6 +57,7 @@ Inventory defines `ansible_host`. Store each switch's real desired configuration
 ---
 - name: Configure MikroTik SwOS switches
   hosts: mikrotik_switches_group
+  connection: local
   gather_facts: false
   vars_files:
     - ../VARS/secrets.yml
@@ -83,7 +85,7 @@ ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
 
 ## Check mode and diff mode
 
-In `--check`, the role performs HTTP reads and validation but does not create a backup or send POST requests. Because HTTP authentication is sensitive, the task always uses `no_log: true` and `diff: false`; only a safe predicted-change summary can be displayed.
+In `--check`, the role performs HTTP reads and validation but does not create a backup or send POST requests. The HTTP module is always delegated to the Ansible controller (`localhost`), so the role never attempts SSH access to a switch. Because HTTP authentication is sensitive, the task always uses `no_log: true` and `diff: false`; only a safe predicted-change summary can be displayed.
 
 ## Security
 
@@ -102,3 +104,4 @@ In `--check`, the role performs HTTP reads and validation but does not create a 
 - `mikrotik-swos==1.3.2` on the Ansible controller.
 - `requests>=2.25.0` as the library runtime dependency.
 - Role-local `library/mikrotik_swos_config.py` module.
+- For CSS326, the role-local module pins the classic SwOS platform through the adapter and cache API of the pinned library version; changing that dependency version requires revalidating this contract.

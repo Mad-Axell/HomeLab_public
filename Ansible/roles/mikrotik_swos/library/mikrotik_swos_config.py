@@ -11,6 +11,7 @@ module: mikrotik_swos_config
 short_description: Reconcile MikroTik SwOS configuration with safety gates
 description:
   - Validates a CSS326 switch before changing it.
+  - Selects the classic SwOS adapter explicitly for CSS326 devices.
   - Creates a controller-side binary backup before real drift remediation.
   - Applies VLAN table, per-port VLAN, Link, and System settings in that order.
 options:
@@ -95,7 +96,10 @@ import re
 from ansible.module_utils.basic import AnsibleModule
 
 try:
+    import swos as swos_api
     from swos import (
+        PlatformAdapter,
+        PlatformType,
         get_backup,
         get_links,
         get_port_vlans,
@@ -306,6 +310,19 @@ def _vlans_match(current_items, desired_items):
     return all(_vlan_matches(current[vlan_id], item) for vlan_id, item in desired.items())
 
 
+def _use_classic_swos_adapter(url, username, password):
+    adapter_cache = getattr(swos_api, "_adapter_cache", None)
+    if not isinstance(adapter_cache, dict):
+        raise RuntimeError("mikrotik-swos adapter cache is unavailable")
+    cache_key = (url.rstrip("/"), username, password)
+    adapter_cache[cache_key] = PlatformAdapter(
+        url,
+        username,
+        password,
+        platform_type=PlatformType.SWOS,
+    )
+
+
 def _read_state(url, username, password):
     return {
         "system": get_system_info(url, username, password),
@@ -450,6 +467,7 @@ def run_module():
 
     try:
         _validate_configuration(desired, expected_port_count)
+        _use_classic_swos_adapter(url, username, password)
         state = _read_state(url, username, password)
         _validate_device(state, expected_model, expected_version, expected_port_count)
         result["model"] = state["system"].get("model")
