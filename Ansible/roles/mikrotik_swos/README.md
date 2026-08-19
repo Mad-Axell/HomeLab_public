@@ -2,12 +2,12 @@
 
 ## Русский
 
-Роль декларативно настраивает MikroTik CSS326 под SwOS через локальный Ansible-модуль, создаёт обязательный `.swb` backup перед реальным исправлением drift и применяет сетевые секции в безопасном порядке.
+Роль декларативно настраивает MikroTik CSS326 под SwOS через парольный HTTP Digest, создаёт обязательный `.swb` backup перед реальным исправлением drift и получает реальное состояние портов/VLAN только от вызывающего проекта.
 
 Полная документация: [README_RUS.md](README_RUS.md)
 
 ## English
 
-The role declaratively configures MikroTik CSS326 switches running SwOS through a role-local Ansible module, creates a mandatory `.swb` backup before real drift remediation, and applies network sections in a safe order.
+The role declaratively configures MikroTik CSS326 switches over password-protected HTTP Digest, creates a mandatory `.swb` backup before real drift remediation, and receives real port/VLAN state only from the calling project.
 
 Full documentation: [README_ENG.md](README_ENG.md)

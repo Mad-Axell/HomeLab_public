@@ -18,7 +18,7 @@
 
 - Ansible запускается на контроллере с Python 3 и библиотекой `mikrotik-swos==1.3.2`.
 - Библиотека устанавливается из project-level `requirements-controller.txt` с проверкой hash.
-- Коммутатор доступен контроллеру по HTTP в доверенной management-сети.
+- Коммутатор доступен контроллеру по HTTP в доверенной management-сети; закреплённая библиотека выполняет HTTP Digest с переданными именем пользователя и паролем.
 - Пользователь контроллера может создавать файлы в `mikrotik_swos_backup_directory`; каталог находится на зашифрованном хранилище вне Git.
 - Целевая платформа по умолчанию: `CSS326-24G-2S+`, SwOS `2.18`, 26 портов.
 - До реального запуска нужен ручной backup, проверенный физический recovery-доступ и окно обслуживания.
@@ -37,7 +37,7 @@
 | --- | --- | --- | --- | --- |
 | `mikrotik_swos_host` | string | yes | `null` | IPv4-адрес или HTTP URL коммутатора. |
 | `mikrotik_swos_username` | string | no | `"admin"` | Административный пользователь SwOS. |
-| `mikrotik_swos_configuration` | dictionary | yes | `null` | Полная целевая конфигурация `system`, `ports`, `port_vlans`, `vlans`. |
+| `mikrotik_swos_configuration` | dictionary | yes | `null` | Полная внешняя целевая конфигурация `system`, `ports`, `port_vlans`, `vlans`; реальные значения не входят в defaults роли. |
 | `mikrotik_swos_expected_model` | string | no | `"CSS326-24G-2S+"` | Точная допустимая модель. |
 | `mikrotik_swos_expected_version` | string | no | `"2.18"` | Точная допустимая версия SwOS. |
 | `mikrotik_swos_expected_port_count` | integer | no | `26` | Точное количество портов. |
@@ -46,11 +46,11 @@
 | `mikrotik_swos_backup_directory` | string | no | `"/var/backups/mikrotik-swos"` | Каталог контроллера на зашифрованном хранилище вне Git для `.swb`. |
 | `mikrotik_swos_debug_mode` | boolean | no | `false` | Включить безопасные английские debug-сводки. |
 
-Обязательный секрет `vault_mikrotik_swos_passwords` не объявляется в defaults. Это словарь из зашифрованного project-level `VARS/secrets.yml`, где ключ равен inventory alias коммутатора, а значение является его паролем SwOS.
+Обязательный секрет `vault_mikrotik_swos_passwords` не объявляется в defaults. Вызывающий проект передаёт словарь, где ключ равен inventory alias коммутатора, а значение является его паролем SwOS. Роль проверяет наличие непустого значения и передаёт имя пользователя и пароль библиотеке для HTTP Digest.
 
 ## Использование
 
-Inventory должен определять `ansible_host` и `mikrotik_swos_configuration` для каждого коммутатора. Playbook явно подключает единый Vault-файл:
+Inventory определяет `ansible_host`. Реальную конфигурацию конкретного коммутатора следует хранить отдельно от универсальной роли, например в `host_vars/<inventory_alias>.yml`; Ansible загрузит её автоматически. Playbook явно подключает project-level файл секретов:
 
 ```yaml
 ---
@@ -69,14 +69,14 @@ Check mode:
 
 ```bash
 ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
-  --check --diff --limit mikrotik-css326-2 --ask-vault-pass
+  --check --diff --limit mikrotik-css326-2
 ```
 
 Реальный запуск дополнительно требует оба флага:
 
 ```bash
 ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
-  --limit mikrotik-css326-2 --ask-vault-pass \
+  --limit mikrotik-css326-2 \
   -e mikrotik_swos_allow_network_changes=true \
   -e mikrotik_swos_recovery_access_confirmed=true
 ```
@@ -87,8 +87,8 @@ ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
 
 ## Безопасность
 
-- Пароли хранятся только в зашифрованном `VARS/secrets.yml`.
-- Роль не загружает Vault-файл самостоятельно.
+- Роль не содержит пароль и не загружает файл секретов самостоятельно.
+- Способ хранения внешнего `vault_mikrotik_swos_passwords` определяет вызывающий проект; секрет не должен попадать в inventory, host vars, defaults или вывод задач.
 - Backup создаётся до первого POST-запроса; ошибка backup останавливает изменение.
 - Оба gate-флага по умолчанию `false`.
 - HTTP следует использовать только в изолированной management-сети.

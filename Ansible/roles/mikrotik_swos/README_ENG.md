@@ -18,7 +18,7 @@ There is no automatic rollback. If management access is lost, recovery is physic
 
 - Ansible runs on a controller with Python 3 and `mikrotik-swos==1.3.2`.
 - The library is installed from the project-level `requirements-controller.txt` with hash verification.
-- The controller can reach the switch over HTTP on a trusted management network.
+- The controller can reach the switch over HTTP on a trusted management network; the pinned library performs HTTP Digest with the supplied username and password.
 - The controller user can create files in `mikrotik_swos_backup_directory`, which resides on encrypted storage outside Git.
 - Default target platform: `CSS326-24G-2S+`, SwOS `2.18`, 26 ports.
 - A manual backup, tested physical recovery access, and a maintenance window are required before a real run.
@@ -37,7 +37,7 @@ There is no automatic rollback. If management access is lost, recovery is physic
 | --- | --- | --- | --- | --- |
 | `mikrotik_swos_host` | string | yes | `null` | Switch IPv4 address or HTTP URL. |
 | `mikrotik_swos_username` | string | no | `"admin"` | SwOS administrative user. |
-| `mikrotik_swos_configuration` | dictionary | yes | `null` | Complete desired `system`, `ports`, `port_vlans`, and `vlans` configuration. |
+| `mikrotik_swos_configuration` | dictionary | yes | `null` | Complete caller-supplied `system`, `ports`, `port_vlans`, and `vlans` configuration; real values never belong in role defaults. |
 | `mikrotik_swos_expected_model` | string | no | `"CSS326-24G-2S+"` | Exact allowed model. |
 | `mikrotik_swos_expected_version` | string | no | `"2.18"` | Exact allowed SwOS version. |
 | `mikrotik_swos_expected_port_count` | integer | no | `26` | Exact port count. |
@@ -46,11 +46,11 @@ There is no automatic rollback. If management access is lost, recovery is physic
 | `mikrotik_swos_backup_directory` | string | no | `"/var/backups/mikrotik-swos"` | Controller directory on encrypted storage outside Git for `.swb` files. |
 | `mikrotik_swos_debug_mode` | boolean | no | `false` | Enable safe English debug summaries. |
 
-The required `vault_mikrotik_swos_passwords` secret is intentionally absent from defaults. It is a dictionary in the encrypted project-level `VARS/secrets.yml`; each key is a switch inventory alias and each value is its SwOS password.
+The required `vault_mikrotik_swos_passwords` secret is intentionally absent from defaults. The calling project supplies a dictionary whose keys are switch inventory aliases and whose values are SwOS passwords. The role validates a non-empty value and passes the username and password to the library for HTTP Digest.
 
 ## Usage
 
-Inventory must define `ansible_host` and `mikrotik_swos_configuration` for every switch. The playbook explicitly loads the single Vault file:
+Inventory defines `ansible_host`. Store each switch's real desired configuration outside the generic role, for example in `host_vars/<inventory_alias>.yml`; Ansible loads it automatically. The playbook explicitly loads the project-level secrets file:
 
 ```yaml
 ---
@@ -69,14 +69,14 @@ Check mode:
 
 ```bash
 ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
-  --check --diff --limit mikrotik-css326-2 --ask-vault-pass
+  --check --diff --limit mikrotik-css326-2
 ```
 
 A real run additionally requires both flags:
 
 ```bash
 ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
-  --limit mikrotik-css326-2 --ask-vault-pass \
+  --limit mikrotik-css326-2 \
   -e mikrotik_swos_allow_network_changes=true \
   -e mikrotik_swos_recovery_access_confirmed=true
 ```
@@ -87,8 +87,8 @@ In `--check`, the role performs HTTP reads and validation but does not create a 
 
 ## Security
 
-- Passwords exist only in encrypted `VARS/secrets.yml`.
-- The role never loads the Vault file itself.
+- The role contains no password and never loads a secrets file itself.
+- The calling project controls storage of the external `vault_mikrotik_swos_passwords`; the secret must not appear in inventory, host vars, role defaults, or task output.
 - The backup is created before the first POST request, and a backup failure stops the change.
 - Both gate flags default to `false`.
 - HTTP must be restricted to an isolated management network.

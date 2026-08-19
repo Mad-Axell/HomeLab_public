@@ -10,8 +10,8 @@ mikrotik_swos_host: null
 # Строка. Имя административного пользователя SwOS
 mikrotik_swos_username: "admin"
 
-# Dictionary or null. Required desired System, Link, VLAN, and VLANs configuration
-# Словарь или null. Обязательная целевая конфигурация System, Link, VLAN и VLANs
+# Dictionary or null. Required caller-supplied desired System, Link, VLAN, and VLANs configuration; never store real device state in role defaults
+# Словарь или null. Обязательная внешняя целевая конфигурация System, Link, VLAN и VLANs; реальные настройки устройств не хранятся в defaults роли
 mikrotik_swos_configuration: null
 
 # MikroTik SwOS hardware guardrails
