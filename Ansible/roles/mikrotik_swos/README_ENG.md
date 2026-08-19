@@ -69,14 +69,14 @@ Check mode:
 
 ```bash
 ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
-  --check --diff --limit mikrotik-css326-2
+  --check --diff --limit MgmtLanSwitch
 ```
 
 A real run additionally requires both flags:
 
 ```bash
 ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
-  --limit mikrotik-css326-2 \
+  --limit MgmtLanSwitch \
   -e mikrotik_swos_allow_network_changes=true \
   -e mikrotik_swos_recovery_access_confirmed=true
 ```
