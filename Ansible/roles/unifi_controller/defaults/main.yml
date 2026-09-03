@@ -88,6 +88,29 @@ unifi_controller_service_state: "started"
 # Логическое значение. Запускать сервис UniFi при загрузке
 unifi_controller_service_enabled: true
 
+# Local autobackup copy
+# Локальная копия autobackup
+
+# Boolean. Copy the UniFi autobackup directory to a separate location on a schedule
+# Логическое значение. Копировать каталог autobackup UniFi в отдельное место по расписанию
+unifi_controller_backup_copy_enabled: false
+
+# String. Directory that UniFi writes its automatic backups into
+# Строка. Каталог, в который UniFi пишет автоматические резервные копии
+unifi_controller_backup_copy_source: "/usr/lib/unifi/data/backup/autobackup/"
+
+# String. Directory that receives the copy
+# Строка. Каталог, принимающий копию
+unifi_controller_backup_copy_dest: "/var/backups/unifi"
+
+# String. Hour of the copy job in cron syntax
+# Строка. Час запуска копирования в синтаксисе cron
+unifi_controller_backup_copy_hour: "4"
+
+# String. Minute of the copy job in cron syntax
+# Строка. Минута запуска копирования в синтаксисе cron
+unifi_controller_backup_copy_minute: "30"
+
 # Role output settings
 # Настройки вывода роли
 

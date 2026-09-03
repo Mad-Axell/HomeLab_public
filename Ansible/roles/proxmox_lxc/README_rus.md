@@ -48,6 +48,12 @@ Ansible-контроллер, где нужны `proxmoxer >= 2.0` и `requests`
 Если inventory-алиас отличается от реального имени узла в Proxmox API, укажите
 реальное имя в `proxmox.api_node` у объекта гипервизора.
 
+> **`proxmox_lxc_cpus` — это не количество ядер.** Модуль
+> `community.proxmox.proxmox` передаёт его в Proxmox как `cpulimit`, поэтому
+> любое значение ограничивает контейнер указанным числом CPU-секунд в секунду.
+> Количество ядер задаёт `proxmox_lxc_cores`. По умолчанию `null` — параметр не
+> передаётся и лимита нет.
+
 `proxmox_lxc_mount_volumes` задаёт полный список точек монтирования Proxmox.
 `proxmox_lxc_extra_config_lines` используется только для параметров, которых нет
 в API-модуле. Модуль Proxmox не поддерживает check mode, поэтому при `--check`

@@ -14,6 +14,8 @@ signed APT repositories.
   to its steady state (stopped by default, see below).
 - Installs the UniFi package without recommends and brings its service to its
   steady state.
+- On request installs `rsync` and schedules a cron job that copies the UniFi
+  autobackups into a directory outside the application tree.
 
 Order matters: the `unifi` package declares a `mongodb-org-server` dependency, so
 MongoDB is registered and installed before UniFi. The `install_recommends: false`
@@ -38,6 +40,8 @@ flag keeps APT from pulling in the Debian `mongodb` packages.
   `unifi_controller_mongodb_keyring_file` and `unifi_controller_keyring_file`
   key files, `/etc/apt/sources.list.d/mongodb-org.list` and
   `/etc/apt/sources.list.d/unifi-controller.list`.
+- Cron: the `/etc/cron.d/unifi-backup` file and the
+  `unifi_controller_backup_copy_dest` directory when the copy is enabled.
 - Services: `unifi_controller_mongodb_service_name`,
   `unifi_controller_service_name`.
 - Users/groups: none.
@@ -64,6 +68,11 @@ flag keeps APT from pulling in the Debian `mongodb` packages.
 | `unifi_controller_service_name` | string | no | `"unifi"` | UniFi service. |
 | `unifi_controller_service_state` | string | no | `"started"` | UniFi service state. |
 | `unifi_controller_service_enabled` | boolean | no | `true` | UniFi service boot start. |
+| `unifi_controller_backup_copy_enabled` | boolean | no | `false` | Copy autobackups on a schedule. |
+| `unifi_controller_backup_copy_source` | string | no | `"/usr/lib/unifi/data/backup/autobackup/"` | UniFi autobackup directory. |
+| `unifi_controller_backup_copy_dest` | string | no | `"/var/backups/unifi"` | Directory receiving the copy. |
+| `unifi_controller_backup_copy_hour` | string | no | `"4"` | Copy job hour. |
+| `unifi_controller_backup_copy_minute` | string | no | `"30"` | Copy job minute. |
 | `unifi_controller_debug_mode` | boolean | no | `false` | Reports that a change happened. |
 
 ### Why the packaged `mongod` stays stopped

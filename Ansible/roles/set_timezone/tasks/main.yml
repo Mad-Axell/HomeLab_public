@@ -1,0 +1,32 @@
+---
+# Validate the requested timezone before changing the clock configuration
+# Проверка запрошенной таймзоны до изменения настройки часов
+- name: Assert the timezone name is defined
+  ansible.builtin.assert:
+    that:
+      - set_timezone_name is string
+      - (set_timezone_name | trim | length) > 0
+    fail_msg: "set_timezone_name must be an IANA timezone name, for example Europe/Moscow"
+    quiet: true
+
+# Apply the system timezone
+# Применение системной таймзоны
+- name: Set the system timezone
+  community.general.timezone:
+    name: "{{ set_timezone_name }}"
+  register: set_timezone_result
+
+# Report the timezone change
+# Отображение смены таймзоны
+- name: Display timezone change summary
+  ansible.builtin.debug:
+    msg: >-
+      System timezone {{ set_timezone_name }}:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - set_timezone_debug_mode | bool
+    - >-
+      set_timezone_result is defined
+      and (set_timezone_result.changed | default(false) | bool)
+  tags:
+    - debug

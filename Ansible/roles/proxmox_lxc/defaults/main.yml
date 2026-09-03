@@ -47,7 +47,10 @@ proxmox_lxc_template_timeout: 600
 # Container resources.
 proxmox_lxc_ostemplate: null
 proxmox_lxc_cores: 1
-proxmox_lxc_cpus: 1
+# Integer or null. NOT the core count: the module maps cpus to the Proxmox
+# cpulimit, so any value throttles the container to that many CPU-seconds per
+# second. Leave null to keep the Proxmox default of no limit.
+proxmox_lxc_cpus: null
 proxmox_lxc_cpuunits: 1000
 proxmox_lxc_memory: 512
 proxmox_lxc_swap: 512

@@ -232,7 +232,12 @@
     hostname: "{{ proxmox_lxc_target_host }}"
     ostemplate: "{{ proxmox_lxc_effective.ostemplate }}"
     cores: "{{ proxmox_lxc_effective.cores }}"
-    cpus: "{{ proxmox_lxc_effective.cpus }}"
+    cpus: >-
+      {{
+        proxmox_lxc_effective.cpus
+        if proxmox_lxc_effective.cpus is not none
+        else omit
+      }}
     cpuunits: "{{ proxmox_lxc_effective.cpuunits }}"
     memory: "{{ proxmox_lxc_effective.memory }}"
     swap: "{{ proxmox_lxc_effective.swap }}"

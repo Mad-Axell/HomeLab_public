@@ -13,6 +13,8 @@ MongoDB и сам пакет UniFi из двух явно заданных по�
   устойчивому состоянию (по умолчанию — остановлен, см. ниже).
 - Устанавливает пакет UniFi без `recommends` и приводит его сервис к устойчивому
   состоянию.
+- По запросу ставит `rsync` и заводит cron-задание, копирующее autobackup UniFi
+  в отдельный каталог вне дерева приложения.
 
 Порядок важен: пакет `unifi` объявляет зависимость `mongodb-org-server`, поэтому
 MongoDB подключается и ставится до UniFi. Флаг `install_recommends: false`
@@ -37,6 +39,8 @@ MongoDB подключается и ставится до UniFi. Флаг `insta
   `unifi_controller_mongodb_keyring_file` и `unifi_controller_keyring_file`,
   `/etc/apt/sources.list.d/mongodb-org.list` и
   `/etc/apt/sources.list.d/unifi-controller.list`.
+- Cron: файл `/etc/cron.d/unifi-backup` и каталог
+  `unifi_controller_backup_copy_dest`, если копирование включено.
 - Services: `unifi_controller_mongodb_service_name`,
   `unifi_controller_service_name`.
 - Users/groups: none.
@@ -63,6 +67,11 @@ MongoDB подключается и ставится до UniFi. Флаг `insta
 | `unifi_controller_service_name` | string | no | `"unifi"` | Сервис UniFi. |
 | `unifi_controller_service_state` | string | no | `"started"` | Состояние сервиса UniFi. |
 | `unifi_controller_service_enabled` | boolean | no | `true` | Автозапуск сервиса UniFi. |
+| `unifi_controller_backup_copy_enabled` | boolean | no | `false` | Копировать autobackup по расписанию. |
+| `unifi_controller_backup_copy_source` | string | no | `"/usr/lib/unifi/data/backup/autobackup/"` | Каталог autobackup UniFi. |
+| `unifi_controller_backup_copy_dest` | string | no | `"/var/backups/unifi"` | Каталог-приёмник копии. |
+| `unifi_controller_backup_copy_hour` | string | no | `"4"` | Час запуска копирования. |
+| `unifi_controller_backup_copy_minute` | string | no | `"30"` | Минута запуска копирования. |
 | `unifi_controller_debug_mode` | boolean | no | `false` | Показывает факт изменения. |
 
 ### Почему пакетный `mongod` остановлен

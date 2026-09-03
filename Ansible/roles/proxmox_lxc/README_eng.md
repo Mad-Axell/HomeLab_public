@@ -48,6 +48,12 @@ Ansible controller, where `proxmoxer >= 2.0` and `requests` must be installed.
 When an inventory alias differs from the real Proxmox API node name, declare
 that real name as `proxmox.api_node` on the hypervisor inventory object.
 
+> **`proxmox_lxc_cpus` is not the core count.** The
+> `community.proxmox.proxmox` module passes it to Proxmox as `cpulimit`, so any
+> value throttles the container to that many CPU-seconds per second. The core
+> count is `proxmox_lxc_cores`. The default is `null`, which omits the parameter
+> and leaves the container unlimited.
+
 `proxmox_lxc_mount_volumes` is the complete desired Proxmox mount-point list.
 Use `proxmox_lxc_extra_config_lines` only for settings the module cannot model.
 The Proxmox module does not support check mode, so API tasks are skipped by

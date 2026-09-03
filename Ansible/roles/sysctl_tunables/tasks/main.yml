@@ -1,0 +1,54 @@
+---
+# Validate the declared tunables before touching kernel state
+# Проверка объявленных параметров до изменения состояния ядра
+- name: Assert the declared sysctl tunables are well formed
+  ansible.builtin.assert:
+    that:
+      - sysctl_tunables_settings is sequence
+      - >-
+        sysctl_tunables_settings
+        | selectattr('name', 'defined') | list | length
+        == sysctl_tunables_settings | length
+      - >-
+        sysctl_tunables_settings
+        | selectattr('value', 'defined') | list | length
+        == sysctl_tunables_settings | length
+    fail_msg: "every sysctl_tunables_settings item needs both name and value"
+    quiet: true
+
+# Persist and apply each declared kernel parameter
+# Сохранение и применение каждого объявленного параметра ядра
+- name: Manage kernel tunables
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value | string }}"
+    sysctl_file: "{{ sysctl_tunables_file }}"
+    sysctl_set: true
+    reload: "{{ sysctl_tunables_reload }}"
+    state: present
+  loop: "{{ sysctl_tunables_settings }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: sysctl_tunables_result
+
+# Report only the tunables that actually changed
+# Отображение только фактически изменившихся параметров
+- name: Display changed kernel tunables
+  ansible.builtin.debug:
+    msg: >-
+      Kernel tunable {{ item.item.name }}:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  loop: >-
+    {{
+      sysctl_tunables_result.results
+      if sysctl_tunables_result is defined
+      else []
+    }}
+  loop_control:
+    label: "{{ item.item.name | default('unknown') }}"
+  when:
+    - sysctl_tunables_debug_mode | bool
+    - sysctl_tunables_result is defined
+    - item.changed | default(false) | bool
+  tags:
+    - debug

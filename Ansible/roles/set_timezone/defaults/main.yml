@@ -1,0 +1,11 @@
+---
+# System timezone configuration
+# Настройка системной таймзоны
+
+# String or null. Required IANA timezone name, for example "Europe/Moscow"
+# Строка или null. Обязательное имя таймзоны IANA, например "Europe/Moscow"
+set_timezone_name: null
+
+# Boolean. Enable a safe debug summary after the timezone changes
+# Логическое значение. Включить безопасную debug-сводку после смены таймзоны
+set_timezone_debug_mode: false

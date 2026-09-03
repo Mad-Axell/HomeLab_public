@@ -168,6 +168,41 @@
     enabled: "{{ unifi_controller_service_enabled }}"
   register: unifi_controller_service_result
 
+# rsync performs the scheduled copy; install it only when the copy is requested
+# rsync выполняет копирование по расписанию; ставится только если копирование включено
+- name: Install the autobackup copy prerequisite
+  ansible.builtin.apt:
+    name: "rsync"
+    state: present
+  register: unifi_controller_backup_prerequisite_result
+  when: unifi_controller_backup_copy_enabled | bool
+
+# Create the directory that keeps autobackups outside the application tree
+# Создание каталога, хранящего autobackup вне дерева приложения
+- name: Create the UniFi autobackup copy directory
+  ansible.builtin.file:
+    path: "{{ unifi_controller_backup_copy_dest }}"
+    state: directory
+    mode: "0700"
+  register: unifi_controller_backup_directory_result
+  when: unifi_controller_backup_copy_enabled | bool
+
+# Schedule the copy after UniFi has finished writing its own automatic backup
+# Планирование копирования после того, как UniFi закончит писать свой autobackup
+- name: Schedule the UniFi autobackup copy
+  ansible.builtin.cron:
+    name: "unifi autobackup copy"
+    cron_file: "unifi-backup"
+    user: "root"
+    hour: "{{ unifi_controller_backup_copy_hour }}"
+    minute: "{{ unifi_controller_backup_copy_minute }}"
+    job: >-
+      rsync -a --delete {{ unifi_controller_backup_copy_source }}
+      {{ unifi_controller_backup_copy_dest }}/
+    state: present
+  register: unifi_controller_backup_cron_result
+  when: unifi_controller_backup_copy_enabled | bool
+
 # Report the installation outcome without repeating package manager output
 # Вывод итога установки без повторения вывода пакетного менеджера
 - name: Display UniFi controller change summary
@@ -198,5 +233,11 @@
       and (unifi_controller_package_result.changed | default(false) | bool))
       or (unifi_controller_service_result is defined
       and (unifi_controller_service_result.changed | default(false) | bool))
+      or (unifi_controller_backup_prerequisite_result is defined
+      and (unifi_controller_backup_prerequisite_result.changed | default(false) | bool))
+      or (unifi_controller_backup_directory_result is defined
+      and (unifi_controller_backup_directory_result.changed | default(false) | bool))
+      or (unifi_controller_backup_cron_result is defined
+      and (unifi_controller_backup_cron_result.changed | default(false) | bool))
   tags:
     - debug

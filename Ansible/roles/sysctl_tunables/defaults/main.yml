@@ -1,0 +1,19 @@
+---
+# Kernel tunable configuration
+# Настройка параметров ядра
+
+# List of dictionaries. Each item needs name and value; an empty list is allowed
+# Список словарей. Каждый элемент содержит name и value; пустой список допустим
+sysctl_tunables_settings: []
+
+# String. File under /etc/sysctl.d that stores the managed tunables
+# Строка. Файл в /etc/sysctl.d, хранящий управляемые параметры
+sysctl_tunables_file: "/etc/sysctl.d/99-ansible-tunables.conf"
+
+# Boolean. Apply the values immediately in addition to persisting them
+# Логическое значение. Применить значения немедленно в дополнение к сохранению
+sysctl_tunables_reload: true
+
+# Boolean. Enable a safe debug summary after a tunable changes
+# Логическое значение. Включить безопасную debug-сводку после изменения параметра
+sysctl_tunables_debug_mode: false
