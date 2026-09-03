@@ -134,7 +134,6 @@
     onboot: "{{ proxmox_lxc_onboot }}"
     state: present
     update: true
-    force: false
     timeout: "{{ proxmox_lxc_timeout }}"
   delegate_to: localhost
   become: false
