@@ -2,12 +2,14 @@
 
 ## Русский
 
-Устанавливает UniFi Network Server из явно заданного подписанного APT-репозитория на Debian.
+Разворачивает стек UniFi Network Server на Debian: Java, сервер MongoDB и пакет
+UniFi из двух явно заданных подписанных APT-репозиториев.
 
 Полная документация: [README_RUS.md](README_RUS.md)
 
 ## English
 
-Installs UniFi Network Server from an explicitly declared signed APT repository on Debian.
+Deploys the UniFi Network Server stack on Debian: Java, a MongoDB server and the
+UniFi package from two explicitly declared signed APT repositories.
 
 Full documentation: [README_ENG.md](README_ENG.md)

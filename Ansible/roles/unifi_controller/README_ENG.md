@@ -1,34 +1,74 @@
 # unifi_controller
 
-This role installs a UniFi repository key and APT repository, installs UniFi Network Server, and enables its systemd service.
+The role deploys the full UniFi Network Server stack on Debian: a Java runtime,
+a MongoDB server and the UniFi package itself, from two explicitly declared
+signed APT repositories.
 
 ## What it does
 
-- Installs repository prerequisites, keyring, and signing key.
-- Adds the supplied APT repository.
-- Installs the UniFi package and starts its service.
+- Validates the Debian platform and the supplied URIs and keys of both repositories.
+- Validates the `avx` CPU flag, without which MongoDB 5.0 and newer fails to start.
+- Installs `ca-certificates`, `curl` and `gnupg`, and creates the shared keyring directory.
+- Registers the MongoDB key and repository, then the UniFi key and repository.
+- Installs the JRE and the MongoDB server and brings `mongod` to its steady state.
+- Installs the UniFi package without recommends and brings its service to its
+  steady state.
+
+Order matters: the `unifi` package declares a `mongodb-org-server` dependency, so
+MongoDB is registered and installed before UniFi. The `install_recommends: false`
+flag keeps APT from pulling in the Debian `mongodb` packages.
 
 ## Requirements
 
-- Debian or Ubuntu, `become: true`, and repository access.
+- Debian, `become: true` and network access to both repositories.
+- Gathered facts: the role reads `ansible_facts.os_family` and
+  `ansible_facts.processor_flags`.
+- A CPU with AVX while `unifi_controller_require_avx` stays enabled.
+- The JRE package in `unifi_controller_java_package` must satisfy the Java
+  dependency of the specific UniFi release. The required Java version changes
+  between UniFi releases; re-check the `Depends` field of the `unifi` package
+  whenever the repository suite changes.
 
 ## Managed resources
 
-- Packages: `unifi_controller_package_name`.
-- Files: `/etc/apt/keyrings/unifi-controller.asc` and repository file.
-- Services: `unifi_controller_service_name`.
+- Packages: `ca-certificates`, `curl`, `gnupg`, `unifi_controller_java_package`,
+  `unifi_controller_mongodb_package`, `unifi_controller_package_name`.
+- Files: the `unifi_controller_keyring_directory` directory, the
+  `unifi_controller_mongodb_keyring_file` and `unifi_controller_keyring_file`
+  key files, `/etc/apt/sources.list.d/mongodb-org.list` and
+  `/etc/apt/sources.list.d/unifi-controller.list`.
+- Services: `unifi_controller_mongodb_service_name`,
+  `unifi_controller_service_name`.
 - Users/groups: none.
-- Firewall/API objects: UniFi ports must be allowed by a separate firewall role.
+- Firewall/API objects: UniFi ports are opened by a separate firewall role.
 
 ## Variables
 
 | Variable | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `unifi_controller_debug_mode` | boolean | no | `false` | Reports whether the role changed anything. |
-| `unifi_controller_repository` | string | yes | `null` | Repository URI with distribution/components. |
-| `unifi_controller_repository_key_url` | string | yes | `null` | Signing-key URL. |
+| `unifi_controller_require_avx` | boolean | no | `true` | Require the `avx` CPU flag before installing. |
+| `unifi_controller_keyring_directory` | string | no | `"/etc/apt/keyrings"` | Signing key directory. |
+| `unifi_controller_java_package` | string | no | `"openjdk-25-jre-headless"` | JRE package for the UniFi dependency. |
+| `unifi_controller_mongodb_repository` | string | yes | `null` | MongoDB repository URI with suite and component. |
+| `unifi_controller_mongodb_repository_key_url` | string | yes | `null` | URL of the ASCII-armored MongoDB key. |
+| `unifi_controller_mongodb_keyring_file` | string | no | `"mongodb-server.asc"` | MongoDB key file name. |
+| `unifi_controller_mongodb_package` | string | no | `"mongodb-org"` | MongoDB server package. |
+| `unifi_controller_mongodb_service_name` | string | no | `"mongod"` | MongoDB service. |
+| `unifi_controller_repository` | string | yes | `null` | UniFi repository URI with suite and component. |
+| `unifi_controller_repository_key_url` | string | yes | `null` | URL of the binary UniFi key. |
+| `unifi_controller_keyring_file` | string | no | `"unifi-repo.gpg"` | UniFi key file name. |
 | `unifi_controller_package_name` | string | no | `"unifi"` | UniFi package. |
-| `unifi_controller_service_name` | string | no | `"unifi"` | Service name. |
+| `unifi_controller_service_name` | string | no | `"unifi"` | UniFi service. |
+| `unifi_controller_service_state` | string | no | `"started"` | Steady state of both services. |
+| `unifi_controller_service_enabled` | boolean | no | `true` | Boot start of both services. |
+| `unifi_controller_debug_mode` | boolean | no | `false` | Reports that a change happened. |
+
+The key file extension is meaningful: the MongoDB key is published ASCII-armored
+and is named `.asc`, while the UniFi key is binary OpenPGP and is named `.gpg`.
+
+## Secret external inputs
+
+The role uses no secrets and does not read `VARS/secrets.yml`.
 
 ## Usage
 
@@ -40,14 +80,29 @@ This role installs a UniFi repository key and APT repository, installs UniFi Net
   roles:
     - role: unifi_controller
       vars:
-        unifi_controller_repository: "https://repository.example.invalid/debian stable ubiquiti"
-        unifi_controller_repository_key_url: "https://repository.example.invalid/key.asc"
+        unifi_controller_mongodb_repository: "https://repository.example.invalid/apt/debian bookworm/mongodb-org/8.0 main"
+        unifi_controller_mongodb_repository_key_url: "https://repository.example.invalid/static/pgp/server-8.0.asc"
+        unifi_controller_repository: "https://repository.example.invalid/unifi/debian unifi-10.4 ubiquiti"
+        unifi_controller_repository_key_url: "https://repository.example.invalid/unifi/unifi-repo.gpg"
 ```
 
 ## Check mode and diff mode
 
-Repository, package, and service tasks support `--check --diff` within APT capabilities.
+The role supports `--check --diff` partially, and this is an APT limitation
+rather than a defect:
+
+- in check mode the repositories are not actually added, so the tasks installing
+  `unifi_controller_java_package`, `unifi_controller_mongodb_package` and
+  `unifi_controller_package_name` report a missing candidate package on a clean host;
+- for that reason a full `--check` is only meaningful on a host where the
+  repositories were already registered by an earlier real run;
+- the key, keyring directory and service tasks behave correctly in check mode.
 
 ## Dependencies
 
 - None
+
+## Handlers and tags
+
+- Handlers: none, the role stores only the steady service state.
+- Tags: `debug` on the final debug task.

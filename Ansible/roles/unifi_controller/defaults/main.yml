@@ -1,23 +1,88 @@
 ---
 # UniFi Network Server role configuration
-# Установка UniFi Network Server
+# Конфигурация роли UniFi Network Server
 
-# Boolean. Enable change notifications in debug output.
-# Логическое значение. Включает уведомления об изменениях в debug-выводе.
-unifi_controller_debug_mode: false
+# Platform guardrails
+# Защитные ограничения платформы
 
-# String. Required APT repository URI and distribution/components, without the deb prefix.
-# Строка. Обязательный URI APT-репозитория и distribution/components без префикса deb.
+# Boolean. Require the AVX CPU flag before installing MongoDB 5.0 or newer
+# Логическое значение. Требовать флаг CPU AVX перед установкой MongoDB 5.0 и новее
+unifi_controller_require_avx: true
+
+# APT keyring settings
+# Настройки APT keyring
+
+# String. Directory holding the repository signing keys
+# Строка. Каталог с ключами подписи репозиториев
+unifi_controller_keyring_directory: "/etc/apt/keyrings"
+
+# Java runtime settings
+# Настройки среды выполнения Java
+
+# String. JRE package satisfying the UniFi Java dependency
+# Строка. Пакет JRE, удовлетворяющий зависимости UniFi по Java
+unifi_controller_java_package: "openjdk-25-jre-headless"
+
+# MongoDB settings
+# Настройки MongoDB
+
+# String or null. Required MongoDB APT repository URI with suite and component, without the deb prefix
+# Строка или null. Обязательный URI APT-репозитория MongoDB с suite и компонентом, без префикса deb
+unifi_controller_mongodb_repository: null
+
+# String or null. Required URL of the ASCII-armored MongoDB signing key
+# Строка или null. Обязательный URL ASCII-armored ключа подписи MongoDB
+unifi_controller_mongodb_repository_key_url: null
+
+# String. Destination file for the ASCII-armored MongoDB signing key
+# Строка. Файл назначения для ASCII-armored ключа подписи MongoDB
+unifi_controller_mongodb_keyring_file: "mongodb-server.asc"
+
+# String. MongoDB server package name
+# Строка. Имя пакета сервера MongoDB
+unifi_controller_mongodb_package: "mongodb-org"
+
+# String. MongoDB systemd service name
+# Строка. Имя systemd-сервиса MongoDB
+unifi_controller_mongodb_service_name: "mongod"
+
+# UniFi Network Server settings
+# Настройки UniFi Network Server
+
+# String or null. Required UniFi APT repository URI with suite and component, without the deb prefix
+# Строка или null. Обязательный URI APT-репозитория UniFi с suite и компонентом, без префикса deb
 unifi_controller_repository: null
 
-# String. Required URL of the repository signing key.
-# Строка. Обязательный URL ключа подписи репозитория.
+# String or null. Required URL of the binary UniFi signing key
+# Строка или null. Обязательный URL бинарного ключа подписи UniFi
 unifi_controller_repository_key_url: null
 
-# String. UniFi Network Server package name.
-# Строка. Имя пакета UniFi Network Server.
+# String. Destination file for the binary UniFi signing key
+# Строка. Файл назначения для бинарного ключа подписи UniFi
+unifi_controller_keyring_file: "unifi-repo.gpg"
+
+# String. UniFi Network Server package name
+# Строка. Имя пакета UniFi Network Server
 unifi_controller_package_name: "unifi"
 
-# String. UniFi systemd service name.
-# Строка. Имя systemd-сервиса UniFi.
+# String. UniFi systemd service name
+# Строка. Имя systemd-сервиса UniFi
 unifi_controller_service_name: "unifi"
+
+# Service state settings
+# Настройки состояния сервисов
+
+# String. Steady service state for MongoDB and UniFi: started or stopped
+# Строка. Устойчивое состояние сервисов MongoDB и UniFi: started или stopped
+unifi_controller_service_state: "started"
+
+# Boolean. Enable MongoDB and UniFi services on boot
+# Логическое значение. Включить сервисы MongoDB и UniFi при загрузке
+unifi_controller_service_enabled: true
+
+# Role output settings
+# Настройки вывода роли
+
+# Boolean. Enable change notifications in debug output
+# Логическое значение. Включить уведомления об изменениях в debug-выводе
+unifi_controller_debug_mode: false
