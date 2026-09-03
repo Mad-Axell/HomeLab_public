@@ -1,0 +1,132 @@
+---
+# AdGuard VPN CLI gateway role configuration
+# Конфигурация роли шлюза AdGuard VPN CLI
+
+# Installer settings
+# Настройки установщика
+
+# String. URL of the official AdGuard VPN CLI install script; the path segment selects the release channel
+# Строка. URL официального скрипта установки AdGuard VPN CLI; сегмент пути выбирает канал выпуска
+vpn_adguard_installer_url: "https://raw.githubusercontent.com/AdguardTeam/AdGuardVPNCLI/master/scripts/release/install.sh"
+
+# String. Local path the install script is downloaded to before it is executed
+# Строка. Локальный путь, куда скачивается скрипт установки перед запуском
+vpn_adguard_installer_path: "/usr/local/src/adguardvpn-cli-install.sh"
+
+# String. Parent directory passed to the installer with -o; the installer creates adguardvpn_cli inside it
+# Строка. Родительский каталог, передаваемый установщику через -o; установщик создаёт внутри adguardvpn_cli
+vpn_adguard_install_parent_directory: "/opt"
+
+# String or null. Optional version pin passed to the installer with -V; null installs the latest build of the channel
+# Строка или null. Опциональная фиксация версии, передаваемая установщику через -V; null ставит последнюю сборку канала
+vpn_adguard_version: null
+
+# Client configuration
+# Конфигурация клиента
+
+# String. Operating mode of the client: TUN routes the whole container, SOCKS only exposes a local proxy
+# Строка. Режим работы клиента: TUN маршрутизирует весь контейнер, SOCKS только публикует локальный прокси
+vpn_adguard_mode: "TUN"
+
+# String. TUN routing mode: NONE, AUTO or SCRIPT; AUTO lets the client install the tunnel routes itself
+# Строка. Режим маршрутизации TUN: NONE, AUTO или SCRIPT; AUTO позволяет клиенту самому установить маршруты туннеля
+vpn_adguard_tun_routing_mode: "AUTO"
+
+# String or null. DNS server the tunnel resolves through; null keeps the client default
+# Строка или null. DNS-сервер, через который резолвит туннель; null оставляет значение клиента по умолчанию
+vpn_adguard_dns_server: null
+
+# String. Whether the client is allowed to rewrite the system resolver: on or off
+# Строка. Разрешено ли клиенту переписывать системный резолвер: on или off
+vpn_adguard_change_system_dns: "off"
+
+# String. Whether the client prints interactive hints: on or off; off keeps unattended runs quiet
+# Строка. Печатает ли клиент интерактивные подсказки: on или off; off делает автоматические запуски тихими
+vpn_adguard_show_hints: "off"
+
+# String or null. Location passed to connect with -l; null connects to the fastest or last used location
+# Строка или null. Локация, передаваемая в connect через -l; null подключает к быстрейшей или последней использованной
+vpn_adguard_location: null
+
+# Tunnel service settings
+# Настройки сервиса туннеля
+
+# String. Name of the systemd unit this role creates to keep the tunnel up
+# Строка. Имя systemd-юнита, который роль создаёт для поддержания туннеля
+vpn_adguard_service_name: "adguardvpn-tunnel"
+
+# String. Steady state of the tunnel service: started or stopped
+# Строка. Устойчивое состояние сервиса туннеля: started или stopped
+vpn_adguard_service_state: "started"
+
+# Boolean. Start the tunnel service on boot
+# Логическое значение. Запускать сервис туннеля при загрузке
+vpn_adguard_service_enabled: true
+
+# Gateway settings
+# Настройки шлюза
+
+# Boolean. Prepare the container to forward and masquerade traffic of other hosts into the tunnel
+# Логическое значение. Подготовить контейнер к форвардингу и маскарадингу трафика других хостов в туннель
+vpn_adguard_gateway_enabled: true
+
+# List of strings. Source CIDRs whose forwarded traffic is masqueraded into the tunnel; required when the gateway is enabled
+# Список строк. Исходные CIDR, чей форвардящийся трафик маскарадится в туннель; обязателен при включённом шлюзе
+vpn_adguard_lan_subnets: []
+
+# String. Name of the interface the client creates for the tunnel
+# Строка. Имя интерфейса, который клиент создаёт для туннеля
+vpn_adguard_tunnel_interface: "tun0"
+
+# List of strings. CIDRs kept off the tunnel so the container stays reachable from them after connect
+# Список строк. CIDR, выведенные из туннеля, чтобы контейнер оставался доступен из них после connect
+vpn_adguard_bypass_networks: []
+
+# String or null. Next hop for the bypass routes; required when vpn_adguard_bypass_networks is not empty
+# Строка или null. Следующий узел для обходных маршрутов; обязателен, когда vpn_adguard_bypass_networks не пуст
+vpn_adguard_bypass_gateway: null
+
+# Internal paths and packages
+# Внутренние пути и пакеты
+
+# String. Internal. Full path of the installed client executable
+# Строка. Внутреннее. Полный путь установленного исполняемого файла клиента
+vpn_adguard_binary_path: "/opt/adguardvpn_cli/adguardvpn-cli"
+
+# String. Internal. Path of the ip utility used by the bypass routes in the unit
+# Строка. Внутреннее. Путь утилиты ip, используемой обходными маршрутами в юните
+vpn_adguard_ip_command: "/usr/sbin/ip"
+
+# String. Internal. Path of the nft utility used to validate and reload the ruleset
+# Строка. Внутреннее. Путь утилиты nft, используемой для валидации и перезагрузки набора правил
+vpn_adguard_nft_command: "/usr/sbin/nft"
+
+# String. Internal. Sysctl drop-in that enables IPv4 forwarding for the gateway
+# Строка. Внутреннее. Sysctl drop-in, включающий форвардинг IPv4 для шлюза
+vpn_adguard_sysctl_file: "/etc/sysctl.d/99-vpn-adguard-forward.conf"
+
+# String. Internal. File holding the masquerade table of this role
+# Строка. Внутреннее. Файл с таблицей маскарадинга этой роли
+vpn_adguard_nftables_file: "/etc/nftables.d/vpn-adguard.nft"
+
+# String. Internal. Main nftables configuration that includes the file above
+# Строка. Внутреннее. Основная конфигурация nftables, подключающая файл выше
+vpn_adguard_nftables_main_config: "/etc/nftables.conf"
+
+# List of strings. Internal. Packages needed to download and run the installer
+# Список строк. Внутреннее. Пакеты, необходимые для скачивания и запуска установщика
+vpn_adguard_packages:
+  - "ca-certificates"
+  - "curl"
+
+# List of strings. Internal. Extra packages needed only by the gateway part
+# Список строк. Внутреннее. Дополнительные пакеты, нужные только для части шлюза
+vpn_adguard_gateway_packages:
+  - "nftables"
+
+# Role output settings
+# Настройки вывода роли
+
+# Boolean. Enable change notifications in debug output
+# Логическое значение. Включить уведомления об изменениях в debug-выводе
+vpn_adguard_debug_mode: false

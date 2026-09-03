@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+# Raises the AdGuard VPN CLI tunnel at boot. The client daemonises itself, so the
+# unit is a oneshot that stays active after connect returns.
+
+[Unit]
+Description=AdGuard VPN CLI tunnel
+Documentation=https://adguard-vpn.com/kb/adguard-vpn-for-linux/
+After=network-online.target nftables.service
+Wants=network-online.target
+ConditionPathExists=/dev/net/tun
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart={{ vpn_adguard_binary_path }} connect{{ (' -l ' ~ vpn_adguard_location) if vpn_adguard_location is not none else '' }}
+{% for network in vpn_adguard_bypass_networks %}
+# Keep {{ network }} off the tunnel so the container stays reachable from it
+ExecStartPost={{ vpn_adguard_ip_command }} route replace {{ network }} via {{ vpn_adguard_bypass_gateway }}
+{% endfor %}
+ExecStop={{ vpn_adguard_binary_path }} disconnect
+{% for network in vpn_adguard_bypass_networks %}
+ExecStopPost=-{{ vpn_adguard_ip_command }} route del {{ network }} via {{ vpn_adguard_bypass_gateway }}
+{% endfor %}
+
+[Install]
+WantedBy=multi-user.target

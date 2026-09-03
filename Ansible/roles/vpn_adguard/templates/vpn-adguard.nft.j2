@@ -1,0 +1,17 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# Masquerade forwarded LAN traffic into the AdGuard VPN tunnel.
+# The table is declared and deleted first so this file can be reloaded repeatedly
+# without duplicating rules and without touching tables owned by anything else.
+
+table ip vpn_adguard_nat
+delete table ip vpn_adguard_nat
+
+table ip vpn_adguard_nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+{% for subnet in vpn_adguard_lan_subnets %}
+        ip saddr {{ subnet }} oifname "{{ vpn_adguard_tunnel_interface }}" masquerade
+{% endfor %}
+    }
+}

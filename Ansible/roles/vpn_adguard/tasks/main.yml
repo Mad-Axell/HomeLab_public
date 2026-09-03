@@ -1,0 +1,245 @@
+---
+# Read the tunnel device state, which an unprivileged container only has after an explicit host bind
+# Чтение состояния устройства туннеля, которое в unprivileged-контейнере есть только после явного bind с хоста
+- name: Check whether the tunnel device is present
+  ansible.builtin.stat:
+    path: "/dev/net/tun"
+  register: vpn_adguard_tun_device_result
+
+# Validate the platform, the tunnel device and the gateway contract before any change
+# Проверка платформы, устройства туннеля и контракта шлюза до любого изменения
+- name: Assert required AdGuard VPN variables are defined
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - vpn_adguard_installer_url is string
+      - (vpn_adguard_installer_url | trim | length) > 0
+      - vpn_adguard_mode in ['TUN', 'SOCKS']
+      - vpn_adguard_tun_routing_mode in ['NONE', 'AUTO', 'SCRIPT']
+      - vpn_adguard_change_system_dns in ['on', 'off']
+      - vpn_adguard_show_hints in ['on', 'off']
+      - >-
+        vpn_adguard_mode != 'TUN'
+        or (vpn_adguard_tun_device_result.stat.exists | default(false))
+      - >-
+        not (vpn_adguard_gateway_enabled | bool)
+        or (vpn_adguard_lan_subnets | length) > 0
+      - >-
+        (vpn_adguard_bypass_networks | length) == 0
+        or (vpn_adguard_bypass_gateway is string
+        and (vpn_adguard_bypass_gateway | trim | length) > 0)
+    fail_msg: >-
+      vpn_adguard requires Debian, /dev/net/tun in TUN mode, valid mode and
+      routing values, vpn_adguard_lan_subnets when the gateway is enabled and
+      vpn_adguard_bypass_gateway when bypass networks are set
+    quiet: true
+
+# Install the packages needed to fetch the installer and, for a gateway, to hold the ruleset
+# Установка пакетов, необходимых для получения установщика и, для шлюза, для хранения правил
+- name: Install AdGuard VPN prerequisites
+  ansible.builtin.apt:
+    name: >-
+      {{
+        vpn_adguard_packages
+        + (vpn_adguard_gateway_packages if vpn_adguard_gateway_enabled | bool else [])
+      }}
+    state: present
+    update_cache: true
+  register: vpn_adguard_prerequisite_result
+
+# Download the official install script instead of piping it straight into a shell
+# Загрузка официального скрипта установки вместо прямой передачи его в shell
+- name: Download the AdGuard VPN CLI install script
+  ansible.builtin.get_url:
+    url: "{{ vpn_adguard_installer_url }}"
+    dest: "{{ vpn_adguard_installer_path }}"
+    mode: "0755"
+  register: vpn_adguard_installer_result
+
+# Read whether the client is already installed, so the installer runs only when it is needed
+# Чтение того, установлен ли уже клиент, чтобы установщик запускался только при необходимости
+- name: Check whether the AdGuard VPN CLI binary is present
+  ansible.builtin.stat:
+    path: "{{ vpn_adguard_binary_path }}"
+  register: vpn_adguard_binary_result
+
+# Read the installed version so a pinned version can be reinstalled when it drifts
+# Чтение установленной версии, чтобы закреплённую версию можно было переустановить при расхождении
+- name: Read the installed AdGuard VPN CLI version
+  ansible.builtin.command:
+    cmd: "{{ vpn_adguard_binary_path }} --version"
+  register: vpn_adguard_version_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: vpn_adguard_binary_result.stat.exists
+
+# Run the vendor installer non-interactively; -a y answers its symlink and ownership prompts
+# Запуск установщика вендора неинтерактивно; -a y отвечает на его вопросы о симлинке и владельце
+- name: Install AdGuard VPN CLI
+  ansible.builtin.command:
+    cmd: >-
+      /bin/sh {{ vpn_adguard_installer_path }}
+      -v -a y -o {{ vpn_adguard_install_parent_directory }}
+      {{ ('-V ' ~ vpn_adguard_version) if vpn_adguard_version is not none else '' }}
+  register: vpn_adguard_install_result
+  changed_when: true
+  when: >-
+    not vpn_adguard_binary_result.stat.exists
+    or (vpn_adguard_version is not none
+    and not (vpn_adguard_version_result.stdout | default('')
+    is search(vpn_adguard_version | regex_escape)))
+
+# Capture the client configuration before it is changed, to report a real change afterwards
+# Снимок конфигурации клиента до изменений, чтобы затем сообщить о реальном изменении
+- name: Read the AdGuard VPN CLI configuration before changes
+  ansible.builtin.command:
+    cmd: "{{ vpn_adguard_binary_path }} config show"
+  register: vpn_adguard_config_before_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# Apply the settings that make the client usable as an unattended gateway
+# Применение настроек, делающих клиент пригодным для работы шлюзом без оператора
+- name: Apply the AdGuard VPN CLI configuration
+  ansible.builtin.command:
+    cmd: "{{ vpn_adguard_binary_path }} config {{ item }}"
+  loop: >-
+    {{
+      ['set-mode ' ~ vpn_adguard_mode]
+      + (['set-tun-routing-mode ' ~ vpn_adguard_tun_routing_mode]
+         if vpn_adguard_mode == 'TUN' else [])
+      + ['set-change-system-dns ' ~ vpn_adguard_change_system_dns]
+      + (['set-dns ' ~ vpn_adguard_dns_server]
+         if vpn_adguard_dns_server is not none else [])
+      + ['set-show-hints ' ~ vpn_adguard_show_hints]
+    }}
+  changed_when: false
+  when: not ansible_check_mode
+
+# Capture the configuration again and report changed only when it actually differs
+# Повторный снимок конфигурации и отчёт об изменении только при реальном расхождении
+- name: Read the AdGuard VPN CLI configuration after changes
+  ansible.builtin.command:
+    cmd: "{{ vpn_adguard_binary_path }} config show"
+  register: vpn_adguard_config_after_result
+  changed_when: >-
+    (vpn_adguard_config_after_result.stdout | default(''))
+    != (vpn_adguard_config_before_result.stdout | default(''))
+  failed_when: false
+  check_mode: false
+
+# Enable IPv4 forwarding, without which the container drops traffic of other hosts
+# Включение форвардинга IPv4, без которого контейнер отбрасывает трафик других хостов
+- name: Enable IPv4 forwarding for the gateway
+  ansible.posix.sysctl:
+    name: "net.ipv4.ip_forward"
+    value: "1"
+    sysctl_file: "{{ vpn_adguard_sysctl_file }}"
+    sysctl_set: true
+    reload: true
+    state: present
+  register: vpn_adguard_forwarding_result
+  when: vpn_adguard_gateway_enabled | bool
+
+# Create the directory that keeps the ruleset of this role separate from the distribution file
+# Создание каталога, хранящего правила этой роли отдельно от дистрибутивного файла
+- name: Create the nftables include directory
+  ansible.builtin.file:
+    path: "{{ vpn_adguard_nftables_file | dirname }}"
+    state: directory
+    mode: "0755"
+  register: vpn_adguard_nftables_directory_result
+  when: vpn_adguard_gateway_enabled | bool
+
+# Write the masquerade table that sends forwarded LAN traffic out through the tunnel
+# Запись таблицы маскарадинга, отправляющей форвардящийся трафик LAN наружу через туннель
+- name: Write the AdGuard VPN masquerade ruleset
+  ansible.builtin.template:
+    src: "vpn-adguard.nft.j2"
+    dest: "{{ vpn_adguard_nftables_file }}"
+    mode: "0644"
+    validate: "{{ vpn_adguard_nft_command }} -c -f %s"
+  register: vpn_adguard_nftables_file_result
+  when: vpn_adguard_gateway_enabled | bool
+  notify: Reload nftables
+
+# Load the role ruleset from the main configuration without replacing its other content
+# Подключение правил роли из основной конфигурации без замены остального её содержимого
+- name: Include the AdGuard VPN ruleset in the main nftables configuration
+  ansible.builtin.blockinfile:
+    path: "{{ vpn_adguard_nftables_main_config }}"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK vpn_adguard"
+    block: |
+      include "{{ vpn_adguard_nftables_file }}"
+    create: true
+    mode: "0755"
+  register: vpn_adguard_nftables_include_result
+  when: vpn_adguard_gateway_enabled | bool
+  notify: Reload nftables
+
+# Keep the ruleset service in a steady state so the masquerade table survives a reboot
+# Поддержание устойчивого состояния сервиса правил, чтобы таблица маскарадинга пережила перезагрузку
+- name: Manage the nftables service
+  ansible.builtin.systemd_service:
+    name: "nftables"
+    state: "started"
+    enabled: true
+  register: vpn_adguard_nftables_service_result
+  when: vpn_adguard_gateway_enabled | bool
+
+# Install the unit that raises the tunnel at boot and restores the bypass routes after connect
+# Установка юнита, поднимающего туннель при загрузке и восстанавливающего обходные маршруты после connect
+- name: Write the AdGuard VPN tunnel unit
+  ansible.builtin.template:
+    src: "adguardvpn-tunnel.service.j2"
+    dest: "/etc/systemd/system/{{ vpn_adguard_service_name }}.service"
+    mode: "0644"
+  register: vpn_adguard_unit_result
+  notify: Restart AdGuard VPN tunnel
+
+# Keep the tunnel service in its steady state
+# Поддержание устойчивого состояния сервиса туннеля
+- name: Manage the AdGuard VPN tunnel service
+  ansible.builtin.systemd_service:
+    name: "{{ vpn_adguard_service_name }}"
+    state: "{{ vpn_adguard_service_state }}"
+    enabled: "{{ vpn_adguard_service_enabled }}"
+    daemon_reload: true
+  register: vpn_adguard_service_result
+
+# Report the outcome without repeating installer or package manager output
+# Вывод итога без повторения вывода установщика или пакетного менеджера
+- name: Display AdGuard VPN gateway change summary
+  ansible.builtin.debug:
+    msg: >-
+      AdGuard VPN gateway:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - vpn_adguard_debug_mode | bool
+    - >-
+      (vpn_adguard_prerequisite_result is defined
+      and (vpn_adguard_prerequisite_result.changed | default(false) | bool))
+      or (vpn_adguard_installer_result is defined
+      and (vpn_adguard_installer_result.changed | default(false) | bool))
+      or (vpn_adguard_install_result is defined
+      and (vpn_adguard_install_result.changed | default(false) | bool))
+      or (vpn_adguard_config_after_result is defined
+      and (vpn_adguard_config_after_result.changed | default(false) | bool))
+      or (vpn_adguard_forwarding_result is defined
+      and (vpn_adguard_forwarding_result.changed | default(false) | bool))
+      or (vpn_adguard_nftables_directory_result is defined
+      and (vpn_adguard_nftables_directory_result.changed | default(false) | bool))
+      or (vpn_adguard_nftables_file_result is defined
+      and (vpn_adguard_nftables_file_result.changed | default(false) | bool))
+      or (vpn_adguard_nftables_include_result is defined
+      and (vpn_adguard_nftables_include_result.changed | default(false) | bool))
+      or (vpn_adguard_nftables_service_result is defined
+      and (vpn_adguard_nftables_service_result.changed | default(false) | bool))
+      or (vpn_adguard_unit_result is defined
+      and (vpn_adguard_unit_result.changed | default(false) | bool))
+      or (vpn_adguard_service_result is defined
+      and (vpn_adguard_service_result.changed | default(false) | bool))
+  tags:
+    - debug

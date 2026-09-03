@@ -1,0 +1,16 @@
+---
+# Reload the ruleset so a changed masquerade table takes effect without flushing the whole set
+# Перезагрузка правил, чтобы изменённая таблица маскарадинга вступила в силу без сброса всего набора
+- name: Reload nftables
+  ansible.builtin.systemd_service:
+    name: "nftables"
+    state: "reloaded"
+
+# Rebuild the tunnel after a unit change; skipped when the operator keeps the tunnel stopped
+# Пересоздание туннеля после изменения юнита; пропускается, когда оператор держит туннель остановленным
+- name: Restart AdGuard VPN tunnel
+  ansible.builtin.systemd_service:
+    name: "{{ vpn_adguard_service_name }}"
+    state: "restarted"
+    daemon_reload: true
+  when: vpn_adguard_service_state == 'started'
