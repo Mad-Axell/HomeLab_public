@@ -21,8 +21,8 @@ flag keeps APT from pulling in the Debian `mongodb` packages.
 ## Requirements
 
 - Debian, `become: true` and network access to both repositories.
-- Gathered facts: the role reads `ansible_facts.os_family` and
-  `ansible_facts.processor_flags`.
+- Gathered facts: the role reads `ansible_facts.os_family`. Ansible exposes no
+  CPU flag fact, so the role reads `/proc/cpuinfo` with `slurp`.
 - A CPU with AVX while `unifi_controller_require_avx` stays enabled.
 - The JRE package in `unifi_controller_java_package` must satisfy the Java
   dependency of the specific UniFi release. The required Java version changes

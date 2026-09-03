@@ -18,12 +18,22 @@
       repository and signing-key values
     quiet: true
 
+# Read the CPU flag list, which Ansible does not expose as a fact
+# Чтение списка флагов CPU, который Ansible не предоставляет отдельным фактом
+- name: Read the CPU flags exposed to the host
+  ansible.builtin.slurp:
+    src: "/proc/cpuinfo"
+  register: unifi_controller_cpuinfo_result
+  when: unifi_controller_require_avx | bool
+
 # Refuse to install MongoDB 5.0 or newer on a CPU without AVX, where mongod aborts on start
 # Отказ от установки MongoDB 5.0 и новее на CPU без AVX, где mongod падает при старте
 - name: Assert the CPU exposes the AVX flag required by MongoDB
   ansible.builtin.assert:
     that:
-      - "'avx' in (ansible_facts.processor_flags | default([]))"
+      - >-
+        unifi_controller_cpuinfo_result.content | b64decode
+        is search('(?m)^flags\s*:.*\bavx\b')
     fail_msg: >-
       MongoDB 5.0 and newer require the AVX CPU flag; set
       unifi_controller_require_avx to false only together with a MongoDB 4.4 stack

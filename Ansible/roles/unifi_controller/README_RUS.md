@@ -20,8 +20,8 @@ MongoDB подключается и ставится до UniFi. Флаг `insta
 ## Требования
 
 - Debian, `become: true` и сетевой доступ к обоим репозиториям.
-- Собранные facts: роль читает `ansible_facts.os_family` и
-  `ansible_facts.processor_flags`.
+- Собранные facts: роль читает `ansible_facts.os_family`. Флаги CPU
+  Ansible фактом не отдаёт, поэтому роль читает `/proc/cpuinfo` через `slurp`.
 - CPU с AVX, если `unifi_controller_require_avx` оставлен включённым.
 - Пакет JRE из `unifi_controller_java_package` должен удовлетворять зависимости
   Java конкретной версии UniFi. Требуемая версия Java меняется между релизами
