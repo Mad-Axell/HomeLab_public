@@ -77,6 +77,11 @@ install. Running it means keeping a second database instance alive, and on kerne
 [SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912), leaving the unit
 in a `failed` state.
 
+When the packaged unit has already failed once (for example during the first
+install on kernel 6.19+), the role also clears the recorded failure with
+`systemctl reset-failed`: without that a stopped and disabled unit keeps showing
+up in `systemctl --failed` and raises a false alarm.
+
 Start the packaged service only when UniFi is deliberately pointed at an external
 shared MongoDB; then set `unifi_controller_mongodb_service_state: "started"` and
 `unifi_controller_mongodb_service_enabled: true`.

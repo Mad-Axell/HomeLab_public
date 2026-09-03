@@ -125,6 +125,30 @@
     enabled: "{{ unifi_controller_mongodb_service_enabled }}"
   register: unifi_controller_mongodb_service_result
 
+# Read the unit state; systemd keeps a failure recorded even after the unit is stopped
+# Чтение состояния юнита; systemd сохраняет запись об отказе даже после остановки
+- name: Check whether the packaged MongoDB unit is in a failed state
+  ansible.builtin.command:
+    cmd: "systemctl is-failed {{ unifi_controller_mongodb_service_name }}"
+  register: unifi_controller_mongodb_failed_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: unifi_controller_mongodb_service_state == 'stopped'
+
+# Clear the stale failure so an intentionally unused unit stays out of systemctl --failed
+# Сброс устаревшего отказа, чтобы намеренно неиспользуемый юнит не висел в systemctl --failed
+- name: Clear the stale packaged MongoDB failure
+  ansible.builtin.command:
+    cmd: "systemctl reset-failed {{ unifi_controller_mongodb_service_name }}"
+  register: unifi_controller_mongodb_reset_result
+  changed_when: true
+  when:
+    - unifi_controller_mongodb_service_state == 'stopped'
+    - >-
+      (unifi_controller_mongodb_failed_result.stdout | default('') | trim)
+      == 'failed'
+
 # Install UniFi without recommends so the Debian mongodb packages are not pulled in
 # Установка UniFi без recommends, чтобы не подтянуть debian-пакеты mongodb
 - name: Install UniFi Network Server

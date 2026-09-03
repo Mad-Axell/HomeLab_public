@@ -76,6 +76,11 @@ UniFi Network Server сам запускает и контролирует св�
 [SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912) и оставляет юнит
 в состоянии `failed`.
 
+Если пакетный юнит уже успел упасть (например, при первой установке на ядре
+6.19+), роль дополнительно сбрасывает запись об отказе через
+`systemctl reset-failed`: без этого остановленный и отключённый юнит
+продолжает висеть в `systemctl --failed` и создаёт ложную тревогу.
+
 Поднимайте пакетный сервис только если UniFi намеренно переводится на внешнюю
 общую MongoDB; тогда задайте `unifi_controller_mongodb_service_state: "started"`
 и `unifi_controller_mongodb_service_enabled: true`.
