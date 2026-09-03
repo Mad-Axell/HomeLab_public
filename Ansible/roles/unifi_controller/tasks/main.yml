@@ -31,9 +31,11 @@
 - name: Assert the CPU exposes the AVX flag required by MongoDB
   ansible.builtin.assert:
     that:
+      # Backslashes are doubled because Jinja parses the string literal first
+      # and would otherwise turn \b into a backspace character.
       - >-
         unifi_controller_cpuinfo_result.content | b64decode
-        is search('(?m)^flags\s*:.*\bavx\b')
+        is search('(?m)^flags\\s*:.*\\bavx\\b')
     fail_msg: >-
       MongoDB 5.0 and newer require the AVX CPU flag; set
       unifi_controller_require_avx to false only together with a MongoDB 4.4 stack
