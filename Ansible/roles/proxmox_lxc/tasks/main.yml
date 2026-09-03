@@ -56,6 +56,83 @@
           proxmox_lxc_target.proxmox_lxc_description
           | default(proxmox_lxc_description)
         }}
+      template_download: >-
+        {{
+          proxmox_lxc_target.proxmox_lxc_template_download
+          | default(proxmox_lxc_template_download)
+        }}
+      template_os: >-
+        {{
+          proxmox_lxc_target.proxmox_lxc_template_os
+          | default(proxmox_lxc_template_os)
+        }}
+      template_storage: >-
+        {{
+          proxmox_lxc_target.proxmox_lxc_template_storage
+          | default(proxmox_lxc_template_storage)
+        }}
+      template_section: >-
+        {{
+          proxmox_lxc_target.proxmox_lxc_template_section
+          | default(proxmox_lxc_template_section)
+        }}
+      template_arch: >-
+        {{
+          proxmox_lxc_target.proxmox_lxc_template_arch
+          | default(proxmox_lxc_template_arch)
+        }}
+
+# Refresh the local appliance catalog so the newest template is visible
+# Обновление локального каталога appliance, чтобы был виден новейший шаблон
+- name: Refresh the Proxmox appliance template catalog
+  ansible.builtin.command:
+    cmd: "pveam update"
+  register: proxmox_lxc_template_catalog_refresh_result
+  changed_when: false
+  failed_when: proxmox_lxc_template_catalog_refresh_result.rc not in [0, 255]
+  check_mode: false
+  when: proxmox_lxc_effective.template_download | bool
+
+# Read the catalog entries offered for the configured section
+# Чтение записей каталога, предлагаемых для настроенного раздела
+- name: List Proxmox appliance templates
+  ansible.builtin.command:
+    cmd: "pveam available --section {{ proxmox_lxc_effective.template_section }}"
+  register: proxmox_lxc_template_catalog_result
+  changed_when: false
+  check_mode: false
+  when: proxmox_lxc_effective.template_download | bool
+
+# Pick the highest version among the catalog entries of the requested OS and architecture
+# Выбор наибольшей версии среди записей каталога для нужной ОС и архитектуры
+- name: Select the newest catalog template for the requested OS
+  ansible.builtin.set_fact:
+    proxmox_lxc_template_latest: >-
+      {{
+        proxmox_lxc_template_catalog_result.stdout_lines
+        | select('search', '\s' ~ proxmox_lxc_effective.template_os ~ '-\S*_'
+                 ~ proxmox_lxc_effective.template_arch ~ '\.')
+        | map('regex_replace', '^\S+\s+(\S+).*$', '\1')
+        | community.general.version_sort
+        | last | default('')
+      }}
+  when: proxmox_lxc_effective.template_download | bool
+
+# Address the selected template by its storage volid, which is what the API expects
+# Обращение к выбранному шаблону через volid хранилища, как того требует API
+- name: Use the selected catalog template as the OS template
+  ansible.builtin.set_fact:
+    proxmox_lxc_effective: >-
+      {{
+        proxmox_lxc_effective
+        | combine({
+            'ostemplate': proxmox_lxc_effective.template_storage
+                          ~ ':vztmpl/' ~ proxmox_lxc_template_latest
+          })
+      }}
+  when:
+    - proxmox_lxc_effective.template_download | bool
+    - proxmox_lxc_template_latest | default('') | length > 0
 
 - name: Validate Proxmox LXC API and inventory data
   ansible.builtin.assert:
@@ -78,10 +155,54 @@
       - proxmox_lxc_effective.ostemplate | length > 0
       - proxmox_lxc_effective.mount_volumes is sequence
       - proxmox_lxc_effective.extra_config_lines is sequence
+      - >-
+        not (proxmox_lxc_effective.template_download | bool)
+        or (
+          proxmox_lxc_effective.template_os is string
+          and (proxmox_lxc_effective.template_os | trim | length) > 0
+          and (proxmox_lxc_template_latest | default('') | length) > 0
+        )
     fail_msg: >-
       Proxmox credentials, a valid LXC inventory object, and an OS template
       are required. Run this role on the Proxmox node that owns the target.
+      With proxmox_lxc_template_download enabled, proxmox_lxc_template_os must
+      name an OS that the appliance catalog actually offers.
   no_log: true
+
+# Fetch the selected appliance template so container creation finds it on the storage
+# Загрузка выбранного шаблона appliance, чтобы создание контейнера нашло его в хранилище
+- name: Download the selected Proxmox appliance template
+  community.proxmox.proxmox_template:
+    api_host: "{{ proxmox_lxc_api_host }}"
+    api_user: "{{ proxmox_lxc_api_user }}"
+    api_password: "{{ proxmox_lxc_api_password }}"
+    validate_certs: "{{ proxmox_lxc_validate_certs }}"
+    node: "{{ proxmox_lxc_effective.api_node }}"
+    storage: "{{ proxmox_lxc_effective.template_storage }}"
+    content_type: "vztmpl"
+    template: "{{ proxmox_lxc_template_latest }}"
+    state: present
+    timeout: "{{ proxmox_lxc_template_timeout }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  register: proxmox_lxc_template_download_result
+  when: proxmox_lxc_effective.template_download | bool
+
+# Report the template download without exposing API credentials
+# Отображение загрузки шаблона без раскрытия учётных данных API
+- name: Display Proxmox appliance template download
+  ansible.builtin.debug:
+    msg: >-
+      Appliance template {{ proxmox_lxc_template_latest }}:
+      {{ 'WOULD DOWNLOAD' if ansible_check_mode else 'DOWNLOADED' }}
+  when:
+    - proxmox_lxc_debug_mode | bool
+    - >-
+      proxmox_lxc_template_download_result is defined
+      and (proxmox_lxc_template_download_result.changed | default(false) | bool)
+  tags:
+    - debug
 
 - name: Build the Proxmox net0 definition
   ansible.builtin.set_fact:

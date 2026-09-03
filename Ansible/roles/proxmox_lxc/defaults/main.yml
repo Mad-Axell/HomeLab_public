@@ -17,6 +17,33 @@ proxmox_lxc_pubkey: null
 proxmox_lxc_start_after_create: true
 proxmox_lxc_onboot: true
 
+# Appliance template download
+# Загрузка шаблона из каталога appliance
+
+# Boolean. Download the newest catalog template for the requested OS and use it instead of proxmox_lxc_ostemplate
+# Логическое значение. Загрузить новейший шаблон каталога для указанной ОС и использовать его вместо proxmox_lxc_ostemplate
+proxmox_lxc_template_download: false
+
+# String or null. Required OS name prefix in the appliance catalog when the download is enabled, for example "debian-13"
+# Строка или null. Обязательный префикс имени ОС в каталоге appliance при включённой загрузке, например "debian-13"
+proxmox_lxc_template_os: null
+
+# String. Storage that receives the downloaded template
+# Строка. Хранилище, в которое загружается шаблон
+proxmox_lxc_template_storage: "local"
+
+# String. Appliance catalog section that holds OS templates
+# Строка. Раздел каталога appliance, содержащий шаблоны ОС
+proxmox_lxc_template_section: "system"
+
+# String. Template architecture used to filter catalog entries
+# Строка. Архитектура шаблона для фильтрации записей каталога
+proxmox_lxc_template_arch: "amd64"
+
+# Integer. Seconds allowed for the template download, which is slower than other API calls
+# Целое число. Секунды на загрузку шаблона, которая медленнее остальных вызовов API
+proxmox_lxc_template_timeout: 600
+
 # Container resources.
 proxmox_lxc_ostemplate: null
 proxmox_lxc_cores: 1
