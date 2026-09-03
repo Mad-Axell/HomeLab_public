@@ -1,0 +1,54 @@
+---
+# Validate the mirror source before writing anything to the target
+# Проверка источника зеркала до любой записи на целевой хост
+- name: Assert the local APT mirror source is defined
+  ansible.builtin.assert:
+    that:
+      - apt_local_mirror_src is string
+      - (apt_local_mirror_src | trim | length) > 0
+      - apt_local_mirror_dest is string
+      - (apt_local_mirror_dest | trim | length) > 0
+    fail_msg: >-
+      apt_local_mirror_src and apt_local_mirror_dest must both be set;
+      apt_local_mirror_src names a directory on the Ansible controller
+    quiet: true
+
+# Create the directory that will hold the mirror tree
+# Создание каталога, который будет содержать дерево зеркала
+- name: Create the local APT mirror directory
+  ansible.builtin.file:
+    path: "{{ apt_local_mirror_dest }}"
+    state: directory
+    owner: "{{ apt_local_mirror_owner }}"
+    group: "{{ apt_local_mirror_group }}"
+    mode: "{{ apt_local_mirror_directory_mode }}"
+  register: apt_local_mirror_directory_result
+
+# Copy the repository tree verbatim so the upstream signatures stay valid
+# Побайтовое копирование дерева репозитория, чтобы подписи апстрима остались валидными
+- name: Deliver the local APT mirror tree
+  ansible.builtin.copy:
+    src: "{{ apt_local_mirror_src }}"
+    dest: "{{ apt_local_mirror_dest }}/"
+    owner: "{{ apt_local_mirror_owner }}"
+    group: "{{ apt_local_mirror_group }}"
+    mode: "{{ apt_local_mirror_file_mode }}"
+    directory_mode: "{{ apt_local_mirror_directory_mode }}"
+  register: apt_local_mirror_copy_result
+
+# Report the mirror delivery without listing every copied file
+# Отображение доставки зеркала без перечисления всех скопированных файлов
+- name: Display local APT mirror change summary
+  ansible.builtin.debug:
+    msg: >-
+      Local APT mirror at {{ apt_local_mirror_dest }}:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - apt_local_mirror_debug_mode | bool
+    - >-
+      (apt_local_mirror_directory_result is defined
+      and (apt_local_mirror_directory_result.changed | default(false) | bool))
+      or (apt_local_mirror_copy_result is defined
+      and (apt_local_mirror_copy_result.changed | default(false) | bool))
+  tags:
+    - debug

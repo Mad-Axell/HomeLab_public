@@ -1,0 +1,31 @@
+---
+# Local APT mirror delivery
+# Доставка локального APT-зеркала
+
+# String or null. Required controller-side directory holding the mirror tree; a trailing slash copies its contents
+# Строка или null. Обязательный каталог зеркала на контроллере; завершающий слэш копирует его содержимое
+apt_local_mirror_src: null
+
+# String. Target directory that receives the mirror tree
+# Строка. Каталог назначения на целевом хосте, куда копируется дерево зеркала
+apt_local_mirror_dest: "/opt/apt-local-mirror"
+
+# String. Owner of the delivered mirror tree
+# Строка. Владелец доставленного дерева зеркала
+apt_local_mirror_owner: "root"
+
+# String. Group of the delivered mirror tree
+# Строка. Группа доставленного дерева зеркала
+apt_local_mirror_group: "root"
+
+# String. Mode applied to the mirror directories
+# Строка. Права, применяемые к каталогам зеркала
+apt_local_mirror_directory_mode: "0755"
+
+# String. Mode applied to the mirror files
+# Строка. Права, применяемые к файлам зеркала
+apt_local_mirror_file_mode: "0644"
+
+# Boolean. Enable a safe debug summary after the mirror changes
+# Логическое значение. Включить безопасную debug-сводку после изменения зеркала
+apt_local_mirror_debug_mode: false
