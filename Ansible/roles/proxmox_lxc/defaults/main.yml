@@ -48,9 +48,11 @@ proxmox_lxc_template_timeout: 600
 proxmox_lxc_ostemplate: null
 proxmox_lxc_cores: 1
 # Integer or null. NOT the core count: the module maps cpus to the Proxmox
-# cpulimit, so any value throttles the container to that many CPU-seconds per
-# second. Leave null to keep the Proxmox default of no limit.
-proxmox_lxc_cpus: null
+# cpulimit, so a positive value throttles the container to that many CPU-seconds
+# per second. Zero means no limit and is Proxmox's own default, so it also clears
+# a limit left on an existing container. Use null to stop managing cpulimit at
+# all; omitting the parameter leaves whatever the container already has.
+proxmox_lxc_cpus: 0
 proxmox_lxc_cpuunits: 1000
 proxmox_lxc_memory: 512
 proxmox_lxc_swap: 512

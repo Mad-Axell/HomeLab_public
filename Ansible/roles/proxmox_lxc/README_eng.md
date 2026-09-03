@@ -49,10 +49,14 @@ When an inventory alias differs from the real Proxmox API node name, declare
 that real name as `proxmox.api_node` on the hypervisor inventory object.
 
 > **`proxmox_lxc_cpus` is not the core count.** The
-> `community.proxmox.proxmox` module passes it to Proxmox as `cpulimit`, so any
-> value throttles the container to that many CPU-seconds per second. The core
-> count is `proxmox_lxc_cores`. The default is `null`, which omits the parameter
-> and leaves the container unlimited.
+> `community.proxmox.proxmox` module passes it to Proxmox as `cpulimit`, so a
+> positive value throttles the container to that many CPU-seconds per second. The
+> core count is `proxmox_lxc_cores`.
+>
+> The default `0` means no limit and is Proxmox's own default. Zero is sent
+> explicitly, so it also clears a limit left on an existing container. Setting
+> `null` stops managing `cpulimit` altogether: the parameter is omitted and the
+> container keeps whatever it already had.
 
 `proxmox_lxc_mount_volumes` is the complete desired Proxmox mount-point list.
 Use `proxmox_lxc_extra_config_lines` only for settings the module cannot model.
