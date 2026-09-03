@@ -9,7 +9,8 @@ MongoDB и сам пакет UniFi из двух явно заданных по�
 - Проверяет наличие флага CPU `avx`, без которого MongoDB 5.0 и новее не стартует.
 - Устанавливает `ca-certificates`, `curl` и `gnupg`, создаёт общий каталог keyring.
 - Подключает ключ и репозиторий MongoDB, затем ключ и репозиторий UniFi.
-- Устанавливает JRE и сервер MongoDB, приводит `mongod` к устойчивому состоянию.
+- Устанавливает JRE и сервер MongoDB, приводит пакетный юнит `mongod` к
+  устойчивому состоянию (по умолчанию — остановлен, см. ниже).
 - Устанавливает пакет UniFi без `recommends` и приводит его сервис к устойчивому
   состоянию.
 
@@ -52,15 +53,32 @@ MongoDB подключается и ставится до UniFi. Флаг `insta
 | `unifi_controller_mongodb_repository_key_url` | string | yes | `null` | URL ASCII-armored ключа MongoDB. |
 | `unifi_controller_mongodb_keyring_file` | string | no | `"mongodb-server.asc"` | Имя файла ключа MongoDB. |
 | `unifi_controller_mongodb_package` | string | no | `"mongodb-org"` | Пакет сервера MongoDB. |
-| `unifi_controller_mongodb_service_name` | string | no | `"mongod"` | Сервис MongoDB. |
+| `unifi_controller_mongodb_service_name` | string | no | `"mongod"` | Пакетный сервис MongoDB. |
+| `unifi_controller_mongodb_service_state` | string | no | `"stopped"` | Состояние пакетного сервиса MongoDB. |
+| `unifi_controller_mongodb_service_enabled` | boolean | no | `false` | Автозапуск пакетного сервиса MongoDB. |
 | `unifi_controller_repository` | string | yes | `null` | URI репозитория UniFi с suite и компонентом. |
 | `unifi_controller_repository_key_url` | string | yes | `null` | URL бинарного ключа UniFi. |
 | `unifi_controller_keyring_file` | string | no | `"unifi-repo.gpg"` | Имя файла ключа UniFi. |
 | `unifi_controller_package_name` | string | no | `"unifi"` | Пакет UniFi. |
 | `unifi_controller_service_name` | string | no | `"unifi"` | Сервис UniFi. |
-| `unifi_controller_service_state` | string | no | `"started"` | Устойчивое состояние обоих сервисов. |
-| `unifi_controller_service_enabled` | boolean | no | `true` | Автозапуск обоих сервисов. |
+| `unifi_controller_service_state` | string | no | `"started"` | Состояние сервиса UniFi. |
+| `unifi_controller_service_enabled` | boolean | no | `true` | Автозапуск сервиса UniFi. |
 | `unifi_controller_debug_mode` | boolean | no | `false` | Показывает факт изменения. |
+
+### Почему пакетный `mongod` остановлен
+
+UniFi Network Server сам запускает и контролирует свой процесс `mongod` с
+`--dbpath /usr/lib/unifi/data/db` и `--port 27117`, используя тот же бинарь из
+`mongodb-org-server`. Пакет `unifi` требует `mongodb-org-server` только как
+зависимость, а пакетный юнит `mongod` (порт 27017) в standalone-установке не
+используется. Запускать его — значит держать лишний экземпляр СУБД, а на ядрах
+6.19 и новее он к тому же падает по
+[SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912) и оставляет юнит
+в состоянии `failed`.
+
+Поднимайте пакетный сервис только если UniFi намеренно переводится на внешнюю
+общую MongoDB; тогда задайте `unifi_controller_mongodb_service_state: "started"`
+и `unifi_controller_mongodb_service_enabled: true`.
 
 Расширение файла ключа значимо: ключ MongoDB публикуется в ASCII-armored виде и
 именуется `.asc`, ключ UniFi — бинарный OpenPGP и именуется `.gpg`.

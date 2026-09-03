@@ -114,13 +114,15 @@
     update_cache: true
   register: unifi_controller_dependency_result
 
-# Keep MongoDB in its steady state before the UniFi service needs the database
-# Поддержание устойчивого состояния MongoDB до того, как сервису UniFi понадобится БД
-- name: Manage the MongoDB service
+# Keep the packaged MongoDB unit in its steady state; UniFi supervises its own
+# mongod on a private port and dbpath, so the packaged unit is stopped by default
+# Поддержание устойчивого состояния пакетного юнита MongoDB; UniFi сам управляет
+# своим mongod на отдельном порту и dbpath, поэтому пакетный юнит по умолчанию остановлен
+- name: Manage the packaged MongoDB service
   ansible.builtin.systemd_service:
     name: "{{ unifi_controller_mongodb_service_name }}"
-    state: "{{ unifi_controller_service_state }}"
-    enabled: "{{ unifi_controller_service_enabled }}"
+    state: "{{ unifi_controller_mongodb_service_state }}"
+    enabled: "{{ unifi_controller_mongodb_service_enabled }}"
   register: unifi_controller_mongodb_service_result
 
 # Install UniFi without recommends so the Debian mongodb packages are not pulled in

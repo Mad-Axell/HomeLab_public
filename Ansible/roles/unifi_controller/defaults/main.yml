@@ -46,6 +46,14 @@ unifi_controller_mongodb_package: "mongodb-org"
 # Строка. Имя systemd-сервиса MongoDB
 unifi_controller_mongodb_service_name: "mongod"
 
+# String. Steady state of the packaged MongoDB service; UniFi starts its own instance, so the packaged unit stays stopped
+# Строка. Устойчивое состояние пакетного сервиса MongoDB; UniFi поднимает свой экземпляр, поэтому пакетный юнит остаётся остановленным
+unifi_controller_mongodb_service_state: "stopped"
+
+# Boolean. Start the packaged MongoDB service on boot; only needed for an external shared MongoDB
+# Логическое значение. Запускать пакетный сервис MongoDB при загрузке; нужно только для внешней общей MongoDB
+unifi_controller_mongodb_service_enabled: false
+
 # UniFi Network Server settings
 # Настройки UniFi Network Server
 
@@ -72,12 +80,12 @@ unifi_controller_service_name: "unifi"
 # Service state settings
 # Настройки состояния сервисов
 
-# String. Steady service state for MongoDB and UniFi: started or stopped
-# Строка. Устойчивое состояние сервисов MongoDB и UniFi: started или stopped
+# String. Steady state of the UniFi service: started or stopped
+# Строка. Устойчивое состояние сервиса UniFi: started или stopped
 unifi_controller_service_state: "started"
 
-# Boolean. Enable MongoDB and UniFi services on boot
-# Логическое значение. Включить сервисы MongoDB и UniFi при загрузке
+# Boolean. Start the UniFi service on boot
+# Логическое значение. Запускать сервис UniFi при загрузке
 unifi_controller_service_enabled: true
 
 # Role output settings

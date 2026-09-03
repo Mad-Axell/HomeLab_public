@@ -10,7 +10,8 @@ signed APT repositories.
 - Validates the `avx` CPU flag, without which MongoDB 5.0 and newer fails to start.
 - Installs `ca-certificates`, `curl` and `gnupg`, and creates the shared keyring directory.
 - Registers the MongoDB key and repository, then the UniFi key and repository.
-- Installs the JRE and the MongoDB server and brings `mongod` to its steady state.
+- Installs the JRE and the MongoDB server and brings the packaged `mongod` unit
+  to its steady state (stopped by default, see below).
 - Installs the UniFi package without recommends and brings its service to its
   steady state.
 
@@ -53,15 +54,32 @@ flag keeps APT from pulling in the Debian `mongodb` packages.
 | `unifi_controller_mongodb_repository_key_url` | string | yes | `null` | URL of the ASCII-armored MongoDB key. |
 | `unifi_controller_mongodb_keyring_file` | string | no | `"mongodb-server.asc"` | MongoDB key file name. |
 | `unifi_controller_mongodb_package` | string | no | `"mongodb-org"` | MongoDB server package. |
-| `unifi_controller_mongodb_service_name` | string | no | `"mongod"` | MongoDB service. |
+| `unifi_controller_mongodb_service_name` | string | no | `"mongod"` | Packaged MongoDB service. |
+| `unifi_controller_mongodb_service_state` | string | no | `"stopped"` | Packaged MongoDB service state. |
+| `unifi_controller_mongodb_service_enabled` | boolean | no | `false` | Packaged MongoDB boot start. |
 | `unifi_controller_repository` | string | yes | `null` | UniFi repository URI with suite and component. |
 | `unifi_controller_repository_key_url` | string | yes | `null` | URL of the binary UniFi key. |
 | `unifi_controller_keyring_file` | string | no | `"unifi-repo.gpg"` | UniFi key file name. |
 | `unifi_controller_package_name` | string | no | `"unifi"` | UniFi package. |
 | `unifi_controller_service_name` | string | no | `"unifi"` | UniFi service. |
-| `unifi_controller_service_state` | string | no | `"started"` | Steady state of both services. |
-| `unifi_controller_service_enabled` | boolean | no | `true` | Boot start of both services. |
+| `unifi_controller_service_state` | string | no | `"started"` | UniFi service state. |
+| `unifi_controller_service_enabled` | boolean | no | `true` | UniFi service boot start. |
 | `unifi_controller_debug_mode` | boolean | no | `false` | Reports that a change happened. |
+
+### Why the packaged `mongod` stays stopped
+
+UniFi Network Server starts and supervises its own `mongod` process with
+`--dbpath /usr/lib/unifi/data/db` and `--port 27117`, using the same binary from
+`mongodb-org-server`. The `unifi` package requires `mongodb-org-server` only as a
+dependency; the packaged `mongod` unit (port 27017) is unused in a standalone
+install. Running it means keeping a second database instance alive, and on kernel
+6.19 and newer it additionally fails with
+[SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912), leaving the unit
+in a `failed` state.
+
+Start the packaged service only when UniFi is deliberately pointed at an external
+shared MongoDB; then set `unifi_controller_mongodb_service_state: "started"` and
+`unifi_controller_mongodb_service_enabled: true`.
 
 The key file extension is meaningful: the MongoDB key is published ASCII-armored
 and is named `.asc`, while the UniFi key is binary OpenPGP and is named `.gpg`.
