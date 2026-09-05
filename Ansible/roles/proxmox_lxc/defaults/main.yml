@@ -47,12 +47,31 @@ proxmox_lxc_template_timeout: 600
 # Container resources.
 proxmox_lxc_ostemplate: null
 proxmox_lxc_cores: 1
-# Integer or null. NOT the core count: the module maps cpus to the Proxmox
-# cpulimit, so a positive value throttles the container to that many CPU-seconds
-# per second. Zero means no limit and is Proxmox's own default, so it also clears
-# a limit left on an existing container. Use null to stop managing cpulimit at
-# all; omitting the parameter leaves whatever the container already has.
-proxmox_lxc_cpus: 0
+# Integer or null. NOT the core count; the core count is proxmox_lxc_cores.
+# Целое число или null. НЕ количество ядер; количество ядер — proxmox_lxc_cores.
+#
+# Default is null: the parameter is omitted and the container keeps whatever it
+# has. Do not set a value without reading why — community.proxmox 1.6.0 maps it
+# to two different Proxmox settings depending on the code path:
+#   create (proxmox.py:1194): kwargs["cpuunits"] = kwargs.pop("cpus")
+#   update (proxmox.py:1051): kwargs["cpulimit"] = kwargs.pop("cpus")
+# The role also sends cpuunits, so on creation cpus overwrites it. With the
+# former default of 0 every new container got cpuunits: 0, which cgroup v2
+# rejects (cpu.weight must be 1-10000), and the container was created but would
+# not start:
+#   cgfsng_setup_limits: Numerical result out of range -
+#   Failed to set "cpu.weight" to "0"
+# Because the same value cannot mean cpulimit and cpuunits at once, this role
+# does not manage cpulimit. Set cpuunits through proxmox_lxc_cpuunits.
+#
+# Дефолт — null: параметр не передаётся, контейнер сохраняет своё значение.
+# Не задавайте значение, не прочитав причину: в community.proxmox 1.6.0 этот
+# параметр отображается на две разные настройки Proxmox в зависимости от ветки —
+# при создании он затирает cpuunits, при обновлении уходит в cpulimit. Прежний
+# дефолт 0 записывал cpuunits: 0, что запрещено в cgroup v2, и контейнер
+# создавался, но не стартовал. Управлять cpulimit этой ролью нельзя; вес CPU
+# задаётся через proxmox_lxc_cpuunits.
+proxmox_lxc_cpus: null
 proxmox_lxc_cpuunits: 1000
 proxmox_lxc_memory: 512
 proxmox_lxc_swap: 512

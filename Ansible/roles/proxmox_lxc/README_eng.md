@@ -48,15 +48,25 @@ Ansible controller, where `proxmoxer >= 2.0` and `requests` must be installed.
 When an inventory alias differs from the real Proxmox API node name, declare
 that real name as `proxmox.api_node` on the hypervisor inventory object.
 
-> **`proxmox_lxc_cpus` is not the core count.** The
-> `community.proxmox.proxmox` module passes it to Proxmox as `cpulimit`, so a
-> positive value throttles the container to that many CPU-seconds per second. The
-> core count is `proxmox_lxc_cores`.
+> **`proxmox_lxc_cpus` is not the core count** (that is `proxmox_lxc_cores`)
+> and defaults to `null`. Do not give it a value.
 >
-> The default `0` means no limit and is Proxmox's own default. Zero is sent
-> explicitly, so it also clears a limit left on an existing container. Setting
-> `null` stops managing `cpulimit` altogether: the parameter is omitted and the
-> container keeps whatever it already had.
+> In `community.proxmox` 1.6.0 this parameter maps to **two different** Proxmox
+> settings depending on the code path:
+>
+> | Path | `proxmox.py` line | Becomes |
+> |---|---|---|
+> | LXC creation | 1194 | `kwargs["cpuunits"] = kwargs.pop("cpus")` |
+> | Update | 1051 | `kwargs["cpulimit"] = kwargs.pop("cpus")` |
+>
+> The role also sends `cpuunits`, so **on creation `cpus` overwrites it**. With
+> the former default of `0` every new container got `cpuunits: 0`, which cgroup
+> v2 rejects (`cpu.weight` must be 1-10000): the container was created but would
+> not start, and `pct start` timed out with
+> `cgfsng_setup_limits: Numerical result out of range`.
+>
+> One value cannot mean both `cpulimit` and `cpuunits`, so this role does not
+> manage `cpulimit`. Set the CPU weight through `proxmox_lxc_cpuunits`.
 
 `proxmox_lxc_mount_volumes` is the complete desired Proxmox mount-point list.
 Use `proxmox_lxc_extra_config_lines` only for settings the module cannot model.
