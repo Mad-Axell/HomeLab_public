@@ -109,6 +109,12 @@ vpn_adguard_sysctl_file: "/etc/sysctl.d/99-vpn-adguard-forward.conf"
 # Строка. Внутреннее. Файл с таблицей маскарадинга этой роли
 vpn_adguard_nftables_file: "/etc/nftables.d/vpn-adguard.nft"
 
+# String. Internal. Name of the nftables table this role owns; the role checks the running
+# kernel for it, so the template and the check must always use the same name
+# Строка. Внутреннее. Имя таблицы nftables, которой владеет роль; роль проверяет её наличие
+# в работающем ядре, поэтому шаблон и проверка обязаны использовать одно имя
+vpn_adguard_nftables_table: "vpn_adguard_nat"
+
 # String. Internal. Main nftables configuration that includes the file above
 # Строка. Внутреннее. Основная конфигурация nftables, подключающая файл выше
 vpn_adguard_nftables_main_config: "/etc/nftables.conf"

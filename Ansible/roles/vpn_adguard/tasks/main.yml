@@ -163,7 +163,6 @@
     validate: "{{ vpn_adguard_nft_command }} -c -f %s"
   register: vpn_adguard_nftables_file_result
   when: vpn_adguard_gateway_enabled | bool
-  notify: Reload nftables
 
 # Load the role ruleset from the main configuration without replacing its other content
 # Подключение правил роли из основной конфигурации без замены остального её содержимого
@@ -177,7 +176,6 @@
     mode: "0755"
   register: vpn_adguard_nftables_include_result
   when: vpn_adguard_gateway_enabled | bool
-  notify: Reload nftables
 
 # Keep the ruleset service in a steady state so the masquerade table survives a reboot
 # Поддержание устойчивого состояния сервиса правил, чтобы таблица маскарадинга пережила перезагрузку
@@ -188,6 +186,38 @@
     enabled: true
   register: vpn_adguard_nftables_service_result
   when: vpn_adguard_gateway_enabled | bool
+
+# Read the running kernel instead of trusting the files: an unchanged file does not mean the
+# table is loaded, and starting an already running nftables service does not reload anything
+# Чтение состояния работающего ядра вместо доверия файлам: неизменённый файл не означает, что
+# таблица загружена, а запуск уже работающего сервиса nftables ничего не перезагружает
+- name: Check whether the AdGuard VPN masquerade table is loaded
+  ansible.builtin.command:
+    cmd: "{{ vpn_adguard_nft_command }} list table ip {{ vpn_adguard_nftables_table }}"
+  register: vpn_adguard_nftables_loaded_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: vpn_adguard_gateway_enabled | bool
+
+# Load the ruleset when the kernel lacks the table or this run rewrote it, so the gateway
+# converges within the same run; a handler would not, because the first run is expected to
+# fail later at the tunnel service until the AdGuard login is done manually
+# Загрузка правил, когда в ядре нет таблицы или этот прогон её переписал, чтобы шлюз сходился
+# в пределах одного прогона; handler этого не даёт, так как первый прогон по замыслу падает
+# позже — на сервисе туннеля, пока вручную не выполнен вход в аккаунт AdGuard
+- name: Load the AdGuard VPN masquerade ruleset
+  ansible.builtin.command:
+    cmd: "{{ vpn_adguard_nft_command }} -f {{ vpn_adguard_nftables_main_config }}"
+  register: vpn_adguard_nftables_load_result
+  changed_when: true
+  when:
+    - vpn_adguard_gateway_enabled | bool
+    - not ansible_check_mode
+    - >-
+      (vpn_adguard_nftables_loaded_result.rc | default(1)) != 0
+      or (vpn_adguard_nftables_file_result.changed | default(false) | bool)
+      or (vpn_adguard_nftables_include_result.changed | default(false) | bool)
 
 # Install the unit that raises the tunnel at boot and restores the bypass routes after connect
 # Установка юнита, поднимающего туннель при загрузке и восстанавливающего обходные маршруты после connect
@@ -237,6 +267,8 @@
       and (vpn_adguard_nftables_include_result.changed | default(false) | bool))
       or (vpn_adguard_nftables_service_result is defined
       and (vpn_adguard_nftables_service_result.changed | default(false) | bool))
+      or (vpn_adguard_nftables_load_result is defined
+      and (vpn_adguard_nftables_load_result.changed | default(false) | bool))
       or (vpn_adguard_unit_result is defined
       and (vpn_adguard_unit_result.changed | default(false) | bool))
       or (vpn_adguard_service_result is defined

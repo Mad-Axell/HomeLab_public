@@ -4,10 +4,10 @@
 # The table is declared and deleted first so this file can be reloaded repeatedly
 # without duplicating rules and without touching tables owned by anything else.
 
-table ip vpn_adguard_nat
-delete table ip vpn_adguard_nat
+table ip {{ vpn_adguard_nftables_table }}
+delete table ip {{ vpn_adguard_nftables_table }}
 
-table ip vpn_adguard_nat {
+table ip {{ vpn_adguard_nftables_table }} {
     chain postrouting {
         type nat hook postrouting priority srcnat; policy accept;
 {% for subnet in vpn_adguard_lan_subnets %}

@@ -95,6 +95,7 @@ VPN-сервер и не принимает входящие подключен�
 | `vpn_adguard_nft_command` | string | no | `"/usr/sbin/nft"` | Внутреннее. Путь `nft` для валидации набора правил. |
 | `vpn_adguard_sysctl_file` | string | no | `"/etc/sysctl.d/99-vpn-adguard-forward.conf"` | Внутреннее. Файл sysctl с форвардингом. |
 | `vpn_adguard_nftables_file` | string | no | `"/etc/nftables.d/vpn-adguard.nft"` | Внутреннее. Файл таблицы маскарадинга. |
+| `vpn_adguard_nftables_table` | string | no | `"vpn_adguard_nat"` | Внутреннее. Имя таблицы nftables; шаблон и проверка обязаны использовать одно имя. |
 | `vpn_adguard_nftables_main_config` | string | no | `"/etc/nftables.conf"` | Внутреннее. Основная конфигурация nftables. |
 | `vpn_adguard_packages` | list of strings | no | `["ca-certificates", "curl"]` | Внутреннее. Пакеты для установщика. |
 | `vpn_adguard_gateway_packages` | list of strings | no | `["nftables"]` | Внутреннее. Пакеты только для шлюза. |
@@ -124,10 +125,17 @@ VPN-сервер и не принимает входящие подключен�
 
 ## Handlers
 
-- `Reload nftables` — перезагружает набор правил после изменения таблицы
-  маскарадинга или подключающего блока.
 - `Restart AdGuard VPN tunnel` — пересоздаёт туннель после изменения юнита;
   пропускается, если `vpn_adguard_service_state` не равно `started`.
+
+> **Набор правил намеренно не перезагружается handler'ом.** Handlers выполняются
+> в конце *успешного* play, а первый прогон этой роли по замыслу падает раньше —
+> на сервисе туннеля, пока вручную не выполнен `adguardvpn-cli login`. Значит на
+> первом прогоне handler не сработает, а на втором файл уже не меняется и
+> `notify` не происходит: таблица маскарадинга не загрузилась бы **никогда**,
+> притом что внешне всё выглядит исправным. Таблица загружается обычным таском,
+> который читает состояние работающего ядра через `nft list table`, поэтому шлюз
+> сходится в пределах одного прогона.
 
 ## Tags
 
@@ -135,7 +143,7 @@ VPN-сервер и не принимает входящие подключен�
 
 ## Templates
 
-- `vpn-adguard.nft.j2` — таблица `ip vpn_adguard_nat`. Файл начинается с
+- `vpn-adguard.nft.j2` — таблица `ip {{ vpn_adguard_nftables_table }}`. Файл начинается с
   объявления и удаления таблицы, поэтому его можно перечитывать многократно без
   дублирования правил и без влияния на чужие таблицы.
 - `adguardvpn-tunnel.service.j2` — юнит типа `oneshot` с `RemainAfterExit`,

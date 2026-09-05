@@ -1,10 +1,12 @@
 ---
-# Reload the ruleset so a changed masquerade table takes effect without flushing the whole set
-# Перезагрузка правил, чтобы изменённая таблица маскарадинга вступила в силу без сброса всего набора
-- name: Reload nftables
-  ansible.builtin.systemd_service:
-    name: "nftables"
-    state: "reloaded"
+# The ruleset is deliberately NOT reloaded from a handler. Handlers run at the end of a
+# successful play, and the first run of this role is expected to fail earlier, at the tunnel
+# service, until the AdGuard account login is done manually. The masquerade table is therefore
+# loaded by an ordinary task that reads the running kernel; see tasks/main.yml.
+# Набор правил намеренно НЕ перезагружается handler'ом. Handlers выполняются в конце успешного
+# play, а первый прогон этой роли по замыслу падает раньше — на сервисе туннеля, пока вручную
+# не выполнен вход в аккаунт AdGuard. Поэтому таблица маскарадинга загружается обычным таском,
+# который читает состояние работающего ядра; см. tasks/main.yml.
 
 # Rebuild the tunnel after a unit change; skipped when the operator keeps the tunnel stopped
 # Пересоздание туннеля после изменения юнита; пропускается, когда оператор держит туннель остановленным

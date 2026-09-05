@@ -94,6 +94,7 @@ access into the lab requires a separate service.
 | `vpn_adguard_nft_command` | string | no | `"/usr/sbin/nft"` | Internal. Path of `nft` used to validate the ruleset. |
 | `vpn_adguard_sysctl_file` | string | no | `"/etc/sysctl.d/99-vpn-adguard-forward.conf"` | Internal. Sysctl file enabling forwarding. |
 | `vpn_adguard_nftables_file` | string | no | `"/etc/nftables.d/vpn-adguard.nft"` | Internal. File holding the masquerade table. |
+| `vpn_adguard_nftables_table` | string | no | `"vpn_adguard_nat"` | Internal. Name of the nftables table; the template and the check must use the same name. |
 | `vpn_adguard_nftables_main_config` | string | no | `"/etc/nftables.conf"` | Internal. Main nftables configuration. |
 | `vpn_adguard_packages` | list of strings | no | `["ca-certificates", "curl"]` | Internal. Packages needed by the installer. |
 | `vpn_adguard_gateway_packages` | list of strings | no | `["nftables"]` | Internal. Packages needed only by the gateway part. |
@@ -123,10 +124,17 @@ during `adguardvpn-cli login` and are not stored in the inventory.
 
 ## Handlers
 
-- `Reload nftables` — reloads the ruleset after the masquerade table or the
-  include block changes.
 - `Restart AdGuard VPN tunnel` — rebuilds the tunnel after a unit change; it is
   skipped when `vpn_adguard_service_state` is not `started`.
+
+> **The ruleset is deliberately not reloaded from a handler.** Handlers run at
+> the end of a *successful* play, and the first run of this role is expected to
+> fail earlier, at the tunnel service, until `adguardvpn-cli login` is done by
+> hand. A handler would therefore never fire on the first run, and on the second
+> run the file is unchanged, so nothing would notify it either: the masquerade
+> table would never be loaded at all, while everything else looked healthy. The
+> table is loaded by an ordinary task that reads the running kernel with
+> `nft list table`, so the gateway converges inside a single run.
 
 ## Tags
 
