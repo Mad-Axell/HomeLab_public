@@ -41,6 +41,26 @@ access into the lab requires a separate service.
 - The client stores its configuration and session per user. The role runs and
   installs the unit as `root`, so the login must also be performed as `root`.
 
+## Tunnel properties that affect the upstream router
+
+Verified against a live system on 2026-09-06 (AdGuard VPN CLI v1.7.12).
+
+**ICMP does not traverse the tunnel.** nftables counters on the gateway: 28
+probes out, 0 replies back, while TCP to the same addresses works. The practical
+consequence is that ICMP gateway health checks on the upstream router can never
+succeed. pfSense offers `dpinger` and nothing else, so such a gateway needs
+`Disable Gateway Monitoring`; otherwise it stays `Offline` forever, and with
+`Skip rules when gateway is down` the router drops the policy-routing rule
+altogether and traffic stops being routed while the tunnel is perfectly healthy.
+Failure stays closed regardless: if the tunnel dies, the container loses its
+route through `tun0` and drops the packets here.
+
+**The tunnel is IPv4 only.** `tun0` never gets an IPv6 address. If the resolver
+still hands clients AAAA records, they attempt IPv6, stall until timeout and only
+then fall back to IPv4 - measured at 4-15 s to connect instead of 0.08 s. The fix
+belongs on the resolver, not here; in AdGuard Home it is `disable_ipv6`. The
+symptom reads as a slow tunnel even though the tunnel is not involved.
+
 ## Requirements
 
 - Ansible: the `ansible.posix` collection (the `sysctl` module), pinned in the
@@ -85,7 +105,7 @@ access into the lab requires a separate service.
 | `vpn_adguard_service_state` | string | no | `"started"` | Steady service state: `started` or `stopped`. |
 | `vpn_adguard_service_enabled` | boolean | no | `true` | Start the tunnel service on boot. |
 | `vpn_adguard_gateway_enabled` | boolean | no | `true` | Prepare the container to act as a gateway. |
-| `vpn_adguard_lan_subnets` | list of strings | yes when the gateway is enabled | `[]` | Source CIDRs whose traffic is masqueraded into the tunnel. |
+| `vpn_adguard_lan_subnets` | list of strings | yes when the gateway is enabled | `[]` | Source CIDRs whose traffic is masqueraded into the tunnel. Include the transit subnet to the router, not just client segments - see defaults. |
 | `vpn_adguard_tunnel_interface` | string | no | `"tun0"` | Tunnel interface created by the client. |
 | `vpn_adguard_bypass_networks` | list of strings | no | `[]` | CIDRs kept off the tunnel to preserve manageability. |
 | `vpn_adguard_bypass_gateway` | string or null | yes when the list above is not empty | `null` | Next hop for the bypass routes. |

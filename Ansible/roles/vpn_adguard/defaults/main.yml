@@ -72,6 +72,16 @@ vpn_adguard_gateway_enabled: true
 
 # List of strings. Source CIDRs whose forwarded traffic is masqueraded into the tunnel; required when the gateway is enabled
 # Список строк. Исходные CIDR, чей форвардящийся трафик маскарадится в туннель; обязателен при включённом шлюзе
+#
+# Include the transit subnet that connects this container to its upstream router, not
+# only the client segments. A router sends its own packets from its interface address on
+# that subnet - gateway health probes are the usual case - and without masquerading they
+# enter the tunnel with a private source and never get an answer.
+#
+# Включайте сюда транзитную подсеть между контейнером и вышестоящим роутером, а не только
+# клиентские сегменты. Роутер отправляет собственные пакеты с адреса своего интерфейса в
+# этой подсети - обычно это пробы состояния шлюза, - и без маскарадинга они уходят в
+# туннель с приватным источником и остаются без ответа.
 vpn_adguard_lan_subnets: []
 
 # String. Name of the interface the client creates for the tunnel
