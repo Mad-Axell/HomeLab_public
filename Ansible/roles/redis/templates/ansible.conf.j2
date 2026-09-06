@@ -28,7 +28,7 @@ databases {{ redis_databases }}
 requirepass {{ lookup('ansible.builtin.vars', redis_requirepass_var) }}
 {% endif %}
 {% for user in redis_acl_users %}
-user {{ user.name }} on >{{ lookup('ansible.builtin.vars', user.password_var) }} {{ user.rules | default('allkeys allcommands') }}
+user {{ user.name }} on >{{ lookup('ansible.builtin.vars', user.password_var) }} {{ user.rules | default('allkeys allchannels allcommands') }}
 {% endfor %}
 
 maxmemory-policy {{ redis_maxmemory_policy }}

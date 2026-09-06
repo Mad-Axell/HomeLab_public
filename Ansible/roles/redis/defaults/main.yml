@@ -84,7 +84,21 @@ redis_protected_mode: true
 redis_requirepass_var: null
 
 # List of dicts. Additional ACL users. Keys: name, password_var, and optional rules - a
-# string of ACL rules, default "allkeys allcommands".
+# string of ACL rules, default "allkeys allchannels allcommands".
+#
+# allchannels is in the default on purpose. A user created without it gets resetchannels,
+# meaning no pub/sub at all, and Redis does not warn about it: the account authenticates,
+# ordinary commands work, and only SUBSCRIBE fails. Queue libraries built on pub/sub - BullMQ,
+# which Immich uses - break in a way that looks like a broken queue rather than a permission.
+#
+# Список словарей. Дополнительные пользователи ACL. Ключи: name, password_var и
+# необязательный rules - строка правил ACL, по умолчанию "allkeys allchannels allcommands".
+#
+# allchannels в умолчании неспроста. Пользователь, созданный без него, получает
+# resetchannels, то есть полный запрет pub/sub, и Redis об этом не предупреждает: учётка
+# аутентифицируется, обычные команды работают, и падает только SUBSCRIBE. Библиотеки
+# очередей на pub/sub - BullMQ, который использует Immich, - ломаются так, что это выглядит
+# сломанной очередью, а не отсутствующим правом.
 #
 # Read this before relying on it for isolation. Redis ACL filters commands, key patterns
 # and channels; it has NO notion of a numbered database. A user restricted to ~netbox:*
