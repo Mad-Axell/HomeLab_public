@@ -26,6 +26,26 @@ dns_adguard_service_state: "started"
 # Логическое значение. Включает сервис при загрузке.
 dns_adguard_service_enabled: true
 
+# Boolean. Overwrite an existing AdGuardHome.yaml with the seed template.
+# Default false, and it should stay false. After the first start AdGuard Home owns this
+# file and rewrites it with its full state: blocklists, allowlists, DNS rewrites, clients,
+# filtering rules and the admin password hash. The seed template carries none of that, so
+# forcing it back wipes the instance. Set to true only to deliberately reset a container.
+# Логическое значение. Перезаписывать существующий AdGuardHome.yaml начальным шаблоном.
+# По умолчанию false, и таким должен оставаться. После первого старта файлом владеет сам
+# AdGuard Home и переписывает его своим полным состоянием: блок-листы, allowlist, DNS
+# rewrites, клиенты, правила фильтрации и хэш пароля администратора. Начальный шаблон
+# ничего этого не содержит, поэтому принудительная перезапись стирает экземпляр.
+# Ставьте true только для осознанного сброса контейнера.
+dns_adguard_config_force: false
+
+# The four variables below are applied ONLY when the configuration is created, that is on
+# a container that has no AdGuardHome.yaml yet. On a running instance change them through
+# the AdGuard Home API or web interface; this role will not touch them.
+# Четыре переменные ниже применяются ТОЛЬКО при создании конфигурации, то есть на
+# контейнере, где AdGuardHome.yaml ещё нет. На работающем экземпляре меняйте их через API
+# или веб-интерфейс AdGuard Home; эта роль их не трогает.
+
 # Integer. DNS listener port.
 # Целое число. Порт DNS-слушателя.
 dns_adguard_dns_port: 53

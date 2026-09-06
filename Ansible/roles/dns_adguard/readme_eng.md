@@ -5,8 +5,25 @@ This role installs AdGuard Home, creates a minimal DNS configuration, and manage
 ## What it does
 
 - Downloads and installs AdGuard Home.
-- Creates DNS and web-interface configuration.
+- **Seeds** the DNS and web-interface configuration — only when none exists yet.
 - Manages the `AdGuardHome` service; configuration changes notify a restart handler.
+
+> ⚠ **The role deliberately does not manage the configuration of a running
+> instance.** After the first start AdGuard Home owns `AdGuardHome.yaml` and
+> rewrites it with its full state: blocklists, allowlists, DNS rewrites, client
+> list, filtering rules and the admin password hash. The role's template holds
+> only the minimum needed to start once, so writing it again would **delete all
+> of that**. The task is therefore guarded by
+> `force: {{ dns_adguard_config_force }}`, false by default.
+>
+> Consequence: `dns_adguard_dns_port`, `dns_adguard_web_port`,
+> `dns_adguard_admin_user` and `dns_adguard_upstream_dns` apply **at creation
+> only**. Change them on a running instance through the AdGuard Home API or web
+> interface. A role run prints an explicit message about this, so an unchanged
+> run is not mistaken for an applied one.
+>
+> Resetting an instance to a bare configuration is possible on purpose:
+> `-e dns_adguard_config_force=true`. That destroys its current state.
 
 ## Requirements
 
@@ -16,7 +33,7 @@ This role installs AdGuard Home, creates a minimal DNS configuration, and manage
 ## Managed resources
 
 - Packages: none.
-- Files: `/opt/AdGuardHome`, the systemd unit, and `AdGuardHome.yaml`.
+- Files: `/opt/AdGuardHome`, the systemd unit, and `AdGuardHome.yaml` (the last one at creation only, see the warning above).
 - Services: `AdGuardHome`.
 - Users/groups: none.
 - Firewall/API objects: none.
@@ -31,10 +48,11 @@ This role installs AdGuard Home, creates a minimal DNS configuration, and manage
 | `dns_adguard_service_name` | string | no | `"AdGuardHome"` | systemd service name. |
 | `dns_adguard_service_state` | string | no | `"started"` | Stable service state. |
 | `dns_adguard_service_enabled` | boolean | no | `true` | Enables service at boot. |
-| `dns_adguard_dns_port` | integer | no | `53` | DNS port. |
-| `dns_adguard_web_port` | integer | no | `3000` | Web-interface port. |
-| `dns_adguard_admin_user` | string | no | `"admin"` | Web-interface user. |
-| `dns_adguard_upstream_dns` | list | no | `["127.0.0.1:5335"]` | Upstream DNS servers. |
+| `dns_adguard_config_force` | boolean | no | `false` | Overwrite an existing `AdGuardHome.yaml`. **Destroys the instance state**; deliberate resets only. |
+| `dns_adguard_dns_port` | integer | no | `53` | DNS port. Creation only. |
+| `dns_adguard_web_port` | integer | no | `3000` | Web-interface port. Creation only. |
+| `dns_adguard_admin_user` | string | no | `"admin"` | Web-interface user. Creation only. |
+| `dns_adguard_upstream_dns` | list | no | `["127.0.0.1:5335"]` | Upstream DNS servers. Creation only. |
 | `vault_dns_adguard_admin_password_hash` | string | yes | - | Administrator password hash from Vault. |
 
 ## Usage

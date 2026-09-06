@@ -40,19 +40,50 @@
   register: dns_adguard_service_install_result
   changed_when: dns_adguard_service_install_result.rc == 0
 
-# Write the complete AdGuard Home configuration without exposing the password hash.
-# Запись полной конфигурации AdGuard Home без раскрытия хэша пароля.
-- name: Configure AdGuard Home
+# Read whether a configuration already exists, so the role can refuse to destroy it
+# Чтение того, существует ли уже конфигурация, чтобы роль отказалась её уничтожать
+- name: Check for an existing AdGuard Home configuration
+  ansible.builtin.stat:
+    path: "{{ dns_adguard_install_dir }}/AdGuardHome.yaml"
+  register: dns_adguard_configuration_stat
+
+# Seed the bootstrap configuration ONLY when none exists. The template holds just enough
+# for the first start; AdGuard Home then owns this file and rewrites it with its full
+# state - blocklists, allowlists, DNS rewrites, clients, filtering rules and the admin
+# password hash. Overwriting it would delete all of that, which is why force defaults to
+# false. Settings of a running instance are changed through its API, not from here.
+# Запись начальной конфигурации ТОЛЬКО при её отсутствии. Шаблон содержит минимум для
+# первого старта; дальше файлом владеет сам AdGuard Home и переписывает его своим полным
+# состоянием - блок-листы, allowlist, DNS rewrites, клиенты, правила фильтрации и хэш
+# пароля администратора. Перезапись всё это удалила бы, поэтому force по умолчанию false.
+# Настройки работающего экземпляра меняются через его API, а не отсюда.
+- name: Seed the initial AdGuard Home configuration
   ansible.builtin.template:
     src: "AdGuardHome.yaml.j2"
     dest: "{{ dns_adguard_install_dir }}/AdGuardHome.yaml"
     owner: "root"
     group: "root"
     mode: "0640"
+    force: "{{ dns_adguard_config_force | bool }}"
   no_log: true
   diff: false
   notify: Restart AdGuard Home
   register: dns_adguard_configuration_result
+
+# State plainly that role variables are not being applied, so an unchanged run is not
+# mistaken for a successful one
+# Явное сообщение о том, что переменные роли не применяются, чтобы прогон без изменений
+# не приняли за успешно применённый
+- name: Report that the existing AdGuard Home configuration is left untouched
+  ansible.builtin.debug:
+    msg: >-
+      AdGuardHome.yaml already exists and is owned by AdGuard Home. The port, admin and
+      upstream variables of this role are NOT applied to it - change them through the
+      AdGuard Home API or its web interface. Set dns_adguard_config_force=true only to
+      deliberately reset the instance to a bare configuration and lose its current state.
+  when:
+    - dns_adguard_configuration_stat.stat.exists | default(false)
+    - not (dns_adguard_config_force | bool)
 
 # Ensure the DNS service reaches its requested steady state.
 # Обеспечение запрошенного устойчивого состояния DNS-сервиса.
