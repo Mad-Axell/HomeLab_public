@@ -1,0 +1,50 @@
+{{ ansible_managed | comment }}
+# Owned by the redis Ansible role. Included from the END of redis.conf, because Redis
+# applies the LAST assignment of a directive and an include placed earlier would lose to
+# every default below it. redis.conf itself is left to the packaging.
+#
+# Принадлежит роли Ansible redis. Подключается из КОНЦА redis.conf, потому что Redis
+# применяет ПОСЛЕДНЕЕ присваивание директивы, и include выше проиграл бы всем умолчаниям
+# под собой. Сам redis.conf оставлен пакетам.
+
+bind {{ redis_bind_addresses | join(' ') }}
+port {{ redis_port }}
+protected-mode {{ 'yes' if redis_protected_mode | bool else 'no' }}
+
+dir {{ redis_data_directory }}
+databases {{ redis_databases }}
+{% if redis_database_allocation | length > 0 %}
+
+# Database allocation. A convention, not a boundary: any authenticated client may SELECT
+# any number, and FLUSHALL wipes all of them at once.
+# Распределение баз. Соглашение, а не граница: любой аутентифицированный клиент может
+# выбрать любой номер, а FLUSHALL стирает их все разом.
+{% for number, service in (redis_database_allocation | dictsort) %}
+#   {{ "%-3s" | format(number) }} {{ service }}
+{% endfor %}
+{% endif %}
+{% if redis_requirepass_var is not none %}
+
+requirepass {{ lookup('ansible.builtin.vars', redis_requirepass_var) }}
+{% endif %}
+{% for user in redis_acl_users %}
+user {{ user.name }} on >{{ lookup('ansible.builtin.vars', user.password_var) }} {{ user.rules | default('allkeys allcommands') }}
+{% endfor %}
+
+maxmemory-policy {{ redis_maxmemory_policy }}
+{% if redis_maxmemory is not none %}
+maxmemory {{ redis_maxmemory }}
+{% endif %}
+
+{% if redis_save_rules | length > 0 %}
+{% for rule in redis_save_rules %}
+save {{ rule }}
+{% endfor %}
+{% else %}
+save ""
+{% endif %}
+appendonly {{ 'yes' if redis_appendonly | bool else 'no' }}
+appendfsync {{ redis_appendfsync }}
+{% for name, value in redis_extra_settings.items() %}
+{{ name }} {{ value }}
+{% endfor %}

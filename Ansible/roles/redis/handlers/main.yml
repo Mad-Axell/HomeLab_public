@@ -1,0 +1,11 @@
+---
+# Restart after configuration changes. Redis has no reload that re-reads the file: CONFIG
+# SET changes a running server without touching the file, and SIGHUP does nothing, so a
+# restart is the only way a changed configuration takes effect.
+# Перезапуск после изменения конфигурации. У Redis нет перечитывания файла: CONFIG SET
+# меняет работающий сервер, не трогая файл, а SIGHUP не делает ничего, поэтому изменённая
+# конфигурация вступает в силу только через перезапуск.
+- name: Restart Redis
+  ansible.builtin.systemd:
+    name: "{{ redis_service_name }}"
+    state: restarted

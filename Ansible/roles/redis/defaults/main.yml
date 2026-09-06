@@ -1,0 +1,205 @@
+---
+# Redis server configuration
+# Конфигурация сервера Redis
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+redis_debug_mode: false
+
+# Packages and files
+# Пакеты и файлы
+
+# List of strings. Packages installed for the server.
+# Список строк. Пакеты, устанавливаемые для сервера.
+redis_packages:
+  - "redis-server"
+
+# String. Configuration file owned by the distribution. The role does not rewrite it; it
+# only makes sure the managed file below is included from its end.
+# Строка. Файл конфигурации, принадлежащий дистрибутиву. Роль его не переписывает, а лишь
+# следит, чтобы управляемый файл ниже подключался из его конца.
+redis_distribution_config: "/etc/redis/redis.conf"
+
+# String. Configuration file this role owns completely.
+#
+# It is included from the END of the distribution file on purpose. Redis reads its
+# configuration top to bottom and the LAST assignment of a directive wins, so an include
+# placed at the top - which is where the Debian file shows the example - would be overridden
+# by every default below it and the role would appear to do nothing.
+#
+# Строка. Файл конфигурации, которым роль владеет целиком.
+#
+# Он подключается из КОНЦА файла дистрибутива намеренно. Redis читает конфигурацию сверху
+# вниз, и побеждает ПОСЛЕДНЕЕ присваивание директивы, поэтому include в начале - а именно
+# там его показывает пример в файле Debian - был бы перекрыт всеми умолчаниями ниже, и роль
+# выглядела бы не работающей.
+redis_managed_config: "/etc/redis/ansible.conf"
+
+# Storage
+# Хранилище
+
+# String. Working directory where RDB snapshots and the AOF live.
+# Строка. Рабочий каталог, где лежат снимки RDB и AOF.
+redis_data_directory: "/var/lib/redis"
+
+# Boolean. Refuse to proceed when redis_data_directory sits on the same filesystem as the
+# root directory. Default false, because a pure cache has no reason to leave the container.
+# Set it to true wherever the instance also carries queues that must survive it.
+# Логическое значение. Отказаться продолжать, если redis_data_directory находится на той же
+# файловой системе, что и корень. По умолчанию false: чистому кэшу незачем покидать
+# контейнер. Ставьте true там, где экземпляр несёт ещё и очереди, которые обязаны его
+# пережить.
+redis_require_separate_filesystem: false
+
+# Network
+# Сеть
+
+# List of strings. Addresses the server binds to. Loopback only by default.
+# Список строк. Адреса, на которых сервер слушает. По умолчанию только loopback.
+redis_bind_addresses:
+  - "127.0.0.1"
+  - "::1"
+
+# Integer. TCP port.
+# Целое число. TCP-порт.
+redis_port: 6379
+
+# Boolean. Keep protected mode on. It refuses connections from outside loopback when no
+# password is set, which is a safety net rather than a policy; the password below is what
+# actually protects the instance.
+# Логическое значение. Оставить protected mode включённым. Он отклоняет подключения
+# извне loopback, когда пароль не задан, - это страховка, а не политика; защищает
+# экземпляр именно пароль ниже.
+redis_protected_mode: true
+
+# Authentication
+# Аутентификация
+
+# String or null. Name of the variable holding the password of the default user, resolved
+# at run time so the secret stays out of host_vars. Required whenever the server listens
+# beyond loopback.
+# Строка или null. Имя переменной с паролем пользователя default, разрешается во время
+# прогона, чтобы секрет не попадал в host_vars. Обязателен, когда сервер слушает не только
+# на loopback.
+redis_requirepass_var: null
+
+# List of dicts. Additional ACL users. Keys: name, password_var, and optional rules - a
+# string of ACL rules, default "allkeys allcommands".
+#
+# Read this before relying on it for isolation. Redis ACL filters commands, key patterns
+# and channels; it has NO notion of a numbered database. A user restricted to ~netbox:*
+# is restricted in every database at once, and most applications - NetBox among them - do
+# not prefix their keys, so such a rule simply breaks them. Separate users therefore give
+# separate credentials that can be revoked one at a time, not separate data.
+#
+# Список словарей. Дополнительные пользователи ACL. Ключи: name, password_var и
+# необязательный rules - строка правил ACL, по умолчанию "allkeys allcommands".
+#
+# Прочитайте это, прежде чем полагаться на них как на изоляцию. ACL в Redis фильтрует
+# команды, шаблоны ключей и каналы; понятия нумерованной базы у него НЕТ. Пользователь,
+# ограниченный ~netbox:*, ограничен сразу во всех базах, а большинство приложений - и
+# NetBox в их числе - ключи не префиксуют, поэтому такое правило их просто ломает.
+# Отдельные пользователи дают отдельные учётные данные, отзываемые по одному, но не
+# отдельные данные.
+redis_acl_users: []
+
+# Databases
+# Базы
+
+# Integer. Number of numbered databases.
+# Целое число. Количество нумерованных баз.
+redis_databases: 16
+
+# Dict. Documentation of which service owns which database number, rendered into the
+# managed configuration as comments.
+#
+# Numbered databases are a naming convention, NOT a security boundary: any authenticated
+# client may SELECT any number and FLUSHALL wipes every one of them at once. The map exists
+# so two services do not silently land on the same number and overwrite each other's keys.
+#
+# Словарь. Документация того, какой сервис владеет каким номером базы; выводится в
+# управляемую конфигурацию комментариями.
+#
+# Нумерованные базы - соглашение об именовании, а НЕ граница безопасности: любой
+# аутентифицированный клиент может выбрать любой номер, а FLUSHALL стирает их все разом.
+# Карта нужна, чтобы два сервиса молча не оказались на одном номере и не затёрли ключи
+# друг друга.
+redis_database_allocation: {}
+
+# Memory
+# Память
+
+# String or null. Memory limit, for example "512mb". null leaves Redis unlimited, which in
+# a container means the OOM killer decides instead.
+#
+# Leave headroom: a background save forks the process, and copy-on-write makes the copy
+# grow towards the size of the dataset while it runs. A limit close to the container memory
+# turns every save into a possible kill.
+#
+# Строка или null. Ограничение памяти, например "512mb". null оставляет Redis без предела,
+# а в контейнере это значит, что решение примет OOM killer.
+#
+# Оставляйте запас: фоновое сохранение форкает процесс, и copy-on-write заставляет копию
+# расти в сторону размера набора данных, пока сохранение идёт. Предел, близкий к памяти
+# контейнера, превращает каждое сохранение в возможное убийство процесса.
+redis_maxmemory: null
+
+# String. What to discard when maxmemory is reached.
+#
+# Default noeviction, deliberately. The usual cache answer is allkeys-lru, but this instance
+# is shared, and on a shared instance eviction cannot tell a cache entry from a queued job:
+# it will drop a pending NetBox webhook exactly as readily as a cached template, and nothing
+# reports the loss. With noeviction a write past the limit fails loudly instead, which is
+# recoverable. Use allkeys-lru only on an instance that carries nothing but cache.
+#
+# Строка. Что выбрасывать при достижении maxmemory.
+#
+# По умолчанию noeviction, и это осознанно. Обычный ответ для кэша - allkeys-lru, но этот
+# экземпляр общий, а на общем экземпляре вытеснение не отличает запись кэша от поставленной
+# в очередь задачи: оно выбросит ожидающий webhook NetBox ровно так же охотно, как
+# закэшированный шаблон, и о потере никто не сообщит. При noeviction запись сверх предела
+# вместо этого громко падает, а это поправимо. Ставьте allkeys-lru только на экземпляре, где
+# нет ничего кроме кэша.
+redis_maxmemory_policy: "noeviction"
+
+# Persistence
+# Сохранение на диск
+
+# List of strings. RDB snapshot rules as "<seconds> <changes>"; an empty list disables
+# snapshots.
+# Список строк. Правила снимков RDB в виде "<секунд> <изменений>"; пустой список отключает
+# снимки.
+redis_save_rules:
+  - "900 1"
+  - "300 10"
+  - "60 10000"
+
+# Boolean. Enable the append-only file. Snapshots alone can lose everything written since
+# the last one, which for a queue means losing jobs that were accepted.
+# Логическое значение. Включить append-only file. Одни снимки теряют всё записанное после
+# последнего из них, а для очереди это потеря уже принятых задач.
+redis_appendonly: true
+
+# String. How often the AOF is flushed: always, everysec or no.
+# Строка. Как часто сбрасывается AOF: always, everysec или no.
+redis_appendfsync: "everysec"
+
+# Dict. Any further directive=value pairs appended to the managed configuration.
+# Словарь. Любые дополнительные пары директива=значение, дописываемые в управляемую
+# конфигурацию.
+redis_extra_settings: {}
+
+# Service
+# Сервис
+
+# String. Name of the systemd service.
+# Строка. Имя systemd-сервиса.
+redis_service_name: "redis-server"
+
+# String. Steady state of the service.
+# Строка. Устойчивое состояние сервиса.
+redis_service_state: "started"
+
+# Boolean. Start the service at boot.
+# Логическое значение. Запускать сервис при загрузке.
+redis_service_enabled: true

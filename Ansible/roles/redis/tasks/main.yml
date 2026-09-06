@@ -1,0 +1,182 @@
+---
+# Validate the input before touching the host.
+# Проверка ввода до изменения хоста.
+- name: Validate Redis configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - redis_bind_addresses is sequence
+      - redis_bind_addresses | length > 0
+      - redis_port | int > 0
+      - redis_databases | int > 0
+      - redis_acl_users is sequence
+      - redis_maxmemory_policy in ['noeviction', 'allkeys-lru', 'allkeys-lfu', 'allkeys-random',
+                                   'volatile-lru', 'volatile-lfu', 'volatile-random', 'volatile-ttl']
+      - redis_appendfsync in ['always', 'everysec', 'no']
+    fail_msg: "redis requires Debian, at least one bind address, a port, and valid eviction and fsync policies."
+
+# A server reachable from the network without a password is open to everyone who can route
+# to it. protected-mode only covers the case of no password AND no explicit bind, so it does
+# not help here: the moment an address is bound it stops protecting anything.
+# Сервер, доступный из сети без пароля, открыт каждому, кто может до него дойти.
+# protected-mode покрывает только случай "нет пароля И нет явного bind", поэтому здесь он не
+# помогает: как только адрес привязан, он перестаёт что-либо защищать.
+- name: Require a password when Redis listens beyond loopback
+  ansible.builtin.assert:
+    that:
+      - redis_requirepass_var is not none
+      - lookup('ansible.builtin.vars', redis_requirepass_var, default=none) is not none
+    fail_msg: >-
+      Redis binds {{ redis_bind_addresses | reject('match', '^(127\.|::1$)') | list }} and
+      would accept unauthenticated connections. Set redis_requirepass_var to the name of a
+      variable holding the password, defined in VARS/secrets.yml.
+  when: redis_bind_addresses | reject('match', '^(127\.|::1$)') | list | length > 0
+  no_log: true
+
+- name: Validate the Redis ACL user passwords
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', item.password_var, default=none) is not none
+    fail_msg: "A password_var declared for a Redis ACL user must exist in VARS/secrets.yml."
+  loop: "{{ redis_acl_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Install Redis packages
+  ansible.builtin.apt:
+    name: "{{ redis_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: redis_package_result
+
+# Verify the working directory is real storage when the instance is meant to outlive its
+# container. A missing bind mount leaves an ordinary directory on the container root disk,
+# and Redis writes its snapshots there without complaint.
+# Проверка того, что рабочий каталог - настоящее хранилище, когда экземпляр должен пережить
+# свой контейнер. Отсутствующий bind mount оставляет обычный каталог на корневом диске, и
+# Redis молча пишет снимки туда.
+- name: Read the filesystem of the Redis data directory
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/stat"
+      - "-c"
+      - "%d"
+      - "{{ item }}"
+  loop:
+    - "{{ redis_data_directory }}"
+    - "/"
+  loop_control:
+    label: "{{ item }}"
+  register: redis_device_result
+  changed_when: false
+  check_mode: false
+  when: redis_require_separate_filesystem | bool
+
+- name: Require the Redis data directory to be on its own filesystem
+  ansible.builtin.assert:
+    that:
+      - (redis_device_result.results[0].stdout | trim) != (redis_device_result.results[1].stdout | trim)
+    fail_msg: >-
+      {{ redis_data_directory }} is on the same filesystem as /, so snapshots and the AOF
+      would be written to the container root disk instead of the storage meant for them.
+      The bind mount is missing from the container definition, or the hypervisor path did
+      not exist when the container started.
+  when: redis_require_separate_filesystem | bool
+
+- name: Hand the data directory to the redis account
+  ansible.builtin.file:
+    path: "{{ redis_data_directory }}"
+    state: directory
+    owner: "redis"
+    group: "redis"
+    mode: "0750"
+  register: redis_data_directory_result
+
+- name: Configure Redis
+  ansible.builtin.template:
+    src: "ansible.conf.j2"
+    dest: "{{ redis_managed_config }}"
+    owner: "redis"
+    group: "redis"
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify: Restart Redis
+  register: redis_config_result
+
+# Append the include to the END of the distribution file, and only the include: the rest of
+# that file stays as the packaging shipped it. Redis applies the last assignment of a
+# directive, so an include placed anywhere earlier would lose to the defaults below it.
+# Дописывает include в КОНЕЦ файла дистрибутива, и только include: остальное содержимое
+# остаётся таким, каким его поставил пакет. Redis применяет последнее присваивание
+# директивы, поэтому include где-либо выше проиграл бы умолчаниям под собой.
+- name: Include the managed configuration from the distribution file
+  ansible.builtin.lineinfile:
+    path: "{{ redis_distribution_config }}"
+    regexp: "^include {{ redis_managed_config | regex_escape }}$"
+    line: "include {{ redis_managed_config }}"
+    insertafter: "EOF"
+    owner: "redis"
+    group: "redis"
+    mode: "0640"
+  notify: Restart Redis
+  register: redis_include_result
+
+- name: Manage the Redis service
+  ansible.builtin.systemd:
+    name: "{{ redis_service_name }}"
+    state: "{{ redis_service_state }}"
+    enabled: "{{ redis_service_enabled }}"
+  register: redis_service_result
+
+- name: Apply pending Redis restarts
+  ansible.builtin.meta: flush_handlers
+
+# Confirm the server actually answers with the configuration it was given, rather than
+# trusting that a written file reached a running process.
+# Подтверждение того, что сервер действительно отвечает с той конфигурацией, которую ему
+# дали, вместо доверия к тому, что записанный файл дошёл до работающего процесса.
+- name: Verify that Redis answers
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/redis-cli"
+      - "-h"
+      - "{{ redis_bind_addresses[0] }}"
+      - "-p"
+      - "{{ redis_port | string }}"
+      - "-a"
+      - "{{ lookup('ansible.builtin.vars', redis_requirepass_var) if redis_requirepass_var is not none else '' }}"
+      - "--no-auth-warning"
+      - "PING"
+  register: redis_ping_result
+  changed_when: false
+  no_log: true
+  when: redis_service_state == 'started'
+
+- name: Require Redis to answer PONG
+  ansible.builtin.assert:
+    that:
+      - (redis_ping_result.stdout | default('') | trim) == 'PONG'
+    fail_msg: "Redis did not answer PONG on {{ redis_bind_addresses[0] }}:{{ redis_port }}."
+  when: redis_service_state == 'started'
+
+- name: Display Redis change summary
+  ansible.builtin.debug:
+    msg: >-
+      Redis on {{ redis_bind_addresses | join(', ') }}:{{ redis_port }};
+      {{ redis_databases }} databases,
+      {{ redis_acl_users | length }} extra ACL users,
+      maxmemory {{ redis_maxmemory | default('unlimited', true) }}
+      with policy {{ redis_maxmemory_policy }}.
+  when:
+    - redis_debug_mode | bool
+    - >-
+      (redis_package_result.changed | default(false) | bool)
+      or (redis_data_directory_result.changed | default(false) | bool)
+      or (redis_config_result.changed | default(false) | bool)
+      or (redis_include_result.changed | default(false) | bool)
+      or (redis_service_result.changed | default(false) | bool)
+  tags:
+    - debug
