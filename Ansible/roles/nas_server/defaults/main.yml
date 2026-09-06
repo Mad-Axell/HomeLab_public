@@ -78,11 +78,31 @@ nas_server_samba_max_log_size: 1000
 # что внешне верная конфигурация отвергает любой вход.
 nas_server_shares: []
 
-# List of dicts. Samba accounts to create. Required keys: name, password.
+# List of dicts. Samba accounts to create. Required key: name, plus the password given
+# either as password_var - the NAME of a variable holding it, resolved at run time - or as
+# password with the value inline. Prefer password_var: it keeps the secret out of host_vars
+# and mirrors password_hash_var in base/add_users.
+#
+# There is a second reason to prefer it here. Any playbook that reads hostvars[<this host>]
+# in an earlier play - proxmox_lxc does, to build the container - forces every variable of
+# the host to be templated in that play's context, where a secrets file loaded for a
+# different host is not in scope. An inline "{{ secret }}" therefore fails long before this
+# role runs, with an error pointing at the container creation rather than at the password.
+#
 # The account must already exist as a Unix user: Samba maps its database onto system
 # accounts, and smbpasswd refuses a name that /etc/passwd does not know.
 #
-# Список словарей. Учётные записи Samba. Обязательные ключи: name, password.
+# Список словарей. Учётные записи Samba. Обязательный ключ name, плюс пароль - либо
+# password_var с ИМЕНЕМ переменной, которая его содержит и разрешается во время прогона,
+# либо password со значением прямо здесь. Предпочтителен password_var: он оставляет секрет
+# вне host_vars и повторяет приём password_hash_var из base/add_users.
+#
+# Здесь у этого есть и вторая причина. Любой плейбук, читающий hostvars[<этот хост>] в
+# более раннем play - так делает proxmox_lxc, чтобы создать контейнер, - вынуждает
+# шаблонизировать ВСЕ переменные хоста в контексте того play, где файл секретов,
+# загруженный для другого хоста, недоступен. Поэтому вставленное "{{ секрет }}" падает
+# задолго до этой роли, с ошибкой, указывающей на создание контейнера, а не на пароль.
+#
 # Учётная запись должна уже существовать как Unix-пользователь: Samba отображает свою
 # базу на системные учётки, и smbpasswd отвергает имя, неизвестное /etc/passwd.
 nas_server_samba_users: []

@@ -12,10 +12,27 @@
       - nas_server_shares | selectattr('path', 'defined') | list | length == nas_server_shares | length
       - nas_server_shares | map(attribute='name') | list | unique | length == nas_server_shares | length
       - nas_server_samba_users is sequence
+      - nas_server_samba_users | selectattr('name', 'defined') | list | length == nas_server_samba_users | length
       - not nas_server_nfs_enabled | bool or nas_server_nfs_clients | length > 0
     fail_msg: >-
       nas_server requires Debian, at least one protocol, and a list of uniquely named shares
       that each declare a name and a path. NFS additionally requires nas_server_nfs_clients.
+
+# Verify the account secrets without exposing their values.
+# Проверка секретов учётных записей без раскрытия их значений.
+- name: Validate the Samba account passwords
+  ansible.builtin.assert:
+    that:
+      - item.password is defined or item.password_var is defined
+      - item.password is defined or lookup('ansible.builtin.vars', item.password_var, default=none) is not none
+    fail_msg: >-
+      Samba account needs either password or password_var, and a password_var must name a
+      variable that exists - usually one defined in VARS/secrets.yml.
+  loop: "{{ nas_server_samba_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: nas_server_samba_enabled | bool
+  no_log: true
 
 # Every account named in valid_users or write_list must have a Samba account, otherwise the
 # share exists and refuses every login. Group names starting with @ are resolved by Samba
@@ -146,8 +163,12 @@
 - name: Create the Samba accounts
   ansible.builtin.shell:
     cmd: >-
-      printf '%s\n%s\n' {{ item.password | quote }} {{ item.password | quote }}
+      printf '%s\n%s\n' {{ nas_server_account_password | quote }} {{ nas_server_account_password | quote }}
       | {{ nas_server_smbpasswd_command }} -s -a {{ item.name | quote }}
+  vars:
+    nas_server_account_password: >-
+      {{ item.password if item.password is defined
+         else lookup('ansible.builtin.vars', item.password_var) }}
   loop: "{{ nas_server_samba_users }}"
   loop_control:
     label: "{{ item.name }}"
