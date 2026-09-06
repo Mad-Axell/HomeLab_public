@@ -43,7 +43,7 @@ decides, and a broad rule placed early silently disables everything below it.
 
 Role passwords are given as `password_var`, the *name* of a variable holding the value,
 resolved when the role runs. This keeps secrets out of `host_vars` and matches
-`password_hash_var` in `base/add_users` and `password_var` in `nas_server`.
+`password_hash_var` in `base_add_users` and `password_var` in `nas_server`.
 
 ## full_page_writes on ZFS
 

@@ -43,7 +43,7 @@
   hosts: linux
   become: true
   roles:
-    - role: base/add_users
+    - role: base_add_users
       vars:
         add_users_groups:
           - "developers"

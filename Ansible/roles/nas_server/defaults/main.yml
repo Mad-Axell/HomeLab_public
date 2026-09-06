@@ -81,7 +81,7 @@ nas_server_shares: []
 # List of dicts. Samba accounts to create. Required key: name, plus the password given
 # either as password_var - the NAME of a variable holding it, resolved at run time - or as
 # password with the value inline. Prefer password_var: it keeps the secret out of host_vars
-# and mirrors password_hash_var in base/add_users.
+# and mirrors password_hash_var in base_add_users.
 #
 # There is a second reason to prefer it here. Any playbook that reads hostvars[<this host>]
 # in an earlier play - proxmox_lxc does, to build the container - forces every variable of
@@ -95,7 +95,7 @@ nas_server_shares: []
 # Список словарей. Учётные записи Samba. Обязательный ключ name, плюс пароль - либо
 # password_var с ИМЕНЕМ переменной, которая его содержит и разрешается во время прогона,
 # либо password со значением прямо здесь. Предпочтителен password_var: он оставляет секрет
-# вне host_vars и повторяет приём password_hash_var из base/add_users.
+# вне host_vars и повторяет приём password_hash_var из base_add_users.
 #
 # Здесь у этого есть и вторая причина. Любой плейбук, читающий hostvars[<этот хост>] в
 # более раннем play - так делает proxmox_lxc, чтобы создать контейнер, - вынуждает

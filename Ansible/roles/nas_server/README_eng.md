@@ -19,7 +19,7 @@ into the declaration and delete it with `net conf delshare`.
 ## Shares and accounts are two separate things
 
 Samba keeps its own password database layered on top of the system accounts. A user
-created by `base/add_users` still cannot log in until an account exists here as well, and
+created by `base_add_users` still cannot log in until an account exists here as well, and
 a share that declares `valid_users` accepts nobody until then. That combination looks like
 a working configuration and refuses every login, so the role asserts up front that every
 name appearing in `valid_users` or `write_list` has an entry in `nas_server_samba_users`.

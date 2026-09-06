@@ -36,7 +36,7 @@ This role brings a list of system packages to `present` or `absent` through the 
   hosts: linux
   become: true
   roles:
-    - role: base/install_packages
+    - role: base_install_packages
       vars:
         install_packages_names:
           - "curl"

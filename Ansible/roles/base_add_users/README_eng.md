@@ -43,7 +43,7 @@ This role manages local Linux accounts, supplementary groups, and `sudo` members
   hosts: linux
   become: true
   roles:
-    - role: base/add_users
+    - role: base_add_users
       vars:
         add_users_groups:
           - "developers"

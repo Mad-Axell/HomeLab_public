@@ -40,7 +40,7 @@ This role installs, configures, and enables UFW on Debian/Ubuntu. It applies the
   hosts: debian
   become: true
   roles:
-    - role: base/configure_ufw
+    - role: base_configure_ufw
       vars:
         configure_ufw_rules:
           - rule: "allow"

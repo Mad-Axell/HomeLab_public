@@ -42,7 +42,7 @@
 
 Пароли ролей задаются через `password_var` — *имя* переменной со значением, которое
 разрешается во время прогона. Это оставляет секреты вне `host_vars` и повторяет приём
-`password_hash_var` в `base/add_users` и `password_var` в `nas_server`.
+`password_hash_var` в `base_add_users` и `password_var` в `nas_server`.
 
 ## full_page_writes на ZFS
 

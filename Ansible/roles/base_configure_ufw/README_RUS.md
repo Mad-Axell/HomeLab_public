@@ -40,7 +40,7 @@
   hosts: debian
   become: true
   roles:
-    - role: base/configure_ufw
+    - role: base_configure_ufw
       vars:
         configure_ufw_rules:
           - rule: "allow"

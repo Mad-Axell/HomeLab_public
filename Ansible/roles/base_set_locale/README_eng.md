@@ -37,7 +37,7 @@ This role generates the selected locale and configures it in `/etc/default/local
   hosts: debian
   become: true
   roles:
-    - role: base/set_locale
+    - role: base_set_locale
       vars:
         set_locale_name: "ru_RU.UTF-8"
 ```
