@@ -133,6 +133,76 @@
     label: "{{ item.name }}"
   when: not ansible_check_mode
 
+# Read the actual vdev layout of every pool that already exists. This role creates only
+# absent pools, so without this read a pool built with the wrong redundancy stays invisible
+# to every later run: the pool is present and ONLINE, and the run converges green over it.
+# Читает фактическую раскладку vdev каждого существующего пула. Роль создаёт только
+# отсутствующие пулы, поэтому без этого чтения пул, собранный с неверной избыточностью,
+# остаётся невидимым для всех последующих прогонов: пул есть, он ONLINE, прогон зелёный.
+- name: Read the actual vdev layout of existing ZFS pools
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/zpool
+      - list
+      - -vH
+      - "{{ item.name }}"
+  loop: "{{ pve_storage_zfs_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name in pve_storage_zfs_pool_list_after.stdout_lines | default([])
+  register: pve_storage_zfs_layout_result
+  changed_when: false
+  check_mode: false
+
+# Compare the declared topology with the one ZFS reports. zpool list -vH indents top-level
+# vdevs and their leaf devices with the same single tab, so the levels cannot be told apart
+# by indentation; a redundancy group is recognised by its <type>-<index> name instead. A
+# pool whose children carry no such name has no redundancy group at all, that is a stripe.
+# Сравнивает объявленную топологию с той, что сообщает ZFS. zpool list -vH отступает
+# vdev верхнего уровня и его диски одним и тем же табом, поэтому уровни по отступу не
+# различаются; группа избыточности опознаётся по имени вида <тип>-<индекс>. Пул, у чьих
+# потомков такого имени нет, не имеет группы избыточности вообще, то есть является stripe.
+- name: Require the actual ZFS pool topology to match the declaration
+  ansible.builtin.assert:
+    that:
+      - pve_storage_zfs_actual_topology == pve_storage_zfs_expected_topology
+      - pve_storage_zfs_group_vdevs | length <= 1
+    fail_msg: >-
+      ZFS pool {{ item.item.name }} is {{ pve_storage_zfs_actual_topology }} on disk while
+      the inventory declares {{ item.item.topology }}. ZFS cannot convert a pool between
+      topologies in place, and adding a vdev to "repair" it only widens the stripe. Copy
+      the data to a verified independent target, destroy the pool, then let this role
+      create it again from the declaration.
+  vars:
+    # Children of the pool: field 1 of every tab-indented line.
+    # Потомки пула: поле 1 каждой строки с табом в начале.
+    pve_storage_zfs_child_names: >-
+      {{
+        item.stdout_lines | default([])
+        | select('match', '\t')
+        | map('regex_replace', '^\t([^\t]+)\t.*$', '\1')
+        | list
+      }}
+    pve_storage_zfs_group_vdevs: >-
+      {{
+        pve_storage_zfs_child_names
+        | select('match', '^(mirror|raidz[1-3]?|draid[1-3]?)-[0-9]+$')
+        | list
+      }}
+    pve_storage_zfs_actual_topology: >-
+      {{
+        'stripe' if pve_storage_zfs_group_vdevs | length == 0
+        else pve_storage_zfs_group_vdevs[0] | regex_replace('-[0-9]+$', '')
+      }}
+    # zpool reports single-parity raidz as raidz1; the declaration spells it raidz.
+    # zpool сообщает об одинарной чётности как raidz1; в объявлении она пишется raidz.
+    pve_storage_zfs_expected_topology: >-
+      {{ 'raidz1' if item.item.topology == 'raidz' else item.item.topology }}
+  loop: "{{ pve_storage_zfs_layout_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not (item.skipped | default(false))
+
 - name: Configure ZFS datasets and properties
   community.general.zfs:
     name: "{{ item.name }}"
