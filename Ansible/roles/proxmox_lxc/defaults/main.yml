@@ -17,6 +17,19 @@ proxmox_lxc_pubkey: null
 proxmox_lxc_start_after_create: true
 proxmox_lxc_onboot: true
 
+# Retry window for the start that follows creation. The API accepts the start request
+# before the node has finished registering a freshly created container, so the first
+# attempt fails and the next one succeeds. Defaults give 30 seconds: 10 attempts, 3 seconds
+# apart. Raising the timeout would not help - the call returns an error at once instead of
+# hanging, so only a retry can wait it out.
+# Окно повторов для старта, следующего за созданием. API принимает запрос на запуск раньше,
+# чем узел закончил регистрировать только что созданный контейнер, поэтому первая попытка
+# падает, а следующая проходит. Умолчания дают 30 секунд: 10 попыток с интервалом 3
+# секунды. Увеличение timeout не помогло бы - вызов не висит, а сразу возвращает ошибку,
+# поэтому переждать её может только повтор.
+proxmox_lxc_start_retries: 10
+proxmox_lxc_start_delay: 3
+
 # Appliance template download
 # Загрузка шаблона из каталога appliance
 

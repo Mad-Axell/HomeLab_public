@@ -301,6 +301,14 @@
     - proxmox_lxc_config_stat.stat.exists | default(false)
   register: proxmox_lxc_raw_config_result
 
+# Starting right after creation races the node: the API answers before the container is
+# fully registered, and the start fails once, then succeeds on the very next attempt. The
+# retry window turns that into a wait instead of a failed run. It is a retry, not a longer
+# timeout, because the call does not hang - it returns an error immediately.
+# Старт сразу после создания попадает в гонку с узлом: API отвечает раньше, чем контейнер
+# полностью зарегистрирован, и первый запуск падает, а следующая же попытка проходит. Окно
+# повторов превращает это в ожидание вместо упавшего прогона. Именно повтор, а не больший
+# timeout: вызов не висит, он сразу возвращает ошибку.
 - name: Start the Proxmox LXC
   community.proxmox.proxmox:
     api_host: "{{ proxmox_lxc_api_host }}"
@@ -317,6 +325,9 @@
   when:
     - proxmox_lxc_start_after_create | bool
   register: proxmox_lxc_start_result
+  until: proxmox_lxc_start_result is succeeded
+  retries: "{{ proxmox_lxc_start_retries }}"
+  delay: "{{ proxmox_lxc_start_delay }}"
 
 - name: Display Proxmox LXC change summary
   ansible.builtin.debug:
