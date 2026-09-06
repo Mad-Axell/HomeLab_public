@@ -1,0 +1,276 @@
+---
+- name: Validate NetBox configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - netbox_version is string
+      - netbox_allowed_hosts is sequence
+      - netbox_allowed_hosts | length > 0
+      - netbox_secret_key_var is not none
+      - netbox_database_password_var is not none
+      - netbox_redis_tasks_database != netbox_redis_cache_database
+    fail_msg: >-
+      netbox requires Debian, a version, at least one allowed host, a secret key and a
+      database password, and two different Redis database numbers.
+
+- name: Validate the NetBox secrets
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', item, default=none) is not none
+    fail_msg: "A variable named in the netbox configuration must exist in VARS/secrets.yml."
+  loop: "{{ [netbox_secret_key_var, netbox_database_password_var] + ([netbox_redis_password_var] if netbox_redis_password_var is not none else []) }}"
+  loop_control:
+    label: "redacted"
+  no_log: true
+
+- name: Install NetBox packages
+  ansible.builtin.apt:
+    name: "{{ netbox_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: netbox_package_result
+
+# Compare the interpreter against what the release declares, before pip is involved. A too
+# old Python does not fail with a message about Python: it fails somewhere inside building
+# a dependency, and the error names that dependency instead.
+# Сравнение интерпретатора с тем, что объявляет выпуск, до того как в дело вступит pip.
+# Слишком старый Python падает не с сообщением про Python, а где-то внутри сборки
+# зависимости, и ошибка называет именно её.
+- name: Read the Python version
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/python3"
+      - "-c"
+      - "import sys; print('%d.%d' % sys.version_info[:2])"
+  register: netbox_python_result
+  changed_when: false
+  check_mode: false
+
+- name: Require a Python new enough for this NetBox release
+  ansible.builtin.assert:
+    that:
+      - (netbox_python_result.stdout | trim) is version(netbox_minimum_python, '>=')
+    fail_msg: >-
+      NetBox {{ netbox_version }} needs Python {{ netbox_minimum_python }} or newer, and
+      this host has {{ netbox_python_result.stdout | trim }}. Build the container from a
+      distribution that ships a new enough interpreter rather than adding one beside it.
+
+- name: Create the NetBox system account
+  ansible.builtin.user:
+    name: "{{ netbox_system_user }}"
+    system: true
+    shell: "/usr/sbin/nologin"
+    home: "{{ netbox_install_root }}"
+    create_home: false
+
+# Media lives outside the versioned tree so that upgrading - which replaces that tree -
+# cannot take uploaded attachments and images with it.
+# Загруженные файлы лежат вне версионированного дерева, чтобы обновление, которое это
+# дерево заменяет, не унесло с собой вложения и изображения.
+- name: Create the NetBox media directory
+  ansible.builtin.file:
+    path: "{{ netbox_media_root }}"
+    state: directory
+    owner: "{{ netbox_system_user }}"
+    group: "{{ netbox_system_user }}"
+    mode: "0750"
+
+- name: Check whether this NetBox release is already unpacked
+  ansible.builtin.stat:
+    path: "/opt/netbox-{{ netbox_version }}/netbox/manage.py"
+  register: netbox_release_stat
+
+- name: Download and unpack NetBox
+  ansible.builtin.unarchive:
+    src: "{{ netbox_download_url }}"
+    dest: "/opt"
+    remote_src: true
+    owner: "{{ netbox_system_user }}"
+    group: "{{ netbox_system_user }}"
+    creates: "/opt/netbox-{{ netbox_version }}/netbox/manage.py"
+  register: netbox_unarchive_result
+
+# The install root is a symlink to the versioned directory. An upgrade then swaps one
+# symlink, and so does a rollback; nothing has to be moved or deleted to get back.
+# Корень установки - симлинк на версионированный каталог. Обновление сводится к смене
+# одного симлинка, и откат тоже; чтобы вернуться, ничего не нужно перемещать или удалять.
+- name: Point the install root at this release
+  ansible.builtin.file:
+    src: "/opt/netbox-{{ netbox_version }}"
+    dest: "{{ netbox_install_root }}"
+    state: link
+    force: true
+  register: netbox_symlink_result
+
+- name: Create the NetBox virtual environment
+  ansible.builtin.command:
+    cmd: "/usr/bin/python3 -m venv {{ netbox_install_root }}/venv"
+    creates: "{{ netbox_install_root }}/venv/bin/python"
+
+- name: Install the NetBox Python dependencies
+  ansible.builtin.pip:
+    requirements: "{{ netbox_install_root }}/requirements.txt"
+    virtualenv: "{{ netbox_install_root }}/venv"
+    extra_args: "--upgrade"
+  register: netbox_pip_result
+
+- name: Configure NetBox
+  ansible.builtin.template:
+    src: "configuration.py.j2"
+    dest: "{{ netbox_install_root }}/netbox/netbox/configuration.py"
+    owner: "root"
+    group: "{{ netbox_system_user }}"
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify:
+    - Restart NetBox
+    - Restart NetBox worker
+  register: netbox_configuration_result
+
+- name: Configure gunicorn
+  ansible.builtin.template:
+    src: "gunicorn.py.j2"
+    dest: "{{ netbox_install_root }}/gunicorn.py"
+    owner: "root"
+    group: "{{ netbox_system_user }}"
+    mode: "0644"
+  notify: Restart NetBox
+  register: netbox_gunicorn_result
+
+# Two units, not one. The web process serves requests; the worker runs the background
+# queue - webhooks, scripts, housekeeping. Without the worker the site looks entirely
+# healthy and every queued job simply never runs.
+# Два юнита, а не один. Веб-процесс обслуживает запросы, воркер выполняет фоновую очередь -
+# webhooks, скрипты, обслуживание. Без воркера сайт выглядит полностью исправным, а каждая
+# поставленная задача просто никогда не выполняется.
+- name: Install the NetBox systemd units
+  ansible.builtin.template:
+    src: "{{ item }}.service.j2"
+    dest: "/etc/systemd/system/{{ item }}.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  loop:
+    - "netbox"
+    - "netbox-rq"
+  notify:
+    - Restart NetBox
+    - Restart NetBox worker
+  register: netbox_unit_result
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: netbox_unit_result.changed
+
+- name: Apply the NetBox database migrations
+  ansible.builtin.command:
+    cmd: "{{ netbox_install_root }}/venv/bin/python {{ netbox_install_root }}/netbox/manage.py migrate --no-input"
+  become: true
+  become_user: "{{ netbox_system_user }}"
+  register: netbox_migrate_result
+  changed_when: "'No migrations to apply' not in netbox_migrate_result.stdout"
+
+- name: Collect the NetBox static files
+  ansible.builtin.command:
+    cmd: "{{ netbox_install_root }}/venv/bin/python {{ netbox_install_root }}/netbox/manage.py collectstatic --no-input"
+  become: true
+  become_user: "{{ netbox_system_user }}"
+  register: netbox_static_result
+  changed_when: "'0 static files copied' not in netbox_static_result.stdout"
+
+# Created only when absent. Re-running must not reset the password of an account whose
+# owner has since changed it from the web interface.
+# Создаётся только при отсутствии. Повторный прогон не должен сбрасывать пароль учётной
+# записи, владелец которой с тех пор сменил его через веб-интерфейс.
+- name: Read whether the NetBox superuser exists
+  ansible.builtin.command:
+    cmd: >-
+      {{ netbox_install_root }}/venv/bin/python {{ netbox_install_root }}/netbox/manage.py shell -c
+      "from users.models import User; print(User.objects.filter(username='{{ lookup('ansible.builtin.vars', netbox_superuser_name_var) }}').exists())"
+  become: true
+  become_user: "{{ netbox_system_user }}"
+  register: netbox_superuser_stat
+  changed_when: false
+  check_mode: false
+  when: netbox_superuser_name_var is not none
+
+- name: Create the NetBox superuser
+  ansible.builtin.command:
+    cmd: >-
+      {{ netbox_install_root }}/venv/bin/python {{ netbox_install_root }}/netbox/manage.py
+      createsuperuser --no-input
+      --username {{ lookup('ansible.builtin.vars', netbox_superuser_name_var) }}
+      --email {{ lookup('ansible.builtin.vars', netbox_superuser_email_var) }}
+  environment:
+    DJANGO_SUPERUSER_PASSWORD: "{{ lookup('ansible.builtin.vars', netbox_superuser_password_var) }}"
+  become: true
+  become_user: "{{ netbox_system_user }}"
+  no_log: true
+  when:
+    - netbox_superuser_name_var is not none
+    - "'False' in (netbox_superuser_stat.stdout | default(''))"
+  register: netbox_superuser_result
+
+- name: Configure the nginx site
+  ansible.builtin.template:
+    src: "nginx.conf.j2"
+    dest: "/etc/nginx/sites-available/netbox"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    validate: "nginx -t -c /etc/nginx/nginx.conf"
+  notify: Reload nginx
+  register: netbox_nginx_result
+
+- name: Enable the nginx site
+  ansible.builtin.file:
+    src: "/etc/nginx/sites-available/netbox"
+    dest: "/etc/nginx/sites-enabled/netbox"
+    state: link
+  notify: Reload nginx
+
+# The distribution ships a default site that also listens on port 80. Left in place it
+# answers first and NetBox is never reached.
+# Дистрибутив поставляет сайт по умолчанию, который тоже слушает порт 80. Оставленный на
+# месте, он отвечает первым, и до NetBox дело не доходит.
+- name: Remove the default nginx site
+  ansible.builtin.file:
+    path: "/etc/nginx/sites-enabled/default"
+    state: absent
+  notify: Reload nginx
+
+- name: Manage the NetBox services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: "{{ netbox_service_state }}"
+    enabled: "{{ netbox_service_enabled }}"
+  loop:
+    - "netbox"
+    - "netbox-rq"
+    - "nginx"
+  register: netbox_service_result
+
+- name: Apply pending NetBox restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Display NetBox change summary
+  ansible.builtin.debug:
+    msg: >-
+      NetBox {{ netbox_version }} on Python {{ netbox_python_result.stdout | trim }},
+      database {{ netbox_database_name }}@{{ netbox_database_host }},
+      Redis {{ netbox_redis_host }} databases
+      {{ netbox_redis_tasks_database }} and {{ netbox_redis_cache_database }}.
+  when:
+    - netbox_debug_mode | bool
+    - >-
+      (netbox_package_result.changed | default(false) | bool)
+      or (netbox_unarchive_result.changed | default(false) | bool)
+      or (netbox_pip_result.changed | default(false) | bool)
+      or (netbox_configuration_result.changed | default(false) | bool)
+      or (netbox_migrate_result.changed | default(false) | bool)
+      or (netbox_service_result.changed | default(false) | bool)
+  tags:
+    - debug

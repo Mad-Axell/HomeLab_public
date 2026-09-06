@@ -1,0 +1,15 @@
+---
+- name: Restart NetBox
+  ansible.builtin.systemd:
+    name: "netbox"
+    state: restarted
+
+- name: Restart NetBox worker
+  ansible.builtin.systemd:
+    name: "netbox-rq"
+    state: restarted
+
+- name: Reload nginx
+  ansible.builtin.systemd:
+    name: "nginx"
+    state: reloaded

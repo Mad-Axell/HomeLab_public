@@ -1,0 +1,152 @@
+---
+# NetBox configuration
+# Конфигурация NetBox
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+netbox_debug_mode: false
+
+# Release
+# Выпуск
+
+# String. NetBox release to install, without the leading v.
+#
+# The role checks that the interpreter satisfies the requires-python of this release
+# instead of trusting the distribution. NetBox 4.6 needs Python 3.12 or newer, which
+# Debian 12 does not have; installing there fails deep inside pip with an error about a
+# dependency rather than about the interpreter.
+#
+# Строка. Устанавливаемый выпуск NetBox, без ведущей v.
+#
+# Роль проверяет, что интерпретатор удовлетворяет requires-python этого выпуска, а не
+# полагается на дистрибутив. NetBox 4.6 требует Python 3.12 или новее, чего в Debian 12
+# нет; установка там падает глубоко внутри pip с ошибкой о зависимости, а не об
+# интерпретаторе.
+netbox_version: "4.6.10"
+
+# String. Where the release archive is fetched from.
+# Строка. Откуда забирается архив выпуска.
+netbox_download_url: "https://github.com/netbox-community/netbox/archive/refs/tags/v{{ netbox_version }}.tar.gz"
+
+# String. Minimum Python version this release accepts.
+# Строка. Минимальная версия Python, которую принимает этот выпуск.
+netbox_minimum_python: "3.12"
+
+# Paths and account
+# Пути и учётная запись
+
+# String. Installation root. The release unpacks into a versioned directory beside it and
+# this path is a symlink, so an upgrade is a symlink swap and a rollback is the same.
+# Строка. Корень установки. Выпуск распаковывается в версионированный каталог рядом, а
+# этот путь - симлинк, поэтому обновление сводится к смене симлинка, и откат тоже.
+netbox_install_root: "/opt/netbox"
+
+# String. Directory holding uploaded media, kept outside the versioned tree so an upgrade
+# does not touch it.
+# Строка. Каталог загруженных файлов, вынесен из версионированного дерева, чтобы
+# обновление его не трогало.
+netbox_media_root: "/opt/netbox-media"
+
+# String. System account that runs the service and owns the media.
+# Строка. Системная учётная запись, от которой работает сервис и которой принадлежат
+# загруженные файлы.
+netbox_system_user: "netbox"
+
+# List of strings. Packages needed to build the Python dependencies and serve the site.
+# Список строк. Пакеты, нужные для сборки зависимостей Python и отдачи сайта.
+netbox_packages:
+  - "python3"
+  - "python3-dev"
+  - "python3-venv"
+  - "build-essential"
+  - "libxml2-dev"
+  - "libxslt1-dev"
+  - "libffi-dev"
+  - "libpq-dev"
+  - "libssl-dev"
+  - "zlib1g-dev"
+  - "nginx"
+  - "curl"
+
+# Application
+# Приложение
+
+# List of strings. Host names and addresses the application answers to. A request whose
+# Host header is not listed is rejected by Django, which reads as a broken site rather than
+# a configuration error.
+# Список строк. Имена и адреса, на которые отвечает приложение. Запрос с Host, которого
+# здесь нет, Django отвергает, и это выглядит как сломанный сайт, а не ошибка конфигурации.
+netbox_allowed_hosts: []
+
+# String or null. Name of the variable holding the Django SECRET_KEY.
+# Строка или null. Имя переменной с Django SECRET_KEY.
+netbox_secret_key_var: null
+
+# Database
+# База данных
+
+netbox_database_host: "127.0.0.1"
+netbox_database_port: 5432
+netbox_database_name: "netbox"
+netbox_database_user: "netbox"
+
+# String or null. Name of the variable holding the database password.
+# Строка или null. Имя переменной с паролем к базе.
+netbox_database_password_var: null
+
+# Redis
+# Redis
+
+netbox_redis_host: "127.0.0.1"
+netbox_redis_port: 6379
+
+# String or null. ACL user name; null uses the default user.
+# Строка или null. Имя пользователя ACL; null означает пользователя default.
+netbox_redis_username: null
+
+# String or null. Name of the variable holding the Redis password.
+# Строка или null. Имя переменной с паролем Redis.
+netbox_redis_password_var: null
+
+# Integers. NetBox needs TWO separate Redis databases and will not share one: the task
+# queue and the cache have different lifetimes, and clearing the cache would drop queued
+# jobs if they shared a number.
+# Целые числа. NetBox требует ДВЕ отдельные базы Redis и одной не обходится: у очереди
+# задач и у кэша разное время жизни, и очистка кэша выбросила бы поставленные задачи, будь
+# у них общий номер.
+netbox_redis_tasks_database: 0
+netbox_redis_cache_database: 1
+
+# Superuser
+# Суперпользователь
+
+# Strings or null. Names of the variables holding the first web superuser. It is created
+# once; changing these afterwards does not change an existing account.
+# Строки или null. Имена переменных с данными первого веб-суперпользователя. Он создаётся
+# один раз; изменение этих значений на уже существующую учётку не действует.
+netbox_superuser_name_var: null
+netbox_superuser_email_var: null
+netbox_superuser_password_var: null
+
+# Serving
+# Отдача
+
+# Integer. Number of gunicorn workers. Each is a full copy of the application, so this is
+# bounded by memory rather than by cores.
+# Целое число. Количество воркеров gunicorn. Каждый - полная копия приложения, поэтому
+# ограничение здесь по памяти, а не по ядрам.
+netbox_gunicorn_workers: 5
+
+# String. Address gunicorn binds to. Loopback: nginx is what faces the network.
+# Строка. Адрес, на котором слушает gunicorn. Loopback: наружу смотрит nginx.
+netbox_gunicorn_bind: "127.0.0.1:8001"
+
+# Integer. Port nginx listens on.
+# Целое число. Порт, на котором слушает nginx.
+netbox_http_port: 80
+
+# Service
+# Сервис
+
+netbox_service_state: "started"
+netbox_service_enabled: true

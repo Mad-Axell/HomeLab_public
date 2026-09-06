@@ -1,0 +1,60 @@
+{{ ansible_managed | comment }}
+# Owned by the netbox Ansible role. Local edits are lost on the next run.
+# Принадлежит роли Ansible netbox. Правки на месте теряются при следующем прогоне.
+
+ALLOWED_HOSTS = {{ netbox_allowed_hosts | to_json }}
+
+DATABASE = {
+    'ENGINE': 'django.db.backends.postgresql',
+    'NAME': {{ netbox_database_name | to_json }},
+    'USER': {{ netbox_database_user | to_json }},
+    'PASSWORD': {{ lookup('ansible.builtin.vars', netbox_database_password_var) | to_json }},
+    'HOST': {{ netbox_database_host | to_json }},
+    'PORT': {{ netbox_database_port }},
+    'CONN_MAX_AGE': 300,
+}
+
+# NetBox needs two separate Redis databases and does not share one. The task queue and the
+# cache have different lifetimes: clearing the cache would discard queued jobs if they sat
+# on the same number.
+# NetBox требует две отдельные базы Redis и одной не обходится. У очереди задач и у кэша
+# разное время жизни: очистка кэша выбросила бы поставленные задачи, окажись они на одном
+# номере.
+REDIS = {
+    'tasks': {
+        'HOST': {{ netbox_redis_host | to_json }},
+        'PORT': {{ netbox_redis_port }},
+{% if netbox_redis_username is not none %}
+        'USERNAME': {{ netbox_redis_username | to_json }},
+{% endif %}
+{% if netbox_redis_password_var is not none %}
+        'PASSWORD': {{ lookup('ansible.builtin.vars', netbox_redis_password_var) | to_json }},
+{% endif %}
+        'DATABASE': {{ netbox_redis_tasks_database }},
+        'SSL': False,
+    },
+    'caching': {
+        'HOST': {{ netbox_redis_host | to_json }},
+        'PORT': {{ netbox_redis_port }},
+{% if netbox_redis_username is not none %}
+        'USERNAME': {{ netbox_redis_username | to_json }},
+{% endif %}
+{% if netbox_redis_password_var is not none %}
+        'PASSWORD': {{ lookup('ansible.builtin.vars', netbox_redis_password_var) | to_json }},
+{% endif %}
+        'DATABASE': {{ netbox_redis_cache_database }},
+        'SSL': False,
+    },
+}
+
+# Changing this invalidates every active session and every signed value, so treat it as
+# permanent for the life of the instance.
+# Смена этого значения инвалидирует все активные сессии и все подписанные значения,
+# поэтому считайте его постоянным на всё время жизни экземпляра.
+SECRET_KEY = {{ lookup('ansible.builtin.vars', netbox_secret_key_var) | to_json }}
+
+# Uploaded attachments and images live outside the versioned installation tree, so that
+# replacing that tree during an upgrade cannot take them along.
+# Загруженные вложения и изображения лежат вне версионированного дерева установки, чтобы
+# его замена при обновлении не унесла их с собой.
+MEDIA_ROOT = {{ netbox_media_root | to_json }}

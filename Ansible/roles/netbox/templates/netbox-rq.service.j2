@@ -1,0 +1,23 @@
+{{ ansible_managed | comment }}
+[Unit]
+# The background worker. Without it the site answers normally and every queued job -
+# webhooks, custom scripts, housekeeping - is accepted and never runs.
+# Фоновый воркер. Без него сайт отвечает нормально, а каждая поставленная задача -
+# webhooks, пользовательские скрипты, обслуживание - принимается и никогда не выполняется.
+Description=NetBox request queue worker
+Documentation=https://docs.netbox.dev/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ netbox_system_user }}
+Group={{ netbox_system_user }}
+WorkingDirectory={{ netbox_install_root }}
+ExecStart={{ netbox_install_root }}/venv/bin/python {{ netbox_install_root }}/netbox/manage.py rqworker high default low
+Restart=on-failure
+RestartSec=30
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

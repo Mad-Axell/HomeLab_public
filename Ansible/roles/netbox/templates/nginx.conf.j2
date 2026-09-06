@@ -1,0 +1,21 @@
+{{ ansible_managed | comment }}
+server {
+    listen {{ netbox_http_port }};
+    listen [::]:{{ netbox_http_port }};
+
+    server_name {{ netbox_allowed_hosts | join(' ') }};
+
+    client_max_body_size 25m;
+
+    location /static/ {
+        alias {{ netbox_install_root }}/netbox/static/;
+    }
+
+    location / {
+        proxy_pass http://{{ netbox_gunicorn_bind }};
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $host;
+    }
+}

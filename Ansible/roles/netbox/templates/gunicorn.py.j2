@@ -1,0 +1,16 @@
+{{ ansible_managed | comment }}
+# Owned by the netbox Ansible role.
+# Принадлежит роли Ansible netbox.
+
+bind = {{ netbox_gunicorn_bind | to_json }}
+
+# Each worker is a full copy of the application, so this number is bounded by memory
+# rather than by cores. The upstream suggestion of 2 x CPU + 1 assumes a machine with room
+# for it.
+# Каждый воркер - полная копия приложения, поэтому это число ограничено памятью, а не
+# ядрами. Рекомендация апстрима 2 x CPU + 1 предполагает машину, где для этого есть место.
+workers = {{ netbox_gunicorn_workers }}
+threads = 3
+timeout = 120
+max_requests = 5000
+max_requests_jitter = 500
