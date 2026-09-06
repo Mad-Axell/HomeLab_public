@@ -56,6 +56,62 @@
       this host has {{ netbox_python_result.stdout | trim }}. Build the container from a
       distribution that ships a new enough interpreter rather than adding one beside it.
 
+# The application owns its schema, so the role creates the database it lives in rather than
+# assuming somebody did. Deploying against a server with no "netbox" database fails in the
+# migrations, where the error speaks of a connection and not of a missing database.
+#
+# The privileged account is used here and nowhere else; NetBox itself connects as the
+# unprivileged role created below.
+#
+# Приложение владеет своей схемой, поэтому роль создаёт базу, в которой живёт, а не
+# предполагает, что это сделал кто-то другой. Развёртывание на сервере без базы "netbox"
+# падает на миграциях, и ошибка там говорит о подключении, а не об отсутствующей базе.
+#
+# Привилегированная учётная запись используется здесь и больше нигде; сам NetBox
+# подключается непривилегированной ролью, создаваемой ниже.
+- name: Require privileged credentials to manage the database
+  ansible.builtin.assert:
+    that:
+      - netbox_database_admin_password_var is not none
+      - lookup('ansible.builtin.vars', netbox_database_admin_password_var, default=none) is not none
+    fail_msg: >-
+      netbox_manage_database is enabled, so netbox_database_admin_password_var must name a
+      variable holding the password of {{ netbox_database_admin_user }} on
+      {{ netbox_database_host }}. Set netbox_manage_database to false when the database is
+      provided ready-made.
+  when: netbox_manage_database | bool
+  no_log: true
+
+- name: Create the NetBox database role
+  community.postgresql.postgresql_user:
+    name: "{{ netbox_database_user }}"
+    password: "{{ lookup('ansible.builtin.vars', netbox_database_password_var) }}"
+    role_attr_flags: "LOGIN"
+    login_host: "{{ netbox_database_host }}"
+    login_port: "{{ netbox_database_port }}"
+    login_user: "{{ netbox_database_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', netbox_database_admin_password_var) }}"
+    login_db: "postgres"
+    state: present
+  when: netbox_manage_database | bool
+  no_log: true
+  register: netbox_db_role_result
+
+- name: Create the NetBox database
+  community.postgresql.postgresql_db:
+    name: "{{ netbox_database_name }}"
+    owner: "{{ netbox_database_user }}"
+    encoding: "UTF-8"
+    template: "template0"
+    login_host: "{{ netbox_database_host }}"
+    login_port: "{{ netbox_database_port }}"
+    login_user: "{{ netbox_database_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', netbox_database_admin_password_var) }}"
+    state: present
+  when: netbox_manage_database | bool
+  no_log: true
+  register: netbox_db_result
+
 - name: Create the NetBox system account
   ansible.builtin.user:
     name: "{{ netbox_system_user }}"

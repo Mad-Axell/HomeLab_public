@@ -72,6 +72,8 @@ netbox_packages:
   - "libxslt1-dev"
   - "libffi-dev"
   - "libpq-dev"
+  # psycopg2 нужен модулям community.postgresql, которыми роль создаёт свою базу.
+  - "python3-psycopg2"
   - "libssl-dev"
   - "zlib1g-dev"
   - "nginx"
@@ -132,6 +134,34 @@ netbox_database_user: "netbox"
 # String or null. Name of the variable holding the database password.
 # Строка или null. Имя переменной с паролем к базе.
 netbox_database_password_var: null
+
+# Boolean. Create the database and its role on the server above before migrating.
+#
+# The application owns its schema, so it should own the database it lives in: deploying
+# NetBox against a server where nobody has created "netbox" fails in the migrations, and
+# the error there talks about a connection rather than about a missing database. Turning
+# this off is for a server managed by someone else, where the database is handed over
+# ready-made.
+#
+# Логическое значение. Создать базу и её роль на сервере выше перед миграциями.
+#
+# Приложение владеет своей схемой, значит должно владеть и базой, в которой живёт:
+# развёртывание NetBox на сервере, где никто не создал "netbox", падает на миграциях, а
+# ошибка там говорит о подключении, а не об отсутствующей базе. Выключать это стоит для
+# сервера под чужим управлением, где база выдаётся готовой.
+netbox_manage_database: true
+
+# String. Privileged account used only to create the database and the role. This is not the
+# account NetBox connects with afterwards.
+# Строка. Привилегированная учётная запись, используемая только для создания базы и роли.
+# Это НЕ та учётка, с которой NetBox работает дальше.
+netbox_database_admin_user: "postgres"
+
+# String or null. Name of the variable holding the privileged password. Required when
+# netbox_manage_database is true.
+# Строка или null. Имя переменной с привилегированным паролем. Обязателен при
+# netbox_manage_database: true.
+netbox_database_admin_password_var: null
 
 # Redis
 # Redis

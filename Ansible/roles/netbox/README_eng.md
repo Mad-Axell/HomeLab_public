@@ -2,10 +2,11 @@
 
 ## Native, not Docker
 
-The repository also carries `netbox_docker_local`, which drops a compose file and starts
-the upstream stack. That stack brings its own PostgreSQL and its own Redis, so on a host
-that already runs both it installs a second copy of each, with separate backups, separate
-upgrades and separate failure modes. This role uses the ones that exist.
+The repository used to carry `netbox_docker_local`, which dropped a compose file and
+started the upstream stack. That stack brings its own PostgreSQL and its own Redis, so on
+a host that already runs both it installs a second copy of each, with separate backups,
+separate upgrades and separate failure modes. This role uses the ones that exist, and the
+Docker role has been removed rather than left as a second way to do the same thing.
 
 ## Two services, not one
 
