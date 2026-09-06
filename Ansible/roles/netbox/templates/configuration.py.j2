@@ -54,11 +54,25 @@ REDIS = {
 SECRET_KEY = {{ lookup('ansible.builtin.vars', netbox_secret_key_var) | to_json }}
 {% if netbox_api_token_peppers_var is not none %}
 
-# Peppers for v2 API tokens. The first entry hashes new tokens; earlier entries stay so
-# tokens issued with them keep verifying. Removing one invalidates every token it hashed.
-# Peppers для токенов API v2. Первый элемент хэширует новые токены, прежние остаются, чтобы
-# выданные с ними продолжали проверяться. Удаление любого инвалидирует хэшированные им.
-API_TOKEN_PEPPERS = {{ lookup('ansible.builtin.vars', netbox_api_token_peppers_var) | to_json }}
+# Peppers for v2 API tokens, keyed by an integer id that is stored alongside each token.
+# A pepper must therefore stay here for as long as tokens hashed with it exist: removing
+# one invalidates every token that carries its id.
+#
+# Rendered as Python rather than JSON on purpose. NetBox validates that every key is an
+# int, and JSON has only string keys, so a JSON-rendered mapping is rejected outright.
+#
+# Peppers для токенов API v2, ключом служит целое число, которое хранится вместе с каждым
+# токеном. Поэтому pepper обязан оставаться здесь, пока существуют хэшированные им токены:
+# удаление инвалидирует все токены с этим идентификатором.
+#
+# Выводится как Python, а не JSON, намеренно. NetBox проверяет, что каждый ключ - int, а в
+# JSON ключи бывают только строками, поэтому отрендеренное через JSON отображение
+# отвергается сразу.
+API_TOKEN_PEPPERS = {
+{% for key, value in (lookup('ansible.builtin.vars', netbox_api_token_peppers_var) | dictsort) %}
+    {{ key | int }}: {{ value | to_json }},
+{% endfor %}
+}
 {% endif %}
 
 # Uploaded attachments and images live outside the versioned installation tree, so that

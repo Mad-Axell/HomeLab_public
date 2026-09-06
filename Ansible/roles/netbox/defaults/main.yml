@@ -104,8 +104,10 @@ netbox_secret_key_var: null
 # emitted at startup that nothing surfaces later: "API_TOKEN_PEPPERS is not defined.
 # v2 API tokens cannot be used."
 #
-# The first element is used for new tokens; older ones stay in the list so existing tokens
-# keep verifying. Removing a pepper invalidates every token hashed with it.
+# The value is a DICTIONARY keyed by an integer from 0 to 32767, not a list: the key is
+# stored alongside each token, and the pepper itself must be at least 50 characters. A
+# pepper has to stay for as long as tokens carrying its id exist, because removing it
+# invalidates every one of them.
 #
 # Строка или null. Имя переменной со списком peppers для токенов API.
 #
@@ -114,8 +116,9 @@ netbox_secret_key_var: null
 # которое дальше нигде не всплывает: "API_TOKEN_PEPPERS is not defined. v2 API tokens
 # cannot be used."
 #
-# Первый элемент используется для новых токенов, прежние остаются в списке, чтобы уже
-# выданные продолжали проверяться. Удаление pepper инвалидирует все хэшированные им токены.
+# Значение - СЛОВАРЬ с ключом-целым от 0 до 32767, а не список: ключ хранится вместе с
+# каждым токеном, а сам pepper должен быть не короче 50 символов. Pepper обязан оставаться,
+# пока существуют токены с его идентификатором: удаление инвалидирует их все.
 netbox_api_token_peppers_var: null
 
 # Database
