@@ -76,6 +76,12 @@ netbox_packages:
   - "zlib1g-dev"
   - "nginx"
   - "curl"
+  # sudo нужен Ansible: миграции, collectstatic и создание суперпользователя
+  # выполняются от учётной записи netbox, а become_user переключается через sudo.
+  # В минимальных образах Debian его нет, и отсутствие проявляется как
+  # "Module result deserialization failed: No start of json char found" - модуль не
+  # запускается, и на его место в stdout попадает ошибка оболочки.
+  - "sudo"
 
 # Application
 # Приложение
