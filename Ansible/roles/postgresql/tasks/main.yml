@@ -1,0 +1,243 @@
+---
+# Validate the input before touching the host.
+# Проверка ввода до изменения хоста.
+- name: Validate PostgreSQL configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - postgresql_data_root is string
+      - postgresql_data_root | length > 0
+      - postgresql_port | int > 0
+      - postgresql_hba_entries is sequence
+      - postgresql_hba_entries | length > 0
+      - postgresql_roles is sequence
+      - postgresql_databases is sequence
+    fail_msg: "postgresql requires Debian, a data root, a port, and at least one pg_hba entry."
+
+- name: Validate the PostgreSQL role passwords
+  ansible.builtin.assert:
+    that:
+      - item.password_var is not defined or lookup('ansible.builtin.vars', item.password_var, default=none) is not none
+    fail_msg: "A password_var declared for a PostgreSQL role must exist in VARS/secrets.yml."
+  loop: "{{ postgresql_roles }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+# Install postgresql-common on its own first. It creates the postgres system user without
+# creating a cluster, which lets the data directory be handed over before the server
+# package initialises anything inside it. Installing everything at once would run initdb
+# against a directory still owned by root.
+# Сначала ставится отдельно postgresql-common. Он создаёт системного пользователя postgres,
+# не создавая кластер, что позволяет передать ему каталог данных до того, как пакет сервера
+# что-либо в нём инициализирует. Установка всего разом запустила бы initdb в каталоге,
+# который всё ещё принадлежит root.
+- name: Install postgresql-common
+  ansible.builtin.apt:
+    name: "postgresql-common"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: postgresql_common_result
+
+# Verify the data root is real storage before the cluster is created there. A missing bind
+# mount leaves an ordinary directory on the container root disk, and PostgreSQL would
+# initialise into it without complaint.
+# Проверка того, что каталог данных - настоящее хранилище, до создания в нём кластера.
+# Отсутствующий bind mount оставляет обычный каталог на корневом диске контейнера, и
+# PostgreSQL молча инициализировался бы в него.
+- name: Read the filesystem of the PostgreSQL data root
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/stat"
+      - "-c"
+      - "%d"
+      - "{{ item }}"
+  loop:
+    - "{{ postgresql_data_root }}"
+    - "/"
+  loop_control:
+    label: "{{ item }}"
+  register: postgresql_device_result
+  changed_when: false
+  check_mode: false
+
+- name: Require the PostgreSQL data root to be on its own filesystem
+  ansible.builtin.assert:
+    that:
+      - (postgresql_device_result.results[0].stdout | trim) != (postgresql_device_result.results[1].stdout | trim)
+    fail_msg: >-
+      {{ postgresql_data_root }} is on the same filesystem as /, so the cluster would be
+      created on the container root disk instead of the storage meant for it. The bind
+      mount of the ZFS dataset is missing from the container definition, or the path did
+      not exist on the hypervisor when the container started. Set
+      postgresql_require_separate_filesystem=false only if a shared root really is intended.
+  when: postgresql_require_separate_filesystem | bool
+
+- name: Hand the data root to the postgres account
+  ansible.builtin.file:
+    path: "{{ postgresql_data_root }}"
+    state: directory
+    owner: "postgres"
+    group: "postgres"
+    mode: "0750"
+  register: postgresql_data_root_result
+
+# Now the server itself. The Debian packaging creates the default cluster inside the data
+# root, which at this point is the external storage.
+# Теперь сам сервер. Пакеты Debian создают кластер по умолчанию внутри каталога данных, а
+# он к этому моменту уже является внешним хранилищем.
+- name: Install PostgreSQL server packages
+  ansible.builtin.apt:
+    name: "{{ postgresql_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: postgresql_package_result
+
+# Read which cluster the distribution created, instead of assuming a version. Debian names
+# the configuration path after the major version and the cluster name, and both change
+# between releases.
+# Чтение того, какой кластер создал дистрибутив, вместо предположения о версии. Debian
+# составляет путь конфигурации из мажорной версии и имени кластера, и оба меняются от
+# выпуска к выпуску.
+- name: Read the installed PostgreSQL clusters
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/pg_lsclusters"
+      - "--no-header"
+  register: postgresql_cluster_result
+  changed_when: false
+  check_mode: false
+
+- name: Resolve the managed cluster
+  ansible.builtin.set_fact:
+    postgresql_cluster_version: "{{ postgresql_cluster_result.stdout_lines[0].split()[0] }}"
+    postgresql_cluster_name: "{{ postgresql_cluster_result.stdout_lines[0].split()[1] }}"
+    postgresql_cluster_data_directory: "{{ postgresql_cluster_result.stdout_lines[0].split()[5] }}"
+  when: postgresql_cluster_result.stdout_lines | length > 0
+
+- name: Require exactly one cluster to manage
+  ansible.builtin.assert:
+    that:
+      - postgresql_cluster_result.stdout_lines | length == 1
+    fail_msg: >-
+      Expected one PostgreSQL cluster, found
+      {{ postgresql_cluster_result.stdout_lines | length }}. This role manages the single
+      cluster the distribution creates; remove the extra ones or manage them separately.
+
+# Confirm the cluster really landed on the external storage. The check above ran before
+# initdb; this one proves the outcome rather than the intent.
+# Подтверждение того, что кластер действительно оказался на внешнем хранилище. Проверка
+# выше выполнялась до initdb, эта доказывает результат, а не намерение.
+- name: Require the cluster data directory to be under the data root
+  ansible.builtin.assert:
+    that:
+      - postgresql_cluster_data_directory is match('^' ~ (postgresql_data_root | regex_escape) ~ '/')
+    fail_msg: >-
+      The cluster keeps its data in {{ postgresql_cluster_data_directory }}, which is
+      outside {{ postgresql_data_root }}. It was created before the storage was in place;
+      move it with pg_dropcluster and pg_createcluster, or relocate the data directory.
+
+# Settings go into a drop-in, never into postgresql.conf. That file belongs to the Debian
+# packaging, carries the defaults of the running version, and is rewritten on upgrades;
+# owning it would mean fighting the package on every release. Debian ships
+# include_dir = 'conf.d' precisely for this.
+# Настройки пишутся в drop-in, а не в postgresql.conf. Тот файл принадлежит пакетам Debian,
+# несёт умолчания работающей версии и переписывается при обновлениях; владеть им означало
+# бы спорить с пакетом при каждом выпуске. Debian поставляет include_dir = 'conf.d' именно
+# для этого.
+- name: Create the PostgreSQL drop-in directory
+  ansible.builtin.file:
+    path: "/etc/postgresql/{{ postgresql_cluster_version }}/{{ postgresql_cluster_name }}/conf.d"
+    state: directory
+    owner: "postgres"
+    group: "postgres"
+    mode: "0755"
+
+- name: Configure PostgreSQL settings
+  ansible.builtin.template:
+    src: "managed.conf.j2"
+    dest: "/etc/postgresql/{{ postgresql_cluster_version }}/{{ postgresql_cluster_name }}/conf.d/10-ansible.conf"
+    owner: "postgres"
+    group: "postgres"
+    mode: "0644"
+  notify: Restart PostgreSQL
+  register: postgresql_settings_result
+
+# pg_hba.conf has no drop-in mechanism, so the role writes it whole. Order matters: the
+# first matching rule wins and the rest are never consulted.
+# У pg_hba.conf нет механизма drop-in, поэтому роль пишет его целиком. Порядок важен:
+# срабатывает первое совпавшее правило, остальные не рассматриваются.
+- name: Configure PostgreSQL client authentication
+  ansible.builtin.template:
+    src: "pg_hba.conf.j2"
+    dest: "/etc/postgresql/{{ postgresql_cluster_version }}/{{ postgresql_cluster_name }}/pg_hba.conf"
+    owner: "postgres"
+    group: "postgres"
+    mode: "0640"
+  notify: Reload PostgreSQL
+  register: postgresql_hba_result
+
+- name: Manage the PostgreSQL service
+  ansible.builtin.systemd:
+    name: "postgresql@{{ postgresql_cluster_version }}-{{ postgresql_cluster_name }}"
+    state: "{{ postgresql_service_state }}"
+    enabled: "{{ postgresql_service_enabled }}"
+  register: postgresql_service_result
+
+# Apply pending restarts before creating anything, otherwise the roles below are created
+# against a server that has not yet adopted the new authentication rules.
+# Применение отложенных перезапусков до создания чего-либо, иначе роли ниже создаются на
+# сервере, ещё не принявшем новые правила аутентификации.
+- name: Apply pending PostgreSQL restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Create the PostgreSQL roles
+  community.postgresql.postgresql_user:
+    name: "{{ item.name }}"
+    password: "{{ lookup('ansible.builtin.vars', item.password_var) if item.password_var is defined else omit }}"
+    role_attr_flags: "{{ item.role_attr_flags | default(omit) }}"
+    state: present
+  become: true
+  become_user: "postgres"
+  loop: "{{ postgresql_roles }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  register: postgresql_role_result
+
+- name: Create the PostgreSQL databases
+  community.postgresql.postgresql_db:
+    name: "{{ item.name }}"
+    owner: "{{ item.owner | default(omit) }}"
+    encoding: "{{ item.encoding | default('UTF-8') }}"
+    lc_collate: "{{ item.lc_collate | default(omit) }}"
+    lc_ctype: "{{ item.lc_ctype | default(omit) }}"
+    template: "{{ item.template | default('template0') }}"
+    state: present
+  become: true
+  become_user: "postgres"
+  loop: "{{ postgresql_databases }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: postgresql_database_result
+
+- name: Display PostgreSQL change summary
+  ansible.builtin.debug:
+    msg: >-
+      PostgreSQL {{ postgresql_cluster_version }} cluster {{ postgresql_cluster_name }} in
+      {{ postgresql_cluster_data_directory }}:
+      {{ postgresql_databases | length }} databases, {{ postgresql_roles | length }} roles.
+  when:
+    - postgresql_debug_mode | bool
+    - >-
+      (postgresql_package_result.changed | default(false) | bool)
+      or (postgresql_data_root_result.changed | default(false) | bool)
+      or (postgresql_settings_result.changed | default(false) | bool)
+      or (postgresql_hba_result.changed | default(false) | bool)
+      or (postgresql_service_result.changed | default(false) | bool)
+      or (postgresql_role_result.changed | default(false) | bool)
+      or (postgresql_database_result.changed | default(false) | bool)
+  tags:
+    - debug

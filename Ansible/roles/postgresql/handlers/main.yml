@@ -1,0 +1,15 @@
+---
+# Restart the cluster after settings that only take effect at startup.
+# Перезапуск кластера после настроек, вступающих в силу только при старте.
+- name: Restart PostgreSQL
+  ansible.builtin.systemd:
+    name: "postgresql@{{ postgresql_cluster_version }}-{{ postgresql_cluster_name }}"
+    state: restarted
+
+# Reload after authentication changes: pg_hba.conf is re-read without dropping connections.
+# Перечитывание после изменений аутентификации: pg_hba.conf читается заново без разрыва
+# существующих соединений.
+- name: Reload PostgreSQL
+  ansible.builtin.systemd:
+    name: "postgresql@{{ postgresql_cluster_version }}-{{ postgresql_cluster_name }}"
+    state: reloaded

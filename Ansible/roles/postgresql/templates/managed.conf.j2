@@ -1,0 +1,23 @@
+{{ ansible_managed | comment }}
+# Drop-in owned by the postgresql Ansible role. Included by postgresql.conf through
+# include_dir = 'conf.d' and applied after it, so every setting here wins over the
+# distribution default of the same name. postgresql.conf itself is left to the packaging.
+#
+# Drop-in, которым владеет роль Ansible postgresql. Подключается из postgresql.conf через
+# include_dir = 'conf.d' и применяется после него, поэтому каждая настройка отсюда
+# перекрывает одноимённое умолчание дистрибутива. Сам postgresql.conf оставлен пакетам.
+
+listen_addresses = '{{ postgresql_listen_addresses }}'
+port = {{ postgresql_port }}
+max_connections = {{ postgresql_max_connections }}
+
+shared_buffers = {{ postgresql_shared_buffers }}
+effective_cache_size = {{ postgresql_effective_cache_size }}
+work_mem = {{ postgresql_work_mem }}
+maintenance_work_mem = {{ postgresql_maintenance_work_mem }}
+
+wal_compression = {{ postgresql_wal_compression }}
+full_page_writes = {{ 'on' if postgresql_full_page_writes | bool else 'off' }}
+{% for name, value in postgresql_extra_settings.items() %}
+{{ name }} = {{ value }}
+{% endfor %}

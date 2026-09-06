@@ -1,0 +1,20 @@
+{{ ansible_managed | comment }}
+# Written in full by the postgresql Ansible role; pg_hba.conf has no include mechanism.
+# The FIRST matching line decides the outcome and the rest are never consulted, so a broad
+# rule placed early silently disables everything below it. Order here is the order declared
+# in postgresql_hba_entries.
+#
+# Пишется целиком ролью Ansible postgresql; механизма include у pg_hba.conf нет.
+# Исход решает ПЕРВАЯ совпавшая строка, остальные не рассматриваются, поэтому широкое
+# правило в начале молча отключает всё, что ниже. Порядок здесь - порядок объявления в
+# postgresql_hba_entries.
+
+# TYPE  DATABASE  USER  ADDRESS  METHOD
+{% for entry in postgresql_hba_entries %}
+{{ "%-7s %-9s %-14s %-20s %s" | format(
+     entry.type,
+     entry.database | default('all'),
+     entry.user | default('all'),
+     entry.address | default(''),
+     entry.method) | trim }}
+{% endfor %}

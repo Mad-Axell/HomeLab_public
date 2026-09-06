@@ -1,0 +1,148 @@
+---
+# PostgreSQL server configuration
+# Конфигурация сервера PostgreSQL
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+postgresql_debug_mode: false
+
+# Packages and cluster location
+# Пакеты и расположение кластера
+
+# List of strings. Packages installed for the server. python3-psycopg2 is required by the
+# community.postgresql modules that create databases and roles.
+# Список строк. Пакеты сервера. python3-psycopg2 нужен модулям community.postgresql,
+# создающим базы и роли.
+postgresql_packages:
+  - "postgresql"
+  - "postgresql-contrib"
+  - "python3-psycopg2"
+
+# String. Directory holding every cluster of this host. On Debian it is also the home
+# directory of the postgres user, and the distribution creates the default cluster inside
+# it during package installation.
+#
+# In this project the path is a bind mount of a ZFS dataset from the hypervisor, so the
+# database never occupies the container root disk. The role verifies that below rather
+# than trusting the declaration - see postgresql_require_separate_filesystem.
+#
+# Строка. Каталог, содержащий все кластеры этого хоста. В Debian он же является домашним
+# каталогом пользователя postgres, и дистрибутив создаёт в нём кластер по умолчанию во
+# время установки пакета.
+#
+# В этом проекте путь - bind mount датасета ZFS с гипервизора, поэтому база никогда не
+# занимает корневой диск контейнера. Роль это проверяет, а не верит объявлению на слово,
+# см. postgresql_require_separate_filesystem.
+postgresql_data_root: "/var/lib/postgresql"
+
+# Boolean. Refuse to proceed when postgresql_data_root sits on the same filesystem as the
+# root directory. Default true.
+#
+# The whole point of pointing the cluster at external storage is that a runaway database
+# cannot fill the container root disk, and that the data survives the container. If the
+# bind mount is missing - it was forgotten in the container definition, or the hypervisor
+# path did not exist when the container started - PostgreSQL happily initialises on the
+# root disk instead and everything looks correct until that disk fills. This check turns
+# that silent outcome into a failed run.
+#
+# Логическое значение. Отказаться продолжать, когда postgresql_data_root находится на той
+# же файловой системе, что и корень. По умолчанию true.
+#
+# Смысл вынесения кластера на внешнее хранилище в том, что разросшаяся база не может
+# заполнить корневой диск контейнера, а данные переживают сам контейнер. Если bind mount
+# отсутствует - забыт в определении контейнера или путь на гипервизоре не существовал в
+# момент старта, - PostgreSQL спокойно инициализируется на корневом диске, и всё выглядит
+# правильно ровно до его заполнения. Эта проверка превращает молчаливый исход в падение
+# прогона.
+postgresql_require_separate_filesystem: true
+
+# Network and access
+# Сеть и доступ
+
+# String. Addresses the server listens on. "localhost" keeps it local; "*" listens on every
+# interface. Opening the port is not by itself access: pg_hba below decides who may connect.
+# Строка. Адреса, на которых слушает сервер. "localhost" оставляет его локальным, "*"
+# слушает на всех интерфейсах. Открытый порт сам по себе не даёт доступа: кто может
+# подключиться, решает pg_hba ниже.
+postgresql_listen_addresses: "localhost"
+
+# Integer. TCP port of the cluster.
+# Целое число. TCP-порт кластера.
+postgresql_port: 5432
+
+# List of dicts. Client authentication rules written to pg_hba.conf, in order. Keys: type,
+# database, user, address (omit for local), method. The role writes the whole file, so this
+# list must contain the local entries the server needs for its own maintenance.
+# Список словарей. Правила аутентификации клиентов, записываемые в pg_hba.conf по порядку.
+# Ключи: type, database, user, address (опускается для local), method. Роль пишет файл
+# целиком, поэтому список обязан содержать локальные записи, нужные серверу для
+# собственного обслуживания.
+postgresql_hba_entries:
+  - { type: "local", database: "all", user: "postgres", method: "peer" }
+  - { type: "local", database: "all", user: "all", method: "peer" }
+  - { type: "host", database: "all", user: "all", address: "127.0.0.1/32", method: "scram-sha-256" }
+  - { type: "host", database: "all", user: "all", address: "::1/128", method: "scram-sha-256" }
+
+# Tuning
+# Тюнинг
+
+# Strings and integers. Values written to the managed drop-in. Defaults are deliberately
+# small: they suit a container with a few gigabytes of RAM and are meant to be overridden
+# per host rather than guessed by the role.
+# Строки и целые числа. Значения, записываемые в управляемый drop-in. Умолчания намеренно
+# скромные: они подходят контейнеру с несколькими гигабайтами ОЗУ и рассчитаны на
+# переопределение на уровне хоста, а не на угадывание ролью.
+postgresql_max_connections: 100
+postgresql_shared_buffers: "256MB"
+postgresql_effective_cache_size: "1GB"
+postgresql_work_mem: "8MB"
+postgresql_maintenance_work_mem: "128MB"
+postgresql_wal_compression: "on"
+
+# Boolean. Keep full_page_writes enabled. Default true.
+#
+# On ZFS this can safely be turned off: the filesystem never writes a block in place, so a
+# torn page cannot happen, and disabling the option removes a large amount of WAL traffic.
+# It stays on by default because turning it off is only safe when the data directory really
+# is on ZFS, and a role cannot verify that for every future host.
+#
+# Логическое значение. Оставить full_page_writes включённым. По умолчанию true.
+#
+# На ZFS его можно безопасно выключить: файловая система никогда не пишет блок на месте,
+# поэтому рваная страница невозможна, а отключение убирает существенный объём трафика WAL.
+# По умолчанию оставлен включённым, потому что выключать его безопасно, только если
+# каталог данных действительно на ZFS, а роль не может это гарантировать для любого хоста.
+postgresql_full_page_writes: true
+
+# Dict. Any further parameter=value pairs for the drop-in, applied after the ones above.
+# Словарь. Любые дополнительные пары параметр=значение для drop-in, применяемые после
+# перечисленных выше.
+postgresql_extra_settings: {}
+
+# Databases and roles
+# Базы и роли
+
+# List of dicts. Roles to create. Keys: name, password_var (name of the variable holding
+# the password), and optional role_attr_flags, for example "CREATEDB" or "SUPERUSER".
+# Passwords are taken by variable name, not by value, so they stay out of host_vars.
+# Список словарей. Создаваемые роли. Ключи: name, password_var (имя переменной с паролем)
+# и необязательный role_attr_flags, например "CREATEDB" или "SUPERUSER". Пароли берутся по
+# имени переменной, а не значением, чтобы не попадать в host_vars.
+postgresql_roles: []
+
+# List of dicts. Databases to create. Keys: name and optional owner, encoding, lc_collate,
+# lc_ctype.
+# Список словарей. Создаваемые базы. Ключи: name и необязательные owner, encoding,
+# lc_collate, lc_ctype.
+postgresql_databases: []
+
+# Service
+# Сервис
+
+# String. Steady state of the cluster service.
+# Строка. Устойчивое состояние сервиса кластера.
+postgresql_service_state: "started"
+
+# Boolean. Start the cluster at boot.
+# Логическое значение. Запускать кластер при загрузке.
+postgresql_service_enabled: true
