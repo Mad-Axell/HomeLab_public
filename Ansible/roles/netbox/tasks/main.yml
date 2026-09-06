@@ -173,6 +173,21 @@
   register: netbox_migrate_result
   changed_when: "'No migrations to apply' not in netbox_migrate_result.stdout"
 
+# The source archive ships documentation as markdown, not as the rendered site the
+# application serves, so the in-app help links 404 until it is built. It has to happen
+# before collectstatic, which is what copies the rendered tree into place.
+# Архив исходников несёт документацию в markdown, а не собранным сайтом, который отдаёт
+# приложение, поэтому ссылки на справку внутри интерфейса отдают 404, пока она не собрана.
+# Делать это нужно до collectstatic - именно он переносит собранное дерево на место.
+- name: Build the NetBox documentation
+  ansible.builtin.command:
+    cmd: "{{ netbox_install_root }}/venv/bin/mkdocs build --config-file {{ netbox_install_root }}/mkdocs.yml --site-dir {{ netbox_install_root }}/netbox/project-static/docs"
+    chdir: "{{ netbox_install_root }}"
+    creates: "{{ netbox_install_root }}/netbox/project-static/docs/index.html"
+  become: true
+  become_user: "{{ netbox_system_user }}"
+  register: netbox_docs_result
+
 - name: Collect the NetBox static files
   ansible.builtin.command:
     cmd: "{{ netbox_install_root }}/venv/bin/python {{ netbox_install_root }}/netbox/manage.py collectstatic --no-input"

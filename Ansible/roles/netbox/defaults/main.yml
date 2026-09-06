@@ -97,6 +97,27 @@ netbox_allowed_hosts: []
 # Строка или null. Имя переменной с Django SECRET_KEY.
 netbox_secret_key_var: null
 
+# String or null. Name of the variable holding the list of API token peppers.
+#
+# NetBox 4.6 introduced v2 API tokens, which are hashed with a pepper. Without this the
+# server starts, the interface works, and only token creation fails - with a warning
+# emitted at startup that nothing surfaces later: "API_TOKEN_PEPPERS is not defined.
+# v2 API tokens cannot be used."
+#
+# The first element is used for new tokens; older ones stay in the list so existing tokens
+# keep verifying. Removing a pepper invalidates every token hashed with it.
+#
+# Строка или null. Имя переменной со списком peppers для токенов API.
+#
+# NetBox 4.6 ввёл токены API v2, которые хэшируются с pepper. Без него сервер стартует,
+# интерфейс работает, и падает только создание токенов - с предупреждением при запуске,
+# которое дальше нигде не всплывает: "API_TOKEN_PEPPERS is not defined. v2 API tokens
+# cannot be used."
+#
+# Первый элемент используется для новых токенов, прежние остаются в списке, чтобы уже
+# выданные продолжали проверяться. Удаление pepper инвалидирует все хэшированные им токены.
+netbox_api_token_peppers_var: null
+
 # Database
 # База данных
 

@@ -52,6 +52,14 @@ REDIS = {
 # Смена этого значения инвалидирует все активные сессии и все подписанные значения,
 # поэтому считайте его постоянным на всё время жизни экземпляра.
 SECRET_KEY = {{ lookup('ansible.builtin.vars', netbox_secret_key_var) | to_json }}
+{% if netbox_api_token_peppers_var is not none %}
+
+# Peppers for v2 API tokens. The first entry hashes new tokens; earlier entries stay so
+# tokens issued with them keep verifying. Removing one invalidates every token it hashed.
+# Peppers для токенов API v2. Первый элемент хэширует новые токены, прежние остаются, чтобы
+# выданные с ними продолжали проверяться. Удаление любого инвалидирует хэшированные им.
+API_TOKEN_PEPPERS = {{ lookup('ansible.builtin.vars', netbox_api_token_peppers_var) | to_json }}
+{% endif %}
 
 # Uploaded attachments and images live outside the versioned installation tree, so that
 # replacing that tree during an upgrade cannot take them along.
