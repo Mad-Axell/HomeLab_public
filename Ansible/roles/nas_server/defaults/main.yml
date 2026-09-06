@@ -1,31 +1,138 @@
 ---
-# NAS share configuration
-# Конфигурация NAS-ресурса
+# NAS server configuration
+# Конфигурация NAS-сервера
 
 # Boolean. Enable change notifications in debug output.
 # Логическое значение. Включает уведомления об изменениях в debug-выводе.
 nas_server_debug_mode: false
 
-# String. Required directory exported by the NAS services.
-# Строка. Обязательный каталог, экспортируемый NAS-сервисами.
-nas_server_share_path: null
+# Samba
+# Samba
 
-# String. Samba share name.
-# Строка. Имя общего ресурса Samba.
-nas_server_share_name: "data"
-
-# Boolean. Publish the share using Samba.
-# Логическое значение. Публикует ресурс через Samba.
+# Boolean. Publish shares using Samba.
+# Логическое значение. Публикует ресурсы через Samba.
 nas_server_samba_enabled: true
 
-# Boolean. Allow guest access to the Samba share.
-# Логическое значение. Разрешает гостевой доступ к ресурсу Samba.
-nas_server_samba_guest_ok: false
+# List of strings. Packages installed when Samba is enabled. smbclient is included because
+# every verification of a share from the server itself needs it.
+# Список строк. Пакеты, устанавливаемые при включённой Samba. smbclient включён потому,
+# что без него ресурс невозможно проверить с самого сервера.
+nas_server_samba_packages:
+  - "samba"
+  - "smbclient"
 
-# Boolean. Publish the share using NFS.
-# Логическое значение. Публикует ресурс через NFS.
+# String. Path of the Samba configuration this role owns entirely.
+# Строка. Путь конфигурации Samba, которой роль владеет целиком.
+nas_server_samba_config_path: "/etc/samba/smb.conf"
+
+# String. NetBIOS workgroup.
+# Строка. Рабочая группа NetBIOS.
+nas_server_samba_workgroup: "WORKGROUP"
+
+# String. Samba server role.
+# Строка. Роль сервера Samba.
+nas_server_samba_server_role: "standalone server"
+
+# String. Behaviour for unknown users: bad user maps them to guest, never for a share
+# that declares valid users.
+# Строка. Поведение для неизвестных пользователей: bad user отображает их в гостя, что
+# никогда не срабатывает для ресурса с valid users.
+nas_server_samba_map_to_guest: "bad user"
+
+# Boolean. Keep the Unix password in sync when a user changes the Samba password.
+# Логическое значение. Синхронизировать Unix-пароль при смене пароля Samba.
+nas_server_samba_unix_password_sync: true
+
+# Boolean. Publish the [homes] section that exports each user home directory.
+# Логическое значение. Публиковать секцию [homes], экспортирующую домашние каталоги.
+nas_server_samba_homes_enabled: true
+
+# Boolean. Let usershares be created with guest access.
+# Логическое значение. Разрешить создание usershare с гостевым доступом.
+nas_server_samba_usershare_allow_guests: true
+
+# String. Log file pattern.
+# Строка. Шаблон файла журнала.
+nas_server_samba_log_file: "/var/log/samba/log.%m"
+
+# Integer. Maximum log size in KiB.
+# Целое число. Максимальный размер журнала в КиБ.
+nas_server_samba_max_log_size: 1000
+
+# List of dicts. Shares published by Samba. Required keys: name, path. Optional keys:
+# comment, browseable, read_only, guest_ok, force_user, force_group, valid_users,
+# write_list, create_mask, directory_mask, hosts_allow, hosts_deny.
+#
+# valid_users and write_list are lists; a name starting with @ is a group. A share that
+# declares valid_users is reachable only by those accounts, so every one of them needs a
+# Samba account - see nas_server_samba_users. Declaring the share without the account is
+# the usual reason a correct-looking configuration refuses every login.
+#
+# Список словарей. Ресурсы, публикуемые Samba. Обязательные ключи: name, path.
+# Необязательные: comment, browseable, read_only, guest_ok, force_user, force_group,
+# valid_users, write_list, create_mask, directory_mask, hosts_allow, hosts_deny.
+#
+# valid_users и write_list - списки; имя с @ означает группу. Ресурс с valid_users
+# доступен только перечисленным учётным записям, поэтому каждой из них нужна учётка
+# Samba - см. nas_server_samba_users. Объявить ресурс без учётки - обычная причина того,
+# что внешне верная конфигурация отвергает любой вход.
+nas_server_shares: []
+
+# List of dicts. Samba accounts to create. Required keys: name, password.
+# The account must already exist as a Unix user: Samba maps its database onto system
+# accounts, and smbpasswd refuses a name that /etc/passwd does not know.
+#
+# Список словарей. Учётные записи Samba. Обязательные ключи: name, password.
+# Учётная запись должна уже существовать как Unix-пользователь: Samba отображает свою
+# базу на системные учётки, и smbpasswd отвергает имя, неизвестное /etc/passwd.
+nas_server_samba_users: []
+
+# Boolean. Reset the password of every declared Samba account on each run.
+# Default false. Samba owns its password database, and a user may have changed the
+# password through smbpasswd or the unix password sync above. Forcing it back on every
+# run silently reverts that. Set to true only to deliberately reset the accounts.
+#
+# Логическое значение. Сбрасывать пароль каждой объявленной учётной записи Samba при
+# каждом прогоне. По умолчанию false. Базой паролей владеет сама Samba, и пользователь
+# мог сменить пароль через smbpasswd или через синхронизацию выше. Принудительный
+# возврат на каждом прогоне молча это отменяет. Ставьте true только для осознанного
+# сброса учётных записей.
+nas_server_samba_force_password: false
+
+# NFS
+# NFS
+
+# Boolean. Publish shares using NFS.
+# Логическое значение. Публикует ресурсы через NFS.
 nas_server_nfs_enabled: false
 
-# List. NFS client CIDRs or host addresses allowed to mount the share.
-# Список. CIDR или адреса NFS-клиентов, которым разрешено монтировать ресурс.
+# String. Package providing the NFS server.
+# Строка. Пакет, предоставляющий NFS-сервер.
+nas_server_nfs_package: "nfs-kernel-server"
+
+# String. Exports file this role owns.
+# Строка. Файл экспортов, которым владеет роль.
+nas_server_nfs_exports_path: "/etc/exports.d/nas_server.exports"
+
+# List of strings. Client CIDRs or addresses allowed to mount the exports.
+# Список строк. CIDR или адреса клиентов, которым разрешено монтировать экспорты.
 nas_server_nfs_clients: []
+
+# String. Options applied to every NFS export.
+# Строка. Опции, применяемые к каждому экспорту NFS.
+nas_server_nfs_options: "rw,sync,no_subtree_check"
+
+# Internal
+# Внутреннее
+
+# String. Internal. Path of the smbpasswd utility.
+# Строка. Внутреннее. Путь утилиты smbpasswd.
+nas_server_smbpasswd_command: "/usr/bin/smbpasswd"
+
+# String. Internal. Path of the pdbedit utility used to read the account database.
+# Строка. Внутреннее. Путь утилиты pdbedit для чтения базы учётных записей.
+nas_server_pdbedit_command: "/usr/bin/pdbedit"
+
+# String. Internal. Path of the net utility used to read the configuration registry.
+# Строка. Внутреннее. Путь утилиты net для чтения реестра конфигурации.
+nas_server_net_command: "/usr/bin/net"

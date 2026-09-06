@@ -1,56 +1,49 @@
 # nas_server
 
-This role creates one NAS directory and exports it through Samba, NFS, or both protocols.
+Publishes a declared set of directories over Samba, and optionally NFS, and creates the
+Samba accounts that can reach them.
 
-## What it does
+## The role owns smb.conf
 
-- Creates the share directory.
-- Installs and configures Samba when enabled.
-- Installs and configures NFS when enabled.
+`/etc/samba/smb.conf` is written in full from `nas_server_shares` and the global variables.
+Local edits are replaced, not merged, and the file is validated with `testparm` before it
+is installed.
 
-## Requirements
+It deliberately does **not** include the Samba configuration registry. A share created
+through Cockpit File Sharing or `net conf` lives in `registry.tdb`, where Ansible cannot
+see it, diff it, or restore it — and it stops being published the moment this file is
+written without an `include = registry` line. Because that failure is silent, the role
+reads the registry and names any share still defined there, so the operator can move it
+into the declaration and delete it with `net conf delshare`.
 
-- Debian or Ubuntu and `become: true`.
+## Shares and accounts are two separate things
 
-## Managed resources
+Samba keeps its own password database layered on top of the system accounts. A user
+created by `base/add_users` still cannot log in until an account exists here as well, and
+a share that declares `valid_users` accepts nobody until then. That combination looks like
+a working configuration and refuses every login, so the role asserts up front that every
+name appearing in `valid_users` or `write_list` has an entry in `nas_server_samba_users`.
+Names starting with `@` are groups and are resolved by Samba at connect time.
 
-- Packages: `samba`, `nfs-kernel-server` for enabled protocols.
-- Files: share directory, `/etc/samba/smb.conf`, `/etc/exports.d/<share>.exports`.
-- Services: `smbd`, `nfs-server`.
-- Users/groups: none.
-- Firewall/API objects: SMB and NFS must be allowed by separate firewall configuration.
+Passwords are written only for accounts that do not exist yet. Samba owns the database and
+a user may have changed the password since — through `smbpasswd` or through the
+`unix password sync` this role enables — so forcing the declared value on every run would
+silently revert that. `nas_server_samba_force_password: true` resets them deliberately.
 
-## Variables
+## Ownership of the exported directories
 
-| Variable | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `nas_server_debug_mode` | boolean | no | `false` | Reports whether the role changed anything. |
-| `nas_server_share_path` | string | yes | `null` | Exported directory path. |
-| `nas_server_share_name` | string | no | `"data"` | Samba/NFS share name. |
-| `nas_server_samba_enabled` | boolean | no | `true` | Enables Samba. |
-| `nas_server_samba_guest_ok` | boolean | no | `false` | Allows Samba guest access. |
-| `nas_server_nfs_enabled` | boolean | no | `false` | Enables NFS. |
-| `nas_server_nfs_clients` | list | conditional | `[]` | Allowed clients; required when NFS is enabled. |
+The role creates the share directories but does not touch their owner. In this project the
+paths are ZFS datasets whose ownership belongs to `pve_storage_zfs`; claiming them here
+would make two roles fight over the same attribute on every run.
 
-## Usage
+Use `force_user` and `force_group` on a share to normalise the owner of files written
+through it. Without them a shared directory accumulates files owned by whoever wrote them,
+and the next user cannot overwrite them.
 
-```yaml
----
-- name: Publish a NAS share
-  hosts: nas
-  become: true
-  roles:
-    - role: nas_server
-      vars:
-        nas_server_share_path: "/srv/data"
-        nas_server_nfs_enabled: true
-        nas_server_nfs_clients: ["192.168.1.0/24"]
-```
+## Required variables
 
-## Check mode and diff mode
+`nas_server_shares` — list of shares, each with at least `name` and `path`.
+`nas_server_samba_users` — accounts, each with `name` and `password`.
+NFS additionally requires `nas_server_nfs_clients`.
 
-Configuration templates support `--check --diff`; the NFS handler runs `exportfs -ra` only after the export changes.
-
-## Dependencies
-
-- None
+See `defaults/main.yml` for the full list.

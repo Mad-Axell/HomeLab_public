@@ -1,10 +1,76 @@
-[global]
-  workgroup = WORKGROUP
-  server role = standalone server
-  map to guest = Bad User
+{{ ansible_managed | comment }}
+# This file is owned by the nas_server Ansible role. Local edits are lost on the next run.
+# Shares are defined here, not in the configuration registry: a share created through
+# Cockpit File Sharing or "net conf" lives in registry.tdb, stays invisible to Ansible and
+# is silently dropped the moment this file stops including the registry.
+#
+# Этим файлом владеет роль Ansible nas_server. Правки на месте теряются при следующем
+# прогоне. Ресурсы описываются здесь, а не в реестре конфигурации: ресурс, созданный
+# через Cockpit File Sharing или "net conf", живёт в registry.tdb, для Ansible невидим и
+# исчезает в тот момент, когда этот файл перестаёт подключать реестр.
 
-[{{ nas_server_share_name }}]
-  path = {{ nas_server_share_path }}
-  read only = no
-  browseable = yes
-  guest ok = {{ 'yes' if nas_server_samba_guest_ok | bool else 'no' }}
+[global]
+  workgroup = {{ nas_server_samba_workgroup }}
+  server role = {{ nas_server_samba_server_role }}
+  map to guest = {{ nas_server_samba_map_to_guest }}
+  usershare allow guests = {{ 'yes' if nas_server_samba_usershare_allow_guests | bool else 'no' }}
+
+  logging = file
+  log file = {{ nas_server_samba_log_file }}
+  max log size = {{ nas_server_samba_max_log_size }}
+  panic action = /usr/share/samba/panic-action %d
+
+  obey pam restrictions = yes
+  pam password change = yes
+{% if nas_server_samba_unix_password_sync | bool %}
+  unix password sync = yes
+  passwd program = /usr/bin/passwd %u
+  passwd chat = *Enter\snew\s*\spassword:* %n\n *Retype\snew\s*\spassword:* %n\n *password\supdated\ssuccessfully* .
+{% else %}
+  unix password sync = no
+{% endif %}
+{% if nas_server_samba_homes_enabled | bool %}
+
+[homes]
+  comment = Home Directories
+  browseable = no
+  read only = yes
+  create mask = 0700
+  directory mask = 0700
+  valid users = %S
+{% endif %}
+{% for share in nas_server_shares %}
+
+[{{ share.name }}]
+  path = {{ share.path }}
+{% if share.comment is defined %}
+  comment = {{ share.comment }}
+{% endif %}
+  browseable = {{ 'yes' if share.browseable | default(true) | bool else 'no' }}
+  read only = {{ 'yes' if share.read_only | default(false) | bool else 'no' }}
+  guest ok = {{ 'yes' if share.guest_ok | default(false) | bool else 'no' }}
+{% if share.force_user is defined %}
+  force user = {{ share.force_user }}
+{% endif %}
+{% if share.force_group is defined %}
+  force group = {{ share.force_group }}
+{% endif %}
+{% if share.valid_users is defined and share.valid_users | length > 0 %}
+  valid users = {{ share.valid_users | join(', ') }}
+{% endif %}
+{% if share.write_list is defined and share.write_list | length > 0 %}
+  write list = {{ share.write_list | join(', ') }}
+{% endif %}
+{% if share.create_mask is defined %}
+  create mask = {{ share.create_mask }}
+{% endif %}
+{% if share.directory_mask is defined %}
+  directory mask = {{ share.directory_mask }}
+{% endif %}
+{% if share.hosts_allow is defined and share.hosts_allow | length > 0 %}
+  hosts allow = {{ share.hosts_allow | join(' ') }}
+{% endif %}
+{% if share.hosts_deny is defined and share.hosts_deny | length > 0 %}
+  hosts deny = {{ share.hosts_deny | join(' ') }}
+{% endif %}
+{% endfor %}

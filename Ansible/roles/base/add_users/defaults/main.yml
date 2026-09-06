@@ -26,6 +26,10 @@ add_users_home_mode: "0750"
 # Список. Пользователи для создания или обновления; password_hash_var ссылается на vault_add_users_<name>_password_hash.
 add_users_users: []
 
-# List. Supplementary groups created before managing users.
-# Список. Дополнительные группы, создаваемые до управления пользователями.
+# List. Supplementary groups created before managing users. An item is either a bare name
+# or a mapping with name and optional gid; pin the gid when the group owns data that is
+# also seen from outside this host, such as a bind-mounted dataset or an NFS export.
+# Список. Дополнительные группы, создаваемые до управления пользователями. Элемент - имя
+# или словарь с name и необязательным gid; фиксируйте gid, когда группа владеет данными,
+# видимыми и за пределами этого хоста: примонтированным датасетом, экспортом NFS.
 add_users_groups: []

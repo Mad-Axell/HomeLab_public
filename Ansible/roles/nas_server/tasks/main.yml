@@ -1,53 +1,206 @@
 ---
-# Validate the export path and enabled sharing protocols.
-# Проверка пути экспорта и включенных протоколов общего доступа.
-- name: Validate NAS share configuration
+# Validate the declared shares and enabled protocols before changing the host.
+# Проверка объявленных ресурсов и включённых протоколов до изменения хоста.
+- name: Validate NAS server configuration
   ansible.builtin.assert:
     that:
       - ansible_facts.os_family == 'Debian'
-      - nas_server_share_path is not none
-      - nas_server_share_path | length > 0
       - nas_server_samba_enabled | bool or nas_server_nfs_enabled | bool
+      - nas_server_shares is sequence
+      - nas_server_shares | length > 0
+      - nas_server_shares | selectattr('name', 'defined') | list | length == nas_server_shares | length
+      - nas_server_shares | selectattr('path', 'defined') | list | length == nas_server_shares | length
+      - nas_server_shares | map(attribute='name') | list | unique | length == nas_server_shares | length
+      - nas_server_samba_users is sequence
       - not nas_server_nfs_enabled | bool or nas_server_nfs_clients | length > 0
-    fail_msg: "nas_server requires a share path, at least one protocol, and NFS clients when NFS is enabled."
+    fail_msg: >-
+      nas_server requires Debian, at least one protocol, and a list of uniquely named shares
+      that each declare a name and a path. NFS additionally requires nas_server_nfs_clients.
 
-# Create the directory exported by Samba and NFS.
-# Создание каталога, экспортируемого Samba и NFS.
-- name: Create NAS share directory
-  ansible.builtin.file:
-    path: "{{ nas_server_share_path }}"
-    state: directory
-    mode: "0775"
-  register: nas_server_directory_result
+# Every account named in valid_users or write_list must have a Samba account, otherwise the
+# share exists and refuses every login. Group names starting with @ are resolved by Samba
+# at connect time and are therefore not checked here.
+# Каждая учётная запись из valid_users или write_list обязана иметь учётку Samba, иначе
+# ресурс существует и отвергает любой вход. Имена групп с @ Samba разрешает в момент
+# подключения, поэтому здесь они не проверяются.
+- name: Require a Samba account for every user named by a share
+  ansible.builtin.assert:
+    that:
+      - nas_server_share_named_users | difference(nas_server_samba_users | map(attribute='name') | list) | length == 0
+    fail_msg: >-
+      Shares name {{ nas_server_share_named_users | difference(nas_server_samba_users | map(attribute='name') | list) }}
+      in valid_users or write_list, but nas_server_samba_users declares no account for them.
+      Such a share accepts no login at all.
+  vars:
+    nas_server_share_named_users: >-
+      {{
+        nas_server_shares
+        | map(attribute='valid_users', default=[])
+        | list
+        | union(nas_server_shares | map(attribute='write_list', default=[]) | list)
+        | flatten
+        | reject('match', '^@')
+        | unique
+        | list
+      }}
+  when: nas_server_samba_enabled | bool
 
-# Install Samba only when the SMB export is requested.
-# Установка Samba только когда запрошен SMB-экспорт.
-- name: Install Samba server
+# Install Samba and the client used to verify a share from the server itself.
+# Установка Samba и клиента, которым ресурс проверяется с самого сервера.
+- name: Install Samba packages
   ansible.builtin.apt:
-    name: "samba"
+    name: "{{ nas_server_samba_packages }}"
     state: present
     update_cache: true
+    cache_valid_time: 3600
   when: nas_server_samba_enabled | bool
   register: nas_server_samba_package_result
 
-# Write the complete Samba configuration for the managed share.
-# Запись полной конфигурации Samba для управляемого ресурса.
-- name: Configure Samba share
+# Create the directories the shares export. Ownership is left to whoever owns the data:
+# on this project the paths are ZFS datasets whose owner is set by pve_storage_zfs, and
+# taking them over here would fight that role.
+# Создание каталогов, экспортируемых ресурсами. Владелец не трогается: в этом проекте
+# пути являются датасетами ZFS, владельца которым выставляет роль pve_storage_zfs, и
+# перехват здесь спорил бы с ней.
+- name: Create the share directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.directory_mask | default('0775') }}"
+  loop: "{{ nas_server_shares }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: nas_server_directory_result
+
+# Read shares held in the configuration registry. This role owns smb.conf and does not
+# include the registry, so anything defined there - typically by Cockpit File Sharing or a
+# manual "net conf" - stops being published the moment this configuration is written. The
+# read is only to say so out loud rather than let the shares disappear quietly.
+# Чтение ресурсов, хранящихся в реестре конфигурации. Роль владеет smb.conf и реестр не
+# подключает, поэтому всё описанное там - обычно Cockpit File Sharing или ручной
+# "net conf" - перестаёт публиковаться в момент записи этой конфигурации. Чтение нужно
+# только чтобы сказать об этом вслух, а не дать ресурсам исчезнуть молча.
+- name: Read shares defined in the Samba configuration registry
+  ansible.builtin.command:
+    argv:
+      - "{{ nas_server_net_command }}"
+      - "conf"
+      - "listshares"
+  register: nas_server_registry_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: nas_server_samba_enabled | bool
+
+- name: Report shares that the configuration registry still holds
+  ansible.builtin.debug:
+    msg: >-
+      The Samba configuration registry still defines
+      {{ nas_server_registry_result.stdout_lines | reject('equalto', '') | list }}.
+      This role owns {{ nas_server_samba_config_path }} and does not include the registry,
+      so those shares are no longer published. They were most likely created through
+      Cockpit File Sharing. Declare the ones you still need in nas_server_shares, then
+      remove them with "net conf delshare <name>".
+  when:
+    - nas_server_samba_enabled | bool
+    - (nas_server_registry_result.rc | default(1)) == 0
+    - (nas_server_registry_result.stdout_lines | default([]) | reject('equalto', '') | list | length) > 0
+
+# Write the Samba configuration. This role owns the file completely: every share, the
+# global block and the homes section come from the declaration, so an unmanaged edit is
+# replaced rather than merged.
+# Запись конфигурации Samba. Роль владеет файлом целиком: все ресурсы, глобальный блок и
+# секция homes берутся из объявления, поэтому неуправляемая правка заменяется, а не
+# сливается.
+- name: Configure Samba
   ansible.builtin.template:
     src: "smb.conf.j2"
-    dest: "/etc/samba/smb.conf"
+    dest: "{{ nas_server_samba_config_path }}"
+    owner: "root"
+    group: "root"
     mode: "0644"
+    validate: "testparm -s %s"
   when: nas_server_samba_enabled | bool
   notify: Restart Samba
   register: nas_server_samba_configuration_result
 
-# Ensure the Samba service is active for the managed export.
-# Обеспечение активности сервиса Samba для управляемого экспорта.
-- name: Manage Samba service
+# Read which Samba accounts already exist, so existing passwords are not reset silently.
+# Чтение уже существующих учётных записей Samba, чтобы не сбрасывать пароли молча.
+- name: Read the existing Samba accounts
+  ansible.builtin.command:
+    argv:
+      - "{{ nas_server_pdbedit_command }}"
+      - "-L"
+  register: nas_server_account_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: nas_server_samba_enabled | bool
+
+# Create the Samba accounts. Samba keeps its own password database on top of the system
+# accounts, so a user created by add_users still cannot log in until it exists here too.
+# The password is written only for an account that is absent, unless a reset is requested.
+# Создание учётных записей Samba. Samba держит собственную базу паролей поверх системных
+# учёток, поэтому пользователь, созданный ролью add_users, войти не может, пока его нет и
+# здесь. Пароль записывается только для отсутствующей учётки, если не запрошен сброс.
+- name: Create the Samba accounts
+  ansible.builtin.shell:
+    cmd: >-
+      printf '%s\n%s\n' {{ item.password | quote }} {{ item.password | quote }}
+      | {{ nas_server_smbpasswd_command }} -s -a {{ item.name | quote }}
+  loop: "{{ nas_server_samba_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - nas_server_samba_enabled | bool
+    - nas_server_samba_force_password | bool
+      or item.name not in (nas_server_account_result.stdout | default('') | regex_findall('^([^:]+):', multiline=True))
+  no_log: true
+  changed_when: true
+  register: nas_server_account_create_result
+
+# Enable the accounts, because smbpasswd -a leaves an account usable but a later -d would
+# not be undone by re-adding it.
+# Включение учётных записей: smbpasswd -a оставляет учётку рабочей, но выполненный позже
+# -d повторным добавлением не отменяется.
+- name: Enable the Samba accounts
+  ansible.builtin.command:
+    argv:
+      - "{{ nas_server_smbpasswd_command }}"
+      - "-e"
+      - "{{ item.name }}"
+  loop: "{{ nas_server_samba_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: nas_server_samba_enabled | bool
+  changed_when: false
+
+# State plainly that passwords of existing accounts are not being applied, so an unchanged
+# run is not mistaken for one that enforced them.
+# Явное сообщение о том, что пароли существующих учёток не применяются, чтобы прогон без
+# изменений не приняли за применивший их.
+- name: Report that existing Samba passwords are left untouched
+  ansible.builtin.debug:
+    msg: >-
+      Samba accounts already exist and keep their current passwords. The passwords in
+      nas_server_samba_users are NOT applied to them - Samba owns its password database and
+      a user may have changed the password since. Run with
+      nas_server_samba_force_password=true to deliberately reset every declared account.
+  when:
+    - nas_server_samba_enabled | bool
+    - not (nas_server_samba_force_password | bool)
+    - (nas_server_account_result.stdout | default('') | length) > 0
+
+# Ensure the Samba services reach their steady state.
+# Обеспечение устойчивого состояния сервисов Samba.
+- name: Manage the Samba services
   ansible.builtin.systemd:
-    name: "smbd"
+    name: "{{ item }}"
     state: started
     enabled: true
+  loop:
+    - "smbd"
+    - "nmbd"
   when: nas_server_samba_enabled | bool
   register: nas_server_samba_service_result
 
@@ -55,26 +208,34 @@
 # Установка NFS только когда запрошен NFS-экспорт.
 - name: Install NFS server
   ansible.builtin.apt:
-    name: "nfs-kernel-server"
+    name: "{{ nas_server_nfs_package }}"
     state: present
     update_cache: true
+    cache_valid_time: 3600
   when: nas_server_nfs_enabled | bool
   register: nas_server_nfs_package_result
 
-# Write the NFS exports file for the managed share.
-# Запись файла NFS exports для управляемого ресурса.
-- name: Configure NFS export
+- name: Create the NFS exports directory
+  ansible.builtin.file:
+    path: "{{ nas_server_nfs_exports_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: nas_server_nfs_enabled | bool
+
+# Export every declared share over NFS to the declared clients.
+# Экспорт каждого объявленного ресурса по NFS объявленным клиентам.
+- name: Configure the NFS exports
   ansible.builtin.template:
     src: "exports.j2"
-    dest: "/etc/exports.d/{{ nas_server_share_name }}.exports"
+    dest: "{{ nas_server_nfs_exports_path }}"
+    owner: "root"
+    group: "root"
     mode: "0644"
   when: nas_server_nfs_enabled | bool
   notify: Reload NFS exports
   register: nas_server_nfs_configuration_result
 
-# Ensure the NFS server is active for the managed export.
-# Обеспечение активности NFS-сервера для управляемого экспорта.
-- name: Manage NFS service
+- name: Manage the NFS service
   ansible.builtin.systemd:
     name: "nfs-server"
     state: started
@@ -82,20 +243,24 @@
   when: nas_server_nfs_enabled | bool
   register: nas_server_nfs_service_result
 
-# Report NAS share changes without displaying export client details.
-# Вывод изменений NAS-ресурса без отображения данных клиентов экспорта.
-- name: Display NAS share change summary
+# Report the aggregate result without displaying share clients or secrets.
+# Вывод агрегированного результата без отображения клиентов ресурсов и секретов.
+- name: Display NAS server change summary
   ansible.builtin.debug:
-    msg: "NAS share configuration {{ 'would change' if ansible_check_mode else 'changed' }}."
+    msg: >-
+      NAS server configuration {{ 'would change' if ansible_check_mode else 'changed' }}:
+      {{ nas_server_shares | length }} shares,
+      {{ nas_server_samba_users | length }} Samba accounts.
   when:
     - nas_server_debug_mode | bool
     - >-
       (nas_server_directory_result.changed | default(false) | bool)
-      or (nas_server_samba_package_result is defined and nas_server_samba_package_result.changed | default(false) | bool)
-      or (nas_server_samba_configuration_result is defined and nas_server_samba_configuration_result.changed | default(false) | bool)
-      or (nas_server_samba_service_result is defined and nas_server_samba_service_result.changed | default(false) | bool)
-      or (nas_server_nfs_package_result is defined and nas_server_nfs_package_result.changed | default(false) | bool)
-      or (nas_server_nfs_configuration_result is defined and nas_server_nfs_configuration_result.changed | default(false) | bool)
-      or (nas_server_nfs_service_result is defined and nas_server_nfs_service_result.changed | default(false) | bool)
+      or (nas_server_samba_package_result.changed | default(false) | bool)
+      or (nas_server_samba_configuration_result.changed | default(false) | bool)
+      or (nas_server_account_create_result.changed | default(false) | bool)
+      or (nas_server_samba_service_result.changed | default(false) | bool)
+      or (nas_server_nfs_package_result.changed | default(false) | bool)
+      or (nas_server_nfs_configuration_result.changed | default(false) | bool)
+      or (nas_server_nfs_service_result.changed | default(false) | bool)
   tags:
     - debug

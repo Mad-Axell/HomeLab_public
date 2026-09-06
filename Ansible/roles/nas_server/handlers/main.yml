@@ -1,10 +1,15 @@
 ---
-# Restart Samba after its managed configuration changes.
-# Перезапуск Samba после изменения управляемой конфигурации.
+# Restart Samba after its managed configuration changes. nmbd is restarted too because it
+# reads the same file and would otherwise keep announcing the previous share list.
+# Перезапуск Samba после изменения управляемой конфигурации. nmbd перезапускается тоже,
+# поскольку читает тот же файл и иначе продолжит анонсировать прежний список ресурсов.
 - name: Restart Samba
   ansible.builtin.systemd:
-    name: "smbd"
+    name: "{{ item }}"
     state: restarted
+  loop:
+    - "smbd"
+    - "nmbd"
 
 # Reload NFS exports after the export definition changes.
 # Перезагрузка NFS exports после изменения определения экспорта.

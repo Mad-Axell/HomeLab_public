@@ -32,13 +32,24 @@
   when: add_users_users | selectattr('sudo', 'defined') | selectattr('sudo') | list | length > 0
   register: add_users_sudo_package_result
 
-# Create explicitly declared supplementary groups.
-# Создание явно объявленных дополнительных групп.
+# Create explicitly declared supplementary groups. An item may be a bare name or a mapping
+# with name and gid. Pinning the gid matters whenever the group owns data outside the
+# host - a bind-mounted dataset, an NFS export - because there the numeric id is the only
+# thing that carries across, and a group that drifts to the next free number silently
+# loses access to files it used to own.
+# Создание явно объявленных дополнительных групп. Элемент может быть именем или словарём
+# с name и gid. Фиксация gid важна там, где группа владеет данными за пределами хоста -
+# примонтированный датасет, экспорт NFS, - потому что наружу передаётся только числовой
+# идентификатор, и группа, съехавшая на следующий свободный номер, молча теряет доступ к
+# файлам, которыми владела.
 - name: Create declared supplementary groups
   ansible.builtin.group:
-    name: "{{ item }}"
+    name: "{{ item.name | default(item) }}"
+    gid: "{{ item.gid | default(omit) if item is mapping else omit }}"
     state: present
   loop: "{{ add_users_groups }}"
+  loop_control:
+    label: "{{ item.name | default(item) }}"
   register: add_users_group_result
 
 # Create groups referenced by managed users before assigning memberships.
