@@ -203,6 +203,82 @@
     label: "{{ item.item.name }}"
   when: not (item.skipped | default(false))
 
+# Compare the disks a pool is actually built from with the declared ones. Matching
+# topology is not enough: a pool can carry the right shape on the wrong drives, for example
+# after a disk was replaced by hand and the inventory never followed. Names come from
+# zpool itself, so a pool created from /dev/sdX paths also reads as a mismatch, which is
+# the intended outcome - those names are not stable across reboots.
+# Сравнивает диски, из которых пул собран фактически, с объявленными. Совпадения
+# топологии недостаточно: пул может иметь верную форму на неверных дисках, например после
+# ручной замены накопителя, за которой инвентарь не последовал. Имена берутся у самого
+# zpool, поэтому пул, созданный по путям /dev/sdX, тоже даст расхождение - и это
+# намеренно: такие имена между перезагрузками не стабильны.
+- name: Require the pool members to match the declared devices
+  ansible.builtin.assert:
+    that:
+      - pve_storage_zfs_member_devices | sort == pve_storage_zfs_declared_devices | sort
+    fail_msg: >-
+      ZFS pool {{ item.item.name }} is built from {{ pve_storage_zfs_member_devices | sort }}
+      but the inventory declares {{ pve_storage_zfs_declared_devices | sort }}. Update the
+      declaration to the disks actually in service, or replace the disks to match it.
+  vars:
+    pve_storage_zfs_child_names: >-
+      {{
+        item.stdout_lines | default([])
+        | select('match', '\t')
+        | map('regex_replace', '^\t([^\t]+)\t.*$', '\1')
+        | list
+      }}
+    pve_storage_zfs_member_devices: >-
+      {{
+        pve_storage_zfs_child_names
+        | reject('match', '^(mirror|raidz[1-3]?|draid[1-3]?)-[0-9]+$')
+        | list
+      }}
+    pve_storage_zfs_declared_devices: >-
+      {{ item.item.devices | map('basename') | list }}
+  loop: "{{ pve_storage_zfs_layout_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not (item.skipped | default(false))
+
+# ashift is fixed when a vdev is created and can never be changed afterwards. A pool built
+# with the wrong value keeps working while quietly wasting space and write bandwidth on
+# 4K-sector drives, and only a rebuild can correct it, so it is worth catching here.
+# ashift фиксируется при создании vdev и после этого не меняется никогда. Пул, собранный
+# с неверным значением, продолжает работать, тихо теряя место и полосу записи на дисках с
+# сектором 4K, и исправляется только пересборкой - поэтому ловить его надо здесь.
+- name: Read the ashift of existing ZFS pools
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/zpool
+      - get
+      - -H
+      - -o
+      - value
+      - ashift
+      - "{{ item.name }}"
+  loop: "{{ pve_storage_zfs_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name in pve_storage_zfs_pool_list_after.stdout_lines | default([])
+  register: pve_storage_zfs_ashift_result
+  changed_when: false
+  check_mode: false
+
+- name: Require the actual ashift to match the declaration
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | trim) == (item.item.ashift | default(12) | string)
+    fail_msg: >-
+      ZFS pool {{ item.item.name }} was created with ashift={{ item.stdout | trim }} while
+      the inventory declares {{ item.item.ashift | default(12) }}. ashift is immutable once
+      a vdev exists; only destroying and recreating the pool can change it.
+  loop: "{{ pve_storage_zfs_ashift_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not (item.skipped | default(false))
+
 - name: Configure ZFS datasets and properties
   community.general.zfs:
     name: "{{ item.name }}"
