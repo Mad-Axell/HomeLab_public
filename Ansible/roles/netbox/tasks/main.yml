@@ -214,6 +214,12 @@
     - "'False' in (netbox_superuser_stat.stdout | default(''))"
   register: netbox_superuser_result
 
+# Written without validate: the file is a bare server block, and nginx -t on it alone
+# fails because a server block outside an http context is not a configuration. The whole
+# configuration is checked below instead, once the site is enabled and the default is gone.
+# Пишется без validate: файл - это голый блок server, и nginx -t на нём одном падает,
+# потому что server вне контекста http конфигурацией не является. Вместо этого ниже
+# проверяется вся конфигурация целиком, уже после включения сайта и удаления умолчания.
 - name: Configure the nginx site
   ansible.builtin.template:
     src: "nginx.conf.j2"
@@ -221,7 +227,6 @@
     owner: "root"
     group: "root"
     mode: "0644"
-    validate: "nginx -t -c /etc/nginx/nginx.conf"
   notify: Reload nginx
   register: netbox_nginx_result
 
@@ -241,6 +246,17 @@
     path: "/etc/nginx/sites-enabled/default"
     state: absent
   notify: Reload nginx
+
+# Check the assembled configuration before a reload is attempted. A broken site file would
+# otherwise be caught by the handler, which fails after the run has already moved on.
+# Проверка собранной конфигурации до попытки перезагрузки. Иначе сломанный файл сайта
+# поймал бы handler, а он срабатывает, когда прогон уже ушёл дальше.
+- name: Validate the assembled nginx configuration
+  ansible.builtin.command:
+    argv:
+      - "/usr/sbin/nginx"
+      - "-t"
+  changed_when: false
 
 - name: Manage the NetBox services
   ansible.builtin.systemd:
