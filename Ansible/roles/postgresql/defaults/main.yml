@@ -13,10 +13,20 @@ postgresql_debug_mode: false
 # community.postgresql modules that create databases and roles.
 # Список строк. Пакеты сервера. python3-psycopg2 нужен модулям community.postgresql,
 # создающим базы и роли.
+# sudo is here because administering PostgreSQL means running as the postgres account, and
+# Ansible switches users with sudo by default. Minimal Debian container images do not ship
+# it, and its absence surfaces as "Module result deserialization failed: No start of json
+# char found" - the module never runs, and the shell error takes its place on stdout.
+# sudo здесь потому, что администрирование PostgreSQL означает выполнение от учётной записи
+# postgres, а Ansible переключает пользователя через sudo по умолчанию. В минимальных
+# образах Debian его нет, и отсутствие проявляется как "Module result deserialization
+# failed: No start of json char found" - модуль не запускается, и на его место в stdout
+# попадает ошибка оболочки.
 postgresql_packages:
   - "postgresql"
   - "postgresql-contrib"
   - "python3-psycopg2"
+  - "sudo"
 
 # String. Directory holding every cluster of this host. On Debian it is also the home
 # directory of the postgres user, and the distribution creates the default cluster inside
