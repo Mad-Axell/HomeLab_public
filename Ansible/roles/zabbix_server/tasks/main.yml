@@ -463,8 +463,15 @@
   ansible.builtin.assert:
     that:
       - item.json.error is not defined
+    # Подстрочная запись, а не точечная: fail_msg вычисляется до проверки условия, и на
+    # успешном ответе item.json.error отсутствует - обращение через точку к отсутствующему
+    # ключу словаря роняет шаблонизацию сообщения, превращая успешный импорт в ошибку.
+    # Subscript rather than dot: fail_msg is rendered before the condition is evaluated, and
+    # on a successful response item.json.error is absent - a dotted lookup of a missing dict
+    # key breaks rendering the message and turns a successful import into a failure.
     fail_msg: >-
-      Importing {{ item.item }} failed: {{ item.json.error.data | default(item.json.error) }}
+      Importing {{ item.item }} failed:
+      {{ item.json['error']['data'] | default(item.json['error'] | default('no error field in the response')) }}
   loop: "{{ zabbix_server_import_result.results | default([]) }}"
   loop_control:
     label: "{{ item.item | default('') }}"
