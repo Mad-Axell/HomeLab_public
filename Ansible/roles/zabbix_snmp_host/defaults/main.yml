@@ -79,3 +79,18 @@ zabbix_snmp_host_templates:
 # String. Free-text description stored on the host object.
 # Строка. Произвольное описание, сохраняемое в объекте хоста.
 zabbix_snmp_host_description: ""
+
+# String. Whether the server polls this host: enabled or disabled.
+#
+# A device that cannot answer should be disabled rather than left enabled and unreachable.
+# An enabled host that never replies is a permanent red row and a permanent alert, and a
+# monitoring system whose alerts are always on stops being read - so a known-unpollable
+# device costs more than it is worth until it can answer.
+#
+# Строка. Опрашивает ли сервер этот хост: enabled или disabled.
+#
+# Устройство, которое отвечать не может, следует выключить, а не оставлять включённым и
+# недостижимым. Включённый хост, который никогда не отвечает, - это вечно красная строка и
+# вечное оповещение, а систему мониторинга, где оповещения горят всегда, перестают читать.
+# Заведомо неопрашиваемое устройство обходится дороже пользы от него, пока не сможет ответить.
+zabbix_snmp_host_status: "enabled"

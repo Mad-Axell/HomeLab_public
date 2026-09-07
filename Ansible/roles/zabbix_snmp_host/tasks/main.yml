@@ -72,7 +72,7 @@
     host_groups: "{{ zabbix_snmp_host_groups }}"
     link_templates: "{{ zabbix_snmp_host_templates }}"
     description: "{{ zabbix_snmp_host_description }}"
-    status: enabled
+    status: "{{ zabbix_snmp_host_status }}"
     state: present
     macros:
       - macro: "{{ zabbix_snmp_host_community_macro }}"
