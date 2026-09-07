@@ -10,7 +10,7 @@ zabbix_export:
     - uuid: 36bff6c29af64692839d077febfc7079
       name: Templates/Network devices
   templates:
-    - uuid: a1c4f2b7e5d34c8fb2a7e6c93d15af20
+    - uuid: a7616081ab6f4f23b2d54c26d6cb3b17
       template: 'UniFi Device by HTTP'
       name: 'UniFi Device by HTTP'
       description: |
@@ -50,7 +50,7 @@ zabbix_export:
       groups:
         - name: Templates/Network devices
       items:
-        - uuid: b2d5f3c8a6e44d9ec3b8f7da4e26bf31
+        - uuid: 63a80fd2930b4ab589a0abbe86799b55
           name: 'UniFi: device entry'
           type: SCRIPT
           key: unifi.device.raw
@@ -111,7 +111,7 @@ zabbix_export:
             Один запрос за интервал. Всё остальное зависит от этого элемента, поэтому отказ
             сообщается один раз, а не по разу на каждую метрику.
 
-        - uuid: c3e6a4d9b7f55e0fd4c9a8eb5f37c042
+        - uuid: 836240b8557e4724a3ed7cad848fb9f6
           name: 'UniFi: state'
           type: DEPENDENT
           key: unifi.device.state
@@ -131,12 +131,12 @@ zabbix_export:
           master_item:
             key: unifi.device.raw
           triggers:
-            - uuid: d4f7b5eac8066f1ae5da0b9fc6048153
+            - uuid: e0d00ab87e1345748f8e82c945314f39
               expression: 'last(/UniFi Device by HTTP/unifi.device.state)<>1'
               name: 'UniFi: device is not connected'
               priority: HIGH
 
-        - uuid: e5a8c6fbd9177a2bf6ebac0ad7159264
+        - uuid: 9a2e97b901d34c18997c47227f0dcd69
           name: 'UniFi: uptime'
           type: DEPENDENT
           key: unifi.device.uptime
@@ -150,7 +150,7 @@ zabbix_export:
           master_item:
             key: unifi.device.raw
 
-        - uuid: f6b9d7acea288b3ca7fcbd1be8260375
+        - uuid: 7cd9f0b1daf54ee48c10935b65341004
           name: 'UniFi: connected clients'
           type: DEPENDENT
           key: unifi.device.clients
@@ -168,7 +168,7 @@ zabbix_export:
           master_item:
             key: unifi.device.raw
 
-        - uuid: a7cae8bdfb399c4db8adce2cf9371486
+        - uuid: 095d316148714b95b5cc541681db487d
           name: 'UniFi: firmware version'
           type: DEPENDENT
           key: unifi.device.version
@@ -185,7 +185,7 @@ zabbix_export:
           master_item:
             key: unifi.device.raw
 
-        - uuid: b8dbf9ceac4aad5ec9bedf3da0482597
+        - uuid: 6f80c49da4824bbc93b41582e9ae6169
           name: 'UniFi: model'
           type: DEPENDENT
           key: unifi.device.model
@@ -202,7 +202,7 @@ zabbix_export:
           master_item:
             key: unifi.device.raw
 
-        - uuid: c9ecfadfb5bbe6fdacfea04eb1593608
+        - uuid: cb980b42568943c482f1f207dabd1eb4
           name: 'UniFi: CPU utilisation'
           type: DEPENDENT
           key: unifi.device.cpu
@@ -218,7 +218,7 @@ zabbix_export:
           master_item:
             key: unifi.device.raw
 
-        - uuid: dafdab0ec6ccf70ebdafb15fc26a4719
+        - uuid: ce6c43100d6248508ea8e0e0227baa1d
           name: 'UniFi: memory utilisation'
           type: DEPENDENT
           key: unifi.device.memory
@@ -250,7 +250,7 @@ zabbix_export:
           value: '{HOST.CONN}'
           description: 'Address the controller reports for this device; used to pick its entry out of stat/device'
       valuemaps:
-        - uuid: eb0ebc1fd7dd081fceb0c26fd37b582a
+        - uuid: f9716b1013e54c85a6046acd61a7c45f
           name: 'UniFi device state'
           mappings:
             - value: '0'
