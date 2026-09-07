@@ -120,6 +120,19 @@
     ansible_httpapi_pass: "{{ lookup('ansible.builtin.vars', zabbix_agent_api_password_var) }}"
   when: zabbix_agent_register | bool
   register: zabbix_agent_group_result
+  # Хосты идут параллельно, и все они создают одни и те же группы. Проигравший гонку
+  # получает от API "Host group already exists" как ошибку, а не как признак того, что
+  # цель уже достигнута. throttle убирает гонку внутри прогона, а failed_when - между
+  # прогонами и между плейбуками, где throttle не помогает.
+  #
+  # Hosts run in parallel and all of them create the same groups. Whoever loses the race
+  # gets "Host group already exists" from the API as an error rather than as a sign the
+  # goal is already met. throttle removes the race inside one run; failed_when covers the
+  # races between runs and between playbooks, where throttle cannot help.
+  throttle: 1
+  failed_when:
+    - zabbix_agent_group_result is failed
+    - "'already exists' not in (zabbix_agent_group_result.msg | default(''))"
 
 - name: Register the host on the Zabbix server
   community.zabbix.zabbix_host:
