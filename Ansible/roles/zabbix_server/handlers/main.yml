@@ -1,0 +1,16 @@
+---
+- name: Restart Zabbix server
+  ansible.builtin.systemd:
+    name: "zabbix-server"
+    state: restarted
+
+- name: Reload php-fpm
+  ansible.builtin.systemd:
+    name: "{{ zabbix_server_php_service.stdout | trim }}"
+    state: reloaded
+  when: zabbix_server_php_service.stdout is defined
+
+- name: Reload nginx
+  ansible.builtin.systemd:
+    name: "nginx"
+    state: reloaded

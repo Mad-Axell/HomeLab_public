@@ -1,0 +1,31 @@
+<?php
+// {{ ansible_managed }}
+// Owned by the zabbix_server Ansible role. Its presence is what keeps the setup wizard
+// from appearing: a wizard completed by hand is configuration that exists nowhere in
+// this repository.
+// Принадлежит роли Ansible zabbix_server. Именно наличие этого файла не даёт появиться
+// мастеру установки: пройденный руками мастер - это конфигурация, которой нет нигде в
+// репозитории.
+
+global $DB, $HISTORY;
+
+$DB['TYPE']     = 'POSTGRESQL';
+$DB['SERVER']   = '{{ zabbix_server_database_host }}';
+$DB['PORT']     = '{{ zabbix_server_database_port }}';
+$DB['DATABASE'] = '{{ zabbix_server_database_name }}';
+$DB['USER']     = '{{ zabbix_server_database_user }}';
+$DB['PASSWORD'] = '{{ lookup('ansible.builtin.vars', zabbix_server_database_password_var) }}';
+$DB['SCHEMA']   = '';
+
+$DB['ENCRYPTION']       = false;
+$DB['KEY_FILE']         = '';
+$DB['CERT_FILE']        = '';
+$DB['CA_FILE']          = '';
+$DB['VERIFY_HOST']      = false;
+$DB['CIPHER_LIST']      = '';
+
+$DB['DOUBLE_IEEE754']   = true;
+
+$ZBX_SERVER_NAME = '{{ zabbix_server_frontend_title }}';
+
+$IMAGE_FORMAT_DEFAULT = IMAGE_FORMAT_PNG;

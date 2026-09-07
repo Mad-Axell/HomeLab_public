@@ -1,0 +1,131 @@
+---
+# Zabbix agent configuration
+# Конфигурация агента Zabbix
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+zabbix_agent_debug_mode: false
+
+# Repository
+# Репозиторий
+
+# String. Zabbix release channel. X.0 releases are the long term support ones; anything else
+# is supported for about six months and then needs a major upgrade.
+# Строка. Канал выпуска Zabbix. Выпуски вида X.0 - долгосрочной поддержки; остальные
+# поддерживаются около полугода, после чего требуют мажорного обновления.
+zabbix_agent_version: "8.0"
+
+# String. URL of the package that installs the Zabbix apt repository. The distribution
+# codename is taken from facts, so the same value works on bookworm and trixie.
+# Строка. URL пакета, устанавливающего apt-репозиторий Zabbix. Кодовое имя дистрибутива
+# берётся из facts, поэтому одно значение работает и на bookworm, и на trixie.
+zabbix_agent_release_package_url: >-
+  https://repo.zabbix.com/zabbix/{{ zabbix_agent_version }}/release/debian/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix_agent_version }}+debian{{ ansible_facts.distribution_major_version }}_all.deb
+
+# List of strings. Packages installed on a monitored host.
+# Список строк. Пакеты, устанавливаемые на наблюдаемом хосте.
+zabbix_agent_packages:
+  - "zabbix-agent2"
+
+# Agent
+# Агент
+
+# String or null. Address of the Zabbix server, used for passive checks - the server opens
+# the connection to the agent.
+# Строка или null. Адрес сервера Zabbix для пассивных проверок: сервер сам открывает
+# соединение к агенту.
+zabbix_agent_server: null
+
+# String or null. Address the agent sends active checks to. Defaults to the passive server.
+# Строка или null. Адрес, куда агент отправляет активные проверки. По умолчанию совпадает
+# с адресом пассивного сервера.
+zabbix_agent_server_active: null
+
+# String. Name this agent reports itself under.
+#
+# It MUST equal the host name on the server, letter for letter. Active checks are matched by
+# this string alone: a mismatch leaves the host looking configured and connected while every
+# active item stays unsupported, and nothing anywhere says why. Passive checks keep working,
+# which makes the failure look partial rather than misconfigured.
+#
+# Строка. Имя, под которым агент себя объявляет.
+#
+# Оно ОБЯЗАНО совпадать с именем хоста на сервере, буква в букву. Активные проверки
+# сопоставляются только по этой строке: расхождение оставляет хост выглядящим настроенным и
+# подключённым, тогда как все активные элементы остаются неподдерживаемыми, и нигде не
+# сказано почему. Пассивные проверки при этом работают, отчего отказ выглядит частичным, а
+# не ошибкой настройки.
+zabbix_agent_hostname: "{{ inventory_hostname }}"
+
+# Integer. Port the agent listens on for passive checks.
+# Целое число. Порт, на котором агент принимает пассивные проверки.
+zabbix_agent_listen_port: 10050
+
+# String. Path of the drop-in this role owns. The distribution file is left alone and only
+# gains an include of this directory, which it ships already enabled.
+# Строка. Путь drop-in, которым владеет роль. Файл дистрибутива не трогается и лишь
+# подключает этот каталог, что он и делает из коробки.
+zabbix_agent_config_path: "/etc/zabbix/zabbix_agent2.d/10-ansible.conf"
+
+# Dict. Any further directive=value pairs appended to the drop-in.
+# Словарь. Любые дополнительные пары директива=значение, дописываемые в drop-in.
+zabbix_agent_extra_settings: {}
+
+# Registration on the server
+# Регистрация на сервере
+
+# Boolean. Create or update the host object on the Zabbix server through its API.
+#
+# Installing the agent does not make a host monitored: until the server knows about it,
+# nothing is collected and the host is invisible. Both halves belong together, which is why
+# this role owns both.
+#
+# Логическое значение. Создать или обновить объект хоста на сервере Zabbix через его API.
+#
+# Установка агента сама по себе не делает хост наблюдаемым: пока сервер о нём не знает,
+# ничего не собирается и хост невидим. Обе половины неразделимы, поэтому роль владеет
+# обеими.
+zabbix_agent_register: true
+
+# String or null. Base URL of the Zabbix frontend, for example http://172.25.40.51.
+# Строка или null. Базовый URL веб-интерфейса Zabbix, например http://172.25.40.51.
+zabbix_agent_api_url: null
+
+# String. API account used for registration.
+# Строка. Учётная запись API, используемая для регистрации.
+zabbix_agent_api_user: "Admin"
+
+# String or null. Name of the variable holding the API password.
+# Строка или null. Имя переменной с паролем API.
+zabbix_agent_api_password_var: null
+
+# String or null. Address the server should use to reach this agent. Defaults to the
+# inventory address of the host.
+# Строка или null. Адрес, по которому сервер должен обращаться к этому агенту. По умолчанию
+# берётся адрес хоста из инвентаря.
+zabbix_agent_interface_address: "{{ ansible_host | default(inventory_hostname) }}"
+
+# List of strings. Host groups the host belongs to. Zabbix requires at least one, and
+# creating a host without any is rejected by the API.
+# Список строк. Группы, в которые входит хост. Zabbix требует минимум одну, и создание
+# хоста без групп API отвергает.
+zabbix_agent_host_groups:
+  - "Linux servers"
+
+# List of strings. Templates linked to the host. Names must match those in the server
+# exactly; a template that does not exist is an error rather than a warning.
+# Список строк. Шаблоны, привязанные к хосту. Имена обязаны точно совпадать с именами на
+# сервере; несуществующий шаблон - ошибка, а не предупреждение.
+zabbix_agent_templates:
+  - "Linux by Zabbix agent"
+
+# Dict. Host inventory fields, and any other tags to set on the host object.
+# Словарь. Поля инвентаря хоста и прочие теги объекта хоста.
+zabbix_agent_host_description: ""
+
+# Service
+# Сервис
+
+zabbix_agent_service_name: "zabbix-agent2"
+zabbix_agent_service_state: "started"
+zabbix_agent_service_enabled: true

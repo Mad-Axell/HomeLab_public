@@ -1,0 +1,328 @@
+---
+- name: Validate Zabbix server configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - zabbix_server_database_password_var is not none
+      - zabbix_server_api_password_var is not none
+      - zabbix_server_frontend_names is sequence
+      - zabbix_server_frontend_names | length > 0
+      - not (zabbix_server_manage_database | bool) or zabbix_server_database_admin_password_var is not none
+    fail_msg: >-
+      zabbix_server requires Debian, a database password, an API password and at least one
+      frontend name. Managing the database additionally requires privileged credentials.
+
+- name: Validate the Zabbix server secrets
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', item, default=none) is not none
+    fail_msg: "A variable named in the zabbix_server configuration must exist in VARS/secrets.yml."
+  loop: >-
+    {{ [zabbix_server_database_password_var, zabbix_server_api_password_var]
+       + ([zabbix_server_database_admin_password_var] if zabbix_server_manage_database | bool else []) }}
+  loop_control:
+    label: "redacted"
+  no_log: true
+
+- name: Check whether the Zabbix repository is installed
+  ansible.builtin.stat:
+    path: "/etc/apt/sources.list.d/zabbix.sources"
+  register: zabbix_server_repository_stat
+
+- name: Install the Zabbix repository package
+  ansible.builtin.apt:
+    deb: "{{ zabbix_server_release_package_url }}"
+  when: not zabbix_server_repository_stat.stat.exists
+  register: zabbix_server_repository_result
+
+- name: Install the Zabbix server and frontend
+  ansible.builtin.apt:
+    name: "{{ zabbix_server_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: zabbix_server_package_result
+
+# The php-fpm unit is named after the PHP version the distribution ships, so it is read
+# rather than assumed. Both the nginx template and the reload handler need it, which is why
+# it is resolved here and not next to the task that first uses it.
+# Имя юнита php-fpm зависит от версии PHP в дистрибутиве, поэтому оно читается, а не
+# предполагается. Оно нужно и шаблону nginx, и handler'у перезагрузки, поэтому определяется
+# здесь, а не рядом с задачей, которая использует его первой.
+- name: Read the installed php-fpm service name
+  ansible.builtin.shell:
+    cmd: "systemctl list-unit-files --no-legend 'php*-fpm.service' | awk '{print $1}' | head -1"
+  changed_when: false
+  check_mode: false
+  register: zabbix_server_php_service
+
+- name: Require a php-fpm service
+  ansible.builtin.assert:
+    that:
+      - (zabbix_server_php_service.stdout | trim) | length > 0
+    fail_msg: "No php-fpm unit was found; the frontend cannot run without one."
+
+# The server owns the database it lives in, as every application here does. Loading the
+# schema into a database nobody created fails inside psql with a connection error, which
+# says nothing about the database being absent.
+# Сервер владеет базой, в которой живёт, как и всякое приложение здесь. Загрузка схемы в
+# базу, которую никто не создал, падает внутри psql ошибкой подключения, и та ничего не
+# говорит об отсутствии самой базы.
+- name: Create the Zabbix database role
+  community.postgresql.postgresql_user:
+    name: "{{ zabbix_server_database_user }}"
+    password: "{{ lookup('ansible.builtin.vars', zabbix_server_database_password_var) }}"
+    role_attr_flags: "LOGIN"
+    login_host: "{{ zabbix_server_database_host }}"
+    login_port: "{{ zabbix_server_database_port }}"
+    login_user: "{{ zabbix_server_database_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', zabbix_server_database_admin_password_var) }}"
+    login_db: "postgres"
+    state: present
+  when: zabbix_server_manage_database | bool
+  no_log: true
+  register: zabbix_server_db_role_result
+
+- name: Create the Zabbix database
+  community.postgresql.postgresql_db:
+    name: "{{ zabbix_server_database_name }}"
+    owner: "{{ zabbix_server_database_user }}"
+    encoding: "UTF-8"
+    template: "template0"
+    login_host: "{{ zabbix_server_database_host }}"
+    login_port: "{{ zabbix_server_database_port }}"
+    login_user: "{{ zabbix_server_database_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', zabbix_server_database_admin_password_var) }}"
+    state: present
+  when: zabbix_server_manage_database | bool
+  no_log: true
+  register: zabbix_server_db_result
+
+- name: Require the schema file shipped by the packaging
+  ansible.builtin.stat:
+    path: "{{ zabbix_server_schema_path }}"
+  register: zabbix_server_schema_stat
+
+- name: Fail when the schema file is missing
+  ansible.builtin.assert:
+    that:
+      - zabbix_server_schema_stat.stat.exists
+    fail_msg: >-
+      {{ zabbix_server_schema_path }} does not exist. The path moved between Zabbix major
+      versions; set zabbix_server_schema_path to where zabbix-sql-scripts put it.
+
+# The schema is loaded once and only once. Re-running the import against a populated
+# database does not fail cleanly - it partially applies and leaves the schema in a state
+# neither version recognises - so the presence of a core table is the guard.
+# Схема загружается один раз и только один раз. Повторный импорт в заполненную базу не
+# падает чисто: он применяется частично и оставляет схему в состоянии, которое не узнаёт ни
+# одна из версий, - поэтому защитой служит наличие базовой таблицы.
+- name: Check whether the Zabbix schema is already loaded
+  community.postgresql.postgresql_query:
+    db: "{{ zabbix_server_database_name }}"
+    query: "SELECT to_regclass('public.users') IS NOT NULL AS loaded"
+    login_host: "{{ zabbix_server_database_host }}"
+    login_port: "{{ zabbix_server_database_port }}"
+    login_user: "{{ zabbix_server_database_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', zabbix_server_database_password_var) }}"
+  no_log: true
+  changed_when: false
+  register: zabbix_server_schema_loaded
+
+- name: Load the Zabbix schema
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail &&
+      zcat {{ zabbix_server_schema_path | quote }} |
+      psql --quiet --no-password
+      --host {{ zabbix_server_database_host | quote }}
+      --port {{ zabbix_server_database_port | string | quote }}
+      --username {{ zabbix_server_database_user | quote }}
+      --dbname {{ zabbix_server_database_name | quote }}
+    executable: "/bin/bash"
+  environment:
+    PGPASSWORD: "{{ lookup('ansible.builtin.vars', zabbix_server_database_password_var) }}"
+  when: not (zabbix_server_schema_loaded.query_result[0].loaded | default(false))
+  no_log: true
+  changed_when: true
+  register: zabbix_server_schema_result
+
+- name: Configure the Zabbix server
+  ansible.builtin.template:
+    src: "zabbix_server.conf.j2"
+    dest: "/etc/zabbix/zabbix_server.conf"
+    owner: "root"
+    group: "zabbix"
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify: Restart Zabbix server
+  register: zabbix_server_config_result
+
+# Written before the frontend is reachable so the setup wizard never appears. A wizard left
+# to a human is a configuration that exists nowhere in this repository.
+# Пишется до того, как веб-интерфейс станет доступен, чтобы мастер установки не появлялся
+# вовсе. Мастер, оставленный человеку, - это конфигурация, которой нет нигде в репозитории.
+- name: Configure the Zabbix frontend
+  ansible.builtin.template:
+    src: "zabbix.conf.php.j2"
+    dest: "/etc/zabbix/web/zabbix.conf.php"
+    owner: "www-data"
+    group: "www-data"
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify: Reload php-fpm
+  register: zabbix_server_frontend_result
+
+# The packaging ships its own nginx site listening on 8080 with the server name commented
+# out, which serves nothing. Ours replaces it rather than sitting beside it, because two
+# sites answering on different ports is the kind of thing that gets debugged as a firewall
+# problem.
+# Пакет поставляет собственный сайт nginx, слушающий 8080 с закомментированным именем, то
+# есть не отдающий ничего. Наш его заменяет, а не соседствует с ним: два сайта на разных
+# портах - именно то, что потом отлаживают как проблему firewall.
+- name: Configure the nginx site
+  ansible.builtin.template:
+    src: "nginx.conf.j2"
+    dest: "/etc/nginx/conf.d/zabbix-ansible.conf"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Reload nginx
+  register: zabbix_server_nginx_result
+
+- name: Remove the nginx sites that would answer instead
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/etc/nginx/conf.d/zabbix.conf"
+    - "/etc/nginx/sites-enabled/default"
+  notify: Reload nginx
+
+- name: Validate the assembled nginx configuration
+  ansible.builtin.command:
+    argv:
+      - "/usr/sbin/nginx"
+      - "-t"
+  changed_when: false
+
+- name: Manage the Zabbix services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: "{{ zabbix_server_service_state }}"
+    enabled: "{{ zabbix_server_service_enabled }}"
+  loop:
+    - "zabbix-server"
+    - "{{ zabbix_server_php_service.stdout | trim }}"
+    - "nginx"
+  register: zabbix_server_service_result
+
+- name: Apply pending Zabbix restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the Zabbix frontend to answer
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ zabbix_server_frontend_port }}/index.php"
+    status_code: 200
+  register: zabbix_server_frontend_check
+  retries: 12
+  delay: 5
+  until: zabbix_server_frontend_check is succeeded
+
+# Zabbix creates Admin with the password "zabbix", which is not a secret in any sense. The
+# role tries the intended password first: on a server already configured that succeeds and
+# nothing happens, and only a server still holding the shipped password falls through to
+# the change.
+# Zabbix создаёт Admin с паролем "zabbix", который секретом не является ни в каком смысле.
+# Роль сначала пробует нужный пароль: на уже настроенном сервере он подходит и ничего не
+# происходит, и только сервер, всё ещё несущий поставляемый пароль, доходит до смены.
+- name: Try the intended Zabbix API password
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ zabbix_server_frontend_port }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    headers:
+      Content-Type: "application/json-rpc"
+    body:
+      jsonrpc: "2.0"
+      method: "user.login"
+      id: 1
+      params:
+        username: "{{ zabbix_server_api_user }}"
+        password: "{{ lookup('ansible.builtin.vars', zabbix_server_api_password_var) }}"
+    status_code: 200
+  no_log: true
+  changed_when: false
+  register: zabbix_server_login_target
+
+- name: Log in with the password Zabbix ships with
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ zabbix_server_frontend_port }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    headers:
+      Content-Type: "application/json-rpc"
+    body:
+      jsonrpc: "2.0"
+      method: "user.login"
+      id: 1
+      params:
+        username: "{{ zabbix_server_api_user }}"
+        password: "{{ zabbix_server_api_initial_password }}"
+    status_code: 200
+  no_log: true
+  changed_when: false
+  when: zabbix_server_login_target.json.result is not defined
+  register: zabbix_server_login_initial
+
+- name: Replace the shipped Zabbix API password
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ zabbix_server_frontend_port }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    headers:
+      Content-Type: "application/json-rpc"
+      Authorization: "Bearer {{ zabbix_server_login_initial.json.result }}"
+    body:
+      jsonrpc: "2.0"
+      method: "user.update"
+      id: 1
+      params:
+        userid: "1"
+        current_passwd: "{{ zabbix_server_api_initial_password }}"
+        passwd: "{{ lookup('ansible.builtin.vars', zabbix_server_api_password_var) }}"
+    status_code: 200
+  no_log: true
+  when:
+    - zabbix_server_login_target.json.result is not defined
+    - zabbix_server_login_initial.json.result is defined
+  register: zabbix_server_password_result
+
+- name: Require the Zabbix API to accept the intended password
+  ansible.builtin.assert:
+    that:
+      - zabbix_server_login_target.json.result is defined
+        or zabbix_server_password_result.json.result is defined
+    fail_msg: >-
+      Neither the intended password nor the shipped one was accepted by the Zabbix API.
+      The Admin account has a third password, set outside this role.
+
+- name: Display Zabbix server change summary
+  ansible.builtin.debug:
+    msg: >-
+      Zabbix {{ zabbix_server_version }} server on port {{ zabbix_server_listen_port }},
+      frontend on {{ zabbix_server_frontend_port }},
+      database {{ zabbix_server_database_name }}@{{ zabbix_server_database_host }}.
+  when:
+    - zabbix_server_debug_mode | bool
+    - >-
+      (zabbix_server_package_result.changed | default(false) | bool)
+      or (zabbix_server_schema_result.changed | default(false) | bool)
+      or (zabbix_server_config_result.changed | default(false) | bool)
+      or (zabbix_server_frontend_result.changed | default(false) | bool)
+      or (zabbix_server_nginx_result.changed | default(false) | bool)
+      or (zabbix_server_service_result.changed | default(false) | bool)
+  tags:
+    - debug

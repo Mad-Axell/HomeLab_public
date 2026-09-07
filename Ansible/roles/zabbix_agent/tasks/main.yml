@@ -1,0 +1,145 @@
+---
+- name: Validate Zabbix agent configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - zabbix_agent_server is not none
+      - zabbix_agent_hostname is string
+      - zabbix_agent_hostname | length > 0
+      - zabbix_agent_listen_port | int > 0
+      - not (zabbix_agent_register | bool) or zabbix_agent_api_url is not none
+      - not (zabbix_agent_register | bool) or zabbix_agent_host_groups | length > 0
+    fail_msg: >-
+      zabbix_agent requires Debian, a server address and a hostname. Registration
+      additionally requires an API URL and at least one host group.
+
+- name: Validate the Zabbix API password
+  ansible.builtin.assert:
+    that:
+      - zabbix_agent_api_password_var is not none
+      - lookup('ansible.builtin.vars', zabbix_agent_api_password_var, default=none) is not none
+    fail_msg: "zabbix_agent_api_password_var must name a variable defined in VARS/secrets.yml."
+  when: zabbix_agent_register | bool
+  no_log: true
+
+# The repository package is fetched and installed rather than the apt list being written by
+# hand, because it also brings the signing key. Writing only the list leaves apt refusing
+# the repository for a missing key, and the message names the key rather than the cause.
+# Пакет репозитория скачивается и устанавливается, а не пишется apt-список руками, потому
+# что пакет приносит ещё и ключ подписи. Один только список оставляет apt отвергающим
+# репозиторий из-за отсутствующего ключа, и сообщение называет ключ, а не причину.
+- name: Check whether the Zabbix repository is installed
+  ansible.builtin.stat:
+    path: "/etc/apt/sources.list.d/zabbix.sources"
+  register: zabbix_agent_repository_stat
+
+- name: Install the Zabbix repository package
+  ansible.builtin.apt:
+    deb: "{{ zabbix_agent_release_package_url }}"
+  when: not zabbix_agent_repository_stat.stat.exists
+  register: zabbix_agent_repository_result
+
+- name: Install the Zabbix agent
+  ansible.builtin.apt:
+    name: "{{ zabbix_agent_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: zabbix_agent_package_result
+
+# Settings go into the drop-in directory the packaging already includes, so the shipped
+# zabbix_agent2.conf stays untouched and keeps whatever the next package version changes.
+# Настройки пишутся в каталог drop-in, который пакет уже подключает, поэтому поставляемый
+# zabbix_agent2.conf остаётся нетронутым и сохраняет всё, что изменит следующая версия.
+- name: Configure the Zabbix agent
+  ansible.builtin.template:
+    src: "agent.conf.j2"
+    dest: "{{ zabbix_agent_config_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Restart Zabbix agent
+  register: zabbix_agent_config_result
+
+- name: Manage the Zabbix agent service
+  ansible.builtin.systemd:
+    name: "{{ zabbix_agent_service_name }}"
+    state: "{{ zabbix_agent_service_state }}"
+    enabled: "{{ zabbix_agent_service_enabled }}"
+  register: zabbix_agent_service_result
+
+- name: Apply pending Zabbix agent restarts
+  ansible.builtin.meta: flush_handlers
+
+# Registration runs from the controller, not from the monitored host: the host has no reason
+# to reach the Zabbix API, and giving every monitored machine API credentials would be the
+# opposite of what monitoring is for.
+# Регистрация выполняется с контроллера, а не с наблюдаемого хоста: хосту незачем ходить в
+# API Zabbix, а раздача учётных данных API каждой наблюдаемой машине была бы прямо обратна
+# смыслу мониторинга.
+- name: Create the host groups on the Zabbix server
+  community.zabbix.zabbix_hostgroup:
+    host_groups: "{{ zabbix_agent_host_groups }}"
+    state: present
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_zabbix_url_path: ""
+    ansible_host: "{{ zabbix_agent_api_url | urlsplit('hostname') }}"
+    ansible_connection: "httpapi"
+    ansible_network_os: "community.zabbix.zabbix"
+    ansible_httpapi_port: "{{ zabbix_agent_api_url | urlsplit('port') | default(80, true) }}"
+    ansible_httpapi_use_ssl: "{{ (zabbix_agent_api_url | urlsplit('scheme')) == 'https' }}"
+    ansible_httpapi_validate_certs: false
+    ansible_user: "{{ zabbix_agent_api_user }}"
+    ansible_httpapi_pass: "{{ lookup('ansible.builtin.vars', zabbix_agent_api_password_var) }}"
+  when: zabbix_agent_register | bool
+  register: zabbix_agent_group_result
+
+- name: Register the host on the Zabbix server
+  community.zabbix.zabbix_host:
+    host_name: "{{ zabbix_agent_hostname }}"
+    host_groups: "{{ zabbix_agent_host_groups }}"
+    link_templates: "{{ zabbix_agent_templates }}"
+    description: "{{ zabbix_agent_host_description }}"
+    status: enabled
+    state: present
+    interfaces:
+      - type: agent
+        main: 1
+        useip: 1
+        ip: "{{ zabbix_agent_interface_address }}"
+        dns: ""
+        port: "{{ zabbix_agent_listen_port | string }}"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_zabbix_url_path: ""
+    ansible_host: "{{ zabbix_agent_api_url | urlsplit('hostname') }}"
+    ansible_connection: "httpapi"
+    ansible_network_os: "community.zabbix.zabbix"
+    ansible_httpapi_port: "{{ zabbix_agent_api_url | urlsplit('port') | default(80, true) }}"
+    ansible_httpapi_use_ssl: "{{ (zabbix_agent_api_url | urlsplit('scheme')) == 'https' }}"
+    ansible_httpapi_validate_certs: false
+    ansible_user: "{{ zabbix_agent_api_user }}"
+    ansible_httpapi_pass: "{{ lookup('ansible.builtin.vars', zabbix_agent_api_password_var) }}"
+  when: zabbix_agent_register | bool
+  register: zabbix_agent_host_result
+
+- name: Display Zabbix agent change summary
+  ansible.builtin.debug:
+    msg: >-
+      Zabbix agent {{ zabbix_agent_version }} on {{ zabbix_agent_hostname }}
+      reporting to {{ zabbix_agent_server }};
+      groups {{ zabbix_agent_host_groups | join(', ') }};
+      templates {{ zabbix_agent_templates | join(', ') }}.
+  when:
+    - zabbix_agent_debug_mode | bool
+    - >-
+      (zabbix_agent_repository_result.changed | default(false) | bool)
+      or (zabbix_agent_package_result.changed | default(false) | bool)
+      or (zabbix_agent_config_result.changed | default(false) | bool)
+      or (zabbix_agent_service_result.changed | default(false) | bool)
+      or (zabbix_agent_host_result.changed | default(false) | bool)
+  tags:
+    - debug

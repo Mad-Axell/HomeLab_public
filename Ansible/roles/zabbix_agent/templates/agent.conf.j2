@@ -1,0 +1,25 @@
+{{ ansible_managed | comment }}
+# Owned by the zabbix_agent Ansible role. Read from zabbix_agent2.d/, which the packaged
+# zabbix_agent2.conf already includes, so the distribution file itself is never rewritten
+# and keeps whatever the next package version changes in it.
+#
+# Принадлежит роли Ansible zabbix_agent. Читается из zabbix_agent2.d/, который
+# поставляемый zabbix_agent2.conf уже подключает, поэтому файл дистрибутива не
+# переписывается и сохраняет всё, что изменит следующая версия пакета.
+
+Server={{ zabbix_agent_server }}
+ServerActive={{ zabbix_agent_server_active | default(zabbix_agent_server, true) }}
+
+# Must equal the host name on the server, letter for letter. Active checks are matched by
+# this string alone, and a mismatch leaves every active item unsupported while the host
+# still looks connected, because passive checks keep working.
+# Обязано совпадать с именем хоста на сервере, буква в букву. Активные проверки
+# сопоставляются только по этой строке, и расхождение оставляет все активные элементы
+# неподдерживаемыми, тогда как хост продолжает выглядеть подключённым: пассивные проверки
+# при этом работают.
+Hostname={{ zabbix_agent_hostname }}
+
+ListenPort={{ zabbix_agent_listen_port }}
+{% for name, value in zabbix_agent_extra_settings.items() %}
+{{ name }}={{ value }}
+{% endfor %}

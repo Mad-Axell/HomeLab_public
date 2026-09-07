@@ -1,0 +1,126 @@
+---
+# Zabbix server configuration
+# Конфигурация сервера Zabbix
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+zabbix_server_debug_mode: false
+
+# Repository and packages
+# Репозиторий и пакеты
+
+# String. Zabbix release channel. X.0 releases carry long term support; anything else is
+# supported for about six months and then forces a major upgrade of server and agents alike.
+# Строка. Канал выпуска Zabbix. Выпуски вида X.0 имеют долгосрочную поддержку; остальные
+# поддерживаются около полугода и затем вынуждают мажорно обновлять и сервер, и агентов.
+zabbix_server_version: "8.0"
+
+zabbix_server_release_package_url: >-
+  https://repo.zabbix.com/zabbix/{{ zabbix_server_version }}/release/debian/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix_server_version }}+debian{{ ansible_facts.distribution_major_version }}_all.deb
+
+# List of strings. Server, frontend and the tools needed to load the schema.
+# Список строк. Сервер, веб-интерфейс и инструменты, нужные для загрузки схемы.
+zabbix_server_packages:
+  - "zabbix-server-pgsql"
+  - "zabbix-frontend-php"
+  - "zabbix-nginx-conf"
+  - "zabbix-sql-scripts"
+  - "postgresql-client"
+  - "python3-psycopg2"
+  - "nginx"
+
+# Database
+# База данных
+
+zabbix_server_database_host: "127.0.0.1"
+zabbix_server_database_port: 5432
+zabbix_server_database_name: "zabbix"
+zabbix_server_database_user: "zabbix"
+
+# String or null. Name of the variable holding the database password.
+# Строка или null. Имя переменной с паролем к базе.
+zabbix_server_database_password_var: null
+
+# Boolean. Create the database and its role before loading the schema.
+# Логическое значение. Создать базу и её роль до загрузки схемы.
+zabbix_server_manage_database: true
+
+# String. Privileged account used only to create the database and the role.
+# Строка. Привилегированная учётная запись только для создания базы и роли.
+zabbix_server_database_admin_user: "postgres"
+
+# String or null. Name of the variable holding the privileged password.
+# Строка или null. Имя переменной с привилегированным паролем.
+zabbix_server_database_admin_password_var: null
+
+# String. Compressed schema shipped by zabbix-sql-scripts.
+# Строка. Сжатая схема, поставляемая пакетом zabbix-sql-scripts.
+zabbix_server_schema_path: "/usr/share/zabbix-sql-scripts/postgresql/server.sql.gz"
+
+# Server
+# Сервер
+
+zabbix_server_listen_port: 10051
+
+# Integers. Pollers and related workers.
+#
+# Zabbix will not start when these exceed what the configuration allows, and it will run
+# badly when they are too few: an exhausted poller queue delays every check on every host
+# and shows up as hosts going unavailable in waves rather than as a capacity problem.
+#
+# Целые числа. Поллеры и смежные рабочие процессы.
+#
+# Zabbix не стартует, когда они превышают допустимое конфигурацией, и работает плохо, когда
+# их слишком мало: исчерпанная очередь поллеров задерживает каждую проверку на каждом хосте
+# и проявляется волнами недоступных хостов, а не как нехватка ёмкости.
+zabbix_server_start_pollers: 5
+zabbix_server_start_pollers_unreachable: 1
+zabbix_server_start_trappers: 5
+zabbix_server_start_discoverers: 1
+zabbix_server_cache_size: "64M"
+zabbix_server_history_cache_size: "32M"
+zabbix_server_value_cache_size: "32M"
+
+# Dict. Any further directive=value pairs appended to the server configuration.
+# Словарь. Любые дополнительные пары директива=значение в конфигурации сервера.
+zabbix_server_extra_settings: {}
+
+# Frontend
+# Веб-интерфейс
+
+zabbix_server_frontend_port: 80
+
+# List of strings. Names and addresses the frontend answers to.
+# Список строк. Имена и адреса, на которые отвечает веб-интерфейс.
+zabbix_server_frontend_names: []
+
+# String. Name shown in the interface header.
+# Строка. Имя, отображаемое в заголовке интерфейса.
+zabbix_server_frontend_title: "Zabbix"
+
+# String. Time zone used by the frontend and by PHP.
+# Строка. Часовой пояс веб-интерфейса и PHP.
+zabbix_server_frontend_timezone: "Europe/Moscow"
+
+# API account
+# Учётная запись API
+
+# String. Built-in super administrator. Zabbix creates it with the password "zabbix", which
+# is public knowledge, so the role changes it on first run.
+# Строка. Встроенный суперадминистратор. Zabbix создаёт его с паролем "zabbix", который
+# общеизвестен, поэтому роль меняет его при первом прогоне.
+zabbix_server_api_user: "Admin"
+
+# String. Password Zabbix ships with; used once, to replace itself.
+# Строка. Пароль, с которым поставляется Zabbix; используется один раз, чтобы себя сменить.
+zabbix_server_api_initial_password: "zabbix"
+
+# String or null. Name of the variable holding the password the account must end up with.
+# Строка или null. Имя переменной с паролем, который учётная запись должна получить.
+zabbix_server_api_password_var: null
+
+# Services
+# Сервисы
+
+zabbix_server_service_state: "started"
+zabbix_server_service_enabled: true
