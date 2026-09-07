@@ -1,0 +1,5 @@
+---
+- name: Restart the Zabbix agent for UniFi
+  ansible.builtin.systemd:
+    name: "{{ unifi_monitoring_agent_service }}"
+    state: restarted

@@ -1,0 +1,71 @@
+---
+# UniFi monitoring through the controller's own database
+# Мониторинг UniFi через собственную базу контроллера
+#
+# The role installs nothing on the access points and switches and needs no controller
+# account. It puts one script on the controller host and one UserParameter into the Zabbix
+# agent that is already there, and the agent answers with the whole device inventory as JSON.
+#
+# Роль ничего не ставит на точки доступа и коммутаторы и не требует учётной записи
+# контроллера. Она кладёт на хост контроллера один скрипт и один UserParameter в уже
+# стоящий агент Zabbix, и агент отвечает всей описью устройств в виде JSON.
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+unifi_monitoring_debug_mode: false
+
+# String. Path to the mongosh binary shipped with the controller package.
+# Строка. Путь к mongosh, поставляемому вместе с пакетом контроллера.
+unifi_monitoring_mongosh_path: "/usr/bin/mongosh"
+
+# Integer. Port the controller's bundled MongoDB listens on. It binds to 127.0.0.1 only,
+# which is why the query has to run on the controller host itself.
+# Целое число. Порт, на котором слушает встроенная в контроллер MongoDB. Она слушает только
+# 127.0.0.1, поэтому запрос обязан выполняться на самом хосте контроллера.
+unifi_monitoring_mongo_port: 27117
+
+# String. Database the controller keeps its inventory in.
+# Строка. База, в которой контроллер хранит опись устройств.
+unifi_monitoring_mongo_database: "ace"
+
+# String. Where the collector script is installed.
+# Строка. Куда устанавливается скрипт сбора.
+unifi_monitoring_script_path: "/usr/local/bin/unifi_facts.sh"
+
+# String. Drop-in file for the agent. The number orders it after the file the zabbix_agent
+# role owns, so the two never fight over one path.
+# Строка. Файл drop-in для агента. Номер ставит его после файла, которым владеет роль
+# zabbix_agent, чтобы две роли не спорили за один путь.
+unifi_monitoring_userparameter_path: "/etc/zabbix/zabbix_agent2.d/20-unifi.conf"
+
+# String. Item key the agent answers on; must match the master item in the template.
+# Строка. Ключ элемента, на который отвечает агент; обязан совпадать с мастер-элементом
+# в шаблоне.
+unifi_monitoring_item_key: "unifi.devices"
+
+# String. Service restarted when the UserParameter changes.
+# Строка. Служба, перезапускаемая при изменении UserParameter.
+unifi_monitoring_agent_service: "zabbix-agent2"
+
+# String. User the agent runs as; the role verifies the script works as that user rather
+# than as root, because root proving it works proves nothing about the agent.
+# Строка. Пользователь, от имени которого работает агент; роль проверяет работу скрипта
+# именно от него, а не от root: успех под root ничего не говорит об агенте.
+unifi_monitoring_agent_user: "zabbix"
+
+# Boolean. Verify after configuring that the agent user really gets device data back.
+#
+# Worth keeping on. Everything about this can be in place and still return nothing: mongosh
+# is a Node program and refuses to start when it cannot chdir into a home directory it may
+# not read, which is exactly the situation the agent user is in. The failure surfaces in
+# Zabbix as an unsupported item hours later, far from the change that caused it.
+#
+# Логическое значение. Проверять после настройки, что пользователь агента действительно
+# получает данные об устройствах.
+#
+# Стоит держать включённым. Всё может быть на месте и всё равно не отдавать ничего: mongosh -
+# программа на Node, и она отказывается стартовать, когда не может перейти в домашний
+# каталог, читать который ей не обязательно разрешено, - а пользователь агента находится
+# ровно в этом положении. В Zabbix отказ всплывёт неподдерживаемым элементом через часы,
+# далеко от вызвавшего его изменения.
+unifi_monitoring_verify: true

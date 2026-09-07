@@ -1,0 +1,14 @@
+{{ ansible_managed | comment }}
+# Owned by the unifi_monitoring Ansible role.
+#
+# One key returns every device, and the template splits it with dependent items. The
+# alternative - a parameterised key called once per device - multiplies database queries by
+# the size of the fleet for data that arrives in a single document anyway.
+#
+# Принадлежит роли Ansible unifi_monitoring.
+#
+# Один ключ возвращает все устройства, а шаблон разбирает его зависимыми элементами.
+# Альтернатива - ключ с параметром, вызываемый на каждое устройство, - умножает число
+# запросов к базе на размер парка ради данных, которые и так приходят одним документом.
+
+UserParameter={{ unifi_monitoring_item_key }},{{ unifi_monitoring_script_path }}

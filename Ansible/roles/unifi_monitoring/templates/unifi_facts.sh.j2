@@ -1,0 +1,67 @@
+#!/bin/sh
+{{ ansible_managed | comment }}
+# Reads the UniFi controller's own inventory out of its bundled MongoDB and prints it as one
+# JSON array. No controller account is involved: the database listens on loopback without
+# authentication, so running here is the whole authorisation story.
+#
+# Читает опись устройств из встроенной в контроллер MongoDB и печатает её одним массивом
+# JSON. Учётная запись контроллера не участвует: база слушает loopback без аутентификации,
+# поэтому вся авторизация сводится к тому, что запрос выполняется здесь.
+
+set -eu
+
+# mongosh is a Node program: it chdirs into the working directory and wants a writable HOME.
+# The Zabbix agent runs as a system user whose home it may not be able to enter, and node
+# then dies with EACCES before a single query is sent. Both are set here rather than left to
+# whatever the caller happens to have.
+#
+# mongosh - программа на Node: она переходит в рабочий каталог и хочет писать в HOME. Агент
+# Zabbix работает от системного пользователя, войти в домашний каталог которого может быть
+# нельзя, и тогда node умирает с EACCES ещё до первого запроса. Обе переменные задаются
+# здесь, а не оставляются на волю вызывающего.
+cd /tmp
+HOME=/tmp
+export HOME
+
+exec {{ unifi_monitoring_mongosh_path }} \
+  --quiet \
+  --port {{ unifi_monitoring_mongo_port }} \
+  {{ unifi_monitoring_mongo_database }} \
+  --eval '
+JSON.stringify(
+  db.device.find({}, {
+    _id: 0, name: 1, ip: 1, mac: 1, model: 1, type: 1, version: 1,
+    required_version: 1, adopted: 1, last_seen: 1, connected_at: 1,
+    disconnected_at: 1, provisioned_at: 1, internet: 1, unsupported: 1,
+    model_in_eol: 1, serial: 1
+  }).toArray().map(function (d) {
+    // The controller stores no "state" field. It stores the two timestamps state is derived
+    // from, and the later one wins: a device reconnected after a drop has connected_at newer
+    // than disconnected_at.
+    // Поля "state" контроллер не хранит. Он хранит две отметки времени, из которых состояние
+    // выводится, и побеждает более поздняя: у переподключившегося после обрыва устройства
+    // connected_at новее, чем disconnected_at.
+    var conn = Number(d.connected_at || 0);
+    var disc = Number(d.disconnected_at || 0);
+
+    return {
+      name: d.name || d.mac || "unknown",
+      ip: d.ip || "",
+      mac: d.mac || "",
+      model: d.model || "",
+      type: d.type || "",
+      version: d.version || "",
+      required_version: d.required_version || "",
+      serial: d.serial || "",
+      adopted: d.adopted ? 1 : 0,
+      internet: d.internet ? 1 : 0,
+      unsupported: d.unsupported ? 1 : 0,
+      eol: d.model_in_eol ? 1 : 0,
+      last_seen: Number(d.last_seen || 0),
+      connected_at: conn,
+      disconnected_at: disc,
+      provisioned_at: Number(d.provisioned_at || 0),
+      state: conn >= disc ? 1 : 0
+    };
+  })
+)'

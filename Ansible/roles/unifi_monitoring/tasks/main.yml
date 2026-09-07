@@ -1,0 +1,95 @@
+---
+- name: Validate the UniFi monitoring configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - unifi_monitoring_item_key is string
+      - unifi_monitoring_item_key | length > 0
+      - unifi_monitoring_mongo_port | int > 0
+    fail_msg: >-
+      unifi_monitoring requires Debian, an item key and a MongoDB port.
+
+# Both of these come from other software: mongosh from the controller package, the drop-in
+# directory from the agent package. Asserting them here names the missing piece, instead of
+# leaving a script that silently returns nothing.
+# И то и другое приходит от другого софта: mongosh - из пакета контроллера, каталог drop-in -
+# из пакета агента. Проверка здесь называет недостающее, вместо того чтобы оставить скрипт,
+# молча не возвращающий ничего.
+- name: Collect the state of the prerequisites
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ unifi_monitoring_mongosh_path }}"
+    - "{{ unifi_monitoring_userparameter_path | dirname }}"
+  register: unifi_monitoring_prereq_stat
+
+- name: Require mongosh and the agent drop-in directory
+  ansible.builtin.assert:
+    that:
+      - unifi_monitoring_prereq_stat.results[0].stat.exists
+      - unifi_monitoring_prereq_stat.results[1].stat.isdir | default(false)
+    fail_msg: >-
+      unifi_monitoring runs on the controller host and after zabbix_agent:
+      it needs {{ unifi_monitoring_mongosh_path }} from the controller package and
+      {{ unifi_monitoring_userparameter_path | dirname }} from the agent package.
+
+- name: Install the UniFi collector script
+  ansible.builtin.template:
+    src: "unifi_facts.sh.j2"
+    dest: "{{ unifi_monitoring_script_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  register: unifi_monitoring_script_result
+
+- name: Configure the agent UserParameter
+  ansible.builtin.template:
+    src: "userparameter.conf.j2"
+    dest: "{{ unifi_monitoring_userparameter_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Restart the Zabbix agent for UniFi
+  register: unifi_monitoring_userparameter_result
+
+- name: Apply pending agent restarts
+  ansible.builtin.meta: flush_handlers
+
+# Verified as the agent user, not as root: the whole point is whether the agent can run it.
+# Проверяется от пользователя агента, а не от root: весь смысл в том, сможет ли выполнить
+# это агент.
+- name: Read the device inventory the way the agent will
+  ansible.builtin.command:
+    cmd: "{{ unifi_monitoring_script_path }}"
+  become: true
+  become_user: "{{ unifi_monitoring_agent_user }}"
+  changed_when: false
+  failed_when: false
+  register: unifi_monitoring_probe
+  when: unifi_monitoring_verify | bool
+
+- name: Require the collector to return a device inventory
+  ansible.builtin.assert:
+    that:
+      - unifi_monitoring_probe.rc == 0
+      - (unifi_monitoring_probe.stdout | from_json) | length > 0
+    fail_msg: >-
+      {{ unifi_monitoring_script_path }} returned nothing usable as
+      {{ unifi_monitoring_agent_user }} (rc={{ unifi_monitoring_probe.rc | default('n/a') }}):
+      {{ (unifi_monitoring_probe.stderr | default('') )[:300] }}
+      {{ (unifi_monitoring_probe.stdout | default('') )[:200] }}
+  when: unifi_monitoring_verify | bool
+
+- name: Display the UniFi monitoring change summary
+  ansible.builtin.debug:
+    msg: >-
+      UniFi collector at {{ unifi_monitoring_script_path }};
+      agent answers {{ unifi_monitoring_item_key }} with
+      {{ (unifi_monitoring_probe.stdout | default('[]') | from_json) | length }} devices.
+  when:
+    - unifi_monitoring_debug_mode | bool
+    - >-
+      (unifi_monitoring_script_result.changed | default(false) | bool)
+      or (unifi_monitoring_userparameter_result.changed | default(false) | bool)
+  tags:
+    - debug

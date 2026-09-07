@@ -1,0 +1,245 @@
+zabbix_export:
+  version: '7.0'
+  # UUID здесь - настоящий UUID уже существующей на сервере группы, а не выдуманный.
+  # The UUID here is the real one of the group that already exists on the server.
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: Templates/Network devices
+  templates:
+    - uuid: b7c45c37a08a4de7a175edd90e6df8eb
+      template: 'UniFi devices by controller DB'
+      name: 'UniFi devices by controller DB'
+      description: 'Discovers every UniFi device from the controller MongoDB through the agent on the controller host; needs no controller account. See the zabbix_server role README.'
+      groups:
+        - name: Templates/Network devices
+      # Один элемент на весь парк: скрипт отдаёт всю опись одним документом, и всё
+      # остальное - зависимые элементы от него. Запрос к базе один за интервал независимо
+      # от числа устройств.
+      # One item for the whole fleet: the script returns the entire inventory as a single
+      # document and everything else depends on it. One database query per interval no
+      # matter how many devices there are.
+      items:
+        - uuid: 8ac83780b9b046e589edeea05980201e
+          name: 'UniFi: device inventory'
+          key: unifi.devices
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          timeout: 30s
+          description: 'Raw inventory from the controller database; every other metric depends on this item.'
+      discovery_rules:
+        - uuid: 8ab807f83ae74dd38828f0808b4b3aa3
+          name: 'UniFi: device discovery'
+          type: DEPENDENT
+          key: unifi.devices.discovery
+          delay: '0'
+          description: 'One host prototype worth of macros per device found in the controller database.'
+          lld_macro_paths:
+            - lld_macro: '{#UNIFI.IP}'
+              path: $.ip
+            - lld_macro: '{#UNIFI.MAC}'
+              path: $.mac
+            - lld_macro: '{#UNIFI.MODEL}'
+              path: $.model
+            - lld_macro: '{#UNIFI.NAME}'
+              path: $.name
+            - lld_macro: '{#UNIFI.TYPE}'
+              path: $.type
+          master_item:
+            key: unifi.devices
+          item_prototypes:
+            - uuid: 25c9b01579074eb4a5b7af4a47b7c5b9
+              name: 'UniFi {#UNIFI.NAME}: state'
+              type: DEPENDENT
+              key: 'unifi.dev.state[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              value_type: UNSIGNED
+              description: 'Derived from the two timestamps the controller stores: connected when connected_at is not older than disconnected_at.'
+              valuemap:
+                name: 'UniFi connection state'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].state.first()'
+              master_item:
+                key: unifi.devices
+
+            - uuid: 65bf2d0197384da999cfd5329ed8b6a6
+              name: 'UniFi {#UNIFI.NAME}: last seen'
+              type: DEPENDENT
+              key: 'unifi.dev.lastseen[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              units: unixtime
+              value_type: UNSIGNED
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].last_seen.first()'
+              master_item:
+                key: unifi.devices
+
+            - uuid: f29d899d9fab4ed89b66cff2a635c059
+              name: 'UniFi {#UNIFI.NAME}: connected since'
+              type: DEPENDENT
+              key: 'unifi.dev.connected[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              units: unixtime
+              value_type: UNSIGNED
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].connected_at.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: unifi.devices
+
+            - uuid: 37efcc1d58e8447580cb4402d211576c
+              name: 'UniFi {#UNIFI.NAME}: uptime'
+              type: CALCULATED
+              key: 'unifi.dev.uptime[{#UNIFI.NAME}]'
+              delay: 1m
+              history: 7d
+              units: uptime
+              value_type: UNSIGNED
+              params: 'now()-last(//unifi.dev.connected[{#UNIFI.NAME}])'
+              description: 'Seconds since the controller last saw this device connect.'
+
+            - uuid: cec9ddba91544838b16421016b24fe41
+              name: 'UniFi {#UNIFI.NAME}: firmware version'
+              type: DEPENDENT
+              key: 'unifi.dev.version[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].version.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: unifi.devices
+
+            - uuid: 3cf4fbc491b84d939f11754ca2544f2b
+              name: 'UniFi {#UNIFI.NAME}: model'
+              type: DEPENDENT
+              key: 'unifi.dev.model[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].model.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: unifi.devices
+
+            - uuid: 17de2503796d49faba06e2cc3c00ae00
+              name: 'UniFi {#UNIFI.NAME}: address'
+              type: DEPENDENT
+              key: 'unifi.dev.ip[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              value_type: CHAR
+              description: 'The address the controller sees; compare with the inventory when a device looks unreachable.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].ip.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: unifi.devices
+
+            - uuid: 40cd908064c2457eb8803ff33bb4612f
+              name: 'UniFi {#UNIFI.NAME}: adopted'
+              type: DEPENDENT
+              key: 'unifi.dev.adopted[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              value_type: UNSIGNED
+              valuemap:
+                name: 'UniFi yes or no'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].adopted.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: unifi.devices
+
+            - uuid: 84aad929a7e649c29ac35038c440d010
+              name: 'UniFi {#UNIFI.NAME}: model end of life'
+              type: DEPENDENT
+              key: 'unifi.dev.eol[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              value_type: UNSIGNED
+              valuemap:
+                name: 'UniFi yes or no'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].eol.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: unifi.devices
+
+          trigger_prototypes:
+            - uuid: 637ebe3534644d51833041ac8271ecf1
+              expression: 'last(/UniFi devices by controller DB/unifi.dev.state[{#UNIFI.NAME}])=0'
+              name: 'UniFi {#UNIFI.NAME}: disconnected from the controller'
+              priority: HIGH
+              description: 'The controller recorded a disconnect more recent than the last connect.'
+
+            - uuid: 13bfc0999b7e4eb0a56e09b86e211079
+              expression: 'fuzzytime(/UniFi devices by controller DB/unifi.dev.lastseen[{#UNIFI.NAME}],{$UNIFI.LASTSEEN.MAX})=0'
+              name: 'UniFi {#UNIFI.NAME}: not seen by the controller for {$UNIFI.LASTSEEN.MAX}'
+              priority: WARNING
+              description: 'Catches a device that stopped reporting without the controller noticing a disconnect.'
+
+            - uuid: d29ac034834b4bc1a7e4e2dbabec1c91
+              expression: 'last(/UniFi devices by controller DB/unifi.dev.adopted[{#UNIFI.NAME}])=0'
+              name: 'UniFi {#UNIFI.NAME}: not adopted by the controller'
+              priority: WARNING
+
+            - uuid: 2a44a8c4db074f97bb9d9f942ad50258
+              expression: 'last(/UniFi devices by controller DB/unifi.dev.eol[{#UNIFI.NAME}])=1'
+              name: 'UniFi {#UNIFI.NAME}: model is end of life'
+              priority: INFO
+              description: 'Informational: the model no longer receives firmware from Ubiquiti.'
+
+      macros:
+        - macro: '{$UNIFI.LASTSEEN.MAX}'
+          value: 10m
+          description: 'How stale last_seen may get before the device counts as gone'
+      valuemaps:
+        - uuid: 907cbb85c17642ad8bf52a46e4aa8e83
+          name: 'UniFi connection state'
+          mappings:
+            - value: '0'
+              newvalue: Disconnected
+            - value: '1'
+              newvalue: Connected
+        - uuid: d9afa2c85c1b467b9aa7476c1985526c
+          name: 'UniFi yes or no'
+          mappings:
+            - value: '0'
+              newvalue: 'No'
+            - value: '1'
+              newvalue: 'Yes'
