@@ -74,6 +74,28 @@
 - name: Apply pending Zabbix agent restarts
   ansible.builtin.meta: flush_handlers
 
+# The address is frozen into a fact before the registration tasks run.
+#
+# Those tasks point the httpapi connection at the Zabbix server by overriding ansible_host in
+# their own vars, and that override shadows ansible_host for everything else evaluated in the
+# same scope - including the interface address, which would then be the Zabbix server's own
+# IP for every host. The result registers cleanly and fails at poll time with "Received empty
+# response from Zabbix Agent", naming the server's address while appearing to describe the
+# agent. A fact is fixed when it is set and cannot be shadowed afterwards.
+#
+# Адрес фиксируется фактом до задач регистрации.
+#
+# Те задачи направляют соединение httpapi на сервер Zabbix, переопределяя ansible_host в
+# собственных vars, и это переопределение затеняет ansible_host для всего, что вычисляется в
+# той же области, - включая адрес интерфейса, который стал бы адресом самого сервера Zabbix
+# для каждого хоста. Регистрация при этом проходит чисто и падает уже при опросе с "Received
+# empty response from Zabbix Agent", называя адрес сервера так, будто описывает агента.
+# Факт фиксируется в момент установки и затенён быть не может.
+- name: Freeze the address the server will poll
+  ansible.builtin.set_fact:
+    zabbix_agent_resolved_interface_address: "{{ zabbix_agent_interface_address }}"
+  when: zabbix_agent_register | bool
+
 # Registration runs from the controller, not from the monitored host: the host has no reason
 # to reach the Zabbix API, and giving every monitored machine API credentials would be the
 # opposite of what monitoring is for.
@@ -111,7 +133,7 @@
       - type: agent
         main: 1
         useip: 1
-        ip: "{{ zabbix_agent_interface_address }}"
+        ip: "{{ zabbix_agent_resolved_interface_address }}"
         dns: ""
         port: "{{ zabbix_agent_listen_port | string }}"
   delegate_to: localhost
