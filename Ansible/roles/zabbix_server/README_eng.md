@@ -85,9 +85,12 @@ gone with the container. The role imports every file named in
 `zabbix_server_custom_templates` on each run, with `updateExisting` on, so editing the file
 in Git is what changes the server.
 
-`configuration.import` answers `true` whether or not anything changed, so it cannot report
-honestly on its own. The role calls `configuration.importcompare` first and imports only
-the files whose diff is non-empty.
+The import deliberately reports no change, ever. `configuration.import` answers `true`
+whether or not anything changed, and `configuration.importcompare` omits `delay` from its
+before-snapshot for a script item, so it reports a difference where none exists whatever the
+file contains. Neither can tell the truth, so the task says nothing rather than crying wolf
+on every run — a permanent `changed` teaches people to stop reading the output. Call
+`configuration.importcompare` by hand when you want to see the real difference.
 
 Keep template and item descriptions to a **single line**. Zabbix stores multi-line text with
 CRLF while the file holds LF, so a multi-line description differs from itself forever and
