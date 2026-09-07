@@ -94,3 +94,20 @@ zabbix_snmp_host_description: ""
 # вечное оповещение, а систему мониторинга, где оповещения горят всегда, перестают читать.
 # Заведомо неопрашиваемое устройство обходится дороже пользы от него, пока не сможет ответить.
 zabbix_snmp_host_status: "enabled"
+
+# List of dicts. Extra host macros. Keys: macro, and either value or value_var - the name of
+# a variable holding it, resolved at run time.
+#
+# This is where a secret a template needs belongs. A template export lives in git and is
+# read by anyone with the repository; a host macro lives only on the server. The API also
+# never returns the value of a SECRET_TEXT macro, so one declared inside a template differs
+# from itself on every comparison and makes the import permanently non-idempotent.
+#
+# Список словарей. Дополнительные макросы хоста. Ключи: macro и либо value, либо value_var -
+# имя переменной со значением, разрешаемое во время прогона.
+#
+# Именно здесь место секрету, который нужен шаблону. Экспорт шаблона лежит в git и доступен
+# всякому, у кого есть репозиторий; макрос хоста живёт только на сервере. Вдобавок API
+# никогда не возвращает значение макроса типа SECRET_TEXT, поэтому объявленный внутри
+# шаблона он отличается сам от себя при каждом сравнении и делает импорт вечно неидемпотентным.
+zabbix_snmp_host_macros: []

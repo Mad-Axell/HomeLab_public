@@ -35,6 +35,23 @@
   ansible.builtin.set_fact:
     zabbix_snmp_host_resolved_address: "{{ zabbix_snmp_host_address }}"
 
+# Макросы собираются заранее и одним списком: community всегда, остальное - из
+# zabbix_snmp_host_macros, где значение задаётся либо прямо, либо именем переменной.
+# The macros are assembled beforehand into one list: the community always, the rest from
+# zabbix_snmp_host_macros, where a value is given either directly or by variable name.
+- name: Resolve the host macros
+  ansible.builtin.set_fact:
+    zabbix_snmp_host_resolved_macros: >-
+      {%- set out = [{'macro': zabbix_snmp_host_community_macro,
+                      'value': lookup('ansible.builtin.vars', zabbix_snmp_host_community_var)}] -%}
+      {%- for m in zabbix_snmp_host_macros -%}
+      {%- set _ = out.append({'macro': m.macro,
+                              'value': (m.value if m.value is defined
+                                        else lookup('ansible.builtin.vars', m.value_var))}) -%}
+      {%- endfor -%}
+      {{ out }}
+  no_log: true
+
 - name: Create the host groups on the Zabbix server
   community.zabbix.zabbix_group:
     host_groups: "{{ zabbix_snmp_host_groups }}"
@@ -74,9 +91,7 @@
     description: "{{ zabbix_snmp_host_description }}"
     status: "{{ zabbix_snmp_host_status }}"
     state: present
-    macros:
-      - macro: "{{ zabbix_snmp_host_community_macro }}"
-        value: "{{ lookup('ansible.builtin.vars', zabbix_snmp_host_community_var) }}"
+    macros: "{{ zabbix_snmp_host_resolved_macros }}"
     interfaces:
       - type: snmp
         main: 1

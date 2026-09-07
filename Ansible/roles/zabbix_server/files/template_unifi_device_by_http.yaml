@@ -196,14 +196,22 @@ zabbix_export:
           master_item:
             key: unifi.device.raw
       # Порядок алфавитный по той же причине, что и у параметров выше.
+      #
+      # {$UNIFI.PASSWORD} здесь НЕ объявлен намеренно: он задаётся макросом хоста ролью
+      # zabbix_snmp_host. Секрету не место в файле шаблона, лежащем в git, а сверх того
+      # значение макроса типа SECRET_TEXT API не возвращает - объявленный здесь, он вечно
+      # отличался бы сам от себя, и импорт сообщал бы об изменении на каждом прогоне.
+      #
       # Alphabetical for the same reason as the parameters above.
+      #
+      # {$UNIFI.PASSWORD} is deliberately NOT declared here: it is set as a host macro by
+      # zabbix_snmp_host. A secret does not belong in a template file kept in git, and
+      # besides, the API never returns the value of a SECRET_TEXT macro - declared here it
+      # would differ from itself forever and the import would report a change every run.
       macros:
         - macro: '{$UNIFI.DEVICE.ADDRESS}'
           value: '{HOST.CONN}'
           description: 'Address the controller reports for this device; used to pick its entry out of stat/device'
-        - macro: '{$UNIFI.PASSWORD}'
-          type: SECRET_TEXT
-          description: 'Password of the local controller admin'
         - macro: '{$UNIFI.SITE}'
           value: default
           description: 'Controller site identifier'
