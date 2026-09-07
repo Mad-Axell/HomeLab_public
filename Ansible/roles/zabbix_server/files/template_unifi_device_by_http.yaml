@@ -1,7 +1,13 @@
 zabbix_export:
   version: '7.0'
+  # UUID здесь - настоящий UUID уже существующей на сервере группы, а не выдуманный.
+  # Импорт сопоставляет группы по UUID: с чужим он пытается СОЗДАТЬ группу и падает на
+  # "Template group already exists", хотя ничего создавать не требовалось.
+  # The UUID here is the real one of the group that already exists on the server, not an
+  # invented one. Import matches groups by UUID: with a foreign one it tries to CREATE the
+  # group and fails with "Template group already exists", though nothing needed creating.
   template_groups:
-    - uuid: 7df96b18c230490a9a0a9e2307226338
+    - uuid: 36bff6c29af64692839d077febfc7079
       name: Templates/Network devices
   templates:
     - uuid: a1c4f2b7e5d34c8fb2a7e6c93d15af20
