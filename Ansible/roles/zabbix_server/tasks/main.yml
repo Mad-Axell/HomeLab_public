@@ -265,6 +265,54 @@
 - name: Apply pending Zabbix restarts
   ansible.builtin.meta: flush_handlers
 
+# A handler is only as durable as the run that notified it. The configuration was written
+# in a run that failed later on, before the flush, so the restart never happened - and every
+# later run saw an unchanged file, notified nothing, and left the server on its old
+# configuration talking to the wrong database. The service stayed "active" throughout.
+#
+# So the state is checked rather than assumed: if the server has no connection to the
+# database it was configured for, it is restarted here, whatever any handler did or did not
+# do earlier.
+#
+# Handler живёт ровно столько, сколько прогон, который его уведомил. Конфигурация была
+# записана в прогоне, упавшем позже и до flush, поэтому перезапуск не случился, - а каждый
+# следующий прогон видел файл неизменным, никого не уведомлял и оставлял сервер на старой
+# конфигурации, обращающимся не к той базе. Служба при этом всё время была "active".
+#
+# Поэтому проверяется состояние, а не предположение: если у сервера нет соединения с той
+# базой, на которую он настроен, он перезапускается здесь, независимо от того, сработал
+# handler раньше или нет.
+- name: Read whether the server is connected to its database
+  ansible.builtin.shell:
+    cmd: >-
+      ss -tn state established
+      "dst {{ zabbix_server_database_host }}:{{ zabbix_server_database_port }}"
+      | grep -c . || true
+  changed_when: false
+  check_mode: false
+  register: zabbix_server_db_link
+
+- name: Restart the server when it is not talking to its database
+  ansible.builtin.systemd:
+    name: "zabbix-server"
+    state: restarted
+  when: (zabbix_server_db_link.stdout | trim | int) < 2
+  register: zabbix_server_recovery
+
+- name: Re-read the database connection after the restart
+  ansible.builtin.shell:
+    cmd: >-
+      ss -tn state established
+      "dst {{ zabbix_server_database_host }}:{{ zabbix_server_database_port }}"
+      | grep -c . || true
+  changed_when: false
+  check_mode: false
+  retries: 6
+  delay: 5
+  until: (zabbix_server_db_link_after.stdout | trim | int) >= 2
+  register: zabbix_server_db_link_after
+  when: zabbix_server_recovery.changed | default(false)
+
 - name: Wait for the Zabbix frontend to answer
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ zabbix_server_frontend_port }}/index.php"
