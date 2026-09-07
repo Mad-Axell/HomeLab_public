@@ -42,7 +42,14 @@ zabbix_export:
                 base = params.url.replace(/\/+$/, '');
 
             req.addHeader('Content-Type: application/json');
-            req.setHttpAuthentication(HTTPAUTH_NONE);
+
+            // Никаких setHttpAuthentication: в объекте HttpRequest этой сборки такого метода
+            // нет, и вызов падает с "undefined not callable" ещё до первого запроса. Оно и
+            // не нужно - контроллер аутентифицирует телом POST, а не заголовком HTTP-auth.
+            // No setHttpAuthentication: this build's HttpRequest object has no such method
+            // and the call dies with "undefined not callable" before the first request. It is
+            // not needed either - the controller authenticates by POST body, not by an
+            // HTTP-auth header.
 
             // The controller answers with a session cookie, not a token. Both calls have to
             // happen inside one script for that cookie to survive between them.
