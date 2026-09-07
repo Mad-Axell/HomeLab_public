@@ -200,6 +200,12 @@
 # to a human is a configuration that exists nowhere in this repository.
 # Пишется до того, как веб-интерфейс станет доступен, чтобы мастер установки не появлялся
 # вовсе. Мастер, оставленный человеку, - это конфигурация, которой нет нигде в репозитории.
+- name: Remove a frontend configuration left in the upstream location
+  ansible.builtin.file:
+    path: "/usr/share/zabbix/conf/zabbix.conf.php"
+    state: absent
+  when: zabbix_server_frontend_config_path != "/usr/share/zabbix/conf/zabbix.conf.php"
+
 - name: Configure the Zabbix frontend
   ansible.builtin.template:
     src: "zabbix.conf.php.j2"

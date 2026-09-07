@@ -154,7 +154,20 @@ zabbix_server_frontend_port: 80
 # и эти два пути легко перепутать; неверный корень даёт nginx каталог без index.php и 403,
 # который ничего не говорит о том, какая раскладка ожидалась.
 zabbix_server_frontend_root: "/usr/share/zabbix"
-zabbix_server_frontend_config_path: "/usr/share/zabbix/conf/zabbix.conf.php"
+
+# String. Where the frontend looks for its configuration. Three packagings put this file in
+# three different places - upstream in /usr/share/zabbix/ui/conf/, the vendor packages in
+# /etc/zabbix/web/, Debian in /etc/zabbix/ - and Debian hardcodes its choice as
+# CConfigFile::CONFIG_FILE_PATH. Writing it anywhere else leaves an API that answers every
+# call with "Config file does not exist", which reads as a broken install rather than as a
+# file in the wrong directory.
+# Строка. Где веб-интерфейс ищет свою конфигурацию. Три варианта пакетирования кладут этот
+# файл в три разных места - апстрим в /usr/share/zabbix/ui/conf/, пакеты вендора в
+# /etc/zabbix/web/, Debian в /etc/zabbix/, - причём Debian зашивает свой выбор константой
+# CConfigFile::CONFIG_FILE_PATH. Запись куда-либо ещё оставляет API, отвечающий на каждый
+# вызов "Config file does not exist", что читается как сломанная установка, а не как файл
+# не в том каталоге.
+zabbix_server_frontend_config_path: "/etc/zabbix/zabbix.conf.php"
 
 # List of strings. Names and addresses the frontend answers to.
 # Список строк. Имена и адреса, на которые отвечает веб-интерфейс.
