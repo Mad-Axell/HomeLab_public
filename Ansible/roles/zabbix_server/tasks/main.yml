@@ -349,8 +349,10 @@
       - zabbix_server_login_target.json.result is defined
         or zabbix_server_password_result.json.result is defined
     fail_msg: >-
-      Neither the intended password nor the shipped one was accepted by the Zabbix API.
-      The Admin account has a third password, set outside this role.
+      The Zabbix API did not accept the intended password.
+      {{ zabbix_server_password_result.json.error.data
+         | default('Neither it nor the shipped password authenticated, so the Admin account
+                    has a third password set outside this role.', true) }}
 
 - name: Read the installed Zabbix version
   ansible.builtin.command:
