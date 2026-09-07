@@ -78,6 +78,20 @@ two-factor is enabled on it and nothing in an unattended poll can satisfy that. 
 local, non-SSO, read-only admin in the controller and put it in `{$UNIFI.USER}` and
 `{$UNIFI.PASSWORD}`.
 
+Two things outside this role have to be in place before the template collects anything, and
+both fail as an unsupported item rather than as an obvious misconfiguration:
+
+- **The Zabbix server must reach the controller on its HTTPS port** (8443 by default). The
+  controller usually sits in a different segment from the monitoring server, and the rules
+  written for agents open only the agent ports there. Check with
+  `curl -sk -o /dev/null -w '%{http_code}' https://<controller>:8443/status` **from the
+  Zabbix server**, not from a workstation.
+- **The account must be local and must exist.** `{$UNIFI.PASSWORD}` belongs in a host macro
+  set by `zabbix_snmp_host`, never in this file.
+
+Register the devices with `zabbix_snmp_host_status: "disabled"` until both hold. A host that
+is enabled and can never answer is a permanent alert, and permanent alerts stop being read.
+
 ## Templates are imported from files, and only when they differ
 
 A template imported by hand exists only in the database: not reviewable, not in Git, and
