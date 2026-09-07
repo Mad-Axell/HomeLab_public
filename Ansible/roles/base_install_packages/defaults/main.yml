@@ -13,3 +13,7 @@ install_packages_names: null
 # String. Requested package state.
 # Строка. Запрошенное состояние пакетов.
 install_packages_state: "present"
+
+# Integer. Maximum age of the apt index in seconds before it is refreshed.
+# Целое число. Максимальный возраст индекса apt в секундах до его обновления.
+install_packages_cache_valid_time: 3600

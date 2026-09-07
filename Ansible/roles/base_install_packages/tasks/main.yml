@@ -10,6 +10,26 @@
       - install_packages_state in ['present', 'absent']
     fail_msg: "install_packages_names must be a non-empty list and install_packages_state must be present or absent."
 
+# Refresh the package index before installing anything.
+#
+# A cache older than the archive's retention asks for versions that have since been removed,
+# and apt answers 404 for each of them. The error names the files, not the stale index, so it
+# reads as a broken mirror. Debian rebuilds package versions often enough that a container
+# untouched for a few weeks hits this reliably.
+#
+# Обновление индекса пакетов до установки чего-либо.
+#
+# Кэш старше срока хранения в архиве запрашивает версии, которые оттуда уже убраны, и apt
+# отвечает 404 на каждую. Ошибка называет файлы, а не устаревший индекс, поэтому читается как
+# сломанное зеркало. Debian пересобирает версии пакетов достаточно часто, чтобы контейнер,
+# нетронутый пару недель, попадал в это стабильно.
+- name: Refresh the package index
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ install_packages_cache_valid_time }}"
+  when: ansible_facts.os_family == 'Debian'
+  register: install_packages_cache_result
+
 # Apply the requested state to all declared packages.
 # Применение запрошенного состояния ко всем объявленным пакетам.
 - name: Manage declared packages
