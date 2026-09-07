@@ -21,7 +21,6 @@ zabbix_export:
           name: 'UniFi: device entry'
           type: SCRIPT
           key: unifi.device.raw
-          delay: 1m
           history: '0'
           value_type: TEXT
           trends: '0'
