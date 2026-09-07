@@ -1,0 +1,103 @@
+---
+- name: Validate Zabbix SNMP host configuration
+  ansible.builtin.assert:
+    that:
+      - zabbix_snmp_host_api_url is not none
+      - zabbix_snmp_host_api_password_var is not none
+      - zabbix_snmp_host_community_var is not none
+      - zabbix_snmp_host_groups | length > 0
+      - (zabbix_snmp_host_version | int) in [1, 2, 3]
+    fail_msg: >-
+      zabbix_snmp_host requires an API URL, an API password variable, an SNMP community
+      variable, at least one host group and a valid SNMP version.
+
+- name: Validate the Zabbix SNMP secrets
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', item, default=none) is not none
+    fail_msg: "A variable named in the zabbix_snmp_host configuration must exist in VARS/secrets.yml."
+  loop:
+    - "{{ zabbix_snmp_host_api_password_var }}"
+    - "{{ zabbix_snmp_host_community_var }}"
+  loop_control:
+    label: "redacted"
+  no_log: true
+
+# The address is frozen before the API tasks, which override ansible_host in their own vars
+# to aim the httpapi connection at the Zabbix server. That override shadows ansible_host for
+# everything else in the same scope, so without this every device would be registered with
+# the server's own address and polled there instead of at the device.
+# Адрес фиксируется до задач API: они переопределяют ansible_host в собственных vars, чтобы
+# направить httpapi на сервер Zabbix. Это переопределение затеняет ansible_host для всего
+# остального в той же области, поэтому без фиксации каждое устройство было бы
+# зарегистрировано с адресом самого сервера и опрашивалось бы на нём, а не на устройстве.
+- name: Freeze the address the server will poll
+  ansible.builtin.set_fact:
+    zabbix_snmp_host_resolved_address: "{{ zabbix_snmp_host_address }}"
+
+- name: Create the host groups on the Zabbix server
+  community.zabbix.zabbix_group:
+    host_groups: "{{ zabbix_snmp_host_groups }}"
+    state: present
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_zabbix_url_path: ""
+    ansible_host: "{{ zabbix_snmp_host_api_url | urlsplit('hostname') }}"
+    ansible_connection: "httpapi"
+    ansible_network_os: "community.zabbix.zabbix"
+    ansible_httpapi_port: "{{ zabbix_snmp_host_api_url | urlsplit('port') | default(80, true) }}"
+    ansible_httpapi_use_ssl: "{{ (zabbix_snmp_host_api_url | urlsplit('scheme')) == 'https' }}"
+    ansible_httpapi_validate_certs: false
+    ansible_user: "{{ zabbix_snmp_host_api_user }}"
+    ansible_httpapi_pass: "{{ lookup('ansible.builtin.vars', zabbix_snmp_host_api_password_var) }}"
+  register: zabbix_snmp_host_group_result
+
+- name: Register the SNMP device on the Zabbix server
+  community.zabbix.zabbix_host:
+    host_name: "{{ zabbix_snmp_host_name }}"
+    host_groups: "{{ zabbix_snmp_host_groups }}"
+    link_templates: "{{ zabbix_snmp_host_templates }}"
+    description: "{{ zabbix_snmp_host_description }}"
+    status: enabled
+    state: present
+    macros:
+      - macro: "{{ zabbix_snmp_host_community_macro }}"
+        value: "{{ lookup('ansible.builtin.vars', zabbix_snmp_host_community_var) }}"
+    interfaces:
+      - type: snmp
+        main: 1
+        useip: 1
+        ip: "{{ zabbix_snmp_host_resolved_address }}"
+        dns: ""
+        port: "{{ zabbix_snmp_host_port | string }}"
+        details:
+          version: "{{ zabbix_snmp_host_version | int }}"
+          bulk: "{{ 1 if zabbix_snmp_host_bulk | bool else 0 }}"
+          community: "{{ zabbix_snmp_host_community_macro }}"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_zabbix_url_path: ""
+    ansible_host: "{{ zabbix_snmp_host_api_url | urlsplit('hostname') }}"
+    ansible_connection: "httpapi"
+    ansible_network_os: "community.zabbix.zabbix"
+    ansible_httpapi_port: "{{ zabbix_snmp_host_api_url | urlsplit('port') | default(80, true) }}"
+    ansible_httpapi_use_ssl: "{{ (zabbix_snmp_host_api_url | urlsplit('scheme')) == 'https' }}"
+    ansible_httpapi_validate_certs: false
+    ansible_user: "{{ zabbix_snmp_host_api_user }}"
+    ansible_httpapi_pass: "{{ lookup('ansible.builtin.vars', zabbix_snmp_host_api_password_var) }}"
+  no_log: true
+  register: zabbix_snmp_host_result
+
+- name: Display Zabbix SNMP host change summary
+  ansible.builtin.debug:
+    msg: >-
+      {{ zabbix_snmp_host_name }} registered for SNMP v{{ zabbix_snmp_host_version }}
+      at {{ zabbix_snmp_host_resolved_address }}:{{ zabbix_snmp_host_port }};
+      templates {{ zabbix_snmp_host_templates | join(', ') }}.
+  when:
+    - zabbix_snmp_host_debug_mode | bool
+    - zabbix_snmp_host_result.changed | default(false) | bool
+  tags:
+    - debug

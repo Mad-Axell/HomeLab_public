@@ -1,0 +1,81 @@
+---
+# Zabbix SNMP host registration
+# Регистрация SNMP-хоста в Zabbix
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+zabbix_snmp_host_debug_mode: false
+
+# This role installs nothing on the device. Switches, access points and appliances run
+# firmware that takes no agent, so the only thing there is to manage is the host object on
+# the Zabbix server and the SNMP interface pointing back at the device.
+#
+# Эта роль ничего не устанавливает на устройство. Коммутаторы, точки доступа и appliance
+# работают на прошивке, которая агента не принимает, поэтому управлять здесь можно только
+# объектом хоста на сервере Zabbix и SNMP-интерфейсом, указывающим на устройство.
+
+# String or null. Base URL of the Zabbix frontend.
+# Строка или null. Базовый URL веб-интерфейса Zabbix.
+zabbix_snmp_host_api_url: null
+
+# String. API account used for registration.
+# Строка. Учётная запись API, используемая для регистрации.
+zabbix_snmp_host_api_user: "Admin"
+
+# String or null. Name of the variable holding the API password.
+# Строка или null. Имя переменной с паролем API.
+zabbix_snmp_host_api_password_var: null
+
+# String. Name of the host object on the server.
+# Строка. Имя объекта хоста на сервере.
+zabbix_snmp_host_name: "{{ inventory_hostname }}"
+
+# String. Address the server polls over SNMP.
+# Строка. Адрес, который сервер опрашивает по SNMP.
+zabbix_snmp_host_address: "{{ ansible_host | default(inventory_hostname) }}"
+
+# Integer. UDP port the device answers SNMP on.
+# Целое число. UDP-порт, на котором устройство отвечает по SNMP.
+zabbix_snmp_host_port: 161
+
+# Integer. SNMP version: 1, 2 or 3.
+# Целое число. Версия SNMP: 1, 2 или 3.
+zabbix_snmp_host_version: 2
+
+# String or null. Name of the variable holding the SNMP community.
+#
+# The value is written into a host macro, and the interface refers to that macro rather than
+# carrying the community itself. That is where Zabbix templates expect to find it: every
+# stock SNMP template reads the macro, so an interface holding a literal community polls
+# perfectly well and leaves every templated item unsupported.
+#
+# Строка или null. Имя переменной со SNMP community.
+#
+# Значение пишется в макрос хоста, а интерфейс ссылается на этот макрос, а не несёт community
+# сам. Именно там его ожидают найти шаблоны Zabbix: каждый штатный SNMP-шаблон читает макрос,
+# поэтому интерфейс с буквальным community опрашивается прекрасно и оставляет все элементы
+# шаблона неподдерживаемыми.
+zabbix_snmp_host_community_var: null
+
+# String. Macro the community is stored in and the interface refers to.
+# Строка. Макрос, в котором хранится community и на который ссылается интерфейс.
+zabbix_snmp_host_community_macro: "{$SNMP_COMMUNITY}"
+
+# Boolean. Use GetBulk requests. Turn off for firmware that answers them badly.
+# Логическое значение. Использовать запросы GetBulk. Выключить для прошивок, отвечающих на
+# них плохо.
+zabbix_snmp_host_bulk: true
+
+# List of strings. Host groups. Zabbix rejects a host with none.
+# Список строк. Группы хостов. Хост без единой группы Zabbix отвергает.
+zabbix_snmp_host_groups:
+  - "Network devices"
+
+# List of strings. Templates linked to the host; names must match the server exactly.
+# Список строк. Шаблоны, привязанные к хосту; имена обязаны точно совпадать с сервером.
+zabbix_snmp_host_templates:
+  - "Network Generic Device by SNMP"
+
+# String. Free-text description stored on the host object.
+# Строка. Произвольное описание, сохраняемое в объекте хоста.
+zabbix_snmp_host_description: ""
