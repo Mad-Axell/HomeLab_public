@@ -428,6 +428,55 @@
   when: zabbix_server_custom_templates | length > 0
   register: zabbix_server_import_login
 
+# configuration.import answers true whether or not anything changed, so it cannot report
+# changed honestly on its own. importcompare returns the diff the import would apply, and an
+# empty diff means the file already matches the server - which is what makes a second run
+# quiet instead of permanently changed.
+# configuration.import отвечает true независимо от того, изменилось ли что-нибудь, поэтому
+# сам по себе честно сообщить об изменении не может. importcompare возвращает разницу,
+# которую применил бы импорт, и пустая разница означает, что файл уже совпадает с сервером -
+# именно это делает второй прогон тихим, а не вечно изменяющим.
+- name: Compare the custom templates with the server
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ zabbix_server_frontend_port }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    headers:
+      Content-Type: "application/json-rpc"
+      Authorization: "Bearer {{ zabbix_server_import_login.json.result }}"
+    body:
+      jsonrpc: "2.0"
+      method: "configuration.importcompare"
+      id: 1
+      params:
+        format: "yaml"
+        source: "{{ lookup('ansible.builtin.file', 'files/' ~ item) }}"
+        rules:
+          template_groups: { createMissing: true, updateExisting: true }
+          templates: { createMissing: true, updateExisting: true }
+          items: { createMissing: true, updateExisting: true, deleteMissing: true }
+          triggers: { createMissing: true, updateExisting: true, deleteMissing: true }
+          valueMaps: { createMissing: true, updateExisting: true }
+    status_code: 200
+  loop: "{{ zabbix_server_custom_templates }}"
+  changed_when: false
+  when: zabbix_server_custom_templates | length > 0
+  register: zabbix_server_import_diff
+
+- name: Resolve which templates differ from the server
+  ansible.builtin.set_fact:
+    zabbix_server_templates_to_import: >-
+      {{
+        zabbix_server_import_diff.results
+        | default([])
+        | rejectattr('skipped', 'defined')
+        | selectattr('json.result', 'defined')
+        | rejectattr('json.result', 'equalto', {})
+        | map(attribute='item')
+        | list
+      }}
+  when: zabbix_server_custom_templates | length > 0
+
 # updateExisting is on so that editing the file in Git is what changes the server. Without
 # it the first import wins forever and the repository quietly stops describing reality.
 # updateExisting включён, чтобы изменение файла в Git было тем, что меняет сервер. Без него
@@ -454,10 +503,9 @@
           triggers: { createMissing: true, updateExisting: true, deleteMissing: true }
           valueMaps: { createMissing: true, updateExisting: true }
     status_code: 200
-  loop: "{{ zabbix_server_custom_templates }}"
-  when: zabbix_server_custom_templates | length > 0
+  loop: "{{ zabbix_server_templates_to_import | default([]) }}"
   register: zabbix_server_import_result
-  changed_when: zabbix_server_import_result.json.result | default(false) | bool
+  changed_when: true
 
 - name: Require every template import to succeed
   ansible.builtin.assert:
