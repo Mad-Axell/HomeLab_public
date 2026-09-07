@@ -203,3 +203,21 @@ zabbix_server_api_password_var: null
 
 zabbix_server_service_state: "started"
 zabbix_server_service_enabled: true
+
+# Custom templates
+# Пользовательские шаблоны
+
+# List of strings. Template export files in this role's files/ directory, imported through
+# the API after the server is up.
+#
+# A template imported by hand exists only in the database: it is not reviewable, not in Git,
+# and gone with the container. Importing it from a file on every run makes the server's
+# template set a consequence of the repository rather than of somebody's afternoon.
+#
+# Список строк. Файлы экспорта шаблонов в каталоге files/ этой роли, импортируемые через
+# API после поднятия сервера.
+#
+# Шаблон, импортированный руками, существует только в базе: его нельзя ни отревьюить, ни
+# найти в Git, и он исчезает вместе с контейнером. Импорт из файла на каждом прогоне делает
+# набор шаблонов сервера следствием репозитория, а не чьего-то вечера.
+zabbix_server_custom_templates: []

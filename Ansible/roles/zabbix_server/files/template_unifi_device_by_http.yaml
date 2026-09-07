@@ -1,0 +1,263 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates/Network devices
+  templates:
+    - uuid: a1c4f2b7e5d34c8fb2a7e6c93d15af20
+      template: 'UniFi Device by HTTP'
+      name: 'UniFi Device by HTTP'
+      description: |
+        Monitors a UniFi access point or switch through the controller API, because the
+        devices themselves cannot be polled.
+
+        Ubiquiti removed SNMP from the UniFi Network interface; on 10.4.57 the setting does
+        not exist, and the devices take their configuration from the controller, so enabling
+        snmpd on each one is overwritten at the next provision. The controller is therefore
+        the only source of their state.
+
+        The controller uses a session cookie rather than a token: one POST to /api/login,
+        then a GET carrying the cookie. An HTTP agent item cannot carry a cookie between
+        items, so a single script item performs both calls and returns the device entry;
+        every metric below is a dependent item over that one result. One request per
+        interval per device, not two.
+
+        A Ubiquiti SSO account cannot be used: it answers api.err.Ubic2faTokenRequired.
+        Create a local (non-SSO) read-only admin in the controller and put it in the macros.
+
+        Наблюдает точку доступа или коммутатор UniFi через API контроллера, поскольку сами
+        устройства опросить нельзя.
+
+        Ubiquiti убрала SNMP из интерфейса UniFi Network; в 10.4.57 такой настройки нет, а
+        конфигурацию устройства получают от контроллера, поэтому включённый на каждом
+        snmpd перезаписывается при следующей провизии. Контроллер остаётся единственным
+        источником их состояния.
+
+        Контроллер использует cookie сессии, а не токен: один POST на /api/login, затем GET
+        с этим cookie. Элемент HTTP agent cookie между элементами не переносит, поэтому оба
+        вызова делает один скриптовый элемент и возвращает запись устройства; все метрики
+        ниже - зависимые от этого результата. Один запрос за интервал на устройство, а не два.
+
+        Учётная запись Ubiquiti SSO не подходит: она отвечает api.err.Ubic2faTokenRequired.
+        Заведите в контроллере локального администратора только на чтение и укажите его в
+        макросах.
+      groups:
+        - name: Templates/Network devices
+      items:
+        - uuid: b2d5f3c8a6e44d9ec3b8f7da4e26bf31
+          name: 'UniFi: device entry'
+          type: SCRIPT
+          key: unifi.device.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          params: |
+            var params = JSON.parse(value),
+                req = new HttpRequest(),
+                base = params.url.replace(/\/+$/, '');
+
+            req.addHeader('Content-Type: application/json');
+            req.setHttpAuthentication(HTTPAUTH_NONE);
+
+            // The controller answers with a session cookie, not a token. Both calls have to
+            // happen inside one script for that cookie to survive between them.
+            // Контроллер отвечает cookie сессии, а не токеном. Оба вызова обязаны пройти
+            // внутри одного скрипта, чтобы cookie между ними сохранился.
+            var login = req.post(base + '/api/login',
+                                 JSON.stringify({username: params.user, password: params.password}));
+            if (req.getStatus() !== 200) {
+                throw 'login failed with HTTP ' + req.getStatus() + ': ' + login;
+            }
+
+            var cookie = req.getHeaders()['Set-Cookie'];
+            if (cookie) {
+                req.addHeader('Cookie: ' + cookie);
+            }
+
+            var body = req.get(base + '/api/s/' + params.site + '/stat/device');
+            if (req.getStatus() !== 200) {
+                throw 'stat/device failed with HTTP ' + req.getStatus();
+            }
+
+            var devices = JSON.parse(body).data || [];
+            for (var i = 0; i < devices.length; i++) {
+                if (devices[i].ip === params.address) {
+                    return JSON.stringify(devices[i]);
+                }
+            }
+            throw 'controller knows no device with address ' + params.address;
+          parameters:
+            - name: url
+              value: '{$UNIFI.URL}'
+            - name: user
+              value: '{$UNIFI.USER}'
+            - name: password
+              value: '{$UNIFI.PASSWORD}'
+            - name: site
+              value: '{$UNIFI.SITE}'
+            - name: address
+              value: '{$UNIFI.DEVICE.ADDRESS}'
+          timeout: 30s
+          description: |
+            Single request per interval. Everything else depends on this item, so a failure
+            here is reported once instead of once per metric.
+            Один запрос за интервал. Всё остальное зависит от этого элемента, поэтому отказ
+            сообщается один раз, а не по разу на каждую метрику.
+
+        - uuid: c3e6a4d9b7f55e0fd4c9a8eb5f37c042
+          name: 'UniFi: state'
+          type: DEPENDENT
+          key: unifi.device.state
+          delay: '0'
+          history: 7d
+          description: |
+            1 means connected. The controller reports other values for provisioning,
+            adopting, upgrading and disconnected states.
+            1 означает "подключено". Другие значения контроллер отдаёт для провизии,
+            принятия, обновления и отключённого состояния.
+          valuemap:
+            name: 'UniFi device state'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.state
+          master_item:
+            key: unifi.device.raw
+          triggers:
+            - uuid: d4f7b5eac8066f1ae5da0b9fc6048153
+              expression: 'last(/UniFi Device by HTTP/unifi.device.state)<>1'
+              name: 'UniFi: device is not connected'
+              priority: HIGH
+
+        - uuid: e5a8c6fbd9177a2bf6ebac0ad7159264
+          name: 'UniFi: uptime'
+          type: DEPENDENT
+          key: unifi.device.uptime
+          delay: '0'
+          history: 7d
+          units: uptime
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.uptime
+          master_item:
+            key: unifi.device.raw
+
+        - uuid: f6b9d7acea288b3ca7fcbd1be8260375
+          name: 'UniFi: connected clients'
+          type: DEPENDENT
+          key: unifi.device.clients
+          delay: '0'
+          history: 7d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.num_sta
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '^$'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: unifi.device.raw
+
+        - uuid: a7cae8bdfb399c4db8adce2cf9371486
+          name: 'UniFi: firmware version'
+          type: DEPENDENT
+          key: unifi.device.version
+          delay: '0'
+          history: 7d
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.version
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: unifi.device.raw
+
+        - uuid: b8dbf9ceac4aad5ec9bedf3da0482597
+          name: 'UniFi: model'
+          type: DEPENDENT
+          key: unifi.device.model
+          delay: '0'
+          history: 7d
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.model
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: unifi.device.raw
+
+        - uuid: c9ecfadfb5bbe6fdacfea04eb1593608
+          name: 'UniFi: CPU utilisation'
+          type: DEPENDENT
+          key: unifi.device.cpu
+          delay: '0'
+          history: 7d
+          units: '%'
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system-stats.cpu
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: unifi.device.raw
+
+        - uuid: dafdab0ec6ccf70ebdafb15fc26a4719
+          name: 'UniFi: memory utilisation'
+          type: DEPENDENT
+          key: unifi.device.memory
+          delay: '0'
+          history: 7d
+          units: '%'
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.system-stats.mem
+              error_handler: DISCARD_VALUE
+          master_item:
+            key: unifi.device.raw
+      macros:
+        - macro: '{$UNIFI.URL}'
+          value: 'https://172.20.10.5:8443'
+          description: 'Base URL of the UniFi controller'
+        - macro: '{$UNIFI.USER}'
+          value: 'zabbix'
+          description: 'Local, non-SSO controller admin. An SSO account fails with api.err.Ubic2faTokenRequired.'
+        - macro: '{$UNIFI.PASSWORD}'
+          type: SECRET_TEXT
+          description: 'Password of the local controller admin'
+        - macro: '{$UNIFI.SITE}'
+          value: default
+          description: 'Controller site identifier'
+        - macro: '{$UNIFI.DEVICE.ADDRESS}'
+          value: '{HOST.CONN}'
+          description: 'Address the controller reports for this device; used to pick its entry out of stat/device'
+      valuemaps:
+        - uuid: eb0ebc1fd7dd081fceb0c26fd37b582a
+          name: 'UniFi device state'
+          mappings:
+            - value: '0'
+              newvalue: Disconnected
+            - value: '1'
+              newvalue: Connected
+            - value: '2'
+              newvalue: 'Pending adoption'
+            - value: '4'
+              newvalue: Updating
+            - value: '5'
+              newvalue: Provisioning
+            - value: '6'
+              newvalue: Unreachable
+            - value: '11'
+              newvalue: Isolated

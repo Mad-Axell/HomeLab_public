@@ -402,6 +402,74 @@
          | default('Neither it nor the shipped password authenticated, so the Admin account
                     has a third password set outside this role.', true) }}
 
+# A working token is needed for the import below, and which password works was only just
+# settled. Logging in again here is one request and removes any dependence on which of the
+# two branches above ran.
+# Для импорта ниже нужен рабочий токен, а какой пароль подходит, выяснилось только что.
+# Повторный вход здесь - один запрос, и он убирает зависимость от того, какая из двух
+# ветвей выше отработала.
+- name: Obtain a Zabbix API token for the import
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ zabbix_server_frontend_port }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    headers:
+      Content-Type: "application/json-rpc"
+    body:
+      jsonrpc: "2.0"
+      method: "user.login"
+      id: 1
+      params:
+        username: "{{ zabbix_server_api_user }}"
+        password: "{{ lookup('ansible.builtin.vars', zabbix_server_api_password_var) }}"
+    status_code: 200
+  no_log: true
+  changed_when: false
+  when: zabbix_server_custom_templates | length > 0
+  register: zabbix_server_import_login
+
+# updateExisting is on so that editing the file in Git is what changes the server. Without
+# it the first import wins forever and the repository quietly stops describing reality.
+# updateExisting включён, чтобы изменение файла в Git было тем, что меняет сервер. Без него
+# побеждает первый импорт навсегда, и репозиторий тихо перестаёт описывать действительность.
+- name: Import the custom Zabbix templates
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ zabbix_server_frontend_port }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    headers:
+      Content-Type: "application/json-rpc"
+      Authorization: "Bearer {{ zabbix_server_import_login.json.result }}"
+    body:
+      jsonrpc: "2.0"
+      method: "configuration.import"
+      id: 1
+      params:
+        format: "yaml"
+        source: "{{ lookup('ansible.builtin.file', 'files/' ~ item) }}"
+        rules:
+          template_groups: { createMissing: true, updateExisting: true }
+          templates: { createMissing: true, updateExisting: true }
+          items: { createMissing: true, updateExisting: true, deleteMissing: true }
+          triggers: { createMissing: true, updateExisting: true, deleteMissing: true }
+          valueMaps: { createMissing: true, updateExisting: true }
+    status_code: 200
+  loop: "{{ zabbix_server_custom_templates }}"
+  when: zabbix_server_custom_templates | length > 0
+  register: zabbix_server_import_result
+  changed_when: zabbix_server_import_result.json.result | default(false) | bool
+
+- name: Require every template import to succeed
+  ansible.builtin.assert:
+    that:
+      - item.json.error is not defined
+    fail_msg: >-
+      Importing {{ item.item }} failed: {{ item.json.error.data | default(item.json.error) }}
+  loop: "{{ zabbix_server_import_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('') }}"
+  when: zabbix_server_custom_templates | length > 0
+
 - name: Read the installed Zabbix version
   ansible.builtin.command:
     argv:
