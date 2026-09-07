@@ -44,7 +44,6 @@ zabbix_server_packages:
   - "php-fpm"
   - "php-curl"
   - "php-ldap"
-  - "php-php-gettext"
   - "nginx"
   - "postgresql-client"
   - "python3-psycopg2"
