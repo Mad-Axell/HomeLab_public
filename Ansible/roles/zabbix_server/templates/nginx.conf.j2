@@ -5,7 +5,7 @@ server {
 
     server_name {{ zabbix_server_frontend_names | join(' ') }};
 
-    root /usr/share/zabbix/ui;
+    root {{ zabbix_server_frontend_root }};
     index index.php;
 
     location = /favicon.ico { log_not_found off; }
@@ -34,9 +34,9 @@ server {
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
         fastcgi_index index.php;
 
-        fastcgi_param DOCUMENT_ROOT   /usr/share/zabbix/ui;
-        fastcgi_param SCRIPT_FILENAME /usr/share/zabbix/ui$fastcgi_script_name;
-        fastcgi_param PATH_TRANSLATED /usr/share/zabbix/ui$fastcgi_script_name;
+        fastcgi_param DOCUMENT_ROOT   {{ zabbix_server_frontend_root }};
+        fastcgi_param SCRIPT_FILENAME {{ zabbix_server_frontend_root }}$fastcgi_script_name;
+        fastcgi_param PATH_TRANSLATED {{ zabbix_server_frontend_root }}$fastcgi_script_name;
 
         include fastcgi_params;
         fastcgi_param QUERY_STRING    $query_string;

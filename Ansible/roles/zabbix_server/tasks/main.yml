@@ -24,16 +24,30 @@
     label: "redacted"
   no_log: true
 
-- name: Check whether the Zabbix repository is installed
-  ansible.builtin.stat:
-    path: "/etc/apt/sources.list.d/zabbix.sources"
-  register: zabbix_server_repository_stat
-
-- name: Install the Zabbix repository package
+# The vendor repository is removed rather than added. It publishes no amd64 packages for
+# Debian 13 - its own sources file says Architectures: all and binary-amd64/Packages.gz is a
+# 404 - so it contributes nothing here except a third party in the trust path and an apt
+# update that fetches indexes for an architecture this host does not use.
+# Репозиторий вендора удаляется, а не добавляется. Пакетов amd64 для Debian 13 он не
+# публикует - в его собственном sources-файле стоит Architectures: all, а
+# binary-amd64/Packages.gz отдаёт 404, - поэтому здесь он не даёт ничего, кроме третьей
+# стороны в цепочке доверия и обновления индексов для неиспользуемой архитектуры.
+- name: Remove the vendor Zabbix repository packages
   ansible.builtin.apt:
-    deb: "{{ zabbix_server_release_package_url }}"
-  when: not zabbix_server_repository_stat.stat.exists
-  register: zabbix_server_repository_result
+    name: "{{ zabbix_server_unwanted_packages }}"
+    state: absent
+    purge: true
+  register: zabbix_server_unwanted_result
+
+- name: Remove the vendor Zabbix apt sources
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/etc/apt/sources.list.d/zabbix-release.sources"
+    - "/etc/apt/sources.list.d/zabbix-tools.sources"
+    - "/etc/apt/sources.list.d/zabbix-unstable.sources"
+  register: zabbix_server_sources_result
 
 - name: Install the Zabbix server and frontend
   ansible.builtin.apt:
@@ -98,18 +112,23 @@
   no_log: true
   register: zabbix_server_db_result
 
-- name: Require the schema file shipped by the packaging
+- name: Require every schema part shipped by the packaging
   ansible.builtin.stat:
-    path: "{{ zabbix_server_schema_path }}"
+    path: "{{ zabbix_server_schema_directory }}/{{ item }}"
+  loop: "{{ zabbix_server_schema_files }}"
   register: zabbix_server_schema_stat
 
-- name: Fail when the schema file is missing
+- name: Fail when a schema part is missing
   ansible.builtin.assert:
     that:
-      - zabbix_server_schema_stat.stat.exists
+      - item.stat.exists
     fail_msg: >-
-      {{ zabbix_server_schema_path }} does not exist. The path moved between Zabbix major
-      versions; set zabbix_server_schema_path to where zabbix-sql-scripts put it.
+      {{ item.item }} is not in {{ zabbix_server_schema_directory }}. The layout differs
+      between the Debian packaging and the vendor one; point
+      zabbix_server_schema_directory and zabbix_server_schema_files at what is installed.
+  loop: "{{ zabbix_server_schema_stat.results }}"
+  loop_control:
+    label: "{{ item.item }}"
 
 # The schema is loaded once and only once. Re-running the import against a populated
 # database does not fail cleanly - it partially applies and leaves the schema in a state
@@ -129,11 +148,19 @@
   changed_when: false
   register: zabbix_server_schema_loaded
 
+# Order is not a preference. schema builds the tables, data seeds the Admin account and the
+# stock templates, images fills the icon tables; each depends on the one before it. Loading
+# them out of order, or stopping after the first, leaves a database that exists and cannot
+# be logged into.
+# Порядок здесь не предпочтение. schema строит таблицы, data засевает учётную запись Admin и
+# штатные шаблоны, images заполняет таблицы значков; каждый зависит от предыдущего. Загрузка
+# не в том порядке или остановка после первого оставляет базу, которая существует и в
+# которую нельзя войти.
 - name: Load the Zabbix schema
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail &&
-      zcat {{ zabbix_server_schema_path | quote }} |
+      zcat {{ (zabbix_server_schema_directory ~ '/' ~ item) | quote }} |
       psql --quiet --no-password
       --host {{ zabbix_server_database_host | quote }}
       --port {{ zabbix_server_database_port | string | quote }}
@@ -142,6 +169,7 @@
     executable: "/bin/bash"
   environment:
     PGPASSWORD: "{{ lookup('ansible.builtin.vars', zabbix_server_database_password_var) }}"
+  loop: "{{ zabbix_server_schema_files }}"
   when: not (zabbix_server_schema_loaded.query_result[0].loaded | default(false))
   no_log: true
   changed_when: true
@@ -150,7 +178,7 @@
 - name: Configure the Zabbix server
   ansible.builtin.template:
     src: "zabbix_server.conf.j2"
-    dest: "/etc/zabbix/zabbix_server.conf"
+    dest: "{{ zabbix_server_config_path }}"
     owner: "root"
     group: "zabbix"
     mode: "0640"
@@ -166,7 +194,7 @@
 - name: Configure the Zabbix frontend
   ansible.builtin.template:
     src: "zabbix.conf.php.j2"
-    dest: "/etc/zabbix/web/zabbix.conf.php"
+    dest: "{{ zabbix_server_frontend_config_path }}"
     owner: "www-data"
     group: "www-data"
     mode: "0640"
@@ -309,10 +337,20 @@
       Neither the intended password nor the shipped one was accepted by the Zabbix API.
       The Admin account has a third password, set outside this role.
 
+- name: Read the installed Zabbix version
+  ansible.builtin.command:
+    argv:
+      - "/usr/sbin/zabbix_server"
+      - "--version"
+  changed_when: false
+  check_mode: false
+  register: zabbix_server_version_result
+
 - name: Display Zabbix server change summary
   ansible.builtin.debug:
     msg: >-
-      Zabbix {{ zabbix_server_version }} server on port {{ zabbix_server_listen_port }},
+      {{ zabbix_server_version_result.stdout_lines[0] | default('Zabbix') }}
+      on port {{ zabbix_server_listen_port }},
       frontend on {{ zabbix_server_frontend_port }},
       database {{ zabbix_server_database_name }}@{{ zabbix_server_database_host }}.
   when:

@@ -22,22 +22,25 @@
   when: zabbix_agent_register | bool
   no_log: true
 
-# The repository package is fetched and installed rather than the apt list being written by
-# hand, because it also brings the signing key. Writing only the list leaves apt refusing
-# the repository for a missing key, and the message names the key rather than the cause.
-# Пакет репозитория скачивается и устанавливается, а не пишется apt-список руками, потому
-# что пакет приносит ещё и ключ подписи. Один только список оставляет apt отвергающим
-# репозиторий из-за отсутствующего ключа, и сообщение называет ключ, а не причину.
-- name: Check whether the Zabbix repository is installed
-  ansible.builtin.stat:
-    path: "/etc/apt/sources.list.d/zabbix.sources"
-  register: zabbix_agent_repository_stat
-
-- name: Install the Zabbix repository package
+# The vendor repository is removed rather than added: it has no amd64 packages for
+# Debian 13, so it contributes only a third party in the trust path.
+# Репозиторий вендора удаляется, а не добавляется: пакетов amd64 для Debian 13 у него нет,
+# поэтому он даёт лишь третью сторону в цепочке доверия.
+- name: Remove the vendor Zabbix repository packages
   ansible.builtin.apt:
-    deb: "{{ zabbix_agent_release_package_url }}"
-  when: not zabbix_agent_repository_stat.stat.exists
+    name: "{{ zabbix_agent_unwanted_packages }}"
+    state: absent
+    purge: true
   register: zabbix_agent_repository_result
+
+- name: Remove the vendor Zabbix apt sources
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/etc/apt/sources.list.d/zabbix-release.sources"
+    - "/etc/apt/sources.list.d/zabbix-tools.sources"
+    - "/etc/apt/sources.list.d/zabbix-unstable.sources"
 
 - name: Install the Zabbix agent
   ansible.builtin.apt:
@@ -129,7 +132,7 @@
 - name: Display Zabbix agent change summary
   ansible.builtin.debug:
     msg: >-
-      Zabbix agent {{ zabbix_agent_version }} on {{ zabbix_agent_hostname }}
+      Zabbix agent on {{ zabbix_agent_hostname }}
       reporting to {{ zabbix_agent_server }};
       groups {{ zabbix_agent_host_groups | join(', ') }};
       templates {{ zabbix_agent_templates | join(', ') }}.

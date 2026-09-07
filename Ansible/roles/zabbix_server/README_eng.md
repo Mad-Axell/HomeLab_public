@@ -27,12 +27,28 @@ If neither password is accepted the role fails rather than continuing, because a
 password means someone changed it outside this repository and further automation would be
 guessing.
 
-## Version choice is constrained by the distribution
+## Debian packages, not the vendor repository
 
-Zabbix ships `X.0` releases as long term support and everything else for about six months.
-The repository does not offer every release for every Debian: at the time of writing 7.0
-LTS has no packages for Debian 13 at all, while 8.0 LTS does. Check the repository before
-pinning a version, rather than assuming the newest LTS covers the newest Debian.
+The vendor repository publishes no amd64 packages for Debian 13. Its own sources file says
+`Architectures: all`, and `dists/trixie/main/binary-amd64/Packages.gz` is a 404 — the
+release exists as an index and as arch-independent files only. Its 7.0 LTS branch has no
+trixie suite at all.
+
+Debian 13 meanwhile ships Zabbix 7.0.22: the same LTS line, with Debian security updates
+and no third party in the trust path. The role removes the vendor repository if it finds
+it, because leaving it configured means apt fetching indexes for packages that are not
+there while the real ones come from elsewhere.
+
+There is no version variable for that reason. Pinning one would promise something the
+archive cannot deliver.
+
+## The schema is three files, in order
+
+Debian splits what upstream ships as a single file into `schema`, `images` and `data`, and
+the split is not cosmetic. `schema` builds the tables, `data` seeds the Admin account and
+every stock template, `images` fills the icon tables. Loading only the first leaves a
+structurally valid database that nobody can log into and no template can be linked from —
+which reads as a broken frontend rather than as an incomplete import.
 
 ## Pollers do not fail, they delay
 

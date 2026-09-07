@@ -6,26 +6,23 @@
 # Логическое значение. Включает уведомления об изменениях в debug-выводе.
 zabbix_agent_debug_mode: false
 
-# Repository
-# Репозиторий
+# Packages
+# Пакеты
 
-# String. Zabbix release channel. X.0 releases are the long term support ones; anything else
-# is supported for about six months and then needs a major upgrade.
-# Строка. Канал выпуска Zabbix. Выпуски вида X.0 - долгосрочной поддержки; остальные
-# поддерживаются около полугода, после чего требуют мажорного обновления.
-zabbix_agent_version: "8.0"
-
-# String. URL of the package that installs the Zabbix apt repository. The distribution
-# codename is taken from facts, so the same value works on bookworm and trixie.
-# Строка. URL пакета, устанавливающего apt-репозиторий Zabbix. Кодовое имя дистрибутива
-# берётся из facts, поэтому одно значение работает и на bookworm, и на trixie.
-zabbix_agent_release_package_url: >-
-  https://repo.zabbix.com/zabbix/{{ zabbix_agent_version }}/release/debian/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix_agent_version }}+debian{{ ansible_facts.distribution_major_version }}_all.deb
-
-# List of strings. Packages installed on a monitored host.
-# Список строк. Пакеты, устанавливаемые на наблюдаемом хосте.
+# The agent comes from Debian itself. The vendor repository publishes no amd64 packages for
+# Debian 13 - its sources file says Architectures: all and binary-amd64/Packages.gz is a
+# 404 - so adding it buys nothing and costs a third party in the trust path.
+# Агент берётся из самого Debian. Репозиторий вендора не публикует пакетов amd64 для
+# Debian 13 - в его sources-файле стоит Architectures: all, а binary-amd64/Packages.gz
+# отдаёт 404, - поэтому его добавление ничего не даёт и стоит третьей стороны в цепочке
+# доверия.
 zabbix_agent_packages:
   - "zabbix-agent2"
+
+# List of strings. Vendor repository packages to remove if present.
+# Список строк. Пакеты репозитория вендора, удаляемые при наличии.
+zabbix_agent_unwanted_packages:
+  - "zabbix-release"
 
 # Agent
 # Агент
