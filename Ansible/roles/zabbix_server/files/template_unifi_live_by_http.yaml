@@ -1,0 +1,222 @@
+zabbix_export:
+  version: '7.0'
+  # UUID здесь - настоящий UUID уже существующей на сервере группы, а не выдуманный.
+  # The UUID here is the real one of the group that already exists on the server.
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: Templates/Network devices
+  templates:
+    - uuid: f51e39ddd475406ab3a952f4c81b0066
+      template: 'UniFi live metrics by HTTP'
+      name: 'UniFi live metrics by HTTP'
+      description: 'Adds only what the controller database does not hold: clients, CPU, memory and device uptime. Link to the controller host alongside UniFi devices by controller DB. See the zabbix_server role README.'
+      groups:
+        - name: Templates/Network devices
+      # Этот шаблон намеренно НЕ повторяет ни одной метрики из
+      # "UniFi devices by controller DB". Состояние, прошивка, модель, адрес, adopted и EOL
+      # приходят оттуда. Две записи об одном факте расходятся при первом же сбое одного из
+      # источников, и тогда интерфейс показывает два разных ответа на один вопрос.
+      #
+      # This template deliberately repeats NOTHING from "UniFi devices by controller DB".
+      # State, firmware, model, address, adopted and EOL come from there. Two records of one
+      # fact diverge the moment either source fails, and the interface then shows two
+      # different answers to one question.
+      #
+      # Один элемент на весь парк, а не по одному на устройство: иначе на каждый интервал
+      # приходится по логину на каждую точку, и контроллер платит за это сессиями.
+      #
+      # One item for the whole fleet rather than one per device: otherwise every interval
+      # costs one login per access point, and the controller pays for that in sessions.
+      items:
+        - uuid: 99a6bb92b1984f0e8e67ce830666b992
+          name: 'UniFi: live device data'
+          type: SCRIPT
+          key: unifi.live
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          params: |
+            var params = JSON.parse(value),
+                req = new HttpRequest(),
+                base = params.url.replace(/\/+$/, '');
+
+            req.addHeader('Content-Type: application/json');
+            req.setHttpAuthentication(HTTPAUTH_NONE);
+
+            // The controller answers with a session cookie, not a token. Both calls have to
+            // happen inside one script for that cookie to survive between them.
+            // Контроллер отвечает cookie сессии, а не токеном. Оба вызова обязаны пройти
+            // внутри одного скрипта, чтобы cookie между ними сохранился.
+            var login = req.post(base + '/api/login',
+                                 JSON.stringify({username: params.user, password: params.password}));
+            if (req.getStatus() !== 200) {
+                throw 'login failed with HTTP ' + req.getStatus() + ': ' + login;
+            }
+
+            var cookie = req.getHeaders()['Set-Cookie'];
+            if (cookie) {
+                req.addHeader('Cookie: ' + cookie);
+            }
+
+            var body = req.get(base + '/api/s/' + params.site + '/stat/device');
+            if (req.getStatus() !== 200) {
+                throw 'stat/device failed with HTTP ' + req.getStatus();
+            }
+
+            var devices = JSON.parse(body).data || [];
+            return JSON.stringify(devices.map(function (d) {
+                var s = d['system-stats'] || {};
+                return {
+                    name: d.name || d.mac || 'unknown',
+                    clients: Number(d.num_sta || 0),
+                    clients_user: Number(d['user-num_sta'] || 0),
+                    clients_guest: Number(d['guest-num_sta'] || 0),
+                    cpu: Number(s.cpu || 0),
+                    memory: Number(s.mem || 0),
+                    uptime: Number(d.uptime || 0)
+                };
+            }));
+          # Порядок алфавитный, как их хранит Zabbix: importcompare сравнивает списки
+          # с учётом порядка, и иначе шаблон вечно отличается сам от себя.
+          # Alphabetical, the order Zabbix stores them in: importcompare compares lists
+          # order-sensitively, and otherwise the template differs from itself forever.
+          parameters:
+            - name: password
+              value: '{$UNIFI.PASSWORD}'
+            - name: site
+              value: '{$UNIFI.SITE}'
+            - name: url
+              value: '{$UNIFI.URL}'
+            - name: user
+              value: '{$UNIFI.USER}'
+          timeout: 30s
+          description: 'One login per interval for the whole fleet; every metric below depends on this item.'
+      discovery_rules:
+        - uuid: 13cf9dcd487b4c81a61cace0deba0a14
+          name: 'UniFi: live device discovery'
+          type: DEPENDENT
+          key: unifi.live.discovery
+          delay: '0'
+          description: 'Separate from the database discovery on purpose: neither source may take the other down with it.'
+          lld_macro_paths:
+            - lld_macro: '{#UNIFI.NAME}'
+              path: $.name
+          master_item:
+            key: unifi.live
+          item_prototypes:
+            - uuid: da5dc09fedc44b73a0d721ce704947e5
+              name: 'UniFi {#UNIFI.NAME}: connected clients'
+              type: DEPENDENT
+              key: 'unifi.live.clients[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              value_type: UNSIGNED
+              description: 'The reason this template exists: the controller database holds no client count at all.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].clients.first()'
+              master_item:
+                key: unifi.live
+
+            - uuid: 62eb718d6ae947f581326b201fda4417
+              name: 'UniFi {#UNIFI.NAME}: connected clients, guest network'
+              type: DEPENDENT
+              key: 'unifi.live.clients.guest[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              value_type: UNSIGNED
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].clients_guest.first()'
+              master_item:
+                key: unifi.live
+
+            - uuid: 5bcad7abf7164cba9a94ade5d97f58c0
+              name: 'UniFi {#UNIFI.NAME}: CPU utilisation'
+              type: DEPENDENT
+              key: 'unifi.live.cpu[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              units: '%'
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].cpu.first()'
+              master_item:
+                key: unifi.live
+
+            - uuid: 909035330bad4ec2acab828e764f6046
+              name: 'UniFi {#UNIFI.NAME}: memory utilisation'
+              type: DEPENDENT
+              key: 'unifi.live.memory[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              units: '%'
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].memory.first()'
+              master_item:
+                key: unifi.live
+
+            - uuid: 1a0de0fe3eb942f2b9c0db65f3c1706d
+              name: 'UniFi {#UNIFI.NAME}: device uptime'
+              type: DEPENDENT
+              key: 'unifi.live.uptime[{#UNIFI.NAME}]'
+              delay: '0'
+              history: 7d
+              units: uptime
+              value_type: UNSIGNED
+              description: 'Uptime as the device itself reports it; the database template reports time since the controller saw it connect, which differs after a controller restart.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#UNIFI.NAME}")].uptime.first()'
+              master_item:
+                key: unifi.live
+
+          trigger_prototypes:
+            - uuid: 1f4d9805f8d84a019ed1f5965dd4edfb
+              expression: 'min(/UniFi live metrics by HTTP/unifi.live.cpu[{#UNIFI.NAME}],15m)>{$UNIFI.CPU.MAX}'
+              name: 'UniFi {#UNIFI.NAME}: CPU over {$UNIFI.CPU.MAX}% for 15m'
+              priority: WARNING
+
+            - uuid: 05d208735a8c4df7bc85cdcd4f538c0e
+              expression: 'min(/UniFi live metrics by HTTP/unifi.live.memory[{#UNIFI.NAME}],15m)>{$UNIFI.MEMORY.MAX}'
+              name: 'UniFi {#UNIFI.NAME}: memory over {$UNIFI.MEMORY.MAX}% for 15m'
+              priority: WARNING
+
+      # Порядок алфавитный по той же причине, что и у параметров выше.
+      #
+      # {$UNIFI.PASSWORD} здесь НЕ объявлен намеренно: он задаётся макросом хоста ролью
+      # zabbix_agent. Секрету не место в файле шаблона, лежащем в git, а сверх того значение
+      # макроса типа SECRET_TEXT API не возвращает - объявленный здесь, он вечно отличался
+      # бы сам от себя, и импорт сообщал бы об изменении на каждом прогоне.
+      #
+      # Alphabetical for the same reason as the parameters above.
+      #
+      # {$UNIFI.PASSWORD} is deliberately NOT declared here: it is set as a host macro by
+      # zabbix_agent. A secret does not belong in a template file kept in git, and besides,
+      # the API never returns the value of a SECRET_TEXT macro - declared here it would
+      # differ from itself forever and the import would report a change every run.
+      macros:
+        - macro: '{$UNIFI.CPU.MAX}'
+          value: '80'
+          description: 'CPU percentage a device may sustain before it is worth looking at'
+        - macro: '{$UNIFI.MEMORY.MAX}'
+          value: '90'
+          description: 'Memory percentage a device may sustain before it is worth looking at'
+        - macro: '{$UNIFI.SITE}'
+          value: default
+          description: 'Controller site identifier'
+        - macro: '{$UNIFI.URL}'
+          value: 'https://172.20.10.5:8443'
+          description: 'Base URL of the UniFi controller'
+        - macro: '{$UNIFI.USER}'
+          value: 'zabbix'
+          description: 'Local, non-SSO controller admin. An SSO account fails with api.err.Ubic2faTokenRequired.'

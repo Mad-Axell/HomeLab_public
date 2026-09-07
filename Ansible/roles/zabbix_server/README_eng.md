@@ -57,40 +57,61 @@ served late, and hosts start reporting as unavailable in waves — which reads a
 network rather than as a capacity limit. Size `zabbix_server_start_pollers` for the fleet
 and revisit it when the fleet grows.
 
-## The UniFi template, and why it exists
+## The two UniFi templates, and why there are two
 
-`files/template_unifi_device_by_http.yaml` polls UniFi access points and switches through
-the controller API, because the devices themselves cannot be polled at all.
+UniFi access points and switches cannot be polled at all. Ubiquiti removed SNMP from the
+UniFi Network interface — on 10.4.57 the setting does not exist — and the devices take
+their configuration from the controller, so enabling `snmpd` on each one is overwritten at
+the next provision. Zabbix ships no UniFi template either: `Ubiquiti AirOS by SNMP` is for
+the firmware of radio bridges, not for UniFi gear.
 
-Ubiquiti removed SNMP from the UniFi Network interface — on 10.4.57 the setting does not
-exist — and the devices take their configuration from the controller, so enabling `snmpd`
-on each one is overwritten at the next provision. Zabbix ships no UniFi template either:
-`Ubiquiti AirOS by SNMP` is for the firmware of radio bridges, not for UniFi gear.
+Everything therefore comes from the controller, by two different routes. **Both templates
+link to the controller host**, not to the devices, and both discover the fleet themselves.
+
+| | `UniFi devices by controller DB` | `UniFi live metrics by HTTP` |
+|---|---|---|
+| Source | controller's MongoDB on loopback | controller API over HTTPS |
+| Credentials | **none** | local controller admin |
+| Gives | state, last seen, time since connect, firmware, model, address, adopted, EOL | clients, CPU, memory, device-reported uptime |
+| Collector | agent on the controller (`unifi_monitoring` role) | script item on the Zabbix server |
+
+**They share no metric on purpose.** Two records of one fact diverge the moment either
+source fails, and the interface then shows two different answers to one question. Anything
+the database holds is read from the database; the HTTP template carries only what the
+database does not hold at all.
+
+Use the database one alone if that is enough — it needs no account and no firewall opening,
+and it keeps working when the API does not. Add the HTTP one when per-AP client counts
+matter; that is the metric worth the account.
+
+### What the HTTP template needs
 
 The controller authenticates with a session cookie rather than a token: a POST to
 `/api/login`, then a GET carrying the cookie. An HTTP agent item cannot carry a cookie
-between items, so one **script item** performs both calls and returns the device entry, and
-every metric is a dependent item over that single result — one request per interval per
-device rather than two per metric.
+between items, so one **script item** performs both calls for the whole fleet and every
+metric is a dependent item over that single result — one login per interval, not one per
+device.
 
 A Ubiquiti SSO account cannot be used: it answers `api.err.Ubic2faTokenRequired`, because
 two-factor is enabled on it and nothing in an unattended poll can satisfy that. Create a
-local, non-SSO, read-only admin in the controller and put it in `{$UNIFI.USER}` and
-`{$UNIFI.PASSWORD}`.
+local, non-SSO, read-only admin.
 
-Two things outside this role have to be in place before the template collects anything, and
-both fail as an unsupported item rather than as an obvious misconfiguration:
+Two things outside this role have to be in place, and both fail as an unsupported item
+rather than as an obvious misconfiguration:
 
 - **The Zabbix server must reach the controller on its HTTPS port** (8443 by default). The
   controller usually sits in a different segment from the monitoring server, and the rules
   written for agents open only the agent ports there. Check with
   `curl -sk -o /dev/null -w '%{http_code}' https://<controller>:8443/status` **from the
   Zabbix server**, not from a workstation.
-- **The account must be local and must exist.** `{$UNIFI.PASSWORD}` belongs in a host macro
-  set by `zabbix_snmp_host`, never in this file.
+- **The account must be local, must exist, and must not be pending a password change.** An
+  admin created by another admin carries `requires_new_password` until its owner logs in
+  once, and `/api/login` refuses it. `{$UNIFI.PASSWORD}` belongs in a host macro set by
+  `zabbix_agent`, never in a template file.
 
-Register the devices with `zabbix_snmp_host_status: "disabled"` until both hold. A host that
-is enabled and can never answer is a permanent alert, and permanent alerts stop being read.
+Until both hold, exactly one item is unsupported — `unifi.live` on the controller host —
+and the discovery below it finds nothing. Nothing else in the fleet is affected, and no
+device host turns red.
 
 ## Templates are imported from files, and only when they differ
 

@@ -116,6 +116,19 @@ zabbix_agent_host_groups:
 zabbix_agent_templates:
   - "Linux by Zabbix agent"
 
+# List of dicts. Host macros. Keys: macro, and either value or value_var - the name of a
+# variable holding it, resolved at run time.
+#
+# This is where a secret a template needs belongs. A template export lives in git and is
+# read by anyone with the repository; a host macro lives only on the server.
+#
+# Список словарей. Макросы хоста. Ключи: macro и либо value, либо value_var - имя
+# переменной со значением, разрешаемое во время прогона.
+#
+# Именно здесь место секрету, который нужен шаблону. Экспорт шаблона лежит в git и доступен
+# всякому, у кого есть репозиторий; макрос хоста живёт только на сервере.
+zabbix_agent_macros: []
+
 # Dict. Host inventory fields, and any other tags to set on the host object.
 # Словарь. Поля инвентаря хоста и прочие теги объекта хоста.
 zabbix_agent_host_description: ""
