@@ -447,11 +447,24 @@
       params:
         format: "yaml"
         source: "{{ lookup('ansible.builtin.file', 'files/' ~ item) }}"
+        # Каждый вид сущности, которого здесь нет, импорт МОЛЧА пропускает. Не ошибка, не
+        # предупреждение: ответ по-прежнему true, шаблон создаётся, а часть его содержимого
+        # просто не приезжает. Первый шаблон с обнаружением приехал с одним элементом и
+        # нулём правил обнаружения, потому что в этом списке не было discoveryRules;
+        # прототипы элементов и триггеров входят в него, отдельного правила для них нет.
+        #
+        # Any entity type missing from this list is SILENTLY skipped by the import. Not an
+        # error, not a warning: the answer is still true, the template is created, and part
+        # of its content simply never arrives. The first template with discovery landed with
+        # one item and zero discovery rules because discoveryRules was absent here; item and
+        # trigger prototypes come in under it and have no rule of their own.
         rules:
           template_groups: { createMissing: true, updateExisting: true }
           templates: { createMissing: true, updateExisting: true }
           items: { createMissing: true, updateExisting: true, deleteMissing: true }
+          discoveryRules: { createMissing: true, updateExisting: true, deleteMissing: true }
           triggers: { createMissing: true, updateExisting: true, deleteMissing: true }
+          graphs: { createMissing: true, updateExisting: true, deleteMissing: true }
           valueMaps: { createMissing: true, updateExisting: true }
     status_code: 200
   loop: "{{ zabbix_server_custom_templates }}"
