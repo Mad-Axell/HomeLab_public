@@ -60,17 +60,21 @@ zabbix_export:
                 }
             }
             throw 'controller knows no device with address ' + params.address;
+          # Порядок алфавитный, как их хранит Zabbix: importcompare сравнивает списки
+          # с учётом порядка, и иначе шаблон вечно отличается сам от себя.
+          # Alphabetical, the order Zabbix stores them in: importcompare compares lists
+          # order-sensitively, and otherwise the template differs from itself forever.
           parameters:
-            - name: url
-              value: '{$UNIFI.URL}'
-            - name: user
-              value: '{$UNIFI.USER}'
+            - name: address
+              value: '{$UNIFI.DEVICE.ADDRESS}'
             - name: password
               value: '{$UNIFI.PASSWORD}'
             - name: site
               value: '{$UNIFI.SITE}'
-            - name: address
-              value: '{$UNIFI.DEVICE.ADDRESS}'
+            - name: url
+              value: '{$UNIFI.URL}'
+            - name: user
+              value: '{$UNIFI.USER}'
           timeout: 30s
           description: 'One request per interval; every other metric depends on this item.'
         - uuid: 836240b8557e4724a3ed7cad848fb9f6
@@ -191,22 +195,24 @@ zabbix_export:
               error_handler: DISCARD_VALUE
           master_item:
             key: unifi.device.raw
+      # Порядок алфавитный по той же причине, что и у параметров выше.
+      # Alphabetical for the same reason as the parameters above.
       macros:
-        - macro: '{$UNIFI.URL}'
-          value: 'https://172.20.10.5:8443'
-          description: 'Base URL of the UniFi controller'
-        - macro: '{$UNIFI.USER}'
-          value: 'zabbix'
-          description: 'Local, non-SSO controller admin. An SSO account fails with api.err.Ubic2faTokenRequired.'
+        - macro: '{$UNIFI.DEVICE.ADDRESS}'
+          value: '{HOST.CONN}'
+          description: 'Address the controller reports for this device; used to pick its entry out of stat/device'
         - macro: '{$UNIFI.PASSWORD}'
           type: SECRET_TEXT
           description: 'Password of the local controller admin'
         - macro: '{$UNIFI.SITE}'
           value: default
           description: 'Controller site identifier'
-        - macro: '{$UNIFI.DEVICE.ADDRESS}'
-          value: '{HOST.CONN}'
-          description: 'Address the controller reports for this device; used to pick its entry out of stat/device'
+        - macro: '{$UNIFI.URL}'
+          value: 'https://172.20.10.5:8443'
+          description: 'Base URL of the UniFi controller'
+        - macro: '{$UNIFI.USER}'
+          value: 'zabbix'
+          description: 'Local, non-SSO controller admin. An SSO account fails with api.err.Ubic2faTokenRequired.'
       valuemaps:
         - uuid: f9716b1013e54c85a6046acd61a7c45f
           name: 'UniFi device state'
