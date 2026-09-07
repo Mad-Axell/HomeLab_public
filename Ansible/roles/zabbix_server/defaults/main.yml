@@ -28,10 +28,23 @@ zabbix_server_debug_mode: false
 #
 # Фиксировать здесь версию вендора значило бы обещать то, чего в архиве нет. Ориентируйтесь
 # на то, что даёт дистрибутив, и пересматривайте, только когда вендор выложит amd64.
+# Recommends are disabled when installing these, and the useful ones are listed here
+# instead. zabbix-frontend-php recommends "apache2 | nginx | httpd", and apt satisfies an
+# alternative with the first name in the list, so apache2 arrives even when nginx is being
+# installed in the same transaction - and then holds port 80, which surfaces as nginx
+# failing to start rather than as an unwanted package.
+# При установке этих пакетов рекомендации отключаются, а полезные из них перечислены здесь
+# явно. zabbix-frontend-php рекомендует "apache2 | nginx | httpd", а apt удовлетворяет
+# альтернативу первым именем в списке, поэтому apache2 приходит даже когда nginx ставится в
+# той же транзакции, - и занимает порт 80, что проявляется как несостоявшийся старт nginx,
+# а не как лишний пакет.
 zabbix_server_packages:
   - "zabbix-server-pgsql"
   - "zabbix-frontend-php"
   - "php-fpm"
+  - "php-curl"
+  - "php-ldap"
+  - "php-php-gettext"
   - "nginx"
   - "postgresql-client"
   - "python3-psycopg2"
@@ -42,6 +55,9 @@ zabbix_server_packages:
 # платформе ничего полезного не дают и лишь добавляют третью сторону в цепочку доверия.
 zabbix_server_unwanted_packages:
   - "zabbix-release"
+  # apache2 приходит рекомендацией и занимает порт 80 раньше nginx. Держать два
+  # веб-сервера на одном хосте - ровно то, что потом отлаживают как проблему firewall.
+  - "apache2"
 
 # Database
 # База данных

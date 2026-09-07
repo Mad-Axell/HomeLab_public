@@ -32,6 +32,14 @@
 # публикует - в его собственном sources-файле стоит Architectures: all, а
 # binary-amd64/Packages.gz отдаёт 404, - поэтому здесь он не даёт ничего, кроме третьей
 # стороны в цепочке доверия и обновления индексов для неиспользуемой архитектуры.
+- name: Stop the web server that would take port 80 first
+  ansible.builtin.systemd:
+    name: "apache2"
+    state: stopped
+    enabled: false
+  failed_when: false
+  register: zabbix_server_apache_stop
+
 - name: Remove the vendor Zabbix repository packages
   ansible.builtin.apt:
     name: "{{ zabbix_server_unwanted_packages }}"
@@ -53,6 +61,7 @@
   ansible.builtin.apt:
     name: "{{ zabbix_server_packages }}"
     state: present
+    install_recommends: false
     update_cache: true
     cache_valid_time: 3600
   register: zabbix_server_package_result
