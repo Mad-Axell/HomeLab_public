@@ -78,7 +78,7 @@
 # API Zabbix, а раздача учётных данных API каждой наблюдаемой машине была бы прямо обратна
 # смыслу мониторинга.
 - name: Create the host groups on the Zabbix server
-  community.zabbix.zabbix_hostgroup:
+  community.zabbix.zabbix_group:
     host_groups: "{{ zabbix_agent_host_groups }}"
     state: present
   delegate_to: localhost
