@@ -144,12 +144,15 @@ creates it earlier in the same playbook).
 
 - The OAuth token cannot be issued non-interactively: `yandex-disk token`
   asks you to open `https://ya.ru/device` and enter the shown code (valid for
-  about 300 seconds). Get the token once on any host with the client installed
-  and copy the whole content of the generated `~/.config/yandex-disk/passwd`
-  (a single line) into `vault_yandex_disk_oauth_token`. If the server rejects
-  the stored token (the daemon reports an authorization error), run
-  `yandex-disk token` inside the container and copy the produced file over
-  `yandex_disk_auth_path`.
+  about 300 seconds). The token file is encrypted against the client's
+  per-user iid, so it must be issued on the target host as the service
+  account: `sudo -u yandex yandex-disk token`. Copy the whole content of the
+  generated `~/.config/yandex-disk/passwd` (a single line) into
+  `vault_yandex_disk_oauth_token`. A token issued as a different user or on a
+  different machine cannot be decrypted by the daemon and shows up as an
+  authorization failure (`User info GET 400` in `.sync/core.log`). Fallback:
+  run `yandex-disk token` inside the container as the service account and copy
+  the file over `yandex_disk_auth_path`.
 - The tasks writing the SMB password and the token run with `no_log: true`
   and `diff: false`; the values must never be printed through debug.
 - The daemon is restarted only by the handler on change; the steady state is
