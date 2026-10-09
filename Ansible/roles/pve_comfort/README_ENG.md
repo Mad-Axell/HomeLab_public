@@ -3,7 +3,12 @@
 The role prepares a Proxmox VE node for regular administration:
 
 - disables PVE and Ceph enterprise repositories;
-- enables the official no-subscription repository;
+- removes legacy one-line repository files
+  (`pve-no-subscription.list`, `pve-install-repo.list`), including the bookworm
+  entry left behind by the installer;
+- enables the official no-subscription repository as a deb822 source over HTTP
+  signed through `Signed-By` (HTTPS to `download.proxmox.com` fails TLS
+  verification on this uplink);
 - refreshes package indexes and performs a distribution upgrade;
 - installs common administration tools;
 - creates a non-root administrator in the `sudo` and `adm` groups;

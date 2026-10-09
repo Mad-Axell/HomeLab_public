@@ -70,13 +70,36 @@
   when: pve_comfort_disable_enterprise_repositories | bool
   register: pve_comfort_enterprise_repository_result
 
+# Remove legacy one-line repository files. The installer leaves a bookworm entry in
+# pve-no-subscription.list that must not live next to the trixie deb822 source, and
+# pve-install-repo.list is superseded by the proxmox.sources file written below.
+# Удаление устаревших однострочных файлов репозиториев. Установщик оставляет запись
+# bookworm в pve-no-subscription.list, которая не должна соседствовать с deb822-
+# источником trixie, а pve-install-repo.list заменён файлом proxmox.sources ниже.
+- name: Remove legacy one-line repository files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/pve-no-subscription.list
+    - /etc/apt/sources.list.d/pve-install-repo.list
+  register: pve_comfort_legacy_list_result
+
+# The no-subscription repository is fetched over plain HTTP, as prescribed by
+# instructions/01_proxmox_hosts.md: the Proxmox CDN does not present a usable
+# certificate for download.proxmox.com on this uplink, so HTTPS fails TLS
+# verification. Authenticity is still enforced by Signed-By on the keyring.
+# Репозиторий no-subscription загружается по HTTP, как предписано
+# instructions/01_proxmox_hosts.md: CDN Proxmox на этом аплинке не предъявляет
+# рабочий сертификат для download.proxmox.com, поэтому HTTPS не проходит проверку
+# TLS. Подлинность по-прежнему обеспечивается Signed-By на keyring.
 - name: Enable the Proxmox no-subscription repository
   ansible.builtin.deb822_repository:
     name: proxmox
     types:
       - deb
     uris:
-      - https://download.proxmox.com/debian/pve
+      - http://download.proxmox.com/debian/pve
     suites:
       - "{{ ansible_facts.distribution_release }}"
     components:
