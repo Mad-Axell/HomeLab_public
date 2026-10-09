@@ -1,0 +1,245 @@
+---
+# Validate everything the role cannot derive itself before changing the host.
+# Проверка всего, что роль не может вывести сама, до изменения хоста.
+- name: Validate Yandex Disk input
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - yandex_disk_mount_source is not none
+      - (yandex_disk_mount_source | trim | length) > 0
+      - (yandex_disk_mount_point | trim | length) > 0
+      - (yandex_disk_service_user | trim | length) > 0
+      - (yandex_disk_service_group | trim | length) > 0
+      - (yandex_disk_samba_username | trim | length) > 0
+      - (yandex_disk_samba_password_var | trim | length) > 0
+      - lookup('ansible.builtin.vars', yandex_disk_samba_password_var, default=none) is not none
+      - (vault_yandex_disk_username | default('') | trim | length) > 0
+      - (vault_yandex_disk_oauth_token | default('') | trim | length) > 0
+    fail_msg: >-
+      yandex_disk requires Debian, a CIFS mount source and point, a service
+      account and group, the Samba password variable named by
+      yandex_disk_samba_password_var and the secrets vault_yandex_disk_username +
+      vault_yandex_disk_oauth_token in VARS/secrets.yml. The OAuth token is
+      issued once interactively by `yandex-disk token` on any host that has the
+      client installed; see README for the exact steps.
+    quiet: true
+
+# Resolve the ids of the account the daemon runs as; the CIFS uid/gid options
+# take numbers, not names.
+# Определение uid/gid учётной записи демона: опции CIFS принимают числа, а не имена.
+- name: Read the service account ids
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ yandex_disk_service_user }}"
+    fail_key: true
+
+# Resolve the id of the daemon primary group for the same reason.
+# Определение gid основной группы демона по той же причине.
+- name: Read the service group id
+  ansible.builtin.getent:
+    database: group
+    key: "{{ yandex_disk_service_group }}"
+    fail_key: true
+
+# Create the keyring directory for the repository signing key.
+# Создание каталога keyring для ключа подписи репозитория.
+- name: Create APT keyring directory
+  ansible.builtin.file:
+    path: "{{ yandex_disk_repository_keyring | dirname }}"
+    state: directory
+    mode: "0755"
+
+# Download the vendor signing key without apt-key, which is removed from modern Debian.
+# Загрузка ключа подписи вендора без apt-key, которого нет в современном Debian.
+- name: Download Yandex Disk APT signing key
+  ansible.builtin.get_url:
+    url: "{{ yandex_disk_repository_key_url }}"
+    dest: "{{ yandex_disk_repository_keyring }}"
+    mode: "0644"
+  register: yandex_disk_repository_key_result
+
+# Register the vendor repository; the client package does not exist in Debian proper.
+# Регистрация репозитория вендора: пакета клиента в самом Debian нет.
+- name: Configure Yandex Disk APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ yandex_disk_architecture }} signed-by={{ yandex_disk_repository_keyring }}]
+      {{ yandex_disk_repository_url }} {{ yandex_disk_repository_suite }} {{ yandex_disk_repository_component }}
+    filename: "{{ yandex_disk_repository_filename }}"
+    state: present
+  register: yandex_disk_repository_result
+
+# Install the console client and cifs-utils; mounting the share needs mount.cifs.
+# Установка консольного клиента и cifs-utils: монтированию шары нужен mount.cifs.
+- name: Install Yandex Disk packages
+  ansible.builtin.apt:
+    name: "{{ yandex_disk_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: yandex_disk_package_result
+
+# Create the system-wide configuration directory; the client defaults to
+# ~/.config/yandex-disk, which a service account without a login shell does not
+# conveniently provide.
+# Создание общесистемного каталога конфигурации: по умолчанию клиент смотрит в
+# ~/.config/yandex-disk, чего служебной учётной записи без входа в систему давать
+# неудобно.
+- name: Create the Yandex Disk config directory
+  ansible.builtin.file:
+    path: "{{ yandex_disk_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Write the share credentials readable only by root; the file holds a password.
+# Запись учётных данных шары, доступных только root: файл хранит пароль.
+- name: Write the SMB credentials file
+  ansible.builtin.template:
+    src: smbcredentials.j2
+    dest: "{{ yandex_disk_credentials_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  diff: false
+  register: yandex_disk_credentials_result
+
+# Mount the Samba share; it is the local copy of the Disk, not a backing store the
+# daemon could run without.
+# Монтирование шары Samba: это локальная копия Диска, а не хранилище, без которого
+# демон мог бы работать.
+- name: Mount the Samba share
+  ansible.builtin.mount:
+    path: "{{ yandex_disk_mount_point }}"
+    src: "{{ yandex_disk_mount_source }}"
+    fstype: "{{ yandex_disk_mount_fstype }}"
+    opts: >-
+      credentials={{ yandex_disk_credentials_path }},uid={{
+      ansible_facts.getent_passwd[yandex_disk_service_user][1] }},gid={{
+      ansible_facts.getent_group[yandex_disk_service_group][1] }},file_mode={{
+      yandex_disk_mount_file_mode }},dir_mode={{ yandex_disk_mount_dir_mode }},vers={{
+      yandex_disk_smb_version }},{{ yandex_disk_mount_static_options | join(',') }}
+    state: mounted
+  register: yandex_disk_mount_result
+
+# Write the client configuration; the daemon reads it at every start.
+# Запись конфигурации клиента: демон читает её при каждом старте.
+- name: Write the client configuration
+  ansible.builtin.template:
+    src: config.cfg.j2
+    dest: "{{ yandex_disk_config_path }}"
+    owner: root
+    group: "{{ yandex_disk_service_group }}"
+    mode: "0640"
+  notify: Restart yandex-disk
+  register: yandex_disk_config_result
+
+# Write the OAuth token file the client authenticates with. The file maps the
+# account login to the token as {"login": "token"}; both values come from
+# VARS/secrets.yml and are never logged.
+# Запись файла OAuth-токена, с которым клиент авторизуется. Файл отображает логин
+# на токен как {"login": "token"}; оба значения приходят из VARS/secrets.yml и
+# никогда не логируются.
+- name: Write the OAuth token file
+  ansible.builtin.template:
+    src: passwd.j2
+    dest: "{{ yandex_disk_auth_path }}"
+    owner: "{{ yandex_disk_service_user }}"
+    group: "{{ yandex_disk_service_group }}"
+    mode: "0600"
+  no_log: true
+  diff: false
+  notify: Restart yandex-disk
+  register: yandex_disk_auth_result
+
+# Install the unit that keeps the daemon alive; RequiresMountsFor inside it orders
+# the daemon behind the CIFS mount, so it never starts against an empty mount point.
+# Установка юнита, который держит демон живым; RequiresMountsFor внутри него ставит
+# демон после CIFS-монтирования, поэтому он никогда не стартует на пустой точке.
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: yandex-disk.service.j2
+    dest: "/etc/systemd/system/{{ yandex_disk_service_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart yandex-disk
+  register: yandex_disk_unit_result
+
+# Manage the daemon steady state; a restart on change is the handler's job.
+# Управление устойчивым состоянием демона: перезапуск при изменении — работа handler'а.
+- name: Manage yandex-disk service state
+  ansible.builtin.systemd_service:
+    name: "{{ yandex_disk_service_name }}"
+    state: "{{ yandex_disk_service_state }}"
+    enabled: "{{ yandex_disk_service_enabled }}"
+  register: yandex_disk_service_result
+
+# Report the repository and package installation.
+# Отчёт о регистрации репозитория и установке пакетов.
+- name: Display package installation change
+  ansible.builtin.debug:
+    msg: >-
+      Yandex Disk packages {{ yandex_disk_packages | join(', ') }}:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - yandex_disk_debug_mode | bool
+    - >-
+      (yandex_disk_repository_key_result is defined
+      and (yandex_disk_repository_key_result.changed | default(false) | bool))
+      or (yandex_disk_repository_result is defined
+      and (yandex_disk_repository_result.changed | default(false) | bool))
+      or (yandex_disk_package_result is defined
+      and (yandex_disk_package_result.changed | default(false) | bool))
+  tags:
+    - debug
+
+# Report the credential file changes without printing any value.
+# Отчёт об изменении файлов учётных данных без вывода значений.
+- name: Display credential files change
+  ansible.builtin.debug:
+    msg: >-
+      SMB credentials and OAuth token files:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - yandex_disk_debug_mode | bool
+    - >-
+      (yandex_disk_credentials_result is defined
+      and (yandex_disk_credentials_result.changed | default(false) | bool))
+      or (yandex_disk_auth_result is defined
+      and (yandex_disk_auth_result.changed | default(false) | bool))
+  tags:
+    - debug
+
+# Report the share mount change.
+# Отчёт об изменении монтирования шары.
+- name: Display share mount change
+  ansible.builtin.debug:
+    msg: >-
+      Share {{ yandex_disk_mount_source }}:
+      {{ 'WOULD MOUNT' if ansible_check_mode else 'MOUNTED' }} at {{ yandex_disk_mount_point }}
+  when:
+    - yandex_disk_debug_mode | bool
+    - yandex_disk_mount_result is defined
+    - yandex_disk_mount_result.changed | default(false) | bool
+  tags:
+    - debug
+
+# Report the daemon state change.
+# Отчёт об изменении состояния демона.
+- name: Display service state change
+  ansible.builtin.debug:
+    msg: >-
+      Service {{ yandex_disk_service_name }}:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - yandex_disk_debug_mode | bool
+    - >-
+      (yandex_disk_unit_result is defined
+      and (yandex_disk_unit_result.changed | default(false) | bool))
+      or (yandex_disk_service_result is defined
+      and (yandex_disk_service_result.changed | default(false) | bool))
+  tags:
+    - debug

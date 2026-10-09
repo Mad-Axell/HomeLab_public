@@ -1,0 +1,159 @@
+---
+# Yandex Disk sync client role configuration
+# Конфигурация роли клиента синхронизации Яндекс.Диск
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+yandex_disk_debug_mode: false
+
+
+# APT repository
+# Репозиторий APT
+
+# String. Base URL of the official Yandex Disk APT repository; the vendor publishes it over HTTP.
+# Строка. Базовый URL официального APT-репозитория Яндекс.Диска; вендор публикует его по HTTP.
+yandex_disk_repository_url: "http://repo.yandex.ru/yandex-disk/deb/"
+
+# String. Repository suite.
+# Строка. Ветка репозитория.
+yandex_disk_repository_suite: "stable"
+
+# String. Repository component.
+# Строка. Компонент репозитория.
+yandex_disk_repository_component: "main"
+
+# String. URL of the repository signing key; apt accepts the binary GPG file via signed-by as is.
+# Строка. URL ключа подписи репозитория; apt принимает бинарный GPG-файл через signed-by как есть.
+yandex_disk_repository_key_url: "http://repo.yandex.ru/yandex-disk/YANDEX-DISK-KEY.GPG"
+
+# String. Local path of the downloaded signing key.
+# Строка. Локальный путь скачанного ключа подписи.
+yandex_disk_repository_keyring: "/etc/apt/keyrings/yandex-disk.gpg"
+
+# String. sources.list.d file name without extension.
+# Строка. Имя файла в sources.list.d без расширения.
+yandex_disk_repository_filename: "yandex-disk"
+
+# String. Architecture pinned in the deb line; the vendor ships amd64 and i386.
+# Строка. Архитектура в строке deb; вендор публикует amd64 и i386.
+yandex_disk_architecture: "amd64"
+
+# List of strings. Packages: the console client itself and cifs-utils for the share mount.
+# Список строк. Пакеты: сам консольный клиент и cifs-utils для монтирования шары.
+yandex_disk_packages:
+  - "yandex-disk"
+  - "cifs-utils"
+
+
+# SMB share mount
+# Монтирование SMB-шары
+
+# String or null. REQUIRED. UNC path of the share that becomes the local copy of the Disk,
+# for example //172.25.40.44/yandex.
+# Строка или null. ОБЯЗАТЕЛЬНО. UNC-путь шары, которая становится локальной копией Диска,
+# например //172.25.40.44/yandex.
+yandex_disk_mount_source: null
+
+# String. Directory the share is mounted to.
+# Строка. Каталог, в который монтируется шара.
+yandex_disk_mount_point: "/mnt/yandex"
+
+# String. Filesystem type of the mount.
+# Строка. Тип файловой системы монтирования.
+yandex_disk_mount_fstype: "cifs"
+
+# String. SMB dialect negotiated with the server.
+# Строка. Диалект SMB, согласуемый с сервером.
+yandex_disk_smb_version: "3.0"
+
+# String. Path of the root-owned credentials file that mount.cifs reads.
+# Строка. Путь файла учётных данных, доступного только root, который читает mount.cifs.
+yandex_disk_credentials_path: "/etc/yandex-disk/smbcredentials"
+
+# String. Samba account used to mount the share.
+# Строка. Учётная запись Samba для монтирования шары.
+yandex_disk_samba_username: "yandex"
+
+# String. NAME of the variable holding the Samba account password. Indirection keeps the
+# value out of role defaults; the variable itself lives in VARS/secrets.yml.
+# Строка. ИМЯ переменной с паролем учётной записи Samba. Косвенная ссылка не пускает
+# значение в defaults роли; сама переменная живёт в VARS/secrets.yml.
+yandex_disk_samba_password_var: "yandex_disk_samba_password"
+
+# String. NetBIOS workgroup written to the credentials file.
+# Строка. Рабочая группа NetBIOS, записываемая в файл учётных данных.
+yandex_disk_samba_domain: "WORKGROUP"
+
+# String. File and directory modes the share presents to local processes.
+# Строка. Права файлов и каталогов, которые шара показывает локальным процессам.
+yandex_disk_mount_file_mode: "0664"
+yandex_disk_mount_dir_mode: "2775"
+
+# List of strings. Static CIFS mount options. credentials, uid and gid are added by the
+# task itself, because the ids are resolved on the target at runtime.
+# Список строк. Статические опции CIFS-монтирования. credentials, uid и gid добавляет сам
+# таск, потому что идентификаторы вычисляются на целевом хосте во время прогона.
+yandex_disk_mount_static_options:
+  - "iocharset=utf8"
+  - "_netdev"
+  - "nofail"
+
+
+# Daemon
+# Демон
+
+# String. Account the daemon runs as. The role does not create it: the account and its
+# group are expected from base_add_users, and this role only reads their ids.
+# Строка. Учётная запись, от которой работает демон. Роль её не создаёт: учётная запись
+# и её группа ожидаются от base_add_users, а эта роль только читает их идентификаторы.
+yandex_disk_service_user: "yandex"
+
+# String. Primary group the daemon runs as.
+# Строка. Основная группа, от которой работает демон.
+yandex_disk_service_group: "nas"
+
+# String. Directory holding the client configuration and the OAuth token file.
+# Строка. Каталог конфигурации клиента и файла OAuth-токена.
+yandex_disk_config_dir: "/etc/yandex-disk"
+
+# String. Client configuration path passed to every call with --config.
+# Строка. Путь конфигурации клиента, передаваемый каждому вызову через --config.
+yandex_disk_config_path: "{{ yandex_disk_config_dir }}/config.cfg"
+
+# String. OAuth token file path referenced by the auth key of the configuration.
+# Строка. Путь файла OAuth-токена, на который ссылается ключ auth конфигурации.
+yandex_disk_auth_path: "{{ yandex_disk_config_dir }}/passwd"
+
+# String. Local sync directory written to the dir key; defaults to the share mount point.
+# Строка. Локальный каталог синхронизации из ключа dir; по умолчанию точка монтирования шары.
+yandex_disk_sync_dir: "{{ yandex_disk_mount_point }}"
+
+# List of strings. Directory names relative to the sync dir that the client must not sync
+# (the exclude-dirs key of config.cfg).
+# Список строк. Имена каталогов относительно каталога синхронизации, которые клиент не
+# синхронизирует (ключ exclude-dirs в config.cfg).
+yandex_disk_exclude_dirs: []
+
+
+# systemd unit
+# Юнит systemd
+
+# String. Name of the systemd unit this role installs for the daemon.
+# Строка. Имя systemd-юнита, который роль устанавливает для демона.
+yandex_disk_service_name: "yandex-disk"
+
+# String. Steady state of the service: started or stopped. Restart happens only through a handler.
+# Строка. Устойчивое состояние сервиса: started или stopped. Перезапуск выполняет только handler.
+yandex_disk_service_state: "started"
+
+# Boolean. Start the service on boot.
+# Логическое значение. Запускать сервис при загрузке.
+yandex_disk_service_enabled: true
+
+# String. Absolute path of the client binary used by the unit.
+# Строка. Абсолютный путь бинарника клиента, который использует юнит.
+yandex_disk_binary_path: "/usr/bin/yandex-disk"
+
+# Integer. Seconds systemd waits before restarting a failed daemon.
+# Целое число. Секунды, которые systemd ждёт до перезапуска упавшего демона.
+yandex_disk_restart_sec: 30

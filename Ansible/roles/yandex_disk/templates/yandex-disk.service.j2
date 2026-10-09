@@ -1,0 +1,19 @@
+# Managed by Ansible role yandex_disk; manual edits are overwritten.
+# Управляется ролью Ansible yandex_disk; ручные правки перезаписываются.
+[Unit]
+Description=Yandex Disk console client daemon
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor={{ yandex_disk_mount_point }}
+
+[Service]
+Type=forking
+User={{ yandex_disk_service_user }}
+Group={{ yandex_disk_service_group }}
+ExecStart={{ yandex_disk_binary_path }} --config={{ yandex_disk_config_path }} start
+ExecStop={{ yandex_disk_binary_path }} --config={{ yandex_disk_config_path }} stop
+Restart=on-failure
+RestartSec={{ yandex_disk_restart_sec }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+# Managed by Ansible role yandex_disk; manual edits are overwritten.
+# Управляется ролью Ansible yandex_disk; ручные правки перезаписываются.
+
+# Path to the OAuth token file
+auth="{{ yandex_disk_auth_path }}"
+
+# Local copy directory (the CIFS mount of the Samba share)
+dir="{{ yandex_disk_sync_dir }}"
+{% if yandex_disk_exclude_dirs | length > 0 %}
+# Directories excluded from sync
+exclude-dirs="{{ yandex_disk_exclude_dirs | join(',') }}"
+{% endif %}
