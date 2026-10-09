@@ -103,7 +103,7 @@ yandex_disk_samba_domain: "WORKGROUP"
 # String. File and directory modes the share presents to local processes.
 # Строка. Права файлов и каталогов, которые шара показывает локальным процессам.
 yandex_disk_mount_file_mode: "0664"
-yandex_disk_mount_dir_mode: "2775"
+yandex_disk_mount_dir_mode: "02775"
 
 # List of strings. Static CIFS mount options. credentials, uid and gid are added by the
 # task itself, because the ids are resolved on the target at runtime.
