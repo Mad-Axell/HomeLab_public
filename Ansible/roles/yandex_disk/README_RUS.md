@@ -115,7 +115,7 @@ check (она создаётся `base_add_users` в том же playbook ран
 ## Зависимости
 
 - Роли: учётная запись и группа демона ожидаются от `base_add_users`.
-- Коллекции: только `ansible.builtin`.
+- Коллекции: `ansible.posix` (модуль `mount`), зафиксирована в project-level `requirements.yml`.
 - Внешние сервисы: APT-репозиторий `repo.yandex.ru`, SMB-сервер с шарой.
 - Секреты: `vault_yandex_disk_username`, `vault_yandex_disk_oauth_token` и
   переменная, названная `yandex_disk_samba_password_var`, — из

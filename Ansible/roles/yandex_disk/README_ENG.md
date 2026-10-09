@@ -116,7 +116,7 @@ creates it earlier in the same playbook).
 ## Dependencies
 
 - Roles: the daemon account and group are expected from `base_add_users`.
-- Collections: `ansible.builtin` only.
+- Collections: `ansible.posix` (the `mount` module), pinned in the project-level `requirements.yml`.
 - External services: the `repo.yandex.ru` APT repository, an SMB server
   publishing the share.
 - Secrets: `vault_yandex_disk_username`, `vault_yandex_disk_oauth_token` and
