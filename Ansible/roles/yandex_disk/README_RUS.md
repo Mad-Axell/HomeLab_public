@@ -28,7 +28,8 @@
 - Пишет `/etc/yandex-disk/config.cfg` (`auth`, `dir`, опционально
   `exclude-dirs`).
 - Пишет `/etc/yandex-disk/passwd` (0600, владелец — служебная учётная запись)
-  с OAuth-токеном в формате `{"login": "token"}`.
+  с содержимым файла токена — одной непрозрачной строкой, которую генерирует
+  `yandex-disk token` (тот же формат, что у `~/.config/yandex-disk/passwd`).
 - Устанавливает systemd-юнит `yandex-disk.service` (`Type=forking`,
   `RequiresMountsFor` на точку монтирования, `Restart=on-failure`) и
   управляет его состоянием.
@@ -63,8 +64,7 @@
 | Variable | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `yandex_disk_mount_source` | string | yes | `null` | UNC-путь шары (`//host/share`). Без него роль падает на assert. |
-| `vault_yandex_disk_username` | string | yes | — | Логин Яндекса из файла токена. Только `VARS/secrets.yml`. |
-| `vault_yandex_disk_oauth_token` | string | yes | — | OAuth-токен клиента. Только `VARS/secrets.yml`. |
+| `vault_yandex_disk_oauth_token` | string | yes | — | Содержимое файла токена клиента (blob целиком). Только `VARS/secrets.yml`. |
 | `yandex_disk_mount_point` | string | no | `"/mnt/yandex"` | Точка монтирования шары. |
 | `yandex_disk_samba_username` | string | no | `"yandex"` | Учётная запись SMB для монтирования. |
 | `yandex_disk_samba_password_var` | string | yes | `"yandex_disk_samba_password"` | Имя переменной с паролем SMB; значение берётся из `VARS/secrets.yml` по имени. |
@@ -124,9 +124,9 @@ check (она создаётся `base_add_users` в том же playbook ран
 - Роли: учётная запись и группа демона ожидаются от `base_add_users`.
 - Коллекции: `ansible.posix` (модуль `mount`), зафиксирована в project-level `requirements.yml`.
 - Внешние сервисы: APT-репозиторий `repo.yandex.ru`, SMB-сервер с шарой.
-- Секреты: `vault_yandex_disk_username`, `vault_yandex_disk_oauth_token` и
-  переменная, названная `yandex_disk_samba_password_var`, — из
-  `VARS/secrets.yml`, подключённого через `vars_files` в play.
+- Секреты: `vault_yandex_disk_oauth_token` и переменная, названная
+  `yandex_disk_samba_password_var`, — из `VARS/secrets.yml`, подключённого
+  через `vars_files` в play.
 
 ## Handlers
 
@@ -141,12 +141,12 @@ check (она создаётся `base_add_users` в том же playbook ран
 ## Примечания
 
 - OAuth-токен нельзя получить неинтерактивно: `yandex-disk token` просит
-  открыть страницу Яндекса и ввести код. Получите токен один раз на любой
-  машине с установленным клиентом и впишите логин и токен из созданного файла
-  `~/.config/yandex-disk/passwd` в `vault_yandex_disk_username` и
-  `vault_yandex_disk_oauth_token`. Если сервер отвергает записанный токен
-  (демон сообщает об ошибке авторизации), выполните `yandex-disk token` внутри
-  контейнера и скопируйте полученный файл поверх `yandex_disk_auth_path`.
+  открыть `https://ya.ru/device` и ввести показанный код (живёт ~300 секунд).
+  Получите токен один раз на любой машине с установленным клиентом и впишите
+  содержимое созданного файла `~/.config/yandex-disk/passwd` (одна строка
+  целиком) в `vault_yandex_disk_oauth_token`. Если сервер отвергает записанный
+  токен (демон сообщает об ошибке авторизации), выполните `yandex-disk token`
+  внутри контейнера и скопируйте полученный файл поверх `yandex_disk_auth_path`.
 - Задачи с паролем SMB и токеном выполняются с `no_log: true` и
   `diff: false`; их значения нельзя выводить через debug.
 - Демон перезапускается только handler'ом по изменениям; устойчивое состояние

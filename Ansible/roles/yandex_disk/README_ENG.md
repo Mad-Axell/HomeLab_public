@@ -29,7 +29,8 @@ mounted via CIFS at `/mnt/yandex`, and the daemon syncs it with the cloud.
 - Writes `/etc/yandex-disk/config.cfg` (`auth`, `dir`, optional
   `exclude-dirs`).
 - Writes `/etc/yandex-disk/passwd` (0600, owned by the service account) with
-  the OAuth token in `{"login": "token"}` format.
+  the token file content - the single opaque blob that `yandex-disk token`
+  generates (the same format as `~/.config/yandex-disk/passwd`).
 - Installs the `yandex-disk.service` systemd unit (`Type=forking`,
   `RequiresMountsFor` on the mount point, `Restart=on-failure`) and manages
   its state.
@@ -64,8 +65,7 @@ mounted via CIFS at `/mnt/yandex`, and the daemon syncs it with the cloud.
 | Variable | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `yandex_disk_mount_source` | string | yes | `null` | UNC path of the share (`//host/share`). The role fails on assert without it. |
-| `vault_yandex_disk_username` | string | yes | — | Yandex login from the token file. `VARS/secrets.yml` only. |
-| `vault_yandex_disk_oauth_token` | string | yes | — | Client OAuth token. `VARS/secrets.yml` only. |
+| `vault_yandex_disk_oauth_token` | string | yes | — | Client token file content (the whole blob). `VARS/secrets.yml` only. |
 | `yandex_disk_mount_point` | string | no | `"/mnt/yandex"` | Share mount point. |
 | `yandex_disk_samba_username` | string | no | `"yandex"` | SMB account used for the mount. |
 | `yandex_disk_samba_password_var` | string | yes | `"yandex_disk_samba_password"` | Name of the variable holding the SMB password; the value is looked up in `VARS/secrets.yml` by name. |
@@ -126,7 +126,7 @@ creates it earlier in the same playbook).
 - Collections: `ansible.posix` (the `mount` module), pinned in the project-level `requirements.yml`.
 - External services: the `repo.yandex.ru` APT repository, an SMB server
   publishing the share.
-- Secrets: `vault_yandex_disk_username`, `vault_yandex_disk_oauth_token` and
+- Secrets: `vault_yandex_disk_oauth_token` and
   the variable named by `yandex_disk_samba_password_var` — from
   `VARS/secrets.yml` loaded through `vars_files` in the play.
 
@@ -143,12 +143,13 @@ creates it earlier in the same playbook).
 ## Notes
 
 - The OAuth token cannot be issued non-interactively: `yandex-disk token`
-  asks you to open a Yandex page and enter a code. Get the token once on any
-  host with the client installed and copy the login and token from the
-  generated `~/.config/yandex-disk/passwd` into `vault_yandex_disk_username`
-  and `vault_yandex_disk_oauth_token`. If the server rejects the stored token
-  (the daemon reports an authorization error), run `yandex-disk token` inside
-  the container and copy the produced file over `yandex_disk_auth_path`.
+  asks you to open `https://ya.ru/device` and enter the shown code (valid for
+  about 300 seconds). Get the token once on any host with the client installed
+  and copy the whole content of the generated `~/.config/yandex-disk/passwd`
+  (a single line) into `vault_yandex_disk_oauth_token`. If the server rejects
+  the stored token (the daemon reports an authorization error), run
+  `yandex-disk token` inside the container and copy the produced file over
+  `yandex_disk_auth_path`.
 - The tasks writing the SMB password and the token run with `no_log: true`
   and `diff: false`; the values must never be printed through debug.
 - The daemon is restarted only by the handler on change; the steady state is

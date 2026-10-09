@@ -13,15 +13,14 @@
       - (yandex_disk_samba_username | trim | length) > 0
       - (yandex_disk_samba_password_var | trim | length) > 0
       - lookup('ansible.builtin.vars', yandex_disk_samba_password_var, default=none) is not none
-      - (vault_yandex_disk_username | default('') | trim | length) > 0
       - (vault_yandex_disk_oauth_token | default('') | trim | length) > 0
     fail_msg: >-
       yandex_disk requires Debian, a CIFS mount source and point, a service
       account and group, the Samba password variable named by
-      yandex_disk_samba_password_var and the secrets vault_yandex_disk_username +
-      vault_yandex_disk_oauth_token in VARS/secrets.yml. The OAuth token is
-      issued once interactively by `yandex-disk token` on any host that has the
-      client installed; see README for the exact steps.
+      yandex_disk_samba_password_var and the secret vault_yandex_disk_oauth_token
+      in VARS/secrets.yml. The token file content is issued once interactively
+      by `yandex-disk token` on any host that has the client installed; see
+      README for the exact steps.
     quiet: true
 
 # Resolve the ids of the account the daemon runs as; the CIFS uid/gid options
@@ -164,12 +163,14 @@
   notify: Restart yandex-disk
   register: yandex_disk_config_result
 
-# Write the OAuth token file the client authenticates with. The file maps the
-# account login to the token as {"login": "token"}; both values come from
-# VARS/secrets.yml and are never logged.
-# Запись файла OAuth-токена, с которым клиент авторизуется. Файл отображает логин
-# на токен как {"login": "token"}; оба значения приходят из VARS/secrets.yml и
-# никогда не логируются.
+# Write the OAuth token file the client authenticates with. The client stores the
+# token as a single opaque blob - the same content `yandex-disk token` writes to
+# ~/.config/yandex-disk/passwd. The value comes from VARS/secrets.yml and is
+# never logged.
+# Запись файла OAuth-токена, с которым клиент авторизуется. Клиент хранит токен
+# одной непрозрачной строкой - тем же содержимым, что `yandex-disk token` пишет в
+# ~/.config/yandex-disk/passwd. Значение приходит из VARS/secrets.yml и никогда
+# не логируется.
 - name: Write the OAuth token file
   ansible.builtin.template:
     src: passwd.j2
