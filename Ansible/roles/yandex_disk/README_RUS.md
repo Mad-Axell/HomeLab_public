@@ -15,7 +15,12 @@
 - Читает uid/gid служебных учётной записи и группы через `getent` — опции
   монтирования CIFS принимают числа.
 - Скачивает ключ подписи `YANDEX-DISK-KEY.GPG` в `/etc/apt/keyrings/` и
-  регистрирует репозиторий `repo.yandex.ru/yandex-disk` (без `apt-key`).
+  регистрирует репозиторий `repo.yandex.ru/yandex-disk` (без `apt-key`). Ключ
+  вендора ASCII-armored и сохраняется как `.asc`.
+- На Debian 13+ переводит верификатор подписей apt с `sqv` на `gpgv`
+  (`APT::Key::GPGVCommand`, пакет `gpgv`, host-wide): `sqv` отвергает связку
+  ключа вендора по SHA1, считая его небезопасным с 2026-02-01. Отключается
+  через `yandex_disk_apt_gpgv_fallback: false`.
 - Устанавливает пакеты `yandex-disk` и `cifs-utils`.
 - Пишет `/etc/yandex-disk/smbcredentials` (0600, root) — логин и пароль SMB.
 - Монтирует шару через запись в `/etc/fstab` (`_netdev`, `nofail`, uid/gid
@@ -42,8 +47,10 @@
 ## Изменяемые ресурсы
 
 - Packages: `yandex-disk`, `cifs-utils` (из `yandex_disk_packages`).
-- Files: `/etc/apt/keyrings/yandex-disk.gpg`,
-  `/etc/apt/sources.list.d/yandex-disk.list`, `/etc/yandex-disk/` со
+- Files: `/etc/apt/keyrings/yandex-disk.asc`,
+  `/etc/apt/sources.list.d/yandex-disk.list`,
+  `/etc/apt/apt.conf.d/99-yandex-disk-gpgv` (только Debian 13+),
+  `/etc/yandex-disk/` со
   `smbcredentials`, `config.cfg`, `passwd`,
   `/etc/systemd/system/yandex-disk.service`.
 - Mounts: запись CIFS в `/etc/fstab` и смонтированная точка

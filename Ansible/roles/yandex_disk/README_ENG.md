@@ -16,6 +16,11 @@ mounted via CIFS at `/mnt/yandex`, and the daemon syncs it with the cloud.
   mount options take numbers.
 - Downloads the `YANDEX-DISK-KEY.GPG` signing key into `/etc/apt/keyrings/`
   and registers the `repo.yandex.ru/yandex-disk` repository (no `apt-key`).
+  The vendor key is ASCII-armored and is stored with the `.asc` extension.
+- On Debian 13+ switches apt signature verification from `sqv` to `gpgv`
+  (`APT::Key::GPGVCommand`, package `gpgv`, host-wide): `sqv` rejects the
+  vendor key's SHA1 binding signature as of 2026-02-01. Disable with
+  `yandex_disk_apt_gpgv_fallback: false`.
 - Installs the `yandex-disk` and `cifs-utils` packages.
 - Writes `/etc/yandex-disk/smbcredentials` (0600, root) — the SMB login and
   password.
@@ -43,8 +48,10 @@ mounted via CIFS at `/mnt/yandex`, and the daemon syncs it with the cloud.
 ## Managed resources
 
 - Packages: `yandex-disk`, `cifs-utils` (from `yandex_disk_packages`).
-- Files: `/etc/apt/keyrings/yandex-disk.gpg`,
-  `/etc/apt/sources.list.d/yandex-disk.list`, `/etc/yandex-disk/` containing
+- Files: `/etc/apt/keyrings/yandex-disk.asc`,
+  `/etc/apt/sources.list.d/yandex-disk.list`,
+  `/etc/apt/apt.conf.d/99-yandex-disk-gpgv` (Debian 13+ only),
+  `/etc/yandex-disk/` containing
   `smbcredentials`, `config.cfg`, `passwd`,
   `/etc/systemd/system/yandex-disk.service`.
 - Mounts: a CIFS entry in `/etc/fstab` and the mounted

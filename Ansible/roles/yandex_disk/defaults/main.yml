@@ -22,13 +22,29 @@ yandex_disk_repository_suite: "stable"
 # Строка. Компонент репозитория.
 yandex_disk_repository_component: "main"
 
-# String. URL of the repository signing key; apt accepts the binary GPG file via signed-by as is.
-# Строка. URL ключа подписи репозитория; apt принимает бинарный GPG-файл через signed-by как есть.
+# String. URL of the repository signing key; the file is ASCII-armored despite the
+# .GPG suffix, which is why it is stored under .asc locally.
+# Строка. URL ключа подписи репозитория; файл ASCII-armored, несмотря на суффикс
+# .GPG, поэтому локально он сохраняется под .asc.
 yandex_disk_repository_key_url: "http://repo.yandex.ru/yandex-disk/YANDEX-DISK-KEY.GPG"
 
-# String. Local path of the downloaded signing key.
-# Строка. Локальный путь скачанного ключа подписи.
-yandex_disk_repository_keyring: "/etc/apt/keyrings/yandex-disk.gpg"
+# Boolean. Fall back to gpgv for repository signature verification on releases where
+# apt verifies with sqv (Debian 13+). sqv enforces a SHA1 cutoff date and rejects the
+# vendor key because its binding signature is SHA1; gpgv still verifies the signature
+# but without the timestamped deprecation policy. The setting is host-wide, which is
+# acceptable for this single-purpose container.
+# Логическое значение. Откат верификатора репозитория на gpgv на выпусках, где apt
+# проверяет подписи через sqv (Debian 13+). sqv применяет дедлайн для SHA1 и отвергает
+# ключ вендора, чья подписывающая связка сделана по SHA1; gpgv подпись по-прежнему
+# проверяет, но без политики устаревания по дате. Настройка действует на весь хост,
+# что приемлемо для контейнера одной функции.
+yandex_disk_apt_gpgv_fallback: true
+
+# String. Local path of the downloaded signing key. The vendor serves an ASCII-armored
+# key; apt accepts armored keyrings via signed-by only under the .asc extension.
+# Строка. Локальный путь скачанного ключа подписи. Вендор отдаёт ASCII-armored ключ;
+# apt принимает armored-keyring через signed-by только с расширением .asc.
+yandex_disk_repository_keyring: "/etc/apt/keyrings/yandex-disk.asc"
 
 # String. sources.list.d file name without extension.
 # Строка. Имя файла в sources.list.d без расширения.

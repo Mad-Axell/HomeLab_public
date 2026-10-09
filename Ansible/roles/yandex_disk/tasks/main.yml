@@ -41,6 +41,34 @@
     key: "{{ yandex_disk_service_group }}"
     fail_key: true
 
+# On Debian 13+ apt delegates signature verification to sqv, which rejects the vendor
+# keyring: its binding signature is SHA1, and sqv treats SHA1 as insecure since
+# 2026-02-01. Pointing APT::Key::GPGVCommand at gpgv restores verification without the
+# timestamped deprecation policy.
+# На Debian 13+ apt проверяет подписи через sqv, который отвергает ключ вендора: его
+# подписывающая связка сделана по SHA1, а sqv считает SHA1 небезопасным с 2026-02-01.
+# Указание APT::Key::GPGVCommand на gpgv возвращает проверку без политики устаревания
+# по дате.
+- name: Install the gpgv signature verifier
+  ansible.builtin.apt:
+    name: gpgv
+    state: present
+    update_cache: false
+  when:
+    - yandex_disk_apt_gpgv_fallback | bool
+    - ansible_facts.distribution_major_version | int >= 13
+  register: yandex_disk_gpgv_package_result
+
+- name: Configure apt to verify repositories with gpgv
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/99-yandex-disk-gpgv
+    content: 'APT::Key::GPGVCommand "/usr/bin/gpgv";'
+    mode: "0644"
+  when:
+    - yandex_disk_apt_gpgv_fallback | bool
+    - ansible_facts.distribution_major_version | int >= 13
+  register: yandex_disk_gpgv_config_result
+
 # Create the keyring directory for the repository signing key.
 # Создание каталога keyring для ключа подписи репозитория.
 - name: Create APT keyring directory
