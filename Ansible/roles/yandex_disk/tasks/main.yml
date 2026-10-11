@@ -151,6 +151,23 @@
     state: mounted
   register: yandex_disk_mount_result
 
+# Enforce the mount point mode. A client can set the DOS read-only attribute on the
+# share root; Samba then reports a mode without write bits (observed 2555) and the
+# service account loses write access. chmod through the CIFS mount rewrites the
+# stored DOS attributes without the read-only bit. The dir_mode mount option does
+# not help: the server reports its own mode for the share root.
+# Принудительный режим точки монтирования. Клиент может выставить DOS-атрибут
+# read-only на корне шары; тогда Samba отдаёт режим без битов записи (наблюдалось
+# 2555), и служебная учётная запись теряет доступ на запись. chmod через
+# CIFS-маунт перезаписывает сохранённые DOS-атрибуты без бита read-only. Опция
+# dir_mode не помогает: для корня шары сервер сообщает собственный режим.
+- name: Enforce the mount point mode
+  ansible.builtin.file:
+    path: "{{ yandex_disk_mount_point }}"
+    state: directory
+    mode: "{{ yandex_disk_mount_dir_mode }}"
+  register: yandex_disk_mount_point_mode_result
+
 # Write the client configuration; the daemon reads it at every start.
 # Запись конфигурации клиента: демон читает её при каждом старте.
 - name: Write the client configuration
@@ -253,6 +270,20 @@
     - yandex_disk_debug_mode | bool
     - yandex_disk_mount_result is defined
     - yandex_disk_mount_result.changed | default(false) | bool
+  tags:
+    - debug
+
+# Report the mount point mode enforcement.
+# Отчёт о восстановлении режима точки монтирования.
+- name: Display mount point mode change
+  ansible.builtin.debug:
+    msg: >-
+      Mount point {{ yandex_disk_mount_point }} mode {{ yandex_disk_mount_dir_mode }}:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - yandex_disk_debug_mode | bool
+    - yandex_disk_mount_point_mode_result is defined
+    - yandex_disk_mount_point_mode_result.changed | default(false) | bool
   tags:
     - debug
 

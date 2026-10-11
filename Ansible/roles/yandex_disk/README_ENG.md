@@ -26,14 +26,17 @@ mounted via CIFS at `/mnt/yandex`, and the daemon syncs it with the cloud.
   password.
 - Mounts the share through an `/etc/fstab` entry (`_netdev`, `nofail`,
   uid/gid of the service account).
+- Restores the mount point mode (`dir_mode`): if a client sets the DOS
+  read-only attribute on the share root, Samba reports a mode without write
+  bits, and a chmod through CIFS clears that attribute.
 - Writes `/etc/yandex-disk/config.cfg` (`auth`, `dir`, optional
   `exclude-dirs`).
 - Writes `/etc/yandex-disk/passwd` (0600, owned by the service account) with
   the token file content - the single opaque blob that `yandex-disk token`
   generates (the same format as `~/.config/yandex-disk/passwd`).
 - Installs the `yandex-disk.service` systemd unit (`Type=forking`,
-  `RequiresMountsFor` on the mount point, `Restart=on-failure`) and manages
-  its state.
+  `RequiresMountsFor` on the mount point, `Restart=on-failure`,
+  `TimeoutStartSec`) and manages its state.
 
 ## Requirements
 
@@ -88,6 +91,7 @@ mounted via CIFS at `/mnt/yandex`, and the daemon syncs it with the cloud.
 | `yandex_disk_service_enabled` | boolean | no | `true` | Start the unit on boot. |
 | `yandex_disk_binary_path` | string | no | `"/usr/bin/yandex-disk"` | Client binary path. |
 | `yandex_disk_restart_sec` | int | no | `30` | `RestartSec` of the unit. |
+| `yandex_disk_timeout_start_sec` | int | no | `300` | `TimeoutStartSec` of the unit; the first start with cloud indexing does not fit the default 90 s. |
 | `yandex_disk_repository_*` | string | no | see defaults | APT repository URL/key/name. |
 | `yandex_disk_architecture` | string | no | `"amd64"` | Architecture pinned in the deb line. |
 | `yandex_disk_packages` | list | no | `[yandex-disk, cifs-utils]` | Packages to install. |

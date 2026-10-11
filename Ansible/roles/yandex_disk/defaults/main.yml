@@ -173,3 +173,13 @@ yandex_disk_binary_path: "/usr/bin/yandex-disk"
 # Integer. Seconds systemd waits before restarting a failed daemon.
 # Целое число. Секунды, которые systemd ждёт до перезапуска упавшего демона.
 yandex_disk_restart_sec: 30
+
+# Integer. Seconds systemd gives the daemon to finish starting (TimeoutStartSec).
+# The first start indexes the remote Disk contents; on a large account the handshake
+# exceeds the 90 s default, the unit is killed by timeout and only the Restart
+# retry brings the daemon up.
+# Целое число. Секунды, которые systemd даёт демону на завершение старта
+# (TimeoutStartSec). Первый старт индексирует содержимое удалённого Диска; на
+# большом аккаунте рукопожатие превышает стандартные 90 с, юнит убивается по
+# таймауту и демона поднимает только повтор через Restart.
+yandex_disk_timeout_start_sec: 300

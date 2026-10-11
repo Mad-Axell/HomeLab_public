@@ -25,14 +25,17 @@
 - Пишет `/etc/yandex-disk/smbcredentials` (0600, root) — логин и пароль SMB.
 - Монтирует шару через запись в `/etc/fstab` (`_netdev`, `nofail`, uid/gid
   служебной учётной записи).
+- Восстанавливает режим точки монтирования (`dir_mode`): если клиент выставит
+  на корне шары DOS-атрибут read-only, Samba отдаёт режим без битов записи, и
+  chmod через CIFS снимает этот атрибут.
 - Пишет `/etc/yandex-disk/config.cfg` (`auth`, `dir`, опционально
   `exclude-dirs`).
 - Пишет `/etc/yandex-disk/passwd` (0600, владелец — служебная учётная запись)
   с содержимым файла токена — одной непрозрачной строкой, которую генерирует
   `yandex-disk token` (тот же формат, что у `~/.config/yandex-disk/passwd`).
 - Устанавливает systemd-юнит `yandex-disk.service` (`Type=forking`,
-  `RequiresMountsFor` на точку монтирования, `Restart=on-failure`) и
-  управляет его состоянием.
+  `RequiresMountsFor` на точку монтирования, `Restart=on-failure`,
+  `TimeoutStartSec`) и управляет его состоянием.
 
 ## Требования
 
@@ -87,6 +90,7 @@
 | `yandex_disk_service_enabled` | boolean | no | `true` | Автозапуск юнита. |
 | `yandex_disk_binary_path` | string | no | `"/usr/bin/yandex-disk"` | Бинарник клиента. |
 | `yandex_disk_restart_sec` | int | no | `30` | `RestartSec` юнита. |
+| `yandex_disk_timeout_start_sec` | int | no | `300` | `TimeoutStartSec` юнита; первый старт с индексацией облака не укладывается в дефолтные 90 с. |
 | `yandex_disk_repository_*` | string | no | см. defaults | URL/ключ/имя APT-репозитория. |
 | `yandex_disk_architecture` | string | no | `"amd64"` | Архитектура в строке deb. |
 | `yandex_disk_packages` | list | no | `[yandex-disk, cifs-utils]` | Устанавливаемые пакеты. |
