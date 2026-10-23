@@ -116,9 +116,9 @@ systemd timer that runs `rclone sync` on a schedule.
 
 The role supports `--check --diff`. Secret-writing tasks use `no_log: true`
 and `diff: false`, so diff never shows the contents of smbcredentials or
-rclone.conf. In check mode `ansible.builtin.apt deb=` may not predict the
-change precisely; `ansible.posix.mount` does not perform the actual mount in
-check mode.
+rclone.conf. The .deb install task is skipped in check mode: the get_url
+task only predicts the file there, so the .deb does not exist yet.
+`ansible.posix.mount` does not perform the actual mount in check mode.
 
 ## Dependencies
 

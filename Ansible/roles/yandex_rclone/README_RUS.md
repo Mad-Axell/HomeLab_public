@@ -115,9 +115,9 @@
 
 Роль поддерживает `--check --diff`. Таски с секретами используют
 `no_log: true` и `diff: false`, поэтому diff не показывает содержимое
-smbcredentials и rclone.conf. В check mode `ansible.builtin.apt deb=` может
-не предсказать изменение точно; `ansible.posix.mount` в check mode не
-выполняет само монтирование.
+smbcredentials и rclone.conf. Установка .deb-пакета в check mode пропускается:
+задача get_url там лишь прогнозирует файл, и .deb ещё не существует.
+`ansible.posix.mount` в check mode не выполняет само монтирование.
 
 ## Зависимости
 

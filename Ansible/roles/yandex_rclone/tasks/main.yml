@@ -65,12 +65,15 @@
     mode: "0644"
   register: yandex_rclone_deb_download_result
 
-# Install rclone from the downloaded package.
-# Установка rclone из скачанного пакета.
+# Install rclone from the downloaded package. Skipped in check mode: the
+# download task only predicts the file there, so the .deb does not exist yet.
+# Установка rclone из скачанного пакета. В check-режиме пропускается: задача
+# загрузки там лишь прогнозирует файл, поэтому .deb ещё не существует.
 - name: Install rclone from the package
   ansible.builtin.apt:
     deb: "{{ yandex_rclone_deb_path }}"
     state: present
+  when: not ansible_check_mode
   register: yandex_rclone_deb_install_result
 
 # Create the rclone configuration directory; the OAuth token lives inside it.
