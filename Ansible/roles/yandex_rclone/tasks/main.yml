@@ -1,0 +1,271 @@
+---
+# Validate everything the role cannot derive itself before changing the host.
+# Проверка всего, что роль не может вывести сама, до изменения хоста.
+- name: Validate Yandex rclone input
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - yandex_rclone_mount_source is not none
+      - (yandex_rclone_mount_source | trim | length) > 0
+      - (yandex_rclone_mount_point | trim | length) > 0
+      - (yandex_rclone_service_user | trim | length) > 0
+      - (yandex_rclone_service_group | trim | length) > 0
+      - (yandex_rclone_samba_username | trim | length) > 0
+      - yandex_rclone_samba_password_var is not none
+      - (yandex_rclone_samba_password_var | trim | length) > 0
+      - lookup('ansible.builtin.vars', yandex_rclone_samba_password_var, default=none) is not none
+      - yandex_rclone_client_id is not none
+      - (yandex_rclone_client_id | trim | length) > 0
+      - (vault_yandex_rclone_client_secret | default('') | trim | length) > 0
+      - (vault_yandex_rclone_token | default('') | trim | length) > 0
+    fail_msg: >-
+      yandex_rclone requires Debian, a CIFS mount source and point, a service
+      account and group, the Samba password variable named by
+      yandex_rclone_samba_password_var, the lab OAuth application client id in
+      yandex_rclone_client_id, and the secrets vault_yandex_rclone_client_secret
+      and vault_yandex_rclone_token in VARS/secrets.yml; see README for how the
+      token is minted.
+    quiet: true
+
+# Resolve the ids of the account the service runs as; the CIFS uid/gid options
+# take numbers, not names.
+# Определение uid/gid учётной записи сервиса: опции CIFS принимают числа, а не имена.
+- name: Read the service account ids
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ yandex_rclone_service_user }}"
+    fail_key: true
+
+# Resolve the id of the service primary group for the same reason.
+# Определение gid основной группы сервиса по той же причине.
+- name: Read the service group id
+  ansible.builtin.getent:
+    database: group
+    key: "{{ yandex_rclone_service_group }}"
+    fail_key: true
+
+# Install cifs-utils from Debian; mounting the share needs mount.cifs.
+# Установка cifs-utils из Debian: монтированию шары нужен mount.cifs.
+- name: Install share mount packages
+  ansible.builtin.apt:
+    name: "{{ yandex_rclone_apt_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: yandex_rclone_apt_result
+
+# Download the pinned upstream rclone package; Debian 13's build predates the
+# Yandex backend token layout this role writes.
+# Загрузка закреплённого апстрим-пакета rclone; сборка Debian 13 старше формата
+# токена бэкенда Yandex, который пишет эта роль.
+- name: Download the rclone package
+  ansible.builtin.get_url:
+    url: "{{ yandex_rclone_deb_url }}"
+    dest: "{{ yandex_rclone_deb_path }}"
+    mode: "0644"
+  register: yandex_rclone_deb_download_result
+
+# Install rclone from the downloaded package.
+# Установка rclone из скачанного пакета.
+- name: Install rclone from the package
+  ansible.builtin.apt:
+    deb: "{{ yandex_rclone_deb_path }}"
+    state: present
+  register: yandex_rclone_deb_install_result
+
+# Create the rclone configuration directory; the OAuth token lives inside it.
+# Создание каталога конфигурации rclone: внутри него хранится OAuth-токен.
+- name: Create the rclone config directory
+  ansible.builtin.file:
+    path: "{{ yandex_rclone_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Create the log directory owned by the service account so the unit can log.
+# Создание каталога логов с владельцем-служебной учёткой, чтобы юнит мог писать лог.
+- name: Create the rclone log directory
+  ansible.builtin.file:
+    path: "{{ yandex_rclone_log_dir }}"
+    state: directory
+    owner: "{{ yandex_rclone_service_user }}"
+    group: "{{ yandex_rclone_service_group }}"
+    mode: "0755"
+
+# Create the share mount point before mounting so the mount module has a target.
+# Создание точки монтирования шары до монтирования, чтобы у mount-модуля была цель.
+- name: Create the share mount point
+  ansible.builtin.file:
+    path: "{{ yandex_rclone_mount_point }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Write the share credentials readable only by root; the file holds a password.
+# Запись учётных данных шары, доступных только root: файл хранит пароль.
+- name: Write the SMB credentials file
+  ansible.builtin.template:
+    src: smbcredentials.j2
+    dest: "{{ yandex_rclone_credentials_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  diff: false
+  register: yandex_rclone_credentials_result
+
+# Mount the Samba share; it is the local mirror of the Disk, not a backing store
+# the service could run without.
+# Монтирование шары Samba: это локальное зеркало Диска, а не хранилище, без
+# которого сервис мог бы работать.
+- name: Mount the Samba share
+  ansible.posix.mount:
+    path: "{{ yandex_rclone_mount_point }}"
+    src: "{{ yandex_rclone_mount_source }}"
+    fstype: "{{ yandex_rclone_mount_fstype }}"
+    opts: >-
+      credentials={{ yandex_rclone_credentials_path }},uid={{
+      ansible_facts.getent_passwd[yandex_rclone_service_user][1] }},gid={{
+      ansible_facts.getent_group[yandex_rclone_service_group][1] }},file_mode={{
+      yandex_rclone_mount_file_mode }},dir_mode={{ yandex_rclone_mount_dir_mode }},vers={{
+      yandex_rclone_smb_version }},{{ yandex_rclone_mount_static_options | join(',') }}
+    state: mounted
+  register: yandex_rclone_mount_result
+
+# Write the rclone configuration holding the OAuth application credentials and
+# token. The file is owned by the service account because rclone rewrites the
+# token field whenever it refreshes it. By default the file is only seeded when
+# absent so an Ansible run cannot resurrect a stale refresh token over the one
+# rclone has rotated live; set yandex_rclone_config_overwrite to force.
+# Запись конфигурации rclone с учётными данными OAuth-приложения и токеном. Файл
+# принадлежит служебной учётке, потому что rclone переписывает поле токена при
+# каждом его обновлении. По умолчанию файл создаётся только при отсутствии,
+# чтобы прогон Ansible не воскрешал протухший refresh-токен поверх живого; для
+# принудительной перезаписи есть yandex_rclone_config_overwrite.
+- name: Write the rclone configuration
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: "{{ yandex_rclone_config_path }}"
+    owner: "{{ yandex_rclone_service_user }}"
+    group: "{{ yandex_rclone_service_group }}"
+    mode: "0600"
+    force: "{{ yandex_rclone_config_overwrite }}"
+  no_log: true
+  diff: false
+  register: yandex_rclone_config_result
+
+# Install the oneshot unit that performs one mirror pass; RequiresMountsFor
+# inside it orders the run behind the CIFS mount.
+# Установка oneshot-юнита, выполняющего один прогон зеркала; RequiresMountsFor
+# внутри него ставит запуск после CIFS-монтирования.
+- name: Install the systemd service unit
+  ansible.builtin.template:
+    src: yandex-rclone.service.j2
+    dest: "/etc/systemd/system/{{ yandex_rclone_service_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  register: yandex_rclone_service_unit_result
+
+# Install the timer that retriggers the mirror pass on a schedule.
+# Установка таймера, перезапускающего прогон зеркала по расписанию.
+- name: Install the systemd timer unit
+  ansible.builtin.template:
+    src: yandex-rclone.timer.j2
+    dest: "/etc/systemd/system/{{ yandex_rclone_service_name }}.timer"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  register: yandex_rclone_timer_unit_result
+
+# Manage the steady state of the recurring timer.
+# Управление устойчивым состоянием периодического таймера.
+- name: Manage the sync timer
+  ansible.builtin.systemd_service:
+    name: "{{ yandex_rclone_service_name }}.timer"
+    state: "{{ 'started' if yandex_rclone_timer_enabled else 'stopped' }}"
+    enabled: "{{ yandex_rclone_timer_enabled }}"
+  register: yandex_rclone_timer_state_result
+
+# Manage whether the oneshot service also runs at boot.
+# Управление тем, запускается ли oneshot-сервис также при загрузке.
+- name: Manage the sync service enablement
+  ansible.builtin.systemd_service:
+    name: "{{ yandex_rclone_service_name }}.service"
+    enabled: "{{ yandex_rclone_service_enabled }}"
+  register: yandex_rclone_service_state_result
+
+# Report the package installation.
+# Отчёт об установке пакетов.
+- name: Display package installation change
+  ansible.builtin.debug:
+    msg: >-
+      rclone package and {{ yandex_rclone_apt_packages | join(', ') }}:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - yandex_rclone_debug_mode | bool
+    - >-
+      (yandex_rclone_apt_result is defined
+      and (yandex_rclone_apt_result.changed | default(false) | bool))
+      or (yandex_rclone_deb_download_result is defined
+      and (yandex_rclone_deb_download_result.changed | default(false) | bool))
+      or (yandex_rclone_deb_install_result is defined
+      and (yandex_rclone_deb_install_result.changed | default(false) | bool))
+  tags:
+    - debug
+
+# Report the credential and configuration file changes without printing values.
+# Отчёт об изменении файлов учётных данных и конфигурации без вывода значений.
+- name: Display credential files change
+  ansible.builtin.debug:
+    msg: >-
+      SMB credentials and rclone configuration files:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - yandex_rclone_debug_mode | bool
+    - >-
+      (yandex_rclone_credentials_result is defined
+      and (yandex_rclone_credentials_result.changed | default(false) | bool))
+      or (yandex_rclone_config_result is defined
+      and (yandex_rclone_config_result.changed | default(false) | bool))
+  tags:
+    - debug
+
+# Report the share mount change.
+# Отчёт об изменении монтирования шары.
+- name: Display share mount change
+  ansible.builtin.debug:
+    msg: >-
+      Share {{ yandex_rclone_mount_source }}:
+      {{ 'WOULD MOUNT' if ansible_check_mode else 'MOUNTED' }} at {{ yandex_rclone_mount_point }}
+  when:
+    - yandex_rclone_debug_mode | bool
+    - yandex_rclone_mount_result is defined
+    - yandex_rclone_mount_result.changed | default(false) | bool
+  tags:
+    - debug
+
+# Report the systemd unit changes.
+# Отчёт об изменении systemd-юнитов.
+- name: Display systemd unit change
+  ansible.builtin.debug:
+    msg: >-
+      Systemd units {{ yandex_rclone_service_name }}.service/.timer:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - yandex_rclone_debug_mode | bool
+    - >-
+      (yandex_rclone_service_unit_result is defined
+      and (yandex_rclone_service_unit_result.changed | default(false) | bool))
+      or (yandex_rclone_timer_unit_result is defined
+      and (yandex_rclone_timer_unit_result.changed | default(false) | bool))
+      or (yandex_rclone_timer_state_result is defined
+      and (yandex_rclone_timer_state_result.changed | default(false) | bool))
+      or (yandex_rclone_service_state_result is defined
+      and (yandex_rclone_service_state_result.changed | default(false) | bool))
+  tags:
+    - debug

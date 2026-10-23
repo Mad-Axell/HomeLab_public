@@ -1,0 +1,15 @@
+[Unit]
+Description=Yandex Disk mirror via rclone
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor={{ yandex_rclone_mount_point }}
+
+[Service]
+Type=oneshot
+User={{ yandex_rclone_service_user }}
+Group={{ yandex_rclone_service_group }}
+ExecStart={{ yandex_rclone_binary_path }} sync {{ yandex_rclone_remote_name }}: {{ yandex_rclone_mount_point }} --config={{ yandex_rclone_config_path }} --backup-dir={{ yandex_rclone_backup_dir }}{% for exclude in yandex_rclone_excludes %} --exclude={{ exclude }}{% endfor %} --transfers={{ yandex_rclone_transfers }} --checkers={{ yandex_rclone_checkers }} --buffer-size={{ yandex_rclone_buffer_size }} --contimeout={{ yandex_rclone_contimeout }} --timeout={{ yandex_rclone_timeout }} --retries={{ yandex_rclone_retries }} --low-level-retries={{ yandex_rclone_low_level_retries }} --stats=5m --stats-one-line --log-file={{ yandex_rclone_log_file }} --log-level={{ yandex_rclone_log_level }}
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,222 @@
+---
+# Yandex Disk mirror via rclone role configuration
+# Конфигурация роли зеркала Яндекс.Диска через rclone
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+yandex_rclone_debug_mode: false
+
+
+# rclone installation
+# Установка rclone
+
+# String. URL of the rclone .deb package; Debian 13's own rclone build is too old
+# for the Yandex backend token format this role writes, so the upstream
+# release is used. The download is pinned to one versioned release asset.
+# Строка. URL .deb-пакета rclone; сборка rclone в самом Debian 13 слишком старая
+# для формата токена бэкенда Yandex, который пишет эта роль, поэтому берётся
+# апстрим-релиз. Загрузка закреплена за одним версионным артефактом.
+yandex_rclone_deb_url: "https://github.com/rclone/rclone/releases/download/v1.75.2/rclone-v1.75.2-linux-amd64.deb"
+
+# String. Local path the .deb is downloaded to before installation.
+# Строка. Локальный путь, куда скачивается .deb перед установкой.
+yandex_rclone_deb_path: "/tmp/rclone-v1.75.2-linux-amd64.deb"
+
+# List of strings. Packages pulled from Debian proper: cifs-utils provides
+# mount.cifs for the share mount.
+# Список строк. Пакеты из самого Debian: cifs-utils даёт mount.cifs для
+# монтирования шары.
+yandex_rclone_apt_packages:
+  - "cifs-utils"
+
+
+# SMB share mount
+# Монтирование SMB-шары
+
+# String or null. REQUIRED. UNC path of the share that becomes the local mirror
+# of the Disk, for example //172.25.40.44/yandex.
+# Строка или null. ОБЯЗАТЕЛЬНО. UNC-путь шары, которая становится локальным
+# зеркалом Диска, например //172.25.40.44/yandex.
+yandex_rclone_mount_source: null
+
+# String. Directory the share is mounted to.
+# Строка. Каталог, в который монтируется шара.
+yandex_rclone_mount_point: "/mnt/yandex"
+
+# String. Filesystem type of the mount.
+# Строка. Тип файловой системы монтирования.
+yandex_rclone_mount_fstype: "cifs"
+
+# String. SMB dialect negotiated with the server.
+# Строка. Диалект SMB, согласуемый с сервером.
+yandex_rclone_smb_version: "3.0"
+
+# String. Path of the root-owned credentials file that mount.cifs reads.
+# Строка. Путь файла учётных данных, доступного только root, который читает mount.cifs.
+yandex_rclone_credentials_path: "/etc/rclone/smbcredentials"
+
+# String. Samba account used to mount the share.
+# Строка. Учётная запись Samba для монтирования шары.
+yandex_rclone_samba_username: "yandex"
+
+# String or null. REQUIRED. NAME of the variable holding the Samba account
+# password. Indirection keeps the value out of role defaults; the variable
+# itself lives in VARS/secrets.yml.
+# Строка или null. ОБЯЗАТЕЛЬНО. ИМЯ переменной с паролем учётной записи Samba.
+# Косвенная ссылка не пускает значение в defaults роли; сама переменная живёт в
+# VARS/secrets.yml.
+yandex_rclone_samba_password_var: null
+
+# String. NetBIOS workgroup written to the credentials file.
+# Строка. Рабочая группа NetBIOS, записываемая в файл учётных данных.
+yandex_rclone_samba_domain: "WORKGROUP"
+
+# String. File and directory modes the share presents to local processes.
+# Строка. Права файлов и каталогов, которые шара показывает локальным процессам.
+yandex_rclone_mount_file_mode: "0664"
+yandex_rclone_mount_dir_mode: "02775"
+
+# List of strings. Static CIFS mount options. credentials, uid and gid are added
+# by the task itself, because the ids are resolved on the target at runtime.
+# Список строк. Статические опции CIFS-монтирования. credentials, uid и gid
+# добавляет сам таск, потому что идентификаторы вычисляются на целевом хосте во
+# время прогона.
+yandex_rclone_mount_static_options:
+  - "iocharset=utf8"
+  - "_netdev"
+  - "nofail"
+
+
+# rclone configuration
+# Конфигурация rclone
+
+# String. Account the sync service runs as. The role does not create it: the
+# account and its group are expected from base_add_users, and this role only
+# reads their ids.
+# Строка. Учётная запись, от которой работает сервис синхронизации. Роль её не
+# создаёт: учётная запись и её группа ожидаются от base_add_users, а эта роль
+# только читает их идентификаторы.
+yandex_rclone_service_user: "yandex"
+
+# String. Primary group the sync service runs as.
+# Строка. Основная группа, от которой работает сервис синхронизации.
+yandex_rclone_service_group: "nas"
+
+# String. Directory holding the rclone configuration file.
+# Строка. Каталог конфигурационного файла rclone.
+yandex_rclone_config_dir: "/etc/rclone"
+
+# String. rclone configuration path passed to every call with --config.
+# Строка. Путь конфигурации rclone, передаваемый каждому вызову через --config.
+yandex_rclone_config_path: "{{ yandex_rclone_config_dir }}/rclone.conf"
+
+# Boolean. Overwrite the rclone configuration file when it already exists.
+# The config carries the OAuth token, which rclone rewrites whenever it
+# refreshes it; clobbering the file on every run would resurrect a stale
+# refresh token, so the default seeds the file only when it is absent.
+# Логическое значение. Перезаписывать конфигурационный файл rclone, если он уже
+# существует. Конфиг хранит OAuth-токен, который rclone переписывает при каждом
+# обновлении; перезапись файла при каждом прогоне воскресила бы протухший
+# refresh-токен, поэтому по умолчанию файл создаётся только при отсутствии.
+yandex_rclone_config_overwrite: false
+
+# String. Name of the rclone remote section and the remote prefix used in the
+# sync command.
+# Строка. Имя remote-секции rclone и префикс remote в команде sync.
+yandex_rclone_remote_name: "yandex"
+
+# String or null. REQUIRED. OAuth client id of the lab's own Yandex OAuth
+# application. A custom application is required: the built-in rclone client id
+# gets HTTP 410 from /v1/disk/resources since October 2026.
+# Строка или null. ОБЯЗАТЕЛЬНО. OAuth client id собственного OAuth-приложения
+# лаборатории. Своё приложение обязательно: встроенный client_id rclone получает
+# HTTP 410 от /v1/disk/resources с октября 2026.
+yandex_rclone_client_id: null
+
+
+# Sync parameters
+# Параметры синхронизации
+
+# String. Directory that receives files deleted or changed in the cloud instead
+# of losing them, relative naming mirrors the source path.
+# Строка. Каталог, куда складываются файлы, удалённые или изменённые в облаке,
+# вместо безвозвратной потери; имена повторяют исходный путь.
+yandex_rclone_backup_dir: "{{ yandex_rclone_mount_point }}/.rclone-backup"
+
+# List of strings. Path patterns excluded from syncing.
+# Список строк. Паттерны путей, исключаемые из синхронизации.
+yandex_rclone_excludes:
+  - "/.rclone-backup/**"
+  - "/.sync/**"
+
+# Integer. Parallel file transfers.
+# Целое число. Параллельные передачи файлов.
+yandex_rclone_transfers: 4
+
+# Integer. Parallel directory listing checkers.
+# Целое число. Параллельные checker-потоки листинга каталогов.
+yandex_rclone_checkers: 8
+
+# String. Per-transfer buffer size; kept small because writes into the CIFS
+# mount charge dirty pages to the container memory cgroup.
+# Строка. Размер буфера на передачу; держится малым, потому что запись в
+# CIFS-монтирование относит dirty pages на memory cgroup контейнера.
+yandex_rclone_buffer_size: "8M"
+
+# String. Connection timeout; kept short so downloads directed at a dead
+# Yandex storage node fail fast instead of hanging a transfer slot.
+# Строка. Таймаут соединения; держится коротким, чтобы загрузки, направленные на
+# мёртвую storage-ноду Яндекса, падали быстро, а не вешали слот передачи.
+yandex_rclone_contimeout: "15s"
+
+# String. IO idle timeout per transfer attempt.
+# Строка. Таймаут простоя ввода-вывода на одну попытку передачи.
+yandex_rclone_timeout: "45s"
+
+# Integer. Retries of the whole sync operation.
+# Целое число. Повторы всей операции синхронизации.
+yandex_rclone_retries: 2
+
+# Integer. Low-level per-request retries.
+# Целое число. Низкоуровневые повторы на запрос.
+yandex_rclone_low_level_retries: 3
+
+# String. Log directory for the sync service.
+# Строка. Каталог логов сервиса синхронизации.
+yandex_rclone_log_dir: "/var/log/rclone"
+
+# String. Log file written by the sync service.
+# Строка. Файл лога, пишущийся сервисом синхронизации.
+yandex_rclone_log_file: "{{ yandex_rclone_log_dir }}/sync.log"
+
+# String. rclone log level.
+# Строка. Уровень логирования rclone.
+yandex_rclone_log_level: "INFO"
+
+
+# systemd units
+# Юниты systemd
+
+# String. Base name of the systemd service and timer this role installs.
+# Строка. Базовое имя systemd-сервиса и таймера, которые ставит роль.
+yandex_rclone_service_name: "yandex-rclone"
+
+# Boolean. Enable the oneshot service so a mirror run also happens at boot.
+# Логическое значение. Включать oneshot-сервис, чтобы прогон зеркала был и при загрузке.
+yandex_rclone_service_enabled: true
+
+# Boolean. Enable and start the recurring timer.
+# Логическое значение. Включать и запускать периодический таймер.
+yandex_rclone_timer_enabled: true
+
+# String. OnCalendar expression of the timer.
+# Строка. Выражение OnCalendar таймера.
+yandex_rclone_timer_oncalendar: "hourly"
+
+# Integer. RandomizedDelaySec of the timer in seconds.
+# Целое число. RandomizedDelaySec таймера в секундах.
+yandex_rclone_timer_randomized_sec: 300
+
+# String. Absolute path of the rclone binary used by the unit.
+# Строка. Абсолютный путь бинарника rclone, который использует юнит.
+yandex_rclone_binary_path: "/usr/bin/rclone"

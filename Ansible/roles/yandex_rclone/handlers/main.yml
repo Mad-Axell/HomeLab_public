@@ -1,0 +1,6 @@
+---
+# Reload systemd so changed unit files are picked up.
+# Перезагрузка systemd, чтобы изменённые файлы юнитов подхватились.
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true

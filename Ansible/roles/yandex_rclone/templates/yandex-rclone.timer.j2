@@ -1,0 +1,10 @@
+[Unit]
+Description=Recurring Yandex Disk mirror run
+
+[Timer]
+OnCalendar={{ yandex_rclone_timer_oncalendar }}
+RandomizedDelaySec={{ yandex_rclone_timer_randomized_sec }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
