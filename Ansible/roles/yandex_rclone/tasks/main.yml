@@ -106,6 +106,18 @@
     group: root
     mode: "0755"
 
+# Create the credentials file parent directory in case it differs from the
+# config directory, e.g. when the path is pinned to a pre-existing location.
+# Создание родительского каталога файла кредов на случай, если он отличается от
+# каталога конфигурации, например при закреплении пути за уже существующим.
+- name: Create the credentials parent directory
+  ansible.builtin.file:
+    path: "{{ yandex_rclone_credentials_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 # Write the share credentials readable only by root; the file holds a password.
 # Запись учётных данных шары, доступных только root: файл хранит пароль.
 - name: Write the SMB credentials file
