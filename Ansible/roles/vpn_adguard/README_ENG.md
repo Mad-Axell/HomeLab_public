@@ -212,6 +212,9 @@ Honest limitations:
   `ansible.builtin.command`, so they do not run in check mode. On a host without
   the client, a check run only reports the package, file and service steps.
 - The settings task is additionally guarded by `when: not ansible_check_mode`.
+- Managing the watchdog timer is skipped in check mode: its units are written
+  by the same play, so under `--check` systemd does not know about them yet;
+  the first real run creates and starts the timer.
 - A configuration change is detected by comparing the output of
   `adguardvpn-cli config show` before and after the settings are applied. If the
   vendor adds volatile fields to that output, the task will start reporting

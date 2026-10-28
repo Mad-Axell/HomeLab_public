@@ -264,8 +264,13 @@
   register: vpn_adguard_watchdog_units_result
   when: vpn_adguard_watchdog_enabled | bool
 
-# Keep the watchdog timer running; daemon_reload also picks up rewritten unit files
-# Поддержание таймера watchdog запущенным; daemon_reload также подхватывает переписанные юниты
+# Keep the watchdog timer running; daemon_reload also picks up rewritten unit files.
+# Skipped in check mode: the units written by this same play do not exist yet,
+# so systemd has nothing to manage; the first real run creates and starts them.
+# Поддержание таймера watchdog запущенным; daemon_reload также подхватывает
+# переписанные юниты. Пропускается в check mode: юниты, записываемые этим же
+# прогоном, ещё не существуют, и systemd нечем управлять; первый реальный
+# прогон создаёт и запускает их.
 - name: Manage the AdGuard VPN watchdog timer
   ansible.builtin.systemd_service:
     name: "{{ vpn_adguard_watchdog_unit_name }}.timer"
@@ -273,7 +278,9 @@
     enabled: true
     daemon_reload: true
   register: vpn_adguard_watchdog_timer_result
-  when: vpn_adguard_watchdog_enabled | bool
+  when:
+    - vpn_adguard_watchdog_enabled | bool
+    - not ansible_check_mode
 
 # Read whether a stale watchdog timer exists before stopping it when the feature is off
 # Чтение наличия устаревшего таймера watchdog перед его остановкой при выключенной функции
