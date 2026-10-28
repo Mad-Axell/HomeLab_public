@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# Runs the watchdog health check once per timer tick. Kept as a oneshot so a
+# wedged script cannot pile up overlapping checks.
+
+[Unit]
+Description=AdGuard VPN tunnel watchdog
+Documentation=https://adguard-vpn.com/kb/adguard-vpn-for-linux/
+
+[Service]
+Type=oneshot
+ExecStart={{ vpn_adguard_watchdog_script_path }}

@@ -239,6 +239,76 @@
     daemon_reload: true
   register: vpn_adguard_service_result
 
+# Deploy the watchdog that restarts the tunnel when the client is wedged;
+# systemd alone cannot see this failure because the tunnel unit is oneshot
+# Развёртывание watchdog, перезапускающего туннель при зависании клиента;
+# systemd сам этот отказ не видит, так как юнит туннеля имеет тип oneshot
+- name: Write the AdGuard VPN watchdog script
+  ansible.builtin.template:
+    src: "adguardvpn-watchdog.sh.j2"
+    dest: "{{ vpn_adguard_watchdog_script_path }}"
+    mode: "0755"
+  register: vpn_adguard_watchdog_script_result
+  when: vpn_adguard_watchdog_enabled | bool
+
+# Install the oneshot service and the timer that runs the watchdog check
+# Установка oneshot-сервиса и таймера, запускающего проверку watchdog
+- name: Write the AdGuard VPN watchdog units
+  ansible.builtin.template:
+    src: "adguardvpn-watchdog.{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ vpn_adguard_watchdog_unit_name }}.{{ item }}"
+    mode: "0644"
+  loop:
+    - "service"
+    - "timer"
+  register: vpn_adguard_watchdog_units_result
+  when: vpn_adguard_watchdog_enabled | bool
+
+# Keep the watchdog timer running; daemon_reload also picks up rewritten unit files
+# Поддержание таймера watchdog запущенным; daemon_reload также подхватывает переписанные юниты
+- name: Manage the AdGuard VPN watchdog timer
+  ansible.builtin.systemd_service:
+    name: "{{ vpn_adguard_watchdog_unit_name }}.timer"
+    state: started
+    enabled: true
+    daemon_reload: true
+  register: vpn_adguard_watchdog_timer_result
+  when: vpn_adguard_watchdog_enabled | bool
+
+# Read whether a stale watchdog timer exists before stopping it when the feature is off
+# Чтение наличия устаревшего таймера watchdog перед его остановкой при выключенной функции
+- name: Check whether the AdGuard VPN watchdog timer exists
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ vpn_adguard_watchdog_unit_name }}.timer"
+  register: vpn_adguard_watchdog_timer_unit_result
+  when: not vpn_adguard_watchdog_enabled | bool
+
+# Stop the leftover timer when the watchdog is disabled so it cannot restart the tunnel
+# Остановка оставшегося таймера при выключенном watchdog, чтобы он не рестартовал туннель
+- name: Stop the AdGuard VPN watchdog timer
+  ansible.builtin.systemd_service:
+    name: "{{ vpn_adguard_watchdog_unit_name }}.timer"
+    state: stopped
+    enabled: false
+    daemon_reload: true
+  register: vpn_adguard_watchdog_timer_stop_result
+  when:
+    - not vpn_adguard_watchdog_enabled | bool
+    - vpn_adguard_watchdog_timer_unit_result.stat.exists | default(false)
+
+# Remove the watchdog files when the feature is disabled
+# Удаление файлов watchdog при выключенной функции
+- name: Remove the AdGuard VPN watchdog files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ vpn_adguard_watchdog_script_path }}"
+    - "/etc/systemd/system/{{ vpn_adguard_watchdog_unit_name }}.service"
+    - "/etc/systemd/system/{{ vpn_adguard_watchdog_unit_name }}.timer"
+  register: vpn_adguard_watchdog_remove_result
+  when: not vpn_adguard_watchdog_enabled | bool
+
 # Report the outcome without repeating installer or package manager output
 # Вывод итога без повторения вывода установщика или пакетного менеджера
 - name: Display AdGuard VPN gateway change summary
@@ -273,5 +343,15 @@
       and (vpn_adguard_unit_result.changed | default(false) | bool))
       or (vpn_adguard_service_result is defined
       and (vpn_adguard_service_result.changed | default(false) | bool))
+      or (vpn_adguard_watchdog_script_result is defined
+      and (vpn_adguard_watchdog_script_result.changed | default(false) | bool))
+      or (vpn_adguard_watchdog_units_result is defined
+      and (vpn_adguard_watchdog_units_result.changed | default(false) | bool))
+      or (vpn_adguard_watchdog_timer_result is defined
+      and (vpn_adguard_watchdog_timer_result.changed | default(false) | bool))
+      or (vpn_adguard_watchdog_timer_stop_result is defined
+      and (vpn_adguard_watchdog_timer_stop_result.changed | default(false) | bool))
+      or (vpn_adguard_watchdog_remove_result is defined
+      and (vpn_adguard_watchdog_remove_result.changed | default(false) | bool))
   tags:
     - debug

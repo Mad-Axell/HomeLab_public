@@ -27,6 +27,11 @@ VPN-сервер и не принимает входящие подключен�
 - Создаёт systemd-юнит, который поднимает туннель при загрузке и после
   подключения восстанавливает маршруты для подсетей, которые не должны уходить
   в туннель.
+- При `vpn_adguard_watchdog_enabled` разворачивает watchdog: systemd-таймер
+  с oneshot-сервисом и health-check скриптом, который рестартует сервис туннеля,
+  когда клиент завис в цикле восстановления (юнит `oneshot` при этом остаётся
+  `active`, и systemd сам отказ не видит). При выключенном watchdog убирает его
+  скрипт и юниты.
 
 ## Ограничения
 
@@ -81,9 +86,12 @@ VPN-сервер и не принимает входящие подключен�
   создаёт в `/opt/adguardvpn_cli` и симлинк в `/usr/local/bin`;
   `/etc/sysctl.d/99-vpn-adguard-forward.conf`;
   `/etc/nftables.d/vpn-adguard.nft`; управляемый блок в `/etc/nftables.conf`;
-  `/etc/systemd/system/<vpn_adguard_service_name>.service`.
+  `/etc/systemd/system/<vpn_adguard_service_name>.service`;
+  при включённом watchdog — `vpn_adguard_watchdog_script_path` и юниты
+  `/etc/systemd/system/<vpn_adguard_watchdog_unit_name>.service`/`.timer`.
 - Services: `nftables` при включённом шлюзе;
-  `<vpn_adguard_service_name>`.
+  `<vpn_adguard_service_name>`;
+  `<vpn_adguard_watchdog_unit_name>.timer` при включённом watchdog.
 - Users/groups: none
 - Firewall/API objects: таблица nftables `ip vpn_adguard_nat` с цепочкой
   `postrouting`.
@@ -110,6 +118,15 @@ VPN-сервер и не принимает входящие подключен�
 | `vpn_adguard_tunnel_interface` | string | no | `"tun0"` | Интерфейс туннеля, создаваемый клиентом. |
 | `vpn_adguard_bypass_networks` | list of strings | no | `[]` | CIDR, выведенные из туннеля ради сохранения управляемости. |
 | `vpn_adguard_bypass_gateway` | string or null | yes при непустом списке выше | `null` | Следующий узел для обходных маршрутов. |
+| `vpn_adguard_watchdog_enabled` | boolean | no | `false` | Развернуть systemd-таймер watchdog, рестартирующий туннель при зависании клиента. |
+| `vpn_adguard_watchdog_interval_sec` | integer | no | `120` | Секунды между проверками watchdog. |
+| `vpn_adguard_watchdog_probe_url` | string | no | `"https://1.1.1.1/cdn-cgi/trace"` | URL пробы через `tun0`; должен быть IP-литералом, чтобы не зависеть от DNS. |
+| `vpn_adguard_watchdog_probe_timeout_sec` | integer | no | `10` | Таймаут пробы в секундах. |
+| `vpn_adguard_watchdog_fail_count` | integer | no | `2` | Подряд идущих провалов до рестарта туннеля. |
+| `vpn_adguard_watchdog_max_restarts` | integer | no | `3` | Максимум рестартов внутри скользящего окна. |
+| `vpn_adguard_watchdog_window_sec` | integer | no | `3600` | Скользящее окно бюджета рестартов в секундах. |
+| `vpn_adguard_watchdog_script_path` | string | no | `"/usr/local/sbin/adguardvpn-watchdog.sh"` | Внутреннее. Путь health-check скрипта. |
+| `vpn_adguard_watchdog_unit_name` | string | no | `"adguardvpn-watchdog"` | Внутреннее. Базовое имя юнитов watchdog. |
 | `vpn_adguard_binary_path` | string | no | `"/opt/adguardvpn_cli/adguardvpn-cli"` | Внутреннее. Путь исполняемого файла клиента. |
 | `vpn_adguard_ip_command` | string | no | `"/usr/sbin/ip"` | Внутреннее. Путь `ip` для обходных маршрутов в юните. |
 | `vpn_adguard_nft_command` | string | no | `"/usr/sbin/nft"` | Внутреннее. Путь `nft` для валидации набора правил. |
@@ -168,6 +185,18 @@ VPN-сервер и не принимает входящие подключен�
   дублирования правил и без влияния на чужие таблицы.
 - `adguardvpn-tunnel.service.j2` — юнит типа `oneshot` с `RemainAfterExit`,
   потому что `connect` уходит в фон и возвращает управление.
+- `adguardvpn-watchdog.sh.j2` — health-check скрипт: туннель считается живым,
+  только когда `adguardvpn-cli status` сообщает `Connected` **и** HTTPS-запрос
+  через `tun0` проходит. По `vpn_adguard_watchdog_fail_count` подряд провалам
+  рестартирует сервис, но не более `vpn_adguard_watchdog_max_restarts` раз за
+  `vpn_adguard_watchdog_window_sec`; при исчерпании бюджета завершается с ошибкой
+  и оставляет туннель как есть до вмешательства. Осознанная остановка сервиса
+  (`is-active` = inactive) watchdog не отменяет.
+- `adguardvpn-watchdog.service.j2` — oneshot-юнит, запускающий скрипт один раз
+  за тик таймера.
+- `adguardvpn-watchdog.timer.j2` — таймер с периодом
+  `vpn_adguard_watchdog_interval_sec`; первая проверка через один интервал после
+  загрузки.
 
 ## Check mode и diff mode
 
@@ -214,3 +243,10 @@ ansible-playbook playbook.yml --check --diff
   `vpn_adguard_version` установщик запускается только когда клиента нет. Чтобы
   обновиться, задайте новое значение `vpn_adguard_version` или выполните
   штатную команду обновления клиента.
+- Установщик вендора отказывается ставить поверх работающего демона
+  (`AdGuard VPN is running. Please, stop it before installing`), а таска
+  управления сервисом идёт после установки, поэтому `-e
+  vpn_adguard_service_state=stopped` обновлению не поможет. Перед обновлением
+  через `vpn_adguard_version` сначала выполните
+  `systemctl stop <vpn_adguard_service_name>` на целевом хосте, затем прогоните
+  роль — сервисная таска в конце поднимет туннель уже на новой версии.

@@ -96,8 +96,52 @@ vpn_adguard_bypass_networks: []
 # Строка или null. Следующий узел для обходных маршрутов; обязателен, когда vpn_adguard_bypass_networks не пуст
 vpn_adguard_bypass_gateway: null
 
+# Watchdog settings
+# Настройки сторожевого таймера
+
+# Boolean. Deploy a systemd timer that restarts the tunnel service when the client
+# wedges in a recovery loop while the oneshot unit keeps reporting active
+# Логическое значение. Развернуть systemd-таймер, перезапускающий сервис туннеля,
+# когда клиент застревает в цикле восстановления, а oneshot-юнит продолжает значиться активным
+vpn_adguard_watchdog_enabled: false
+
+# Integer. Seconds between watchdog checks; the first check runs one interval after boot
+# Целое число. Секунды между проверками watchdog; первая проверка — через один интервал после загрузки
+vpn_adguard_watchdog_interval_sec: 120
+
+# String. URL the watchdog requests through the tunnel interface; must be an IP
+# literal so the check never depends on DNS
+# Строка. URL, который watchdog запрашивает через интерфейс туннеля; должен быть
+# IP-литералом, чтобы проверка не зависела от DNS
+vpn_adguard_watchdog_probe_url: "https://1.1.1.1/cdn-cgi/trace"
+
+# Integer. Probe timeout in seconds
+# Целое число. Таймаут пробы в секундах
+vpn_adguard_watchdog_probe_timeout_sec: 10
+
+# Integer. Consecutive failed checks that trigger a tunnel restart
+# Целое число. Подряд идущих провалов, вызывающих рестарт туннеля
+vpn_adguard_watchdog_fail_count: 2
+
+# Integer. Maximum tunnel restarts the watchdog may spend within the sliding window
+# Целое число. Максимум рестартов туннеля, которые watchdog может потратить внутри скользящего окна
+vpn_adguard_watchdog_max_restarts: 3
+
+# Integer. Sliding window in seconds for the restart budget
+# Целое число. Скользящее окно в секундах для бюджета рестартов
+vpn_adguard_watchdog_window_sec: 3600
+
 # Internal paths and packages
 # Внутренние пути и пакеты
+
+# String. Internal. Path of the watchdog health-check script
+# Строка. Внутреннее. Путь health-check скрипта watchdog
+vpn_adguard_watchdog_script_path: "/usr/local/sbin/adguardvpn-watchdog.sh"
+
+# String. Internal. Base name of the watchdog systemd service and timer units
+# Строка. Внутреннее. Базовое имя systemd-сервиса и таймера watchdog
+vpn_adguard_watchdog_unit_name: "adguardvpn-watchdog"
+
 
 # String. Internal. Full path of the installed client executable
 # Строка. Внутреннее. Полный путь установленного исполняемого файла клиента

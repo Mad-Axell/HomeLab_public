@@ -27,6 +27,11 @@ access into the lab requires a separate service.
   `/etc/nftables.conf`.
 - Creates a systemd unit that raises the tunnel at boot and, after connect,
   restores the routes of the subnets that must stay off the tunnel.
+- With `vpn_adguard_watchdog_enabled` deploys a watchdog: a systemd timer with
+  a oneshot service and a health-check script that restarts the tunnel service
+  when the client wedges in a recovery loop (the `oneshot` unit still reports
+  `active`, so systemd cannot see the failure itself). When the watchdog is
+  disabled the role removes its script and units.
 
 ## Limitations
 
@@ -80,9 +85,12 @@ symptom reads as a slow tunnel even though the tunnel is not involved.
   `/opt/adguardvpn_cli` and the symlink in `/usr/local/bin`;
   `/etc/sysctl.d/99-vpn-adguard-forward.conf`;
   `/etc/nftables.d/vpn-adguard.nft`; a managed block in `/etc/nftables.conf`;
-  `/etc/systemd/system/<vpn_adguard_service_name>.service`.
+  `/etc/systemd/system/<vpn_adguard_service_name>.service`;
+  when the watchdog is enabled also `vpn_adguard_watchdog_script_path` and the
+  units `/etc/systemd/system/<vpn_adguard_watchdog_unit_name>.service`/`.timer`.
 - Services: `nftables` when the gateway part is enabled;
-  `<vpn_adguard_service_name>`.
+  `<vpn_adguard_service_name>`;
+  `<vpn_adguard_watchdog_unit_name>.timer` when the watchdog is enabled.
 - Users/groups: none
 - Firewall/API objects: the nftables table `ip vpn_adguard_nat` with a
   `postrouting` chain.
@@ -109,6 +117,15 @@ symptom reads as a slow tunnel even though the tunnel is not involved.
 | `vpn_adguard_tunnel_interface` | string | no | `"tun0"` | Tunnel interface created by the client. |
 | `vpn_adguard_bypass_networks` | list of strings | no | `[]` | CIDRs kept off the tunnel to preserve manageability. |
 | `vpn_adguard_bypass_gateway` | string or null | yes when the list above is not empty | `null` | Next hop for the bypass routes. |
+| `vpn_adguard_watchdog_enabled` | boolean | no | `false` | Deploy a systemd timer watchdog that restarts the tunnel when the client wedges. |
+| `vpn_adguard_watchdog_interval_sec` | integer | no | `120` | Seconds between watchdog checks. |
+| `vpn_adguard_watchdog_probe_url` | string | no | `"https://1.1.1.1/cdn-cgi/trace"` | URL probed through `tun0`; must be an IP literal so it never depends on DNS. |
+| `vpn_adguard_watchdog_probe_timeout_sec` | integer | no | `10` | Probe timeout in seconds. |
+| `vpn_adguard_watchdog_fail_count` | integer | no | `2` | Consecutive failures that trigger a tunnel restart. |
+| `vpn_adguard_watchdog_max_restarts` | integer | no | `3` | Maximum restarts inside the sliding window. |
+| `vpn_adguard_watchdog_window_sec` | integer | no | `3600` | Sliding window for the restart budget in seconds. |
+| `vpn_adguard_watchdog_script_path` | string | no | `"/usr/local/sbin/adguardvpn-watchdog.sh"` | Internal. Path of the health-check script. |
+| `vpn_adguard_watchdog_unit_name` | string | no | `"adguardvpn-watchdog"` | Internal. Base name of the watchdog units. |
 | `vpn_adguard_binary_path` | string | no | `"/opt/adguardvpn_cli/adguardvpn-cli"` | Internal. Path of the client executable. |
 | `vpn_adguard_ip_command` | string | no | `"/usr/sbin/ip"` | Internal. Path of `ip` used by the bypass routes in the unit. |
 | `vpn_adguard_nft_command` | string | no | `"/usr/sbin/nft"` | Internal. Path of `nft` used to validate the ruleset. |
@@ -167,6 +184,19 @@ during `adguardvpn-cli login` and are not stored in the inventory.
   duplicating rules and without touching tables owned by anything else.
 - `adguardvpn-tunnel.service.j2` — a `oneshot` unit with `RemainAfterExit`,
   because `connect` daemonises and returns.
+- `adguardvpn-watchdog.sh.j2` — the health-check script: the tunnel counts as
+  alive only when `adguardvpn-cli status` reports `Connected` **and** an HTTPS
+  request through `tun0` succeeds. After `vpn_adguard_watchdog_fail_count`
+  consecutive failures it restarts the service, at most
+  `vpn_adguard_watchdog_max_restarts` times per
+  `vpn_adguard_watchdog_window_sec`; once the budget is exhausted it exits with
+  an error and leaves the tunnel as is until intervention. A deliberate stop
+  (`is-active` = inactive) is not undone by the watchdog.
+- `adguardvpn-watchdog.service.j2` — a oneshot unit running the script once per
+  timer tick.
+- `adguardvpn-watchdog.timer.j2` — a timer with a period of
+  `vpn_adguard_watchdog_interval_sec`; the first check runs one interval after
+  boot.
 
 ## Check mode and diff mode
 
@@ -212,3 +242,10 @@ Honest limitations:
   `vpn_adguard_version`, the installer runs only when the client is absent. To
   upgrade, set a new `vpn_adguard_version` or run the client's own update
   command.
+- The vendor installer refuses to install over a running daemon
+  (`AdGuard VPN is running. Please, stop it before installing`), and the
+  service-management task runs after the install, so `-e
+  vpn_adguard_service_state=stopped` does not help an upgrade. Before upgrading
+  via `vpn_adguard_version`, run `systemctl stop <vpn_adguard_service_name>` on
+  the target host first, then run the role - the service task at the end raises
+  the tunnel on the new version.
