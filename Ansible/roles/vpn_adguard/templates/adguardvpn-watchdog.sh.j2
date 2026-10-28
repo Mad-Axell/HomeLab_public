@@ -59,10 +59,11 @@ if [ "$fails" -lt "$FAIL_THRESHOLD" ]; then
 fi
 
 # Spend one restart from the sliding-window budget.
+: >> "$RESTARTS_FILE"
 : > "$RESTARTS_FILE.tmp"
 while read -r ts; do
     [ -n "$ts" ] && [ $((now - ts)) -lt "$WINDOW_SEC" ] && echo "$ts"
-done < "$RESTARTS_FILE" 2>/dev/null >> "$RESTARTS_FILE.tmp"
+done < "$RESTARTS_FILE" >> "$RESTARTS_FILE.tmp"
 mv "$RESTARTS_FILE.tmp" "$RESTARTS_FILE"
 recent=$(wc -l < "$RESTARTS_FILE" 2>/dev/null || echo 0)
 
