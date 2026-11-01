@@ -150,6 +150,14 @@
     insertafter: EOF
   register: whisper_webui_av_pin_result
 
+# Create the build root; get_url does not make missing parents
+# Создание каталога сборки; get_url не создаёт отсутствующие родители
+- name: Create the fork build directory
+  ansible.builtin.file:
+    path: "{{ whisper_webui_build_root }}"
+    state: directory
+    mode: "0755"
+
 # Fetch the fork as a tarball snapshot: a clone would reject the patched
 # working tree on rerun, while unarchive is idempotent
 # Загрузка форка tarball-снапшотом: клон отказывался бы от пропатченного
