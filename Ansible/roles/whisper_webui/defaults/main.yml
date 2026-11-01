@@ -51,9 +51,21 @@ whisper_webui_pinned_git_deps:
 # семантикой PEP 667 в Python 3.13 возвращает ничего и роняет сборку.
 whisper_webui_whisper_fork_commit: "197244318d5d75d9d195bff0705ab05a591684ec"
 
-# String. Where the patched fork clone lives for the local pip install.
-# Строка. Где лежит пропатченный клон форка для локальной установки pip.
+# String. Where the patched fork snapshot lives for the local pip install.
+# Строка. Где лежит пропатченный снапшот форка для локальной установки pip.
 whisper_webui_build_root: "/opt/whisper-webui-build"
+
+# String. GitHub tarball URL of the pinned fork snapshot. A tarball is used
+# instead of a git clone: patching the working tree would make every rerun a
+# dirty checkout that ansible.builtin.git refuses without force.
+# Строка. URL tarball GitHub для закреплённого снапшота форка. Tarball вместо
+# git-клона: патч рабочего дерева делал бы каждый повтор грязным checkout'ом,
+# который ansible.builtin.git отказывается делать без force.
+whisper_webui_whisper_fork_url: "https://github.com/jhj0517/jhj0517-whisper/archive/{{ whisper_webui_whisper_fork_commit }}.tar.gz"
+
+# String. Directory the fork tarball unpacks into.
+# Строка. Каталог, в который распаковывается tarball форка.
+whisper_webui_whisper_fork_dir: "{{ whisper_webui_build_root }}/jhj0517-whisper-{{ whisper_webui_whisper_fork_commit }}"
 
 # Paths and account
 # Пути и учётная запись

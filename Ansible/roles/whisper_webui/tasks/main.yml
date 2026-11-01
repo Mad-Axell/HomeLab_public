@@ -136,16 +136,26 @@
     replace: ''
   register: whisper_webui_drop_result
 
-# Clone the whisper fork at the pinned commit
-# Клонирование форка whisper на закреплённом коммите
-- name: Clone the jhj0517-whisper fork
-  ansible.builtin.git:
-    repo: "https://github.com/jhj0517/jhj0517-whisper.git"
-    dest: "{{ whisper_webui_build_root }}/jhj0517-whisper"
-    version: "{{ whisper_webui_whisper_fork_commit }}"
-    update: true
-    force: false
-  register: whisper_webui_fork_clone_result
+# Fetch the fork as a tarball snapshot: a clone would reject the patched
+# working tree on rerun, while unarchive is idempotent
+# Загрузка форка tarball-снапшотом: клон отказывался бы от пропатченного
+# рабочего дерева при повторе, а unarchive идемпотентен
+- name: Download the jhj0517-whisper fork snapshot
+  ansible.builtin.get_url:
+    url: "{{ whisper_webui_whisper_fork_url }}"
+    dest: "{{ whisper_webui_build_root }}/jhj0517-whisper-{{ whisper_webui_whisper_fork_commit }}.tar.gz"
+    mode: "0644"
+    timeout: 60
+  register: whisper_webui_fork_download_result
+
+# Unpack the fork snapshot
+# Распаковка снапшота форка
+- name: Unpack the jhj0517-whisper fork snapshot
+  ansible.builtin.unarchive:
+    src: "{{ whisper_webui_build_root }}/jhj0517-whisper-{{ whisper_webui_whisper_fork_commit }}.tar.gz"
+    dest: "{{ whisper_webui_build_root }}"
+    remote_src: true
+  register: whisper_webui_fork_unpack_result
 
 # Python 3.13 (PEP 667) no longer populates locals() from exec(): the fork's
 # read_version gets a KeyError '__version__' and the build dies. runpy.run_path
@@ -155,7 +165,7 @@
 # выполняет файл версии так, как задумывал изначальный код.
 - name: Patch the fork's version reader for Python 3.13
   ansible.builtin.replace:
-    path: "{{ whisper_webui_build_root }}/jhj0517-whisper/setup.py"
+    path: "{{ whisper_webui_whisper_fork_dir }}/setup.py"
     regexp: '    return locals\(\)\["__version__"\]'
     replace: '    return __import__("runpy").run_path(fname)["__version__"]'
   register: whisper_webui_fork_patch_result
@@ -224,13 +234,13 @@
 # ради pkg_resources
 - name: Install the patched jhj0517-whisper fork
   ansible.builtin.pip:
-    name: "{{ whisper_webui_build_root }}/jhj0517-whisper"
+    name: "{{ whisper_webui_whisper_fork_dir }}"
     virtualenv: "{{ whisper_webui_install_root }}/venv"
   environment:
     PIP_CONSTRAINT: "{{ whisper_webui_install_root }}/build-constraints.txt"
   when: >-
     not (whisper_webui_fork_installed.stat.exists | default(false))
-    or (whisper_webui_fork_clone_result.changed | default(false) | bool)
+    or (whisper_webui_fork_unpack_result.changed | default(false) | bool)
     or (whisper_webui_fork_patch_result.changed | default(false) | bool)
   register: whisper_webui_fork_pip_result
 
