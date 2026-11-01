@@ -328,7 +328,7 @@
   become: true
   become_user: "{{ whisper_webui_system_user }}"
   environment: >-
-    {{ whisper_webui_hf_endpoint | bool | ternary({'HF_ENDPOINT': whisper_webui_hf_endpoint}, {}) }}
+    {{ {'HF_ENDPOINT': whisper_webui_hf_endpoint} if whisper_webui_hf_endpoint | length > 0 else {} }}
   loop: "{{ whisper_webui_preload_models }}"
   loop_control:
     label: "{{ item }}"
