@@ -123,6 +123,41 @@
     label: "{{ item }}"
   register: whisper_webui_pin_result
 
+# The jhj0517-whisper line is dropped: pip cannot patch a remote clone, so the
+# fork is installed from the patched local clone prepared below
+# Строка jhj0517-whisper удаляется: pip не умеет патчить удалённый клон, поэтому
+# форк ставится из пропатченного локального клона, подготовленного ниже
+- name: Drop the jhj0517-whisper VCS requirement
+  ansible.builtin.replace:
+    path: "{{ whisper_webui_install_root }}/requirements.txt"
+    regexp: '^git\+https://github\.com/jhj0517/jhj0517-whisper\.git.*$'
+    replace: ''
+  register: whisper_webui_drop_result
+
+# Clone the whisper fork at the pinned commit
+# Клонирование форка whisper на закреплённом коммите
+- name: Clone the jhj0517-whisper fork
+  ansible.builtin.git:
+    repo: "https://github.com/jhj0517/jhj0517-whisper.git"
+    dest: "{{ whisper_webui_build_root }}/jhj0517-whisper"
+    version: "{{ whisper_webui_whisper_fork_commit }}"
+    update: true
+    force: false
+  register: whisper_webui_fork_clone_result
+
+# Python 3.13 (PEP 667) no longer populates locals() from exec(): the fork's
+# read_version gets a KeyError '__version__' and the build dies. runpy.run_path
+# executes the version file the way the original code intended.
+# Python 3.13 (PEP 667) больше не наполняет locals() из exec(): read_version
+# форка ловит KeyError '__version__' и сборка умирает. runpy.run_path
+# выполняет файл версии так, как задумывал изначальный код.
+- name: Patch the fork's version reader for Python 3.13
+  ansible.builtin.replace:
+    path: "{{ whisper_webui_build_root }}/jhj0517-whisper/setup.py"
+    regexp: '    return locals\(\)\["__version__"\]'
+    replace: '    return __import__("runpy").run_path(fname)["__version__"]'
+  register: whisper_webui_fork_patch_result
+
 # Create the Python virtual environment
 # Создание виртуального окружения Python
 - name: Create the Whisper-WebUI virtual environment
@@ -143,15 +178,46 @@
     group: "{{ whisper_webui_system_user }}"
     mode: "0644"
 
+# Check whether the fork is already in the venv: a local-directory pip install
+# rebuilds unconditionally, so it needs an explicit idempotency guard
+# Проверка, стоит ли форк уже в venv: установка из локального каталога
+# пересобирает безусловно, поэтому ей нужен явный страж идемпотентности
+- name: Check whether the whisper fork is already installed
+  ansible.builtin.stat:
+    path: "{{ whisper_webui_install_root }}/venv/lib/python{{ ansible_python['version']['major'] }}.{{ ansible_python['version']['minor'] }}/site-packages/whisper"
+  register: whisper_webui_fork_installed
+
+# Install the patched whisper fork from the local clone; PIP_CONSTRAINT reaches
+# its isolated build environment and keeps setuptools<81 for pkg_resources
+# Установка пропатченного форка whisper из локального клона; PIP_CONSTRAINT
+# достаёт до его изолированного сборочного окружения и держит там setuptools<81
+# ради pkg_resources
+- name: Install the patched jhj0517-whisper fork
+  ansible.builtin.pip:
+    name: "{{ whisper_webui_build_root }}/jhj0517-whisper"
+    virtualenv: "{{ whisper_webui_install_root }}/venv"
+  environment:
+    PIP_CONSTRAINT: "{{ whisper_webui_install_root }}/build-constraints.txt"
+  when: >-
+    not (whisper_webui_fork_installed.stat.exists | default(false))
+    or (whisper_webui_fork_clone_result.changed | default(false) | bool)
+    or (whisper_webui_fork_patch_result.changed | default(false) | bool)
+  register: whisper_webui_fork_pip_result
+
 # Install the Python dependencies; this pulls the CPU PyTorch stack and takes a
-# while on first run
+# while on first run. PIP_CONSTRAINT is inherited by the pip invocations inside
+# the isolated build environments, so it is what pins setuptools<81 for the
+# VCS requirements; a plain -c option would not reach them.
 # Установка зависимостей Python; тянет CPU-стек PyTorch и при первом запуске
-# занимает время
+# занимает время. PIP_CONSTRAINT наследуется вызовами pip внутри изолированных
+# сборочных окружений, поэтому именно она закрепляет setuptools<81 для
+# VCS-зависимостей; обычная опция -c до них не дотягивается.
 - name: Install the Whisper-WebUI Python dependencies
   ansible.builtin.pip:
     requirements: "{{ whisper_webui_install_root }}/requirements.txt"
     virtualenv: "{{ whisper_webui_install_root }}/venv"
-    extra_args: "--build-constraint {{ whisper_webui_install_root }}/build-constraints.txt"
+  environment:
+    PIP_CONSTRAINT: "{{ whisper_webui_install_root }}/build-constraints.txt"
   register: whisper_webui_pip_result
   notify: Restart Whisper WebUI
 

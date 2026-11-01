@@ -16,6 +16,11 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
 - Исправляет `requirements.txt`: заменяет CUDA-индекс PyTorch на CPU и
   закрепляет git+-зависимости на проверенных коммитах
   (`whisper_webui_pinned_git_deps`), чтобы pip-прогон был идемпотентен.
+- Форк `jhj0517-whisper` ставится из локального клона
+  `/opt/whisper-webui-build` с пропатченным `setup.py`: его
+  `exec()`/`locals()`-чтение версии несовместимо с Python 3.13 (PEP 667), а
+  `pkg_resources` требует `setuptools<81` в сборочном окружении
+  (`PIP_CONSTRAINT`).
 - Собирает venv и ставит Python-зависимости (PyTorch CPU, faster-whisper,
   gradio, pyannote, UVR).
 - Рендерит `configs/default_parameters.yaml` (предвыбранные модель, язык, VAD,
@@ -51,6 +56,9 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
 | `whisper_webui_download_url` | string | no | GitHub tarball | URL архива релиза. |
 | `whisper_webui_release_dir` | string | no | `/opt/Whisper-WebUI-<version>` | Каталог распакованного выпуска. |
 | `whisper_webui_pinned_git_deps` | dict | no | см. defaults | Коммиты для git+-зависимостей; пересматривать при обновлении версии. |
+| `whisper_webui_whisper_fork_commit` | string | no | `19724431…` | Закреплённый коммит форка jhj0517-whisper. |
+| `whisper_webui_build_root` | string | no | `"/opt/whisper-webui-build"` | Каталог пропатченного клона форка. |
+| `whisper_webui_build_constraints` | string | no | `"setuptools<81"` | Содержимое `PIP_CONSTRAINT`-файла сборки. |
 | `whisper_webui_install_root` | string | no | `"/opt/whisper-webui"` | Симлинк на каталог выпуска. |
 | `whisper_webui_data_root` | string | no | `"/opt/whisper-webui-data"` | Модели и результаты вне дерева релиза. |
 | `whisper_webui_system_user` | string | no | `"stt"` | Системная учётная запись сервиса. |

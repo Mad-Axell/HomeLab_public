@@ -16,6 +16,10 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
 - Patches `requirements.txt`: replaces the CUDA PyTorch index with the CPU one
   and pins the git+ dependencies to reviewed commits
   (`whisper_webui_pinned_git_deps`) so the pip run is idempotent.
+- The `jhj0517-whisper` fork is installed from a locally patched clone in
+  `/opt/whisper-webui-build`: its `exec()`/`locals()` version reader is
+  incompatible with Python 3.13 (PEP 667), and `pkg_resources` requires
+  `setuptools<81` inside the build environment (`PIP_CONSTRAINT`).
 - Builds the venv and installs the Python dependencies (CPU PyTorch,
   faster-whisper, gradio, pyannote, UVR).
 - Renders `configs/default_parameters.yaml` (preselected model, language, VAD,
@@ -52,6 +56,9 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
 | `whisper_webui_download_url` | string | no | GitHub tarball | Release archive URL. |
 | `whisper_webui_release_dir` | string | no | `/opt/Whisper-WebUI-<version>` | Unpacked release directory. |
 | `whisper_webui_pinned_git_deps` | dict | no | see defaults | Commits for the git+ requirements; review on version bump. |
+| `whisper_webui_whisper_fork_commit` | string | no | `19724431…` | Pinned commit of the jhj0517-whisper fork. |
+| `whisper_webui_build_root` | string | no | `"/opt/whisper-webui-build"` | Directory of the patched fork clone. |
+| `whisper_webui_build_constraints` | string | no | `"setuptools<81"` | Contents of the `PIP_CONSTRAINT` build file. |
 | `whisper_webui_install_root` | string | no | `"/opt/whisper-webui"` | Symlink to the release directory. |
 | `whisper_webui_data_root` | string | no | `"/opt/whisper-webui-data"` | Models and outputs outside the release tree. |
 | `whisper_webui_system_user` | string | no | `"stt"` | Service system account. |

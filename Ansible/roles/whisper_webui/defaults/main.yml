@@ -38,9 +38,22 @@ whisper_webui_release_dir: "/opt/Whisper-WebUI-{{ whisper_webui_version }}"
 # запуске pip, что ломает идемпотентность; пины также защищают развёртывание от
 # force-push в апстриме. Ключи - имена пакетов как в requirements.txt.
 whisper_webui_pinned_git_deps:
-  jhj0517-whisper: "197244318d5d75d9d195bff0705ab05a591684ec"
   ultimatevocalremover_api: "3543be1349ce601568787b69cca0c1f8acba7c2e"
   pyrubberband: "0287782593eabd77fcf29682899d3e9b25cbb5c6"
+
+# String. Pinned commit of the jhj0517-whisper fork. It is installed from a
+# locally patched clone, not from the git+ line (which the role removes from
+# requirements.txt): its setup.py reads the version via exec()+locals(), which
+# returns nothing under Python 3.13's PEP 667 semantics and fails the build.
+# Строка. Закреплённый коммит форка jhj0517-whisper. Ставится из локально
+# пропатченного клона, а не из git+-строки (её роль удаляет из
+# requirements.txt): setup.py читает версию через exec()+locals(), что под
+# семантикой PEP 667 в Python 3.13 возвращает ничего и роняет сборку.
+whisper_webui_whisper_fork_commit: "197244318d5d75d9d195bff0705ab05a591684ec"
+
+# String. Where the patched fork clone lives for the local pip install.
+# Строка. Где лежит пропатченный клон форка для локальной установки pip.
+whisper_webui_build_root: "/opt/whisper-webui-build"
 
 # Paths and account
 # Пути и учётная запись
@@ -95,16 +108,19 @@ whisper_webui_packages:
 # GPU-пакетов, которые никогда не будут использованы.
 whisper_webui_pip_extra_index_url: "https://download.pytorch.org/whl/cpu"
 
-# String. Contents of the pip --build-constraint file applied while building
-# the VCS requirements. The jhj0517-whisper setup.py imports pkg_resources,
+# String. Contents of the pip constraint file exported as PIP_CONSTRAINT while
+# installing requirements. The jhj0517-whisper setup.py imports pkg_resources,
 # which setuptools 81+ removed; without the constraint the isolated build
 # environment pulls the newest setuptools and the wheel build fails on
-# "No module named 'pkg_resources'".
-# Строка. Содержимое файла --build-constraint, применяемого при сборке
-# VCS-зависимостей. setup.py пакета jhj0517-whisper импортирует pkg_resources,
-# которое setuptools 81+ удалил; без ограничения изолированное окружение сборки
-# тянет новейший setuptools и сборка wheel падает с
-# "No module named 'pkg_resources'".
+# "No module named 'pkg_resources'". PIP_CONSTRAINT is honored by the nested
+# pip invocations inside the build environments; a -c option would not reach
+# them.
+# Строка. Содержимое constraint-файла pip, экспортируемого как PIP_CONSTRAINT
+# при установке зависимостей. setup.py пакета jhj0517-whisper импортирует
+# pkg_resources, которое setuptools 81+ удалил; без ограничения изолированное
+# окружение сборки тянет новейший setuptools и сборка wheel падает с
+# "No module named 'pkg_resources'". PIP_CONSTRAINT соблюдается вложенными
+# вызовами pip внутри сборочных окружений; опция -c до них не доходит.
 whisper_webui_build_constraints: "setuptools<81"
 
 # Serving
