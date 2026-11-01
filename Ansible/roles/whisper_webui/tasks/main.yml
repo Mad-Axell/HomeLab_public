@@ -136,6 +136,20 @@
     replace: ''
   register: whisper_webui_drop_result
 
+# faster-whisper decodes audio via av.open(..., metadata_errors="ignore"); the
+# kwarg exists in PyAV 11-15 and was removed by av 16+, while requirements.txt
+# leaves av unpinned and the resolver picked 19.x
+# faster-whisper декодирует аудио через av.open(..., metadata_errors="ignore");
+# параметр есть в PyAV 11-15 и удалён в av 16+, а requirements.txt оставляет av
+# незакреплённым и резолвер выбрал 19.x
+- name: Pin PyAV below the metadata_errors removal
+  ansible.builtin.lineinfile:
+    path: "{{ whisper_webui_install_root }}/requirements.txt"
+    regexp: '^av[<>=]'
+    line: "av>=11,<16"
+    insertafter: EOF
+  register: whisper_webui_av_pin_result
+
 # Fetch the fork as a tarball snapshot: a clone would reject the patched
 # working tree on rerun, while unarchive is idempotent
 # Загрузка форка tarball-снапшотом: клон отказывался бы от пропатченного
