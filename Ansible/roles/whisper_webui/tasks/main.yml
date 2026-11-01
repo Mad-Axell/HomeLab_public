@@ -212,14 +212,19 @@
 # Загрузка CPU-сборок PyTorch через доступный фронт; основной хост индекса из
 # этой сети мёртв
 - name: Download the PyTorch CPU wheels
+  vars:
+    whisper_webui_wheel_tag: >-
+      cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}
+    whisper_webui_wheel_name: >-
+      {{ item.package }}-{{ item.version }}-{{ whisper_webui_wheel_tag }}-{{ whisper_webui_wheel_tag }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl
   ansible.builtin.get_url:
-    url: "{{ item.url }}"
-    dest: "{{ whisper_webui_build_root }}/wheels/{{ item.file }}"
+    url: "{{ whisper_webui_torch_wheel_base_url }}{{ whisper_webui_wheel_name | replace('+', '%2B') }}"
+    dest: "{{ whisper_webui_build_root }}/wheels/{{ whisper_webui_wheel_name }}"
     mode: "0644"
     timeout: 120
   loop: "{{ whisper_webui_torch_wheels }}"
   loop_control:
-    label: "{{ item.file }}"
+    label: "{{ whisper_webui_wheel_name }}"
   register: whisper_webui_wheels_result
 
 # Install the wheels before the fork and requirements: their torch/torchaudio
@@ -227,12 +232,17 @@
 # Установка wheel-файлов до форка и requirements: их требования torch/torchaudio
 # уже удовлетворены, и pip никогда не обращается к мёртвому индексу
 - name: Install the PyTorch CPU wheels
+  vars:
+    whisper_webui_wheel_tag: >-
+      cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}
+    whisper_webui_wheel_name: >-
+      {{ item.package }}-{{ item.version }}-{{ whisper_webui_wheel_tag }}-{{ whisper_webui_wheel_tag }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl
   ansible.builtin.pip:
-    name: "{{ whisper_webui_build_root }}/wheels/{{ item.file }}"
+    name: "{{ whisper_webui_build_root }}/wheels/{{ whisper_webui_wheel_name }}"
     virtualenv: "{{ whisper_webui_install_root }}/venv"
   loop: "{{ whisper_webui_torch_wheels }}"
   loop_control:
-    label: "{{ item.file }}"
+    label: "{{ whisper_webui_wheel_name }}"
   register: whisper_webui_wheels_pip_result
 
 # Pin setuptools inside the build environments of the VCS requirements: the
@@ -253,8 +263,11 @@
 # Проверка, стоит ли форк уже в venv: установка из локального каталога
 # пересобирает безусловно, поэтому ей нужен явный страж идемпотентности
 - name: Check whether the whisper fork is already installed
+  vars:
+    whisper_webui_fork_pkg_dir: >-
+      {{ whisper_webui_install_root }}/venv/lib/python{{ ansible_facts['python']['version']['major'] }}.{{ ansible_facts['python']['version']['minor'] }}/site-packages/whisper
   ansible.builtin.stat:
-    path: "{{ whisper_webui_install_root }}/venv/lib/python{{ ansible_facts['python']['version']['major'] }}.{{ ansible_facts['python']['version']['minor'] }}/site-packages/whisper"
+    path: "{{ whisper_webui_fork_pkg_dir }}"
   register: whisper_webui_fork_installed
 
 # Install the patched whisper fork from the local clone; PIP_CONSTRAINT reaches

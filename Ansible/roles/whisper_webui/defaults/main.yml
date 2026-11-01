@@ -125,13 +125,20 @@ whisper_webui_packages:
 # фронт и ставятся локально. Остальное разрешается из PyPI.
 # Версии обязаны удовлетворять пинам requirements.txt (torchaudio требует
 # torch==2.8.0).
+# Entries hold package and version only; the wheel file name and URL are
+# derived in the task from python/architecture facts
+# Записи содержат только package и version; имя wheel-файла и URL собираются
+# в таске из фактов о версии python и архитектуре
 whisper_webui_torch_wheels:
-  - file: "torch-2.8.0+cpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
-    url: "https://download.pytorch.org/whl/cpu/torch-2.8.0%2Bcpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
-  - file: "torchaudio-2.8.0+cpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
-    url: "https://download.pytorch.org/whl/cpu/torchaudio-2.8.0%2Bcpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
-  - file: "torchvision-0.23.0+cpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
-    url: "https://download.pytorch.org/whl/cpu/torchvision-0.23.0%2Bcpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
+  - {package: "torch", version: "2.8.0+cpu"}
+  - {package: "torchaudio", version: "2.8.0+cpu"}
+  - {package: "torchvision", version: "0.23.0+cpu"}
+
+# String. Base URL of the pytorch.org CPU wheel index frontend used to fetch
+# the wheels listed above
+# Строка. Базовый URL фронта CPU wheel-индекса pytorch.org, с которого
+# забираются перечисленные выше wheel-файлы
+whisper_webui_torch_wheel_base_url: "https://download.pytorch.org/whl/cpu/"
 
 # String. Contents of the pip constraint file exported as PIP_CONSTRAINT while
 # installing requirements. The jhj0517-whisper setup.py imports pkg_resources,
