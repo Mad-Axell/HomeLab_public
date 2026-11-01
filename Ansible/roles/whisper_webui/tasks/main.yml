@@ -329,6 +329,9 @@
 # Предзагрузка выбранных моделей faster-whisper в общий каталог данных, чтобы
 # первая транскрипция не вставала на скачивании с Hugging Face
 - name: Preload the faster-whisper models
+  vars:
+    whisper_webui_repo_dir: >-
+      {{ (whisper_webui_model_repos[item] | default('Systran/faster-whisper-' ~ item)) | replace('/', '--') }}
   ansible.builtin.command:
     argv:
       - "{{ whisper_webui_install_root }}/venv/bin/python"
@@ -338,7 +341,7 @@
         WhisperModel('{{ item }}', device='cpu', compute_type='int8',
         download_root='{{ whisper_webui_data_root }}/models/Whisper/faster-whisper')
     creates: >-
-      {{ whisper_webui_data_root }}/models/Whisper/faster-whisper/models--{{ (whisper_webui_model_repos[item] | default('Systran/faster-whisper-' ~ item)) | replace('/', '--') }}
+      {{ whisper_webui_data_root }}/models/Whisper/faster-whisper/models--{{ whisper_webui_repo_dir }}
   become: true
   become_user: "{{ whisper_webui_system_user }}"
   environment: >-
