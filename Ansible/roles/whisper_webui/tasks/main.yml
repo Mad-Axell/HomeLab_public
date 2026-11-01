@@ -239,19 +239,26 @@
     label: "{{ whisper_webui_wheel_name }}"
   register: whisper_webui_wheels_result
 
-# Install the sitecustomize that restores torch<2.6 torch.load behaviour: the
-# pyannote 3.3.x checkpoints only unpickle with weights_only=False
-# Установка sitecustomize, возвращающего поведение torch.load из torch<2.6:
-# чекпойнты pyannote 3.3.x распаковываются только с weights_only=False
-- name: Install the torch.load compatibility sitecustomize
-  vars:
-    whisper_webui_pyver: >-
-      {{ ansible_facts['python']['version']['major'] }}.{{ ansible_facts['python']['version']['minor'] }}
-  ansible.builtin.copy:
-    src: "sitecustomize.py"
-    dest: >-
-      {{ whisper_webui_install_root }}/venv/lib/python{{ whisper_webui_pyver }}/site-packages/sitecustomize.py
-    mode: "0644"
+# Restore the torch<2.6 torch.load default inside the diarization module: the
+# pyannote 3.3.x checkpoints only unpickle with weights_only=False, and the
+# venv-wide sitecustomize is shadowed by the distro one, so the patch is
+# applied at the single module that loads the checkpoints
+# Возврат torch.load к поведению torch<2.6 внутри модуля диаризации: чекпойнты
+# pyannote 3.3.x распаковываются только с weights_only=False, а venv-ный
+# sitecustomize перекрывается дистрибутивным, поэтому патч ставится в единый
+# модуль, который грузит чекпойнты
+- name: Patch diarize_pipeline for the torch 2.6 weights_only default
+  ansible.builtin.blockinfile:
+    path: "{{ whisper_webui_install_root }}/modules/diarize/diarize_pipeline.py"
+    insertafter: "^from modules.diarize.audio_loader import"
+    block: |
+      # torch>=2.6 defaults torch.load to weights_only=True, which refuses the
+      # torch.torch_version and OmegaConf objects pickled inside pyannote 3.3.x
+      # checkpoints. The legacy default is restored for this module's loader
+      # calls; checkpoints come from the trusted pyannote repos over HTTPS.
+      _torch_load_orig = torch.load
+      torch.load = lambda f, *args, **kwargs: _torch_load_orig(
+          f, *args, **{**kwargs, "weights_only": False})
 
 # Install the wheels before the fork and requirements: their torch/torchaudio
 # requirements are then already satisfied and pip never queries the dead index

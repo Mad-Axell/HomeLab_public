@@ -29,7 +29,7 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
   but upstream does not declare it) to `requirements.txt`.
 - Builds the venv and installs the Python dependencies (CPU PyTorch,
   faster-whisper, gradio, pyannote, UVR).
-- Drops a `sitecustomize.py` into the venv that restores `torch.load`'s
+- Patches `modules/diarize/diarize_pipeline.py` to restore `torch.load`'s
   `weights_only=False` default: pyannote 3.3.x checkpoints pickle objects
   torch 2.6+ refuses by default; models come from the trusted pyannote repos
   over authenticated HTTPS, matching the torch<2.6 trust model.

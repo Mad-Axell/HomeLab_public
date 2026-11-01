@@ -30,11 +30,11 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
   `matplotlib` (нужен импортам pyannote, апстрим его не объявляет).
 - Собирает venv и ставит Python-зависимости (PyTorch CPU, faster-whisper,
   gradio, pyannote, UVR).
-- Кладёт `sitecustomize.py` в venv: возвращает `torch.load`
-  `weights_only=False` по умолчанию — чекпойнты pyannote 3.3.x содержат
-  pickle-объекты, которые torch 2.6+ по умолчанию отвергает; модели грузятся
-  из доверенных репозиториев pyannote по аутентифицированному HTTPS, что
-  соответствует модели доверия torch<2.6.
+- Патчит `modules/diarize/diarize_pipeline.py`: возвращает `torch.load`
+  `weights_only=False` — чекпойнты pyannote 3.3.x содержат pickle-объекты,
+  которые torch 2.6+ по умолчанию отвергает; модели грузятся из доверенных
+  репозиториев pyannote по аутентифицированному HTTPS, что соответствует
+  модели доверия torch<2.6.
 - Рендерит `configs/default_parameters.yaml` (предвыбранные модель, язык, VAD,
   токен диаризации) и systemd-юнит `whisper-webui.service`.
 - Предзагружает перечисленные модели faster-whisper в общий каталог данных.
