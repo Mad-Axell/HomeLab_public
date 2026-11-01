@@ -260,6 +260,17 @@
       torch.load = lambda f, *args, **kwargs: _torch_load_orig(
           f, *args, **{**kwargs, "weights_only": False})
 
+# Install the speaker-block merger: runs of identical SPEAKER_XX labels in the
+# diarized txt collapse into paragraphs as <name>_merged.txt
+# Установка склейщика блоков спикеров: последовательные строки одного
+# SPEAKER_XX в диализированном txt склеиваются в абзацы файла
+# <name>_merged.txt
+- name: Install the diarized speaker-block merger
+  ansible.builtin.copy:
+    src: "whisper-merge-speakers"
+    dest: "/usr/local/bin/whisper-merge-speakers"
+    mode: "0755"
+
 # Install the wheels before the fork and requirements: their torch/torchaudio
 # requirements are then already satisfied and pip never queries the dead index
 # Установка wheel-файлов до форка и requirements: их требования torch/torchaudio

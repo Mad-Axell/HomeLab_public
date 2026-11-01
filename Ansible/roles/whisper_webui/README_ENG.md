@@ -35,6 +35,10 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
   over authenticated HTTPS, matching the torch<2.6 trust model.
 - Renders `configs/default_parameters.yaml` (preselected model, language, VAD,
   diarization token) and the `whisper-webui.service` systemd unit.
+- Installs `/usr/local/bin/whisper-merge-speakers`: post-processes a diarized
+  txt by merging runs of identical `SPEAKER_XX` labels into paragraphs and
+  writes `<name>_merged.txt` next to the input
+  (`whisper-merge-speakers file.txt`).
 - Preloads the listed faster-whisper models into the shared data directory.
 - Manages the service state; restarts go through the handler.
 

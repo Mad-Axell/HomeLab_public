@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Merge consecutive same-speaker lines in a Whisper-WebUI diarized txt.
+
+The app emits one whisper segment per line as "SPEAKER_XX|text"; this helper
+merges runs of identical speaker labels into paragraphs and writes
+"<input>_merged.txt" next to the source file.
+"""
+
+import re
+import sys
+from pathlib import Path
+
+
+def merge_lines(path: Path) -> list[tuple[str, str]]:
+    blocks: list[tuple[str, str]] = []
+    current_speaker: str | None = None
+    current_parts: list[str] = []
+
+    def flush() -> None:
+        if current_speaker is not None and current_parts:
+            blocks.append((current_speaker, " ".join(current_parts)))
+        current_parts.clear()
+
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^(SPEAKER_\d+)\s*\|\s*(.*)$", raw.strip())
+        if match:
+            speaker, text = match.group(1), match.group(2).strip()
+        else:
+            speaker, text = current_speaker, raw.strip()
+        if speaker != current_speaker:
+            flush()
+            current_speaker = speaker
+        if text:
+            current_parts.append(text)
+    flush()
+    return blocks
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print(f"usage: {sys.argv[0]} <diarized-file.txt>", file=sys.stderr)
+        return 2
+    src = Path(sys.argv[1])
+    blocks = merge_lines(src)
+    dst = src.with_name(src.stem + "_merged.txt")
+    dst.write_text(
+        "".join(f"{speaker}| {text}\n\n" for speaker, text in blocks),
+        encoding="utf-8",
+    )
+    print(dst)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

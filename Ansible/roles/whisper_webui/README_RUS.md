@@ -37,6 +37,9 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
   модели доверия torch<2.6.
 - Рендерит `configs/default_parameters.yaml` (предвыбранные модель, язык, VAD,
   токен диаризации) и systemd-юнит `whisper-webui.service`.
+- Ставит `/usr/local/bin/whisper-merge-speakers`: пост-обработка диализированного
+  txt — склеивает последовательные строки одного `SPEAKER_XX` в абзацы и пишет
+  `<имя>_merged.txt` рядом с исходником (`whisper-merge-speakers file.txt`).
 - Предзагружает перечисленные модели faster-whisper в общий каталог данных.
 - Управляет состоянием сервиса; перезапуск — через handler.
 
