@@ -130,6 +130,8 @@ whisper_webui_torch_wheels:
     url: "https://download.pytorch.org/whl/cpu/torch-2.8.0%2Bcpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
   - file: "torchaudio-2.8.0+cpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
     url: "https://download.pytorch.org/whl/cpu/torchaudio-2.8.0%2Bcpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
+  - file: "torchvision-0.23.0+cpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
+    url: "https://download.pytorch.org/whl/cpu/torchvision-0.23.0%2Bcpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
 
 # String. Contents of the pip constraint file exported as PIP_CONSTRAINT while
 # installing requirements. The jhj0517-whisper setup.py imports pkg_resources,
