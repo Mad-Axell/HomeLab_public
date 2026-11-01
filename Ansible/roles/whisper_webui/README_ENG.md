@@ -79,6 +79,7 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
 | `whisper_webui_server_name` | string | no | `"0.0.0.0"` | Gradio bind address. |
 | `whisper_webui_server_port` | int | no | `7860` | Gradio port. |
 | `whisper_webui_root_path` | string | no | `""` | Public sub-path behind a proxy. |
+| `whisper_webui_allowed_paths` | string/empty | no | `{{ data_root }}/outputs` | Directory added to Gradio `allowed_paths` so result files can be returned. |
 | `whisper_webui_auth_user_var` | string/null | no | `null` | Name of the variable holding the basic-auth user; both or neither. |
 | `whisper_webui_auth_password_var` | string/null | no | `null` | Name of the variable holding the basic-auth password. |
 | `whisper_webui_default_model` | string | no | `"large-v3-turbo"` | Preselected faster-whisper model. |

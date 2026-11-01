@@ -80,6 +80,7 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
 | `whisper_webui_server_name` | string | no | `"0.0.0.0"` | Адрес прослушивания Gradio. |
 | `whisper_webui_server_port` | int | no | `7860` | Порт Gradio. |
 | `whisper_webui_root_path` | string | no | `""` | Публичный подпуть за прокси. |
+| `whisper_webui_allowed_paths` | string/empty | no | `{{ data_root }}/outputs` | Каталог, добавляемый в `allowed_paths` Gradio для отдачи файлов результата. |
 | `whisper_webui_auth_user_var` | string/null | no | `null` | Имя переменной с логином basic-auth; оба или ни одного. |
 | `whisper_webui_auth_password_var` | string/null | no | `null` | Имя переменной с паролем basic-auth. |
 | `whisper_webui_default_model` | string | no | `"large-v3-turbo"` | Предвыбранная модель faster-whisper. |

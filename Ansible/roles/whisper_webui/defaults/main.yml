@@ -176,6 +176,14 @@ whisper_webui_server_port: 7860
 # лаборатория публикует его на отдельном имени stt.dragons-nest.home.arpa.
 whisper_webui_root_path: ""
 
+# String or empty. Extra directory added to Gradio's allowed_paths so result
+# files living under the data root may be returned to the browser; empty
+# leaves the launch() default
+# Строка или пусто. Дополнительный каталог для allowed_paths Gradio, чтобы
+# файлы результатов из каталога данных могли возвращаться в браузер; пусто
+# оставляет умолчание launch()
+whisper_webui_allowed_paths: "{{ whisper_webui_data_root }}/outputs"
+
 # Strings or null. Names of the variables holding Gradio basic-auth credentials,
 # read from VARS/secrets.yml. Both or neither must be set; null disables the
 # login form. The password becomes a CLI argument, so it is readable in the
