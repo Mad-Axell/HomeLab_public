@@ -150,6 +150,18 @@
     insertafter: EOF
   register: whisper_webui_av_pin_result
 
+# pyannote.audio imports matplotlib through its tasks package; requirements.txt
+# leaves it out because upstream treats diarization as optional
+# pyannote.audio импортирует matplotlib через свой пакет tasks; requirements.txt
+# его не содержит, потому что апстрим считает диаризацию опциональной
+- name: Add the pyannote matplotlib dependency
+  ansible.builtin.lineinfile:
+    path: "{{ whisper_webui_install_root }}/requirements.txt"
+    regexp: '^matplotlib[<>=]'
+    line: "matplotlib"
+    insertafter: EOF
+  register: whisper_webui_matplotlib_pin_result
+
 # Create the build root; get_url does not make missing parents
 # Создание каталога сборки; get_url не создаёт отсутствующие родители
 - name: Create the fork build directory
@@ -226,6 +238,20 @@
   loop_control:
     label: "{{ whisper_webui_wheel_name }}"
   register: whisper_webui_wheels_result
+
+# Install the sitecustomize that restores torch<2.6 torch.load behaviour: the
+# pyannote 3.3.x checkpoints only unpickle with weights_only=False
+# Установка sitecustomize, возвращающего поведение torch.load из torch<2.6:
+# чекпойнты pyannote 3.3.x распаковываются только с weights_only=False
+- name: Install the torch.load compatibility sitecustomize
+  vars:
+    whisper_webui_pyver: >-
+      {{ ansible_facts['python']['version']['major'] }}.{{ ansible_facts['python']['version']['minor'] }}
+  ansible.builtin.copy:
+    src: "sitecustomize.py"
+    dest: >-
+      {{ whisper_webui_install_root }}/venv/lib/python{{ whisper_webui_pyver }}/site-packages/sitecustomize.py
+    mode: "0644"
 
 # Install the wheels before the fork and requirements: their torch/torchaudio
 # requirements are then already satisfied and pip never queries the dead index

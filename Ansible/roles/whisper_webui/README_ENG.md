@@ -24,8 +24,15 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
   `/opt/whisper-webui-build`: its `exec()`/`locals()` version reader is
   incompatible with Python 3.13 (PEP 667), and `pkg_resources` requires
   `setuptools<81` inside the build environment (`PIP_CONSTRAINT`).
+- Appends `av>=11,<16` (PyAV 16+ removed the `metadata_errors` kwarg that
+  faster-whisper passes to `av.open`) and `matplotlib` (pyannote imports it
+  but upstream does not declare it) to `requirements.txt`.
 - Builds the venv and installs the Python dependencies (CPU PyTorch,
   faster-whisper, gradio, pyannote, UVR).
+- Drops a `sitecustomize.py` into the venv that restores `torch.load`'s
+  `weights_only=False` default: pyannote 3.3.x checkpoints pickle objects
+  torch 2.6+ refuses by default; models come from the trusted pyannote repos
+  over authenticated HTTPS, matching the torch<2.6 trust model.
 - Renders `configs/default_parameters.yaml` (preselected model, language, VAD,
   diarization token) and the `whisper-webui.service` systemd unit.
 - Preloads the listed faster-whisper models into the shared data directory.
