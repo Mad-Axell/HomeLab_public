@@ -1,4 +1,10 @@
 ---
+# Reload the systemd unit list after the unit file changed
+# Перезагрузка списка юнитов systemd после изменения файла юнита
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
 # Restart the web service after release, dependency, config or unit changes
 # Перезапуск веб-сервиса после изменений выпуска, зависимостей, конфигурации или юнита
 - name: Restart Whisper WebUI

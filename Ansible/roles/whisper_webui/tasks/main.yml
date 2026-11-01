@@ -170,15 +170,17 @@
     mode: "0640"
   no_log: true
   diff: false
-  notify: Restart Whisper WebUI
+  notify:
+    - Reload systemd
+    - Restart Whisper WebUI
   register: whisper_webui_unit_result
 
-# Reload systemd when the unit file changed
-# Перезагрузка systemd при изменении файла юнита
-- name: Reload systemd
-  ansible.builtin.systemd:
-    daemon_reload: true
-  when: whisper_webui_unit_result.changed
+# Flush now: the daemon reload must happen before the service can be managed,
+# and the pending restart gets the unit's final definition
+# Немедленный flush: перезагрузка демона обязана случиться до управления
+# сервисом, а отложенный перезапуск получает финальное описание юнита
+- name: Apply Whisper-WebUI handler runs
+  ansible.builtin.meta: flush_handlers
 
 # Preload the selected faster-whisper models into the shared data root so the
 # first transcription does not stall on a Hugging Face download
@@ -195,6 +197,7 @@
         download_root='{{ whisper_webui_data_root }}/models/Whisper/faster-whisper')
     creates: >-
       {{ whisper_webui_data_root }}/models/Whisper/faster-whisper/models--Systran--faster-whisper-{{ item }}
+  become: true
   become_user: "{{ whisper_webui_system_user }}"
   loop: "{{ whisper_webui_preload_models }}"
   loop_control:
@@ -209,13 +212,6 @@
     state: "{{ whisper_webui_service_state }}"
     enabled: "{{ whisper_webui_service_enabled }}"
   register: whisper_webui_service_result
-
-# Apply pending restarts before the summary, so the debug line reports the state
-# the service actually runs in
-# Применение отложенных перезапусков до сводки, чтобы debug-строка показывала
-# состояние, в котором сервис реально работает
-- name: Apply pending Whisper-WebUI restarts
-  ansible.builtin.meta: flush_handlers
 
 # Display the change summary
 # Отображение сводки об изменениях
