@@ -98,15 +98,17 @@
     force: true
   register: whisper_webui_symlink_result
 
-# The upstream requirements.txt asks for the CUDA wheel index, which would pull
-# gigabytes of GPU builds onto a CPU-only host; swap it for the CPU index
-# Апстримный requirements.txt просит CUDA-индекс wheel-пакетов, который затащил
-# бы гигабайты GPU-сборок на CPU-хост; заменяем его на CPU-индекс
-- name: Point the PyTorch index at CPU wheels
+# The upstream requirements.txt asks for the CUDA wheel index, whose wheel host
+# download-r2.pytorch.org is unreachable from the lab WAN; the line is dropped
+# and PyTorch arrives as locally installed wheels instead
+# Апстримный requirements.txt просит CUDA-индекс wheel-пакетов, чей хост
+# wheel-файлов download-r2.pytorch.org недоступен из WAN лаборатории; строка
+# удаляется, а PyTorch приезжает локально установленными wheel-файлами
+- name: Drop the PyTorch wheel index
   ansible.builtin.replace:
     path: "{{ whisper_webui_install_root }}/requirements.txt"
     regexp: '^--extra-index-url\s+\S+'
-    replace: "--extra-index-url {{ whisper_webui_pip_extra_index_url }}"
+    replace: ''
   register: whisper_webui_index_result
 
 # Unpinned git+ requirements reinstall on every pip run and break idempotency;
@@ -165,6 +167,34 @@
     cmd: "/usr/bin/python3 -m venv {{ whisper_webui_install_root }}/venv"
     creates: "{{ whisper_webui_install_root }}/venv/bin/python"
 
+# Fetch the CPU PyTorch wheels through the reachable front end; the default
+# index host is dead from this network
+# Загрузка CPU-сборок PyTorch через доступный фронт; основной хост индекса из
+# этой сети мёртв
+- name: Download the PyTorch CPU wheels
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ whisper_webui_build_root }}/wheels/{{ item.file }}"
+    mode: "0644"
+    timeout: 120
+  loop: "{{ whisper_webui_torch_wheels }}"
+  loop_control:
+    label: "{{ item.file }}"
+  register: whisper_webui_wheels_result
+
+# Install the wheels before the fork and requirements: their torch/torchaudio
+# requirements are then already satisfied and pip never queries the dead index
+# Установка wheel-файлов до форка и requirements: их требования torch/torchaudio
+# уже удовлетворены, и pip никогда не обращается к мёртвому индексу
+- name: Install the PyTorch CPU wheels
+  ansible.builtin.pip:
+    name: "{{ whisper_webui_build_root }}/wheels/{{ item.file }}"
+    virtualenv: "{{ whisper_webui_install_root }}/venv"
+  loop: "{{ whisper_webui_torch_wheels }}"
+  loop_control:
+    label: "{{ item.file }}"
+  register: whisper_webui_wheels_pip_result
+
 # Pin setuptools inside the build environments of the VCS requirements: the
 # jhj0517-whisper setup.py imports pkg_resources, which setuptools 81+ removed
 # Закрепление setuptools внутри сборочных окружений VCS-зависимостей: setup.py
@@ -184,7 +214,7 @@
 # пересобирает безусловно, поэтому ей нужен явный страж идемпотентности
 - name: Check whether the whisper fork is already installed
   ansible.builtin.stat:
-    path: "{{ whisper_webui_install_root }}/venv/lib/python{{ ansible_python['version']['major'] }}.{{ ansible_python['version']['minor'] }}/site-packages/whisper"
+    path: "{{ whisper_webui_install_root }}/venv/lib/python{{ ansible_facts['python']['version']['major'] }}.{{ ansible_facts['python']['version']['minor'] }}/site-packages/whisper"
   register: whisper_webui_fork_installed
 
 # Install the patched whisper fork from the local clone; PIP_CONSTRAINT reaches

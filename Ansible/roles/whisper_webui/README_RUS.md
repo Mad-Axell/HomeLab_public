@@ -13,9 +13,13 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
   (модели и результаты — вне версионированного дерева).
 - Скачивает tarball релиза Whisper-WebUI в `/opt/Whisper-WebUI-<version>` и
   переключает на него симлинк `/opt/whisper-webui`.
-- Исправляет `requirements.txt`: заменяет CUDA-индекс PyTorch на CPU и
-  закрепляет git+-зависимости на проверенных коммитах
+- Исправляет `requirements.txt`: удаляет wheel-индекс PyTorch (его хост
+  `download-r2.pytorch.org` недоступен из WAN лаборатории) и закрепляет
+  git+-зависимости на проверенных коммитах
   (`whisper_webui_pinned_git_deps`), чтобы pip-прогон был идемпотентен.
+- Скачивает CPU-сборки `torch`/`torchaudio` через CloudFront-фронт
+  `download.pytorch.org` и ставит их локальными wheel-файлами до запуска
+  requirements-прогона.
 - Форк `jhj0517-whisper` ставится из локального клона
   `/opt/whisper-webui-build` с пропатченным `setup.py`: его
   `exec()`/`locals()`-чтение версии несовместимо с Python 3.13 (PEP 667), а
@@ -63,7 +67,7 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
 | `whisper_webui_data_root` | string | no | `"/opt/whisper-webui-data"` | Модели и результаты вне дерева релиза. |
 | `whisper_webui_system_user` | string | no | `"stt"` | Системная учётная запись сервиса. |
 | `whisper_webui_packages` | list | no | см. defaults | Системные пакеты. |
-| `whisper_webui_pip_extra_index_url` | string | no | `https://download.pytorch.org/whl/cpu` | Индекс wheel PyTorch (CPU). |
+| `whisper_webui_torch_wheels` | list | no | torch+torchaudio 2.8.0+cpu | CPU-сборки PyTorch, ставятся из файлов через CloudFront-фронт. |
 | `whisper_webui_server_name` | string | no | `"0.0.0.0"` | Адрес прослушивания Gradio. |
 | `whisper_webui_server_port` | int | no | `7860` | Порт Gradio. |
 | `whisper_webui_root_path` | string | no | `""` | Публичный подпуть за прокси. |
@@ -118,7 +122,9 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
 - Диаризация (pyannote) требует HF-токен с принятыми условиями моделей
   `pyannote/speaker-diarization-3.1` и `pyannote/segmentation-3.0`; без
   `whisper_webui_diarization_token_var` функция в UI не работает.
-- CUDA-индекс в `requirements.txt` заменяется на CPU: контейнер без GPU.
+- Wheel-индекс PyTorch в `requirements.txt` удаляется: `download-r2.pytorch.org`
+  недоступен из WAN лаборатории, а `torch`/`torchaudio` ставятся из локальных
+  CPU-wheel-файлов, скачанных через CloudFront-фронт `download.pytorch.org`.
 - При обновлении `whisper_webui_version` сверить и перезакрепить коммиты в
   `whisper_webui_pinned_git_deps` и шаблон `default_parameters.yaml` с апстримом.
 - Сервис публикуется отдельно через Traefik как `stt.dragons-nest.home.arpa`;

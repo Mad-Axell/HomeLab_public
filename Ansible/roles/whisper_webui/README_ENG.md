@@ -13,9 +13,13 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
   (models and outputs live outside the versioned tree).
 - Downloads the Whisper-WebUI release tarball into
   `/opt/Whisper-WebUI-<version>` and switches the `/opt/whisper-webui` symlink.
-- Patches `requirements.txt`: replaces the CUDA PyTorch index with the CPU one
-  and pins the git+ dependencies to reviewed commits
-  (`whisper_webui_pinned_git_deps`) so the pip run is idempotent.
+- Patches `requirements.txt`: drops the PyTorch wheel index (its wheel host
+  `download-r2.pytorch.org` is unreachable from the lab WAN) and pins the git+
+  dependencies to reviewed commits (`whisper_webui_pinned_git_deps`) so the pip
+  run is idempotent.
+- Downloads the `torch`/`torchaudio` CPU wheels through the CloudFront front
+  end `download.pytorch.org` and installs them from local files before the
+  requirements run.
 - The `jhj0517-whisper` fork is installed from a locally patched clone in
   `/opt/whisper-webui-build`: its `exec()`/`locals()` version reader is
   incompatible with Python 3.13 (PEP 667), and `pkg_resources` requires
@@ -63,7 +67,7 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
 | `whisper_webui_data_root` | string | no | `"/opt/whisper-webui-data"` | Models and outputs outside the release tree. |
 | `whisper_webui_system_user` | string | no | `"stt"` | Service system account. |
 | `whisper_webui_packages` | list | no | see defaults | System packages. |
-| `whisper_webui_pip_extra_index_url` | string | no | `https://download.pytorch.org/whl/cpu` | PyTorch wheel index (CPU). |
+| `whisper_webui_torch_wheels` | list | no | torch+torchaudio 2.8.0+cpu | CPU PyTorch wheels installed from files via the CloudFront front end. |
 | `whisper_webui_server_name` | string | no | `"0.0.0.0"` | Gradio bind address. |
 | `whisper_webui_server_port` | int | no | `7860` | Gradio port. |
 | `whisper_webui_root_path` | string | no | `""` | Public sub-path behind a proxy. |
@@ -119,8 +123,10 @@ and the service report predicted changes. Limitations:
 - Diarization (pyannote) requires an HF token with accepted terms for
   `pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0`; without
   `whisper_webui_diarization_token_var` the feature does not work in the UI.
-- The CUDA index in `requirements.txt` is replaced with the CPU index: the
-  container has no GPU.
+- The PyTorch wheel index in `requirements.txt` is dropped:
+  `download-r2.pytorch.org` is unreachable from the lab WAN, so `torch` and
+  `torchaudio` are installed from local CPU wheels fetched through the
+  CloudFront front end `download.pytorch.org`.
 - When bumping `whisper_webui_version`, review and re-pin the commits in
   `whisper_webui_pinned_git_deps` and the `default_parameters.yaml` template
   against upstream.

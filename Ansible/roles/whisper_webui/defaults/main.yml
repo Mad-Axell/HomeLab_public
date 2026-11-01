@@ -100,13 +100,24 @@ whisper_webui_packages:
 # Python environment
 # Окружение Python
 
-# String. PyTorch wheel index replacing the CUDA one shipped in the upstream
-# requirements.txt. The container computes on CPU; the CUDA index would pull
-# gigabytes of GPU wheels that can never be used.
-# Строка. Индекс wheel-пакетов PyTorch, заменяющий CUDA-индекс из апстримного
-# requirements.txt. Контейнер считает на CPU; CUDA-индекс тянул бы гигабайты
-# GPU-пакетов, которые никогда не будут использованы.
-whisper_webui_pip_extra_index_url: "https://download.pytorch.org/whl/cpu"
+# List of dicts. CPU PyTorch wheels installed directly from files. The upstream
+# requirements.txt asks for the pytorch.org wheel index, but its wheel host
+# download-r2.pytorch.org is unreachable from the lab WAN while the CloudFront
+# front end serves the same paths fine — so the wheels are fetched through the
+# front end and installed locally. Everything else resolves from PyPI.
+# Versions must satisfy the requirements.txt pins (torchaudio needs torch==2.8.0).
+# Список словарей. CPU-сборки PyTorch, устанавливаемые напрямую из файлов.
+# Апстримный requirements.txt просит wheel-индекс pytorch.org, но его хост
+# wheel-файлов download-r2.pytorch.org недоступен из WAN лаборатории, тогда как
+# фронт CloudFront отдаёт те же пути - поэтому wheel-файлы забираются через
+# фронт и ставятся локально. Остальное разрешается из PyPI.
+# Версии обязаны удовлетворять пинам requirements.txt (torchaudio требует
+# torch==2.8.0).
+whisper_webui_torch_wheels:
+  - file: "torch-2.8.0+cpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
+    url: "https://download.pytorch.org/whl/cpu/torch-2.8.0%2Bcpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
+  - file: "torchaudio-2.8.0+cpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
+    url: "https://download.pytorch.org/whl/cpu/torchaudio-2.8.0%2Bcpu-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-cp{{ ansible_facts['python']['version']['major'] }}{{ ansible_facts['python']['version']['minor'] }}-manylinux_2_28_{{ ansible_facts['architecture'] }}.whl"
 
 # String. Contents of the pip constraint file exported as PIP_CONSTRAINT while
 # installing requirements. The jhj0517-whisper setup.py imports pkg_resources,
