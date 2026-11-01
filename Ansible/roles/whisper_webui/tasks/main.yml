@@ -260,6 +260,30 @@
       torch.load = lambda f, *args, **kwargs: _torch_load_orig(
           f, *args, **{**kwargs, "weights_only": False})
 
+# Merge consecutive same-speaker segments before the SPEAKER_XX| prefixing so
+# the txt/srt outputs already contain paragraph-sized speaker blocks
+# Склейка подряд идущих сегментов одного спикера до подстановки префикса
+# SPEAKER_XX|: txt/srt-выдача сразу содержит абзацные блоки спикеров
+- name: Patch diarizer to merge same-speaker runs into blocks
+  ansible.builtin.blockinfile:
+    path: "{{ whisper_webui_install_root }}/modules/diarize/diarizer.py"
+    insertbefore: '^        segments_result = \[\]$'
+    block: |
+        merged_segments = []
+        for segment in diarized_result["segments"]:
+            speaker = segment.get("speaker")
+            if merged_segments and speaker is not None and merged_segments[-1].get("speaker") == speaker:
+                last = merged_segments[-1]
+                last["end"] = segment["end"]
+                last["text"] = (last["text"].rstrip() + " " + segment["text"].strip()).strip()
+                if "words" in last or "words" in segment:
+                    last["words"] = last.get("words", []) + segment.get("words", [])
+            else:
+                merged_segments.append(dict(segment))
+        diarized_result["segments"] = merged_segments
+  when: whisper_webui_diarize_merge
+  notify: Restart Whisper WebUI
+
 # Install the speaker-block merger: runs of identical SPEAKER_XX labels in the
 # diarized txt collapse into paragraphs as <name>_merged.txt
 # Установка склейщика блоков спикеров: последовательные строки одного

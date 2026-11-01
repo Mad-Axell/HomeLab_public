@@ -33,6 +33,10 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
   `weights_only=False` default: pyannote 3.3.x checkpoints pickle objects
   torch 2.6+ refuses by default; models come from the trusted pyannote repos
   over authenticated HTTPS, matching the torch<2.6 trust model.
+- With `whisper_webui_diarize_merge: true` also patches
+  `modules/diarize/diarizer.py` so consecutive same-speaker segments merge
+  into paragraph blocks before the `SPEAKER_XX|` prefix; txt/srt outputs
+  arrive already merged.
 - Renders `configs/default_parameters.yaml` (preselected model, language, VAD,
   diarization token) and the `whisper-webui.service` systemd unit.
 - Installs `/usr/local/bin/whisper-merge-speakers`: post-processes a diarized
@@ -84,6 +88,7 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
 | `whisper_webui_server_port` | int | no | `7860` | Gradio port. |
 | `whisper_webui_root_path` | string | no | `""` | Public sub-path behind a proxy. |
 | `whisper_webui_allowed_paths` | string/empty | no | `{{ data_root }}/outputs` | Directory added to Gradio `allowed_paths` so result files can be returned. |
+| `whisper_webui_diarize_merge` | bool | no | `true` | Merge consecutive same-speaker segments into paragraphs (diarizer.py patch). |
 | `whisper_webui_auth_user_var` | string/null | no | `null` | Name of the variable holding the basic-auth user; both or neither. |
 | `whisper_webui_auth_password_var` | string/null | no | `null` | Name of the variable holding the basic-auth password. |
 | `whisper_webui_default_model` | string | no | `"large-v3-turbo"` | Preselected faster-whisper model. |

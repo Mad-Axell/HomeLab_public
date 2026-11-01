@@ -35,6 +35,10 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
   которые torch 2.6+ по умолчанию отвергает; модели грузятся из доверенных
   репозиториев pyannote по аутентифицированному HTTPS, что соответствует
   модели доверия torch<2.6.
+- При `whisper_webui_diarize_merge: true` патчит
+  `modules/diarize/diarizer.py`: соседние сегменты одного спикера склеиваются
+  в абзацные блоки до простановки `SPEAKER_XX|`, поэтому txt/srt возвращаются
+  уже слитыми.
 - Рендерит `configs/default_parameters.yaml` (предвыбранные модель, язык, VAD,
   токен диаризации) и systemd-юнит `whisper-webui.service`.
 - Ставит `/usr/local/bin/whisper-merge-speakers`: пост-обработка диализированного
@@ -84,6 +88,7 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
 | `whisper_webui_server_port` | int | no | `7860` | Порт Gradio. |
 | `whisper_webui_root_path` | string | no | `""` | Публичный подпуть за прокси. |
 | `whisper_webui_allowed_paths` | string/empty | no | `{{ data_root }}/outputs` | Каталог, добавляемый в `allowed_paths` Gradio для отдачи файлов результата. |
+| `whisper_webui_diarize_merge` | bool | no | `true` | Склейка подряд идущих сегментов одного спикера в абзацы (патч diarizer.py). |
 | `whisper_webui_auth_user_var` | string/null | no | `null` | Имя переменной с логином basic-auth; оба или ни одного. |
 | `whisper_webui_auth_password_var` | string/null | no | `null` | Имя переменной с паролем basic-auth. |
 | `whisper_webui_default_model` | string | no | `"large-v3-turbo"` | Предвыбранная модель faster-whisper. |

@@ -184,6 +184,12 @@ whisper_webui_root_path: ""
 # оставляет умолчание launch()
 whisper_webui_allowed_paths: "{{ whisper_webui_data_root }}/outputs"
 
+# Bool. Merge consecutive same-speaker segments into paragraph blocks inside
+# the diarization patch so txt/srt outputs arrive already merged
+# Булево. Склеивать подряд идущие сегменты одного спикера в абзацные блоки в
+# патче диаризации, чтобы txt/srt сразу возвращались склеенными
+whisper_webui_diarize_merge: true
+
 # Strings or null. Names of the variables holding Gradio basic-auth credentials,
 # read from VARS/secrets.yml. Both or neither must be set; null disables the
 # login form. The password becomes a CLI argument, so it is readable in the
