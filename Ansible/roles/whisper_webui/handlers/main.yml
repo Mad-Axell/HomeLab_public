@@ -1,0 +1,7 @@
+---
+# Restart the web service after release, dependency, config or unit changes
+# Перезапуск веб-сервиса после изменений выпуска, зависимостей, конфигурации или юнита
+- name: Restart Whisper WebUI
+  ansible.builtin.systemd:
+    name: "whisper-webui"
+    state: restarted

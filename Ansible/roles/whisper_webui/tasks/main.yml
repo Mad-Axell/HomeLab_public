@@ -1,0 +1,238 @@
+---
+# Validate the role inputs before any change on the host
+# Проверка входных параметров роли до любых изменений на хосте
+- name: Validate Whisper-WebUI inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - whisper_webui_version is string
+      - (whisper_webui_auth_user_var is none) == (whisper_webui_auth_password_var is none)
+    fail_msg: >-
+      whisper_webui requires Debian, a release version and either both basic-auth
+      variable names or neither.
+
+# Secrets reach the role through variable names, never literal values; the check
+# proves each name resolves in VARS/secrets.yml before a template references it
+# Секреты попадают в роль через имена переменных, а не литералами; проверка
+# убеждается, что каждое имя разрешается в VARS/secrets.yml, прежде чем шаблон
+# на него ссылается
+- name: Validate the optional secrets
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', item, default=none) is not none
+    fail_msg: "A variable named in the whisper_webui configuration must exist in VARS/secrets.yml."
+  loop: >-
+    {{ ([whisper_webui_auth_user_var] if whisper_webui_auth_user_var is not none else [])
+       + ([whisper_webui_auth_password_var] if whisper_webui_auth_password_var is not none else [])
+       + ([whisper_webui_diarization_token_var] if whisper_webui_diarization_token_var is not none else []) }}
+  loop_control:
+    label: "redacted"
+  no_log: true
+
+# Install runtime and build packages
+# Установка пакетов рантайма и сборки
+- name: Install Whisper-WebUI packages
+  ansible.builtin.apt:
+    name: "{{ whisper_webui_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: whisper_webui_package_result
+
+# Create the system account the service runs as and the tree belongs to
+# Создание системной учётной записи, от которой работает сервис и которой
+# принадлежит дерево
+- name: Create the Whisper-WebUI system account
+  ansible.builtin.user:
+    name: "{{ whisper_webui_system_user }}"
+    system: true
+    shell: "/usr/sbin/nologin"
+    home: "{{ whisper_webui_install_root }}"
+    create_home: false
+
+# Models and outputs live outside the versioned tree so an upgrade, which
+# replaces that tree, cannot take gigabytes of cached models with it
+# Модели и результаты лежат вне версионированного дерева, чтобы обновление,
+# которое это дерево заменяет, не унесло с собой гигабайты кэша моделей
+- name: Create the data root
+  ansible.builtin.file:
+    path: "{{ whisper_webui_data_root }}"
+    state: directory
+    owner: "{{ whisper_webui_system_user }}"
+    group: "{{ whisper_webui_system_user }}"
+    mode: "0755"
+
+# Check whether this release is already unpacked before downloading anything
+# Проверка, распакован ли уже этот выпуск, до какой-либо загрузки
+- name: Check whether this Whisper-WebUI release is already unpacked
+  ansible.builtin.stat:
+    path: "{{ whisper_webui_release_dir }}/app.py"
+  register: whisper_webui_release_stat
+
+# Download and unpack the release; the extracted tree is owned by the service
+# account because the application creates models/, outputs/ and backend/cache
+# inside it at import time
+# Загрузка и распаковка выпуска; распакованное дерево принадлежит сервисной
+# учётной записи, потому что приложение создаёт внутри него models/, outputs/ и
+# backend/cache при импорте
+- name: Download and unpack Whisper-WebUI
+  ansible.builtin.unarchive:
+    src: "{{ whisper_webui_download_url }}"
+    dest: "/opt"
+    remote_src: true
+    owner: "{{ whisper_webui_system_user }}"
+    group: "{{ whisper_webui_system_user }}"
+    creates: "{{ whisper_webui_release_dir }}/app.py"
+  register: whisper_webui_unarchive_result
+  notify: Restart Whisper WebUI
+
+# The install root is a symlink to the versioned directory: an upgrade swaps one
+# symlink, and so does a rollback
+# Корень установки - симлинк на версионированный каталог: обновление сводится к
+# смене одного симлинка, и откат тоже
+- name: Point the install root at this release
+  ansible.builtin.file:
+    src: "{{ whisper_webui_release_dir }}"
+    dest: "{{ whisper_webui_install_root }}"
+    state: link
+    force: true
+  register: whisper_webui_symlink_result
+
+# The upstream requirements.txt asks for the CUDA wheel index, which would pull
+# gigabytes of GPU builds onto a CPU-only host; swap it for the CPU index
+# Апстримный requirements.txt просит CUDA-индекс wheel-пакетов, который затащил
+# бы гигабайты GPU-сборок на CPU-хост; заменяем его на CPU-индекс
+- name: Point the PyTorch index at CPU wheels
+  ansible.builtin.replace:
+    path: "{{ whisper_webui_install_root }}/requirements.txt"
+    regexp: '^--extra-index-url\s+\S+'
+    replace: "--extra-index-url {{ whisper_webui_pip_extra_index_url }}"
+  register: whisper_webui_index_result
+
+# Unpinned git+ requirements reinstall on every pip run and break idempotency;
+# pin each one to a reviewed commit
+# Незакреплённые git+-зависимости переустанавливаются при каждом запуске pip и
+# ломают идемпотентность; закрепляем каждую на проверенном коммите
+- name: Pin the VCS requirements to reviewed commits
+  ansible.builtin.replace:
+    path: "{{ whisper_webui_install_root }}/requirements.txt"
+    regexp: '^(git\+https://github\.com/jhj0517/{{ item }}\.git)$'
+    replace: '\1@{{ whisper_webui_pinned_git_deps[item] }}'
+  loop: "{{ whisper_webui_pinned_git_deps | dict2items | map(attribute='key') | list }}"
+  loop_control:
+    label: "{{ item }}"
+  register: whisper_webui_pin_result
+
+# Create the Python virtual environment
+# Создание виртуального окружения Python
+- name: Create the Whisper-WebUI virtual environment
+  ansible.builtin.command:
+    cmd: "/usr/bin/python3 -m venv {{ whisper_webui_install_root }}/venv"
+    creates: "{{ whisper_webui_install_root }}/venv/bin/python"
+
+# Install the Python dependencies; this pulls the CPU PyTorch stack and takes a
+# while on first run
+# Установка зависимостей Python; тянет CPU-стек PyTorch и при первом запуске
+# занимает время
+- name: Install the Whisper-WebUI Python dependencies
+  ansible.builtin.pip:
+    requirements: "{{ whisper_webui_install_root }}/requirements.txt"
+    virtualenv: "{{ whisper_webui_install_root }}/venv"
+  register: whisper_webui_pip_result
+  notify: Restart Whisper WebUI
+
+# Render the default parameters: preselected model, language, VAD and the
+# optional diarization token resolved through its variable name
+# Рендер параметров по умолчанию: предвыбранные модель, язык, VAD и опциональный
+# токен диаризации, разрешаемый по имени переменной
+- name: Configure the Whisper-WebUI defaults
+  ansible.builtin.template:
+    src: "default_parameters.yaml.j2"
+    dest: "{{ whisper_webui_install_root }}/configs/default_parameters.yaml"
+    owner: "{{ whisper_webui_system_user }}"
+    group: "{{ whisper_webui_system_user }}"
+    mode: "0644"
+  no_log: true
+  diff: false
+  notify: Restart Whisper WebUI
+  register: whisper_webui_config_result
+
+# The unit may carry basic-auth credentials in its command line, so it is
+# written unreadable by anyone but root
+# Юнит может нести учётные данные basic-auth в командной строке, поэтому
+# записывается нечитаемым ни для кого, кроме root
+- name: Install the Whisper-WebUI systemd unit
+  ansible.builtin.template:
+    src: "whisper-webui.service.j2"
+    dest: "/etc/systemd/system/whisper-webui.service"
+    owner: "root"
+    group: "root"
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify: Restart Whisper WebUI
+  register: whisper_webui_unit_result
+
+# Reload systemd when the unit file changed
+# Перезагрузка systemd при изменении файла юнита
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: whisper_webui_unit_result.changed
+
+# Preload the selected faster-whisper models into the shared data root so the
+# first transcription does not stall on a Hugging Face download
+# Предзагрузка выбранных моделей faster-whisper в общий каталог данных, чтобы
+# первая транскрипция не вставала на скачивании с Hugging Face
+- name: Preload the faster-whisper models
+  ansible.builtin.command:
+    argv:
+      - "{{ whisper_webui_install_root }}/venv/bin/python"
+      - "-c"
+      - >-
+        from faster_whisper import WhisperModel;
+        WhisperModel('{{ item }}', device='cpu', compute_type='int8',
+        download_root='{{ whisper_webui_data_root }}/models/Whisper/faster-whisper')
+    creates: >-
+      {{ whisper_webui_data_root }}/models/Whisper/faster-whisper/models--Systran--faster-whisper-{{ item }}
+  become_user: "{{ whisper_webui_system_user }}"
+  loop: "{{ whisper_webui_preload_models }}"
+  loop_control:
+    label: "{{ item }}"
+  register: whisper_webui_preload_result
+
+# Manage the desired service state; restarts happen through the handler
+# Управление требуемым состоянием сервиса; перезапуски идут через handler
+- name: Manage the Whisper-WebUI service state
+  ansible.builtin.systemd:
+    name: "whisper-webui"
+    state: "{{ whisper_webui_service_state }}"
+    enabled: "{{ whisper_webui_service_enabled }}"
+  register: whisper_webui_service_result
+
+# Apply pending restarts before the summary, so the debug line reports the state
+# the service actually runs in
+# Применение отложенных перезапусков до сводки, чтобы debug-строка показывала
+# состояние, в котором сервис реально работает
+- name: Apply pending Whisper-WebUI restarts
+  ansible.builtin.meta: flush_handlers
+
+# Display the change summary
+# Отображение сводки об изменениях
+- name: Display Whisper-WebUI change summary
+  ansible.builtin.debug:
+    msg: >-
+      Whisper-WebUI {{ whisper_webui_version }} on {{ whisper_webui_server_name }}:{{ whisper_webui_server_port }},
+      default model {{ whisper_webui_default_model }}, {{ whisper_webui_preload_models | length }} model(s) preloaded.
+  when:
+    - whisper_webui_debug_mode | bool
+    - >-
+      (whisper_webui_package_result.changed | default(false) | bool)
+      or (whisper_webui_unarchive_result.changed | default(false) | bool)
+      or (whisper_webui_pip_result.changed | default(false) | bool)
+      or (whisper_webui_config_result.changed | default(false) | bool)
+      or (whisper_webui_unit_result.changed | default(false) | bool)
+      or (whisper_webui_preload_result.changed | default(false) | bool)
+      or (whisper_webui_service_result.changed | default(false) | bool)
+  tags:
+    - debug

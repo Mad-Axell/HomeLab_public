@@ -1,0 +1,20 @@
+[Unit]
+Description=Whisper-WebUI - speech-to-text web UI (faster-whisper, CPU)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ whisper_webui_system_user }}
+Group={{ whisper_webui_system_user }}
+WorkingDirectory={{ whisper_webui_install_root }}
+Environment=OMP_NUM_THREADS={{ whisper_webui_cpu_threads }}
+ExecStart={{ whisper_webui_install_root }}/venv/bin/python app.py --server_name {{ whisper_webui_server_name }} --server_port {{ whisper_webui_server_port }} --whisper_model_dir {{ whisper_webui_data_root }}/models/Whisper --faster_whisper_model_dir {{ whisper_webui_data_root }}/models/Whisper/faster-whisper --insanely_fast_whisper_model_dir {{ whisper_webui_data_root }}/models/Whisper/insanely-fast-whisper --diarization_model_dir {{ whisper_webui_data_root }}/models/Diarization --nllb_model_dir {{ whisper_webui_data_root }}/models/NLLB --uvr_model_dir {{ whisper_webui_data_root }}/models/UVR/MDX_Net_Models --output_dir {{ whisper_webui_data_root }}/outputs{% if whisper_webui_root_path %} --root_path {{ whisper_webui_root_path }}{% endif %}{% if whisper_webui_auth_user_var is not none %} --username {{ lookup('ansible.builtin.vars', whisper_webui_auth_user_var) }} --password {{ lookup('ansible.builtin.vars', whisper_webui_auth_password_var) }}{% endif %}
+
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

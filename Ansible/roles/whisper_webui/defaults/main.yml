@@ -1,0 +1,201 @@
+---
+# Whisper-WebUI configuration
+# Конфигурация Whisper-WebUI
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+whisper_webui_debug_mode: false
+
+# Release
+# Выпуск
+
+# String. Whisper-WebUI release to install, without the leading v. The role
+# fetches the GitHub release tarball; requirements.txt pins of the git+ deps are
+# replaced with pinned commits from whisper_webui_pinned_git_deps, so upgrading
+# the version means reviewing those pins too.
+# Строка. Устанавливаемый выпуск Whisper-WebUI без ведущей v. Роль забирает
+# tarball релиза с GitHub; пины git+-зависимостей в requirements.txt заменяются
+# закреплёнными коммитами из whisper_webui_pinned_git_deps, поэтому при
+# обновлении версии эти пины тоже пересматриваются.
+whisper_webui_version: "1.0.8"
+
+# String. Where the release tarball is fetched from.
+# Строка. Откуда забирается tarball выпуска.
+whisper_webui_download_url: "https://github.com/jhj0517/Whisper-WebUI/archive/refs/tags/v{{ whisper_webui_version }}.tar.gz"
+
+# String. Top-level directory inside the release tarball. GitHub names it
+# <repo>-<tag-without-leading-v>.
+# Строка. Корневой каталог внутри tarball релиза. GitHub называет его
+# <репозиторий>-<тег без ведущей v>.
+whisper_webui_release_dir: "/opt/Whisper-WebUI-{{ whisper_webui_version }}"
+
+# Dict of strings. Exact commits for the git+ requirements upstream leaves
+# unpinned. Unpinned VCS requirements reinstall on every pip run, which breaks
+# idempotency; pinning also protects the deployment from upstream force-pushes.
+# Keys are the package names as written in requirements.txt.
+# Словарь строк. Точные коммиты для git+-зависимостей, которые апстрим не
+# закрепляет. Незакреплённые VCS-зависимости переустанавливаются при каждом
+# запуске pip, что ломает идемпотентность; пины также защищают развёртывание от
+# force-push в апстриме. Ключи - имена пакетов как в requirements.txt.
+whisper_webui_pinned_git_deps:
+  jhj0517-whisper: "197244318d5d75d9d195bff0705ab05a591684ec"
+  ultimatevocalremover_api: "3543be1349ce601568787b69cca0c1f8acba7c2e"
+  pyrubberband: "0287782593eabd77fcf29682899d3e9b25cbb5c6"
+
+# Paths and account
+# Пути и учётная запись
+
+# String. Installation root. It is a symlink to the versioned directory beside
+# it, so an upgrade is a symlink swap and a rollback is the same.
+# Строка. Корень установки. Это симлинк на версионированный каталог рядом, поэтому
+# обновление сводится к смене симлинка, и откат тоже.
+whisper_webui_install_root: "/opt/whisper-webui"
+
+# String. Directory holding models and transcription outputs, kept outside the
+# versioned tree so an upgrade does not drop gigabytes of cached models.
+# Строка. Каталог моделей и результатов распознавания, вынесен из
+# версионированного дерева, чтобы обновление не сносило гигабайты кэша моделей.
+whisper_webui_data_root: "/opt/whisper-webui-data"
+
+# String. System account that runs the service. The application creates its
+# models/ and outputs/ subtrees at import time, so the release tree belongs to
+# this account.
+# Строка. Системная учётная запись, от которой работает сервис. Приложение
+# создаёт поддеревья models/ и outputs/ при импорте, поэтому дерево релиза
+# принадлежит этой учётной записи.
+whisper_webui_system_user: "stt"
+
+# List of strings. Packages needed to fetch, build and run the application: git
+# is used by the VCS pip requirements, ffmpeg decodes arbitrary uploaded media,
+# rubberband-cli is the binary the pyrubberband dependency wraps, the rest
+# builds the Python environment.
+# Список строк. Пакеты, нужные для загрузки, сборки и работы приложения: git
+# используется VCS-зависимостями pip, ffmpeg декодирует произвольные загружаемые
+# медиа, rubberband-cli - бинарник, который оборачивает зависимость pyrubberband,
+# остальное собирает Python-окружение.
+whisper_webui_packages:
+  - "git"
+  - "ffmpeg"
+  - "rubberband-cli"
+  - "python3"
+  - "python3-dev"
+  - "python3-venv"
+  - "python3-packaging"
+  - "build-essential"
+  - "ca-certificates"
+
+# Python environment
+# Окружение Python
+
+# String. PyTorch wheel index replacing the CUDA one shipped in the upstream
+# requirements.txt. The container computes on CPU; the CUDA index would pull
+# gigabytes of GPU wheels that can never be used.
+# Строка. Индекс wheel-пакетов PyTorch, заменяющий CUDA-индекс из апстримного
+# requirements.txt. Контейнер считает на CPU; CUDA-индекс тянул бы гигабайты
+# GPU-пакетов, которые никогда не будут использованы.
+whisper_webui_pip_extra_index_url: "https://download.pytorch.org/whl/cpu"
+
+# Serving
+# Отдача
+
+# String. Address the Gradio server binds to. The UI is reached through Traefik
+# and directly for checks, so it listens on all interfaces; the access boundary
+# is the reverse proxy plus the container firewall.
+# Строка. Адрес, на котором слушает Gradio. Интерфейс доступен через Traefik и
+# напрямую для проверок, поэтому слушает все интерфейсы; границу доступа дают
+# обратный прокси и файрвол контейнера.
+whisper_webui_server_name: "0.0.0.0"
+
+# Integer. Port the Gradio server binds to.
+# Целое число. Порт, на котором слушает Gradio.
+whisper_webui_server_port: 7860
+
+# String. Public root path when the UI is served under a sub-path. Empty: the
+# lab publishes it on the dedicated hostname stt.dragons-nest.home.arpa.
+# Строка. Публичный корневой путь при публикации интерфейса под подпутём. Пусто:
+# лаборатория публикует его на отдельном имени stt.dragons-nest.home.arpa.
+whisper_webui_root_path: ""
+
+# Strings or null. Names of the variables holding Gradio basic-auth credentials,
+# read from VARS/secrets.yml. Both or neither must be set; null disables the
+# login form. The password becomes a CLI argument, so it is readable in the
+# process list on the host: it is a fallback barrier, the real access boundary
+# is Traefik + Keycloak.
+# Строки или null. Имена переменных с учётными данными базовой аутентификации
+# Gradio, читаемых из VARS/secrets.yml. Задаются оба или ни одного; null
+# отключает форму входа. Пароль становится аргументом командной строки и
+# читается в списке процессов хоста: это запасной барьер, настоящая граница
+# доступа - Traefik + Keycloak.
+whisper_webui_auth_user_var: null
+whisper_webui_auth_password_var: null
+
+# Transcription defaults
+# Параметры распознавания по умолчанию
+
+# String. faster-whisper model preselected in the UI. large-v3-turbo int8 is
+# the quality/speed balance point for CPU inference; the model dropdown still
+# lists every published size.
+# Строка. Модель faster-whisper, предвыбранная в интерфейсе. large-v3-turbo
+# int8 - точка баланса качества и скорости для CPU-инференса; выпадающий список
+# моделей по-прежнему показывает все опубликованные размеры.
+whisper_webui_default_model: "large-v3-turbo"
+
+# String. Language preselected in the UI. The lab transcribes mostly Russian
+# speech; "Automatic Detection" remains a valid value.
+# Строка. Язык, предвыбранный в интерфейсе. Лаборатория распознаёт
+# преимущественно русскую речь; "Automatic Detection" остаётся допустимым.
+whisper_webui_default_language: "Russian"
+
+# String. Subtitle file format preselected in the UI.
+# Строка. Формат файла субтитров, предвыбранный в интерфейсе.
+whisper_webui_default_file_format: "SRT"
+
+# Boolean. Preselect Silero VAD filtering: silence and noise are cut before the
+# model, shortening runtime and reducing hallucinations on real recordings.
+# Логическое значение. Предвыбор фильтра Silero VAD: тишина и шум отрезаются до
+# модели, что сокращает время и уменьшает галлюцинации на реальных записях.
+whisper_webui_vad_filter: true
+
+# String or null. Name of the variable holding the Hugging Face token for
+# pyannote diarization models, read from VARS/secrets.yml. null leaves the
+# token empty: the diarization checkbox stays in the UI but fails until a token
+# is provided.
+# Строка или null. Имя переменной с Hugging Face-токеном для моделей диаризации
+# pyannote, читаемое из VARS/secrets.yml. null оставляет токен пустым:
+# переключатель диаризации остаётся в интерфейсе, но падает, пока токен не
+# задан.
+whisper_webui_diarization_token_var: null
+
+# Models
+# Модели
+
+# List of strings. faster-whisper model sizes downloaded during deployment so
+# the first transcription does not stall on a Hugging Face fetch. An empty list
+# skips preloading; the UI downloads a missing model on first use.
+# Список строк. Размеры моделей faster-whisper, загружаемые при развёртывании,
+# чтобы первая транскрипция не вставала на скачивании с Hugging Face. Пустой
+# список пропускает предзагрузку; интерфейс докачает недостающую модель при
+# первом использовании.
+whisper_webui_preload_models:
+  - "large-v3-turbo"
+
+# Integer. OpenMP worker threads for CTranslate2 inference, exported as
+# OMP_NUM_THREADS in the unit. Picked per host: the sweet spot is the core
+# count the container owns.
+# Целое число. Рабочих потоков OpenMP для инференса CTranslate2, экспортируется
+# как OMP_NUM_THREADS в юните. Подбирается под хост: оптимум - число выделенных
+# контейнеру ядер.
+whisper_webui_cpu_threads: 4
+
+# Service
+# Сервис
+
+# String. Stable service state: started or stopped. Restarts belong to the
+# handler.
+# Строка. Устойчивое состояние сервиса: started или stopped. Перезапуски - дело
+# handler.
+whisper_webui_service_state: "started"
+
+# Boolean. Enable the service at boot.
+# Логическое значение. Включать сервис при загрузке.
+whisper_webui_service_enabled: true
