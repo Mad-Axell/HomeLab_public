@@ -264,8 +264,10 @@
 # пересобирает безусловно, поэтому ей нужен явный страж идемпотентности
 - name: Check whether the whisper fork is already installed
   vars:
+    whisper_webui_pyver: >-
+      {{ ansible_facts['python']['version']['major'] }}.{{ ansible_facts['python']['version']['minor'] }}
     whisper_webui_fork_pkg_dir: >-
-      {{ whisper_webui_install_root }}/venv/lib/python{{ ansible_facts['python']['version']['major'] }}.{{ ansible_facts['python']['version']['minor'] }}/site-packages/whisper
+      {{ whisper_webui_install_root }}/venv/lib/python{{ whisper_webui_pyver }}/site-packages/whisper
   ansible.builtin.stat:
     path: "{{ whisper_webui_fork_pkg_dir }}"
   register: whisper_webui_fork_installed
