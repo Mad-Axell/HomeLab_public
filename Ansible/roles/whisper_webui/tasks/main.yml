@@ -177,6 +177,14 @@
     cmd: "/usr/bin/python3 -m venv {{ whisper_webui_install_root }}/venv"
     creates: "{{ whisper_webui_install_root }}/venv/bin/python"
 
+# Create the wheel staging directory; get_url does not make missing parents
+# Создание каталога под wheel-файлы; get_url не создаёт отсутствующие родители
+- name: Create the PyTorch wheels directory
+  ansible.builtin.file:
+    path: "{{ whisper_webui_build_root }}/wheels"
+    state: directory
+    mode: "0755"
+
 # Fetch the CPU PyTorch wheels through the reachable front end; the default
 # index host is dead from this network
 # Загрузка CPU-сборок PyTorch через доступный фронт; основной хост индекса из
