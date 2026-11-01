@@ -130,6 +130,19 @@
     cmd: "/usr/bin/python3 -m venv {{ whisper_webui_install_root }}/venv"
     creates: "{{ whisper_webui_install_root }}/venv/bin/python"
 
+# Pin setuptools inside the build environments of the VCS requirements: the
+# jhj0517-whisper setup.py imports pkg_resources, which setuptools 81+ removed
+# Закрепление setuptools внутри сборочных окружений VCS-зависимостей: setup.py
+# пакета jhj0517-whisper импортирует pkg_resources, которое setuptools 81+
+# удалил
+- name: Write the pip build constraints file
+  ansible.builtin.copy:
+    content: "{{ whisper_webui_build_constraints }}\n"
+    dest: "{{ whisper_webui_install_root }}/build-constraints.txt"
+    owner: "{{ whisper_webui_system_user }}"
+    group: "{{ whisper_webui_system_user }}"
+    mode: "0644"
+
 # Install the Python dependencies; this pulls the CPU PyTorch stack and takes a
 # while on first run
 # Установка зависимостей Python; тянет CPU-стек PyTorch и при первом запуске
@@ -138,6 +151,7 @@
   ansible.builtin.pip:
     requirements: "{{ whisper_webui_install_root }}/requirements.txt"
     virtualenv: "{{ whisper_webui_install_root }}/venv"
+    extra_args: "--build-constraint {{ whisper_webui_install_root }}/build-constraints.txt"
   register: whisper_webui_pip_result
   notify: Restart Whisper WebUI
 

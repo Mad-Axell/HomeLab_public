@@ -95,6 +95,18 @@ whisper_webui_packages:
 # GPU-пакетов, которые никогда не будут использованы.
 whisper_webui_pip_extra_index_url: "https://download.pytorch.org/whl/cpu"
 
+# String. Contents of the pip --build-constraint file applied while building
+# the VCS requirements. The jhj0517-whisper setup.py imports pkg_resources,
+# which setuptools 81+ removed; without the constraint the isolated build
+# environment pulls the newest setuptools and the wheel build fails on
+# "No module named 'pkg_resources'".
+# Строка. Содержимое файла --build-constraint, применяемого при сборке
+# VCS-зависимостей. setup.py пакета jhj0517-whisper импортирует pkg_resources,
+# которое setuptools 81+ удалил; без ограничения изолированное окружение сборки
+# тянет новейший setuptools и сборка wheel падает с
+# "No module named 'pkg_resources'".
+whisper_webui_build_constraints: "setuptools<81"
+
 # Serving
 # Отдача
 
