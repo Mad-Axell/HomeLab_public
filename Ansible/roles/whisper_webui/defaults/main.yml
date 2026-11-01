@@ -230,6 +230,14 @@ whisper_webui_diarization_token_var: null
 whisper_webui_preload_models:
   - "large-v3-turbo"
 
+# String or empty. HF_ENDPOINT exported to the service and the model preloader.
+# Leave empty for huggingface.co; set a mirror (for example hf-mirror.com)
+# where the HF CDN backends are unreachable. An empty value exports nothing.
+# Строка или пусто. HF_ENDPOINT, экспортируемый сервису и загрузчику моделей.
+# Пусто - huggingface.co; зеркало (например hf-mirror.com) ставится там, где
+# CDN-бэкенды HF недоступны. Пустое значение ничего не экспортирует.
+whisper_webui_hf_endpoint: ""
+
 # Integer. OpenMP worker threads for CTranslate2 inference, exported as
 # OMP_NUM_THREADS in the unit. Picked per host: the sweet spot is the core
 # count the container owns.
