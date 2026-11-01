@@ -67,7 +67,8 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
 | `whisper_webui_data_root` | string | no | `"/opt/whisper-webui-data"` | Models and outputs outside the release tree. |
 | `whisper_webui_system_user` | string | no | `"stt"` | Service system account. |
 | `whisper_webui_packages` | list | no | see defaults | System packages. |
-| `whisper_webui_torch_wheels` | list | no | torch+torchaudio 2.8.0+cpu | CPU PyTorch wheels installed from files via the CloudFront front end. |
+| `whisper_webui_torch_wheels` | list | no | torch/torchaudio 2.8.0+cpu, torchvision 0.23.0+cpu | CPU PyTorch wheels ({package, version}) installed from files via the CloudFront front end. |
+| `whisper_webui_torch_wheel_base_url` | string | no | `https://download.pytorch.org/whl/cpu/` | Base URL of the PyTorch wheel index front end. |
 | `whisper_webui_server_name` | string | no | `"0.0.0.0"` | Gradio bind address. |
 | `whisper_webui_server_port` | int | no | `7860` | Gradio port. |
 | `whisper_webui_root_path` | string | no | `""` | Public sub-path behind a proxy. |

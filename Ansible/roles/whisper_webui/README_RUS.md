@@ -67,7 +67,8 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
 | `whisper_webui_data_root` | string | no | `"/opt/whisper-webui-data"` | Модели и результаты вне дерева релиза. |
 | `whisper_webui_system_user` | string | no | `"stt"` | Системная учётная запись сервиса. |
 | `whisper_webui_packages` | list | no | см. defaults | Системные пакеты. |
-| `whisper_webui_torch_wheels` | list | no | torch+torchaudio 2.8.0+cpu | CPU-сборки PyTorch, ставятся из файлов через CloudFront-фронт. |
+| `whisper_webui_torch_wheels` | list | no | torch/torchaudio 2.8.0+cpu, torchvision 0.23.0+cpu | CPU-сборки PyTorch ({package, version}), ставятся из файлов через CloudFront-фронт. |
+| `whisper_webui_torch_wheel_base_url` | string | no | `https://download.pytorch.org/whl/cpu/` | Базовый URL фронта индекса wheel-файлов PyTorch. |
 | `whisper_webui_server_name` | string | no | `"0.0.0.0"` | Адрес прослушивания Gradio. |
 | `whisper_webui_server_port` | int | no | `7860` | Порт Gradio. |
 | `whisper_webui_root_path` | string | no | `""` | Публичный подпуть за прокси. |
