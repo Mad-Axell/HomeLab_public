@@ -79,6 +79,7 @@ CPU. В HomeLab роль применяется к LXC `stt` (`172.25.40.204`) �
 | `whisper_webui_vad_filter` | bool | no | `true` | Предвыбор фильтра Silero VAD. |
 | `whisper_webui_diarization_token_var` | string/null | no | `null` | Имя переменной с HF-токеном для pyannote. |
 | `whisper_webui_preload_models` | list | no | `["large-v3-turbo"]` | Модели для предзагрузки при развёртывании. |
+| `whisper_webui_model_repos` | dict | no | `{large-v3-turbo: mobiuslabsgmbh/…}` | Переопределение репозитория HF по имени модели (проверка идемпотентности). |
 | `whisper_webui_hf_endpoint` | string/empty | no | `""` | `HF_ENDPOINT` сервиса и предзагрузчика (зеркало, если CDN HF недоступен). |
 | `whisper_webui_cpu_threads` | int | no | `4` | `OMP_NUM_THREADS` для инференса. |
 | `whisper_webui_service_state` | string | no | `"started"` | Устойчивое состояние сервиса. |

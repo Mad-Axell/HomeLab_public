@@ -79,6 +79,7 @@ UI is published through Traefik as `stt.dragons-nest.home.arpa`.
 | `whisper_webui_vad_filter` | bool | no | `true` | Preselected Silero VAD filter. |
 | `whisper_webui_diarization_token_var` | string/null | no | `null` | Name of the variable holding the HF token for pyannote. |
 | `whisper_webui_preload_models` | list | no | `["large-v3-turbo"]` | Models downloaded during deployment. |
+| `whisper_webui_model_repos` | dict | no | `{large-v3-turbo: mobiuslabsgmbh/…}` | HF repo override per model name (preload idempotency check). |
 | `whisper_webui_hf_endpoint` | string/empty | no | `""` | `HF_ENDPOINT` for the service and preloader (mirror when HF CDNs are unreachable). |
 | `whisper_webui_cpu_threads` | int | no | `4` | `OMP_NUM_THREADS` for inference. |
 | `whisper_webui_service_state` | string | no | `"started"` | Stable service state. |

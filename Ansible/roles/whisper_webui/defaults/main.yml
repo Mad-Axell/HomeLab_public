@@ -232,6 +232,15 @@ whisper_webui_diarization_token_var: null
 whisper_webui_preload_models:
   - "large-v3-turbo"
 
+# Dict of strings. HF repository id per model name where it deviates from the
+# default "Systran/faster-whisper-<name>" convention (large-v3-turbo lives
+# under mobiuslabsgmbh). Used for the preload idempotency check.
+# Словарь строк. Ид репозитория HF по имени модели, где оно отличается от
+# стандартного "Systran/faster-whisper-<имя>" (large-v3-turbo лежит у
+# mobiuslabsgmbh). Используется для проверки идемпотентности предзагрузки.
+whisper_webui_model_repos:
+  large-v3-turbo: "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+
 # String or empty. HF_ENDPOINT exported to the service and the model preloader.
 # Leave empty for huggingface.co; set a mirror (for example hf-mirror.com)
 # where the HF CDN backends are unreachable. An empty value exports nothing.

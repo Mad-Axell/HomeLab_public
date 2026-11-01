@@ -338,7 +338,7 @@
         WhisperModel('{{ item }}', device='cpu', compute_type='int8',
         download_root='{{ whisper_webui_data_root }}/models/Whisper/faster-whisper')
     creates: >-
-      {{ whisper_webui_data_root }}/models/Whisper/faster-whisper/models--Systran--faster-whisper-{{ item }}
+      {{ whisper_webui_data_root }}/models/Whisper/faster-whisper/models--{{ (whisper_webui_model_repos[item] | default('Systran/faster-whisper-' ~ item)) | replace('/', '--') }}
   become: true
   become_user: "{{ whisper_webui_system_user }}"
   environment: >-
