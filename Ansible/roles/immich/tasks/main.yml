@@ -1,0 +1,193 @@
+---
+# Validate required external variables before changing anything. Names are
+# checked, never values, so the assert needs no no_log.
+# Проверка обязательных внешних переменных до внесения изменений. Проверяются
+# имена, а не значения, поэтому no_log не нужен.
+- name: Assert required variables are defined
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - immich_db_host is string
+      - (immich_db_host | string | trim | length) > 0
+      - immich_redis_host is string
+      - (immich_redis_host | string | trim | length) > 0
+      - immich_db_password_var is not none
+      - not (immich_manage_database | bool) or immich_db_admin_password_var is not none
+    fail_msg: >-
+      immich requires Debian, non-empty immich_db_host and immich_redis_host,
+      and the secret variable name immich_db_password_var. Managing the
+      database additionally requires immich_db_admin_password_var.
+    quiet: true
+
+# Verify the secrets named by the *_password_var variables actually exist; the
+# loop checks variable names, never their values.
+# Проверка, что секреты, названные в переменных *_password_var, реально
+# существуют; цикл проверяет имена переменных, а не их значения.
+- name: Validate the Immich secrets
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', item, default=none) is not none
+    fail_msg: "A variable named in the immich configuration must exist in VARS/secrets.yml."
+  loop: >-
+    {{ [immich_db_password_var]
+       + ([immich_db_admin_password_var] if immich_manage_database | bool else [])
+       + ([immich_redis_password_var] if immich_redis_password_var is not none else []) }}
+  loop_control:
+    label: "redacted"
+  no_log: true
+
+# Install the Python driver the community.postgresql modules need on this
+# host; postgres is the only supported backend.
+# Установка Python-драйвера, нужного модулям community.postgresql на этом
+# хосте; postgres - единственный поддерживаемый бэкенд.
+- name: Install the PostgreSQL module dependencies
+  ansible.builtin.apt:
+    name: "{{ immich_database_packages }}"
+    state: present
+  register: immich_database_packages_result
+
+# The service owns the database it lives in, as every application here does.
+# Сервер владеет базой, в которой живёт, как и всякое приложение здесь.
+- name: Create the Immich database role
+  community.postgresql.postgresql_user:
+    name: "{{ immich_db_user }}"
+    password: "{{ lookup('ansible.builtin.vars', immich_db_password_var) }}"
+    role_attr_flags: "LOGIN"
+    login_host: "{{ immich_db_host }}"
+    login_port: "{{ immich_db_port }}"
+    login_user: "{{ immich_db_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', immich_db_admin_password_var) }}"
+    login_db: "postgres"
+    state: present
+  when: immich_manage_database | bool
+  no_log: true
+  register: immich_db_role_result
+
+# Create the Immich database owned by its application role
+# Создание базы Immich, принадлежащей её прикладной роли
+- name: Create the Immich database
+  community.postgresql.postgresql_db:
+    name: "{{ immich_db_name }}"
+    owner: "{{ immich_db_user }}"
+    encoding: "UTF-8"
+    template: "template0"
+    login_host: "{{ immich_db_host }}"
+    login_port: "{{ immich_db_port }}"
+    login_user: "{{ immich_db_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', immich_db_admin_password_var) }}"
+    state: present
+  when: immich_manage_database | bool
+  no_log: true
+  register: immich_db_result
+
+# Create the extensions Immich requires inside its database as the privileged
+# account, so the unprivileged application role never needs superuser. vchord
+# resolves its pgvector dependency through cascade; earthdistance ships with
+# contrib. The extensions must be installed on the PostgreSQL server itself:
+# this task only runs CREATE EXTENSION.
+# Создание расширений, нужных Immich внутри его базы, привилегированной
+# учётной записью, чтобы непривилегированной роли приложения не требовался
+# superuser. vchord подтягивает зависимость pgvector через cascade;
+# earthdistance поставляется с contrib. Расширения должны быть установлены на
+# самом сервере PostgreSQL: эта задача выполняет только CREATE EXTENSION.
+- name: Create the Immich database extensions
+  community.postgresql.postgresql_ext:
+    name: "{{ item }}"
+    db: "{{ immich_db_name }}"
+    cascade: true
+    login_host: "{{ immich_db_host }}"
+    login_port: "{{ immich_db_port }}"
+    login_user: "{{ immich_db_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', immich_db_admin_password_var) }}"
+    state: present
+  loop: "{{ immich_db_extensions }}"
+  loop_control:
+    label: "{{ item }}"
+  when: immich_manage_database | bool
+  no_log: true
+  register: immich_db_extensions_result
+
+# Create the Compose project directory, the library directory and the
+# machine-learning model cache.
+# Создание каталога проекта Compose, каталога библиотеки и кэша моделей
+# машинного обучения.
+- name: Create the Immich directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ immich_project_directory }}"
+    - "{{ immich_upload_dir }}"
+    - "{{ immich_ml_cache_dir }}"
+  register: immich_directory_result
+
+# Deploy the Compose definition for the managed Immich containers; the file
+# holds no secrets, the credentials live in .env below.
+# Развертывание определения Compose для управляемых контейнеров Immich; в файле
+# нет секретов, учётные данные лежат в .env ниже.
+- name: Configure the Immich Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_Immich.j2"
+    dest: "{{ immich_project_directory }}/compose.yml"
+    mode: "0644"
+  register: immich_compose_result
+
+# Write the environment file compose feeds to both containers. The file holds
+# the database and Redis passwords: the task logs nothing and produces no diff.
+# Запись файла окружения, который compose передаёт обоим контейнерам. Файл
+# содержит пароли базы и Redis: задача ничего не пишет в лог и не даёт diff.
+- name: Configure the Immich environment file
+  ansible.builtin.template:
+    src: "immich.env.j2"
+    dest: "{{ immich_project_directory }}/.env"
+    mode: "0640"
+  no_log: true
+  diff: false
+  register: immich_env_result
+
+# Start or update Immich through the Docker Compose v2 module; a changed
+# compose.yml or .env recreates the containers through the module itself, so
+# no restart handler is needed.
+# Запуск или обновление Immich через модуль Docker Compose v2; изменённый
+# compose.yml или .env пересоздаёт контейнеры самим модулем, поэтому handler
+# перезапуска не нужен.
+- name: Deploy the Immich containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ immich_project_directory }}"
+    files:
+      - "compose.yml"
+    state: "{{ immich_state }}"
+  register: immich_deployment_result
+
+# Report the deployment result; results that can carry secrets are read only
+# by their changed flag.
+# Вывод результата развертывания; у результатов, могущих нести секреты,
+# читается только флаг changed.
+- name: Display the Immich change summary
+  ansible.builtin.debug:
+    msg: >-
+      Immich deployment {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}:
+      web port {{ immich_web_port }}, database {{ immich_db_name }}@{{ immich_db_host }},
+      Redis {{ immich_redis_host }}:{{ immich_redis_port }}.
+  when:
+    - immich_debug_mode | bool
+    - >-
+      (immich_database_packages_result is defined
+      and (immich_database_packages_result.changed | default(false) | bool))
+      or (immich_db_role_result is defined
+      and (immich_db_role_result.changed | default(false) | bool))
+      or (immich_db_result is defined
+      and (immich_db_result.changed | default(false) | bool))
+      or (immich_db_extensions_result is defined
+      and (immich_db_extensions_result.changed | default(false) | bool))
+      or (immich_directory_result is defined
+      and (immich_directory_result.changed | default(false) | bool))
+      or (immich_compose_result is defined
+      and (immich_compose_result.changed | default(false) | bool))
+      or (immich_env_result is defined
+      and (immich_env_result.changed | default(false) | bool))
+      or (immich_deployment_result is defined
+      and (immich_deployment_result.changed | default(false) | bool))
+  tags:
+    - debug

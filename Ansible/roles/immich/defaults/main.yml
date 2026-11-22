@@ -1,0 +1,147 @@
+---
+# Immich deployment configuration
+# Конфигурация развертывания Immich
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+immich_debug_mode: false
+
+# String. Desired Docker Compose project state: present or absent.
+# Строка. Требуемое состояние проекта Docker Compose: present или absent.
+immich_state: "present"
+
+# String. Docker Compose project directory holding compose.yml and the .env
+# file with the database credentials.
+# Строка. Каталог проекта Docker Compose с compose.yml и файлом .env,
+# содержащим учётные данные базы.
+immich_project_directory: "/opt/immich"
+
+# String. Host directory mounted into the server container as /data; the photo
+# library lives there. The default is a plain local path; point it at the photo
+# storage mounted into the LXC by provisioning (the behemoth media share per
+# Docs 06) before importing a real library.
+# Строка. Каталог хоста, монтируемый в серверный контейнер как /data; там живёт
+# фотобиблиотека. По умолчанию - локальный путь; до загрузки реальной
+# библиотеки укажите точку монтирования фотохранилища, подготовленную на LXC
+# (ресурс media пула behemoth по Docs 06).
+immich_upload_dir: "/opt/immich/library"
+
+# String. Host directory mounted into the machine-learning container as /cache
+# for the downloaded models.
+# Строка. Каталог хоста, монтируемый в контейнер машинного обучения как /cache
+# для загруженных моделей.
+immich_ml_cache_dir: "/opt/immich/model-cache"
+
+# String. Immich server image with a tag; "release" tracks the latest stable
+# release, pin "vX.Y.Z" for a fixed version.
+# Строка. Образ сервера Immich с тегом; "release" следует за последним
+# стабильным выпуском, для фиксации версии укажите "vX.Y.Z".
+immich_server_image: "ghcr.io/immich-app/immich-server:release"
+
+# String. Immich machine-learning image; the tag must match the server image.
+# Строка. Образ машинного обучения Immich; тег должен совпадать с образом сервера.
+immich_ml_image: "ghcr.io/immich-app/immich-machine-learning:release"
+
+# Integer. Host port publishing the Immich web interface.
+# Целое число. Порт хоста, публикующий веб-интерфейс Immich.
+immich_web_port: 2283
+
+# String. IANA timezone used for library timestamps.
+# Строка. Часовой пояс IANA для меток времени библиотеки.
+immich_timezone: "Europe/Moscow"
+
+# Database (external PostgreSQL)
+# База данных (внешний PostgreSQL)
+
+# String or null. Hostname or address of the PostgreSQL server. Required; the
+# project server is the postgresql host at 172.25.40.151, supplied by the
+# playbook or host_vars.
+# Строка или null. Имя или адрес сервера PostgreSQL. Обязательно; проектный
+# сервер - хост postgresql на 172.25.40.151, адрес приходит из playbook или
+# host_vars.
+immich_db_host: null
+
+# Integer. PostgreSQL port.
+# Целое число. Порт PostgreSQL.
+immich_db_port: 5432
+
+# String. Database Immich owns; created by this role when
+# immich_manage_database is true.
+# Строка. База, принадлежащая Immich; создаётся этой ролью, когда
+# immich_manage_database равен true.
+immich_db_name: "immich"
+
+# String. Login Immich connects as.
+# Строка. Логин, под которым подключается Immich.
+immich_db_user: "immich"
+
+# String or null. Name of the variable holding the database password in
+# VARS/secrets.yml; required. The password is referenced by name so its value
+# stays out of host_vars and lands only in the .env file.
+# Строка или null. Имя переменной с паролем к базе из VARS/secrets.yml;
+# обязательно. Пароль указывается по имени, чтобы его значение не попадало в
+# host_vars и попадало только в файл .env.
+immich_db_password_var: null
+
+# Boolean. Create the database, its role and the required extensions on the
+# PostgreSQL server before the first start; when false the role expects them
+# pre-created.
+# Логическое значение. Создать базу, её роль и нужные расширения на сервере
+# PostgreSQL до первого запуска; при false роль ожидает их уже созданными.
+immich_manage_database: true
+
+# String. Privileged account used only to create the database, the role and
+# the extensions; Immich itself connects as immich_db_user.
+# Строка. Привилегированная учётная запись только для создания базы, роли и
+# расширений; сам Immich подключается как immich_db_user.
+immich_db_admin_user: "postgres"
+
+# String or null. Name of the variable holding the privileged password in
+# VARS/secrets.yml; required when immich_manage_database is true.
+# Строка или null. Имя переменной с привилегированным паролем из
+# VARS/secrets.yml; обязательно, когда immich_manage_database равен true.
+immich_db_admin_password_var: null
+
+# List of strings. Internal: extensions Immich requires inside its database,
+# created with cascade. vchord is the VectorChord extension upstream mandates
+# since Immich v1.133; it must be installed on the server itself with
+# shared_preload_libraries, and cascade pulls pgvector in. earthdistance ships
+# with contrib.
+# Список строк. Внутренний: расширения, нужные Immich внутри его базы,
+# создаются с cascade. vchord - расширение VectorChord, обязательное в апстриме
+# с Immich v1.133; оно должно быть установлено на самом сервере с
+# shared_preload_libraries, а cascade подтягивает pgvector. earthdistance
+# поставляется с contrib.
+immich_db_extensions:
+  - "vchord"
+  - "earthdistance"
+
+# List of strings. Internal: packages the community.postgresql modules need on
+# the target host; postgres is the only supported backend.
+# Список строк. Внутренний: пакеты, нужные модулям community.postgresql на
+# целевом хосте; postgres - единственный поддерживаемый бэкенд.
+immich_database_packages:
+  - "python3-psycopg2"
+
+# Redis (external)
+# Redis (внешний)
+
+# String or null. Hostname or address of the Redis server Immich uses as the
+# job queue. Required; the project server is the redis host at 172.25.40.154,
+# supplied by the playbook or host_vars.
+# Строка или null. Имя или адрес сервера Redis, используемого Immich как
+# очередь задач. Обязательно; проектный сервер - хост redis на 172.25.40.154,
+# адрес приходит из playbook или host_vars.
+immich_redis_host: null
+
+# Integer. Redis port.
+# Целое число. Порт Redis.
+immich_redis_port: 6379
+
+# String or null. Name of the variable holding the Redis password in
+# VARS/secrets.yml; optional. When null the server is expected to accept
+# unauthenticated connections and REDIS_PASSWORD is omitted from .env.
+# Строка или null. Имя переменной с паролем Redis из VARS/secrets.yml;
+# необязательно. При null ожидается, что сервер принимает соединения без
+# пароля, и REDIS_PASSWORD не пишется в .env.
+immich_redis_password_var: null
