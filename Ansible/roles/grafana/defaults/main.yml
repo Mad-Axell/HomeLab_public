@@ -1,0 +1,142 @@
+---
+# Grafana configuration
+# Конфигурация Grafana
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+grafana_debug_mode: false
+
+# APT repository
+# APT-репозиторий
+
+# String. Official Grafana APT repository URL.
+# Строка. URL официального APT-репозитория Grafana.
+grafana_repository_url: "https://apt.grafana.com"
+
+# String. URL of the armored Grafana repository signing key.
+# Строка. URL armored-ключа подписи репозитория Grafana.
+grafana_repository_key_url: "https://apt.grafana.com/gpg.key"
+
+# String. Local path of the downloaded signing key. APT accepts an armored
+# keyring via signed-by only under the .asc extension, so no dearmor step is
+# needed.
+# Строка. Локальный путь загруженного ключа подписи. APT принимает
+# armored-keyring через signed-by только с расширением .asc, поэтому шаг
+# dearmor не требуется.
+grafana_repository_keyring: "/etc/apt/keyrings/grafana.asc"
+
+# String. APT sources filename under /etc/apt/sources.list.d.
+# Строка. Имя файла источника APT в /etc/apt/sources.list.d.
+grafana_repository_filename: "grafana"
+
+# String. Repository suite; apt.grafana.com publishes a single stable suite
+# for all supported distributions.
+# Строка. Сьюта репозитория; apt.grafana.com публикует единственную сьюту
+# stable для всех поддерживаемых дистрибутивов.
+grafana_repository_suite: "stable"
+
+# String. Repository component.
+# Строка. Компонент репозитория.
+grafana_repository_component: "main"
+
+# String. APT architecture of Grafana packages.
+# Строка. APT-архитектура пакетов Grafana.
+grafana_apt_architecture: "amd64"
+
+# List of strings. Packages installed from the Grafana repository.
+# Список строк. Пакеты, устанавливаемые из репозитория Grafana.
+grafana_packages:
+  - "grafana"
+
+# Server
+# Сервер
+
+# String. Path of the main configuration file this role owns.
+# Строка. Путь основного конфигурационного файла, которым владеет роль.
+grafana_config_path: "/etc/grafana/grafana.ini"
+
+# Integer. HTTP port Grafana listens on.
+# Целое число. HTTP-порт, который слушает Grafana.
+grafana_http_port: 3000
+
+# String. Public domain name of this instance, written to grafana.ini;
+# "localhost" is Grafana's own default.
+# Строка. Публичное доменное имя инстанса, записываемое в grafana.ini;
+# "localhost" - собственное значение Grafana по умолчанию.
+grafana_domain: "localhost"
+
+# String or null. Full root URL used in generated links; null lets Grafana
+# derive it from protocol, domain and http_port.
+# Строка или null. Полный root URL для формируемых ссылок; при null Grafana
+# вычисляет его из protocol, domain и http_port.
+grafana_root_url: null
+
+# Admin account
+# Учётная запись администратора
+
+# String. Login of the built-in administrator. The password comes from the
+# external secret vault_grafana_admin_password and is applied when Grafana
+# creates the account on first start.
+# Строка. Логин встроенного администратора. Пароль приходит из внешнего
+# секрета vault_grafana_admin_password и применяется, когда Grafana создаёт
+# учётную запись при первом старте.
+grafana_admin_user: "admin"
+
+# Provisioning
+# Провизионирование
+
+# String. Path of the datasource provisioning file.
+# Строка. Путь файла провизионирования источников данных.
+grafana_datasources_config_path: "/etc/grafana/provisioning/datasources/datasources.yaml"
+
+# List of dicts. Datasources written declaratively; every entry needs name,
+# type and url, and may also set access (default "proxy") and is_default
+# (default false). Concrete hosts are private-repo values, so the list is
+# empty here.
+# Список словарей. Источники данных, записываемые декларативно; каждая запись
+# требует name, type и url, а также может задавать access (по умолчанию
+# "proxy") и is_default (по умолчанию false). Конкретные хосты - значения
+# приватного репозитория, поэтому список здесь пуст.
+grafana_datasources: []
+
+# String. Path of the dashboards provider file.
+# Строка. Путь файла провайдера дашбордов.
+grafana_dashboards_provider_path: "/etc/grafana/provisioning/dashboards/dashboards.yaml"
+
+# String. Directory the file provider scans for dashboard JSON files.
+# Строка. Каталог, который файловый провайдер сканирует на JSON-файлы
+# дашбордов.
+grafana_dashboards_path: "/var/lib/grafana/dashboards"
+
+# List of strings. Dashboard JSON file names. Relative names are copied from
+# this role's files/ directory into grafana_dashboards_path; absolute paths
+# are copied as given.
+# Список строк. Имена JSON-файлов дашбордов. Относительные имена копируются
+# из каталога files/ этой роли в grafana_dashboards_path; абсолютные пути
+# копируются как заданы.
+grafana_dashboards: []
+
+# Plugins
+# Плагины
+
+# List of strings. Plugin IDs installed via grafana-cli; only plugins missing
+# from "grafana-cli plugins ls" are installed.
+# Список строк. ID плагинов, устанавливаемых через grafana-cli; ставятся
+# только отсутствующие в выводе "grafana-cli plugins ls".
+grafana_plugins:
+  - "alexanderzobnin-zabbix-app"
+
+# Service
+# Сервис
+
+# String. systemd unit name of the Grafana server.
+# Строка. Имя systemd-юнита сервера Grafana.
+grafana_service_name: "grafana-server"
+
+# String. Desired stable service state: started or stopped.
+# Строка. Желаемое устойчивое состояние сервиса: started или stopped.
+grafana_service_state: "started"
+
+# Boolean. Enable the service at boot.
+# Логическое значение. Включает сервис при загрузке.
+grafana_service_enabled: true

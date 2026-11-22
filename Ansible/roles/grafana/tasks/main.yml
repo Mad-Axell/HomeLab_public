@@ -1,0 +1,268 @@
+---
+# Validate the platform, the input structure and the required secret before
+# changing anything; variable names are checked, not values, so no_log is not
+# needed here.
+# Проверка платформы, структуры входов и обязательного секрета до внесения
+# изменений; проверяются имена переменных, а не значения, поэтому no_log не
+# нужен.
+- name: Validate required Grafana configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Debian"
+      - grafana_datasources is sequence
+      - grafana_datasources is not string
+      - grafana_dashboards is sequence
+      - grafana_dashboards is not string
+      - grafana_plugins is sequence
+      - grafana_plugins is not string
+      - >-
+        grafana_datasources | selectattr("name", "undefined")
+        | union(grafana_datasources | selectattr("type", "undefined"))
+        | union(grafana_datasources | selectattr("url", "undefined"))
+        | list | length == 0
+      - >-
+        vault_grafana_admin_password is defined
+        and vault_grafana_admin_password is string
+        and (vault_grafana_admin_password | trim | length) > 0
+    fail_msg: "grafana requires a Debian-family host and a non-empty vault_grafana_admin_password; every grafana_datasources entry needs name, type and url."
+    quiet: true
+
+# Ensure TLS verification works for downloading the signing key and that the
+# apt_repository module has python3-apt.
+# Обеспечение проверки TLS при загрузке ключа подписи и наличия python3-apt
+# для модуля apt_repository.
+- name: Install Grafana repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - "ca-certificates"
+      - "python3-apt"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: grafana_prerequisite_result
+
+# Create the keyring directory for the repository signing key.
+# Создание каталога keyring для ключа подписи репозитория.
+- name: Create APT keyring directory
+  ansible.builtin.file:
+    path: "{{ grafana_repository_keyring | dirname }}"
+    state: directory
+    mode: "0755"
+  register: grafana_keyring_directory_result
+
+# Download the armored Grafana signing key without apt-key, which is removed
+# from modern Debian.
+# Загрузка armored-ключа подписи Grafana без apt-key, удалённого из
+# современного Debian.
+- name: Download Grafana APT signing key
+  ansible.builtin.get_url:
+    url: "{{ grafana_repository_key_url }}"
+    dest: "{{ grafana_repository_keyring }}"
+    mode: "0644"
+  register: grafana_key_result
+
+# Register the official Grafana repository; the grafana package does not
+# exist in Debian proper.
+# Регистрация официального репозитория Grafana: пакета grafana в самом Debian
+# нет.
+- name: Configure Grafana APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ grafana_apt_architecture }} signed-by={{ grafana_repository_keyring }}]
+      {{ grafana_repository_url }} {{ grafana_repository_suite }} {{ grafana_repository_component }}
+    filename: "{{ grafana_repository_filename }}"
+    state: present
+  register: grafana_repository_result
+
+# Install Grafana; the cache is always refreshed because the repository may
+# have just been added. In check mode a repository that is only forecast
+# cannot be indexed, so the task runs only when the repository already
+# exists.
+# Установка Grafana; кэш обновляется всегда, так как репозиторий мог быть
+# только что добавлен. В check mode ещё не созданный репозиторий не
+# индексируется, поэтому задача выполняется только когда репозиторий уже
+# существует.
+- name: Install Grafana packages
+  ansible.builtin.apt:
+    name: "{{ grafana_packages }}"
+    state: present
+    update_cache: true
+  when: >-
+    not ansible_check_mode
+    or (grafana_repository_result is defined
+        and not (grafana_repository_result.changed | default(false) | bool))
+  register: grafana_package_result
+
+# Render the main configuration. It carries the admin password, so nothing
+# about it is logged or diffed; the password lands only in the file and is
+# applied when Grafana creates the admin account on first start. The file is
+# written before the first service start below, which is what makes that
+# first start pick the password up.
+# Рендер основной конфигурации. В ней пароль администратора, поэтому ничего о
+# ней не логируется и не показывается в diff; пароль попадает только в файл и
+# применяется, когда Grafana создаёт учётную запись при первом старте. Файл
+# пишется до первого запуска сервиса ниже, что и позволяет этому запуску
+# подхватить пароль.
+- name: Configure Grafana
+  ansible.builtin.template:
+    src: "grafana.ini.j2"
+    dest: "{{ grafana_config_path }}"
+    owner: "root"
+    group: "grafana"
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify: Restart Grafana server
+  register: grafana_config_result
+
+# Render the datasource provisioning file from grafana_datasources; an empty
+# list writes an empty datasources section, so no provisioned datasource is
+# defined until the private side declares real hosts.
+# Рендер файла провизионирования источников данных из grafana_datasources;
+# пустой список записывает пустую секцию источников, поэтому
+# провизионированный источник не появится, пока приватная сторона не объявит
+# реальные хосты.
+- name: Provision Grafana datasources
+  ansible.builtin.template:
+    src: "datasources.yaml.j2"
+    dest: "{{ grafana_datasources_config_path }}"
+    owner: "root"
+    group: "grafana"
+    mode: "0640"
+  notify: Restart Grafana server
+  register: grafana_datasources_result
+
+# Render the file-dashboards provider; Grafana reads provider files only at
+# startup, hence the restart notification.
+# Рендер провайдера файловых дашбордов; Grafana читает файлы провайдеров
+# только при старте, отсюда уведомление о перезапуске.
+- name: Provision the dashboards provider
+  ansible.builtin.template:
+    src: "dashboards.yaml.j2"
+    dest: "{{ grafana_dashboards_provider_path }}"
+    owner: "root"
+    group: "grafana"
+    mode: "0640"
+  notify: Restart Grafana server
+  register: grafana_provider_result
+
+# Create the directory the provider scans; the grafana package does not ship
+# it.
+# Создание каталога, который сканирует провайдер; пакет grafana его не
+# поставляет.
+- name: Create the dashboards directory
+  ansible.builtin.file:
+    path: "{{ grafana_dashboards_path }}"
+    state: directory
+    owner: "root"
+    group: "grafana"
+    mode: "0755"
+  register: grafana_dashboards_dir_result
+
+# Copy dashboard JSON files listed in grafana_dashboards; the provider
+# rescans the path on its update interval, so no restart is needed.
+# Копирование JSON-файлов дашбордов из grafana_dashboards; провайдер
+# перечитывает каталог по интервалу обновления, поэтому перезапуск не нужен.
+- name: Copy provisioned dashboards
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ grafana_dashboards_path }}/{{ item | basename }}"
+    owner: "root"
+    group: "grafana"
+    mode: "0644"
+  loop: "{{ grafana_dashboards }}"
+  register: grafana_dashboards_result
+
+# Locate the grafana-cli binary; on a forecast-only run it may not exist yet,
+# and the plugin listing below cannot run without it.
+# Поиск бинарника grafana-cli; при прогнозном прогоне его может ещё не быть,
+# и без него вывод списка плагинов ниже выполнить нельзя.
+- name: Check for the grafana-cli binary
+  ansible.builtin.stat:
+    path: "/usr/sbin/grafana-cli"
+  register: grafana_cli_stat
+
+# Read the plugins already installed. grafana-cli has no dedicated Ansible
+# module; this listing is read-only, so it runs in check mode as well, but
+# only when the binary exists.
+# Чтение уже установленных плагинов. У grafana-cli нет отдельного
+# Ansible-модуля; этот вывод только читается, поэтому он выполняется и в
+# check mode, но лишь при наличии бинарника.
+- name: Read installed Grafana plugins
+  ansible.builtin.command:
+    argv:
+      - "/usr/sbin/grafana-cli"
+      - "plugins"
+      - "ls"
+  changed_when: false
+  check_mode: false
+  when: grafana_cli_stat.stat.exists
+  register: grafana_plugins_list_result
+
+# Install only the plugins missing from the listing; lines look like
+# "plugin-id @ version". Running at all means a change, so changed_when is
+# simply true. In check mode the command is skipped by Ansible, which is the
+# desired forecast behaviour.
+# Установка только отсутствующих в выводе плагинов; строки выглядят как
+# "plugin-id @ version". Сам запуск означает изменение, поэтому changed_when
+# просто true. В check mode команда пропускается самим Ansible, что и
+# является нужным прогнозным поведением.
+- name: Install missing Grafana plugins
+  ansible.builtin.command:
+    argv:
+      - "/usr/sbin/grafana-cli"
+      - "plugins"
+      - "install"
+      - "{{ item }}"
+  loop: >-
+    {{
+      grafana_plugins | difference(
+        grafana_plugins_list_result.stdout_lines
+        | default([])
+        | select("search", " @ ")
+        | map("regex_replace", " @.*$", "")
+        | list
+      )
+    }}
+  changed_when: true
+  notify: Restart Grafana server
+  register: grafana_plugins_install_result
+
+# Keep the Grafana server in the requested stable state; restarts caused by
+# configuration or plugin changes run through the handler at play end.
+# Удержание сервера Grafana в запрошенном устойчивом состоянии; перезапуски,
+# вызванные изменением конфигурации или плагинов, выполняются через handler в
+# конце play.
+- name: Manage the Grafana service
+  ansible.builtin.systemd:
+    name: "{{ grafana_service_name }}"
+    state: "{{ grafana_service_state }}"
+    enabled: "{{ grafana_service_enabled }}"
+  register: grafana_service_result
+
+# Summarize user-visible changes; the configuration result is censored by
+# no_log and is never printed, only its changed flag is read.
+# Сводка видимых пользователю изменений; результат конфигурации замаскирован
+# no_log и никогда не выводится, читается только его флаг changed.
+- name: Display Grafana change summary
+  ansible.builtin.debug:
+    msg: >-
+      Grafana on port {{ grafana_http_port }}:
+      {{ "WOULD CHANGE" if ansible_check_mode else "CHANGED" }}.
+  when:
+    - grafana_debug_mode | bool
+    - >-
+      (grafana_prerequisite_result is defined and (grafana_prerequisite_result.changed | default(false) | bool))
+      or (grafana_keyring_directory_result is defined and (grafana_keyring_directory_result.changed | default(false) | bool))
+      or (grafana_key_result is defined and (grafana_key_result.changed | default(false) | bool))
+      or (grafana_repository_result is defined and (grafana_repository_result.changed | default(false) | bool))
+      or (grafana_package_result is defined and (grafana_package_result.changed | default(false) | bool))
+      or (grafana_config_result is defined and (grafana_config_result.changed | default(false) | bool))
+      or (grafana_datasources_result is defined and (grafana_datasources_result.changed | default(false) | bool))
+      or (grafana_provider_result is defined and (grafana_provider_result.changed | default(false) | bool))
+      or (grafana_dashboards_dir_result is defined and (grafana_dashboards_dir_result.changed | default(false) | bool))
+      or (grafana_dashboards_result is defined and (grafana_dashboards_result.changed | default(false) | bool))
+      or (grafana_plugins_install_result is defined and (grafana_plugins_install_result.changed | default(false) | bool))
+      or (grafana_service_result is defined and (grafana_service_result.changed | default(false) | bool))
+  tags:
+    - debug

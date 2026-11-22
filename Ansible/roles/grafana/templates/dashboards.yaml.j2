@@ -1,0 +1,17 @@
+{{ ansible_managed | comment }}
+# Owned by the grafana Ansible role.
+# Принадлежит роли Ansible grafana.
+
+apiVersion: 1
+
+providers:
+  - name: "default"
+    orgId: 1
+    folder: ""
+    type: "file"
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: "{{ grafana_dashboards_path }}"

@@ -1,0 +1,19 @@
+{{ ansible_managed | comment }}
+# Owned by the grafana Ansible role.
+# Принадлежит роли Ansible grafana.
+
+[server]
+http_port = {{ grafana_http_port }}
+domain = {{ grafana_domain }}
+{% if grafana_root_url is not none and (grafana_root_url | string | trim | length) > 0 %}
+root_url = {{ grafana_root_url }}
+{% endif %}
+
+[security]
+# The password is applied once, when Grafana creates the admin account on
+# first start; changing it here later does not update the existing account.
+# Пароль применяется один раз, когда Grafana создаёт учётную запись при
+# первом старте; его смена здесь позже не обновляет существующую учётную
+# запись.
+admin_user = {{ grafana_admin_user }}
+admin_password = {{ vault_grafana_admin_password }}

@@ -1,0 +1,17 @@
+{{ ansible_managed | comment }}
+# Owned by the grafana Ansible role.
+# Принадлежит роли Ansible grafana.
+
+apiVersion: 1
+{% if grafana_datasources | length > 0 %}
+datasources:
+{% for grafana_datasource in grafana_datasources %}
+  - name: {{ grafana_datasource.name }}
+    type: {{ grafana_datasource.type }}
+    url: {{ grafana_datasource.url }}
+    access: {{ grafana_datasource.access | default("proxy") }}
+    isDefault: {{ "true" if (grafana_datasource.is_default | default(false) | bool) else "false" }}
+{% endfor %}
+{% else %}
+datasources: []
+{% endif %}

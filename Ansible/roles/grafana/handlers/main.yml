@@ -1,0 +1,9 @@
+---
+# Restart the server when the main configuration, provisioning files or the
+# plugin set changed.
+# Перезапуск сервера при изменении основной конфигурации, файлов
+# провизионирования или набора плагинов.
+- name: Restart Grafana server
+  ansible.builtin.systemd:
+    name: "{{ grafana_service_name }}"
+    state: restarted
