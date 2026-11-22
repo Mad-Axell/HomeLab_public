@@ -1,0 +1,31 @@
+services:
+  homeassistant:
+    image: {{ homeassistant_image }}
+    container_name: {{ homeassistant_container_name }}
+    restart: unless-stopped
+    privileged: {{ homeassistant_privileged | bool }}
+    network_mode: {{ homeassistant_network_mode }}
+{% if homeassistant_network_mode != "host" %}
+    ports:
+      - "{{ homeassistant_port }}:8123"
+{% endif %}
+    volumes:
+      - "{{ homeassistant_config_dir }}:/config"
+{% for volume in homeassistant_extra_volumes %}
+      - "{{ volume }}"
+{% endfor %}
+{% if homeassistant_devices | length > 0 %}
+    devices:
+{% for device in homeassistant_devices %}
+      - "{{ device }}"
+{% endfor %}
+{% endif %}
+{% if homeassistant_timezone is not none or homeassistant_extra_environment | length > 0 %}
+    environment:
+{% if homeassistant_timezone is not none %}
+      TZ: {{ homeassistant_timezone | to_json }}
+{% endif %}
+{% for env_name in homeassistant_extra_environment %}
+      {{ env_name | to_json }}: {{ homeassistant_extra_environment[env_name] | to_json }}
+{% endfor %}
+{% endif %}

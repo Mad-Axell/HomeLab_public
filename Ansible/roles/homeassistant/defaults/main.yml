@@ -1,0 +1,71 @@
+---
+# Home Assistant deployment configuration
+# Конфигурация развертывания Home Assistant
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+homeassistant_debug_mode: false
+
+# String. Desired Docker Compose project state: present or absent.
+# Строка. Требуемое состояние проекта Docker Compose: present или absent.
+homeassistant_state: "present"
+
+# String. Docker Compose project directory.
+# Строка. Каталог проекта Docker Compose.
+homeassistant_project_directory: "/opt/homeassistant"
+
+# String. Host directory mounted into the container as /config.
+# Строка. Каталог хоста, монтируемый в контейнер как /config.
+homeassistant_config_dir: "/opt/homeassistant/config"
+
+# String. Home Assistant container image with pinned tag.
+# Строка. Образ контейнера Home Assistant с зафиксированным тегом.
+homeassistant_image: "ghcr.io/home-assistant/home-assistant:stable"
+
+# String. Home Assistant container name.
+# Строка. Имя контейнера Home Assistant.
+homeassistant_container_name: "homeassistant"
+
+# String. Docker network mode for the container; host mode enables LAN device
+# discovery, any other value publishes homeassistant_port instead.
+# Строка. Сетевой режим Docker для контейнера; режим host включает обнаружение
+# устройств в LAN, любое другое значение публикует homeassistant_port.
+homeassistant_network_mode: "host"
+
+# Integer. Host port publishing the Home Assistant web interface; applied only
+# when homeassistant_network_mode is not "host".
+# Целое число. Порт хоста, публикующий веб-интерфейс Home Assistant;
+# применяется только когда homeassistant_network_mode не равен "host".
+homeassistant_port: 8123
+
+# String or null. Optional TZ environment value, for example "Europe/Moscow";
+# null omits the variable.
+# Строка или null. Опциональное значение переменной окружения TZ, например
+# "Europe/Moscow"; при null переменная не задается.
+homeassistant_timezone: null
+
+# List of strings. Host devices passed through into the container, for example
+# a Zigbee or Z-Wave USB coordinator such as /dev/ttyUSB0 or a
+# /dev/serial/by-id path; an empty list is allowed.
+# Список строк. Устройства хоста, пробрасываемые в контейнер, например
+# USB-координатор Zigbee или Z-Wave вида /dev/ttyUSB0 или путь
+# /dev/serial/by-id; пустой список допустим.
+homeassistant_devices: []
+
+# List of strings. Extra bind mounts in "host_path:container_path[:options]"
+# form added to the container; an empty list is allowed.
+# Список строк. Дополнительные bind-монтирования в форме
+# "путь_хоста:путь_контейнера[:опции]"; пустой список допустим.
+homeassistant_extra_volumes: []
+
+# Boolean. Run the container in privileged mode; needed only for broad
+# hardware access beyond the listed devices.
+# Логическое значение. Запуск контейнера в привилегированном режиме; нужен
+# только для широкого доступа к оборудованию сверх перечисленных устройств.
+homeassistant_privileged: false
+
+# Dictionary. Additional non-secret environment variables for the container;
+# an empty dictionary is allowed. Secrets must not be placed here.
+# Словарь. Дополнительные несекретные переменные окружения контейнера;
+# пустой словарь допустим. Секреты здесь размещать нельзя.
+homeassistant_extra_environment: {}

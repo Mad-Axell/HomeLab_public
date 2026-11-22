@@ -1,0 +1,62 @@
+---
+# Validate the platform and declared inputs before any change.
+# Проверка платформы и объявленных входов до внесения изменений.
+- name: Assert required Home Assistant inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - homeassistant_image is string
+      - (homeassistant_image | trim | length) > 0
+    fail_msg: >-
+      The homeassistant role supports Debian-family systems and requires
+      homeassistant_image to be a non-empty image reference.
+    quiet: true
+
+# Create the Compose project directory and the persistent config directory.
+# Создание каталога проекта Compose и каталога постоянной конфигурации.
+- name: Create Home Assistant directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ homeassistant_project_directory }}"
+    - "{{ homeassistant_config_dir }}"
+  register: homeassistant_directory_result
+
+# Deploy the Compose definition for the managed Home Assistant container.
+# Развертывание определения Compose для управляемого контейнера Home Assistant.
+- name: Configure Home Assistant Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_HomeAssistant.j2"
+    dest: "{{ homeassistant_project_directory }}/compose.yml"
+    mode: "0644"
+  register: homeassistant_compose_result
+
+# Start or update Home Assistant through the Docker Compose v2 module.
+# Запуск или обновление Home Assistant через модуль Docker Compose v2.
+- name: Deploy Home Assistant container
+  community.docker.docker_compose_v2:
+    project_src: "{{ homeassistant_project_directory }}"
+    files:
+      - "compose.yml"
+    state: "{{ homeassistant_state }}"
+  register: homeassistant_deployment_result
+
+# Report the deployment result without querying the web interface.
+# Вывод результата развертывания без опроса веб-интерфейса.
+- name: Display Home Assistant change summary
+  ansible.builtin.debug:
+    msg: >-
+      Home Assistant deployment {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}.
+  when:
+    - homeassistant_debug_mode | bool
+    - >-
+      (homeassistant_directory_result is defined
+      and (homeassistant_directory_result.changed | default(false) | bool))
+      or (homeassistant_compose_result is defined
+      and (homeassistant_compose_result.changed | default(false) | bool))
+      or (homeassistant_deployment_result is defined
+      and (homeassistant_deployment_result.changed | default(false) | bool))
+  tags:
+    - debug
