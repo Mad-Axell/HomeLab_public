@@ -1,0 +1,157 @@
+---
+# MongoDB server configuration
+# Конфигурация сервера MongoDB
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+mongo_debug_mode: false
+
+# Vendor repository
+# Репозиторий вендора
+
+# String. URL of the MongoDB APT repository. Debian 13 ships no mongodb package
+# for licensing reasons, so the mongodb-org vendor repository is the supported
+# path.
+# Строка. URL APT-репозитория MongoDB. В Debian 13 пакета mongodb нет из-за
+# лицензирования, поэтому репозиторий вендора mongodb-org - поддерживаемый путь.
+mongo_repository_url: "https://repo.mongodb.org/apt/debian"
+
+# String. Repository suite naming the Debian release and the MongoDB series.
+# trixie/mongodb-org/8.0 is published upstream for Debian 13; the project
+# instructions use bookworm/mongodb-org/8.0 on hosts where trixie was not yet
+# published.
+# Строка. Suite репозитория, содержащий выпуск Debian и серию MongoDB.
+# trixie/mongodb-org/8.0 опубликован апстримом для Debian 13; инструкции
+# проекта используют bookworm/mongodb-org/8.0 на хостах, где trixie ещё не был
+# опубликован.
+mongo_repository_suite: "trixie/mongodb-org/8.0"
+
+# String. Repository component.
+# Строка. Компонент репозитория.
+mongo_repository_component: "main"
+
+# String. Pinned APT architecture.
+# Строка. Закреплённая APT-архитектура.
+mongo_repository_arch: "amd64"
+
+# String. URL of the ASCII-armored MongoDB signing key for the 8.0 series.
+# Строка. URL ASCII-armored ключа подписи MongoDB для серии 8.0.
+mongo_repository_key_url: "https://www.mongodb.org/static/pgp/server-8.0.asc"
+
+# String. Directory holding the repository signing key.
+# Строка. Каталог с ключом подписи репозитория.
+mongo_keyring_directory: "/etc/apt/keyrings"
+
+# String. Key file name; the .asc extension marks an ASCII-armored keyring that
+# apt accepts through signed-by.
+# Строка. Имя файла ключа; расширение .asc обозначает ASCII-armored keyring,
+# который apt принимает через signed-by.
+mongo_keyring_file: "mongodb-server-8.0.asc"
+
+# Packages
+# Пакеты
+
+# List of strings. Packages needed before the signed repository can be used.
+# Список строк. Пакеты, необходимые до подключения подписанного репозитория.
+mongo_prerequisite_packages:
+  - "ca-certificates"
+  - "python3-apt"
+
+# List of strings. Packages installed for the server. mongodb-org is the vendor
+# meta-package; python3-pymongo is required by the community.mongodb modules
+# that manage users.
+# Список строк. Пакеты, устанавливаемые для сервера. mongodb-org -
+# мета-пакет вендора; python3-pymongo нужен модулям community.mongodb,
+# управляющим пользователями.
+mongo_packages:
+  - "mongodb-org"
+  - "python3-pymongo"
+
+# Files and storage
+# Файлы и хранилище
+
+# String. Server configuration file. mongod.conf has no drop-in mechanism, so
+# the role owns the whole file; the package does not rewrite it after
+# installation.
+# Строка. Файл конфигурации сервера. У mongod.conf нет механизма drop-in,
+# поэтому роль владеет файлом целиком; пакет не переписывает его после
+# установки.
+mongo_config_path: "/etc/mongod.conf"
+
+# String. Directory where mongod keeps its databases.
+# Строка. Каталог, где mongod хранит базы данных.
+mongo_db_path: "/var/lib/mongodb"
+
+# String. Log file path written into the configuration.
+# Строка. Путь файла журнала, записываемый в конфигурацию.
+mongo_log_path: "/var/log/mongodb/mongod.log"
+
+# Network
+# Сеть
+
+# String. Addresses mongod binds, comma-separated for several. Loopback only by
+# default; opening the server beyond loopback requires authorization below.
+# Строка. Адреса, на которых слушает mongod, через запятую при нескольких. По
+# умолчанию только loopback; открытие сервера за пределы loopback требует
+# авторизации ниже.
+mongo_bind_ip: "127.0.0.1"
+
+# Integer. TCP port of mongod.
+# Целое число. TCP-порт mongod.
+mongo_port: 27017
+
+# Authentication
+# Аутентификация
+
+# String. security.authorization value: enabled or disabled. Disabled is
+# acceptable only together with a loopback bind; the role refuses a remote
+# bind without it.
+# Строка. Значение security.authorization: enabled или disabled. Отключённая
+# допустима только вместе с привязкой к loopback; роль отказывается от
+# удалённой привязки без неё.
+mongo_authorization: "disabled"
+
+# String. Name of the administrative account kept in the admin database.
+# Строка. Имя административного аккаунта, хранимого в базе admin.
+mongo_admin_user: "admin"
+
+# String or null. NAME of the variable holding the admin password, resolved at
+# run time so the secret stays out of host_vars and is read from
+# VARS/secrets.yml. Required when authorization is enabled; when set, the role
+# also keeps this account present.
+# Строка или null. ИМЯ переменной с паролем администратора, разрешается во
+# время прогона, чтобы секрет не попадал в host_vars и читался из
+# VARS/secrets.yml. Обязателен при включённой авторизации; когда задан, роль
+# также поддерживает присутствие этого аккаунта.
+mongo_admin_password_var: null
+
+# List of dicts. Application users managed through community.mongodb. Keys:
+# name and password_var (NAME of the variable holding the password); optional
+# database - the authentication database, default "admin" - and roles, default
+# readWrite on that database.
+# Список словарей. Прикладные пользователи, управляемые через
+# community.mongodb. Ключи: name и password_var (ИМЯ переменной с паролем);
+# необязательные database - база аутентификации, по умолчанию "admin" - и
+# roles, по умолчанию readWrite на этой базе.
+mongo_users: []
+
+# Dict. Extra top-level YAML keys merged into mongod.conf, for example
+# {setParameter: {enableLocalhostAuthBypass: false}}.
+# Словарь. Дополнительные YAML-ключи верхнего уровня, объединяемые в
+# mongod.conf, например {setParameter: {enableLocalhostAuthBypass: false}}.
+mongo_extra_settings: {}
+
+# Service
+# Сервис
+
+# String. Name of the systemd service.
+# Строка. Имя systemd-сервиса.
+mongo_service_name: "mongod"
+
+# String. Steady state of the service.
+# Строка. Устойчивое состояние сервиса.
+mongo_service_state: "started"
+
+# Boolean. Start the service at boot.
+# Логическое значение. Запускать сервис при загрузке.
+mongo_service_enabled: true

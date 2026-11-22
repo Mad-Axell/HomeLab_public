@@ -1,0 +1,236 @@
+---
+# Validate the input before touching the host.
+# Проверка ввода до изменения хоста.
+- name: Validate MongoDB configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - mongo_port | int > 0
+      - mongo_bind_ip is string
+      - mongo_authorization in ['enabled', 'disabled']
+      - mongo_users is sequence
+    fail_msg: >-
+      mongo requires Debian, a port, a bind address, authorization set to enabled or
+      disabled, and a sequence type for users.
+
+# A server reachable from the network without authorization is open to everyone who can
+# route to it. Loopback-only binding is the safe default that makes an unauthenticated
+# instance acceptable.
+# Сервер, доступный из сети без авторизации, открыт каждому, кто может до него дойти.
+# Привязка только к loopback - безопасное умолчание, делающее экземпляр без
+# аутентификации приемлемым.
+- name: Require authorization when mongod listens beyond loopback
+  ansible.builtin.assert:
+    that:
+      - mongo_authorization == 'enabled'
+    fail_msg: >-
+      mongod binds {{ mongo_bind_ip }} with mongo_authorization disabled and would
+      accept unauthenticated connections. Enable authorization and set
+      mongo_admin_password_var to the name of a variable defined in VARS/secrets.yml.
+  when: >-
+    mongo_bind_ip | split(',') | map('trim')
+    | reject('match', '^(127\.|::1$|localhost$)')
+    | list | length > 0
+
+# The admin password arrives by variable name, resolved at run time from
+# VARS/secrets.yml, so the secret never lands in host_vars or the output.
+# Пароль администратора приходит по имени переменной, разрешаемой во время прогона из
+# VARS/secrets.yml, поэтому секрет не попадает ни в host_vars, ни в вывод.
+- name: Validate the MongoDB admin password
+  ansible.builtin.assert:
+    that:
+      - mongo_admin_password_var is not none
+      - lookup('ansible.builtin.vars', mongo_admin_password_var, default=none) is not none
+    fail_msg: >-
+      mongo_admin_password_var must name a variable holding the admin password,
+      defined in VARS/secrets.yml.
+  when: mongo_authorization == 'enabled'
+  no_log: true
+
+# Each application user takes its password by variable name, resolved at run time from
+# VARS/secrets.yml, so the secret never lands in host_vars or the output.
+# Каждый прикладной пользователь получает пароль по имени переменной, разрешаемой во
+# время прогона из VARS/secrets.yml, поэтому секрет не попадает ни в host_vars, ни в
+# вывод.
+- name: Validate the MongoDB user passwords
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.password_var is defined
+      - lookup('ansible.builtin.vars', item.password_var, default=none) is not none
+    fail_msg: >-
+      Every mongo_users entry needs a name and a password_var naming a variable defined
+      in VARS/secrets.yml.
+  loop: "{{ mongo_users }}"
+  loop_control:
+    label: "{{ item.name | default('unknown') }}"
+  no_log: true
+
+# CA certificates are needed to fetch the signing key over HTTPS; python3-apt backs the
+# apt_repository module on minimal container images.
+# Сертификаты CA нужны для загрузки ключа подписи по HTTPS; python3-apt обеспечивает
+# работу модуля apt_repository на минимальных образах контейнеров.
+- name: Install the prerequisite packages
+  ansible.builtin.apt:
+    name: "{{ mongo_prerequisite_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: mongo_prerequisite_result
+
+# Create the directory that holds the repository signing key.
+# Создание каталога, хранящего ключ подписи репозитория.
+- name: Create the APT keyring directory
+  ansible.builtin.file:
+    path: "{{ mongo_keyring_directory }}"
+    state: directory
+    mode: "0755"
+
+# Download the ASCII-armored signing key without the deprecated apt-key; the .asc file
+# works through signed-by.
+# Загрузка ASCII-armored ключа подписи без устаревшего apt-key; файл .asc работает
+# через signed-by.
+- name: Download the MongoDB APT signing key
+  ansible.builtin.get_url:
+    url: "{{ mongo_repository_key_url }}"
+    dest: "{{ mongo_keyring_directory }}/{{ mongo_keyring_file }}"
+    mode: "0644"
+  register: mongo_key_result
+
+# Register the vendor repository that ships mongodb-org; Debian carries no mongodb
+# package of its own for licensing reasons.
+# Регистрация репозитория вендора, поставляющего mongodb-org; в самом Debian пакета
+# mongodb нет из-за лицензирования.
+- name: Configure the MongoDB APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ mongo_repository_arch }}
+      signed-by={{ mongo_keyring_directory }}/{{ mongo_keyring_file }}]
+      {{ mongo_repository_url }} {{ mongo_repository_suite }}
+      {{ mongo_repository_component }}
+    filename: "mongodb-org"
+    state: present
+  register: mongo_repository_result
+
+# Install the server meta-package and the pymongo binding that the community.mongodb
+# modules need on the managed host.
+# Установка мета-пакета сервера и привязки pymongo, необходимой модулям
+# community.mongodb на управляемом хосте.
+- name: Install the MongoDB packages
+  ansible.builtin.apt:
+    name: "{{ mongo_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: mongo_package_result
+
+# mongod.conf has no drop-in mechanism, so the role writes it whole; the package does
+# not touch the file after installation.
+# У mongod.conf нет механизма drop-in, поэтому роль пишет его целиком; пакет не трогает
+# файл после установки.
+- name: Configure the MongoDB server
+  ansible.builtin.template:
+    src: "mongod.conf.j2"
+    dest: "{{ mongo_config_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Restart MongoDB
+  register: mongo_config_result
+
+# Keep the mongod service in its steady state; restarts belong to the handler.
+# Поддержание сервиса mongod в устойчивом состоянии; перезапуски - дело handler'а.
+- name: Manage the MongoDB service
+  ansible.builtin.systemd:
+    name: "{{ mongo_service_name }}"
+    state: "{{ mongo_service_state }}"
+    enabled: "{{ mongo_service_enabled }}"
+  register: mongo_service_result
+
+# Apply pending restarts before creating users, so the accounts are created against a
+# server already running the configured authorization mode. With authorization enabled
+# the first user still lands through the localhost exception.
+# Применение отложенных перезапусков до создания пользователей, чтобы аккаунты
+# создавались на сервере, уже работающем с настроенным режимом авторизации. При
+# включённой авторизации первый пользователь всё равно создаётся через localhost
+# exception.
+- name: Apply pending MongoDB restarts
+  ansible.builtin.meta: flush_handlers
+
+# The admin account gets the root role in the admin database; while no users exist the
+# MongoDB localhost exception lets the module create it despite enabled authorization.
+# Административный аккаунт получает роль root в базе admin; пока пользователей нет,
+# localhost exception MongoDB позволяет модулю создать его даже при включённой
+# авторизации.
+- name: Create the MongoDB admin user
+  community.mongodb.mongodb_user:
+    name: "{{ mongo_admin_user }}"
+    password: "{{ lookup('ansible.builtin.vars', mongo_admin_password_var) }}"
+    database: "admin"
+    roles:
+      - { db: "admin", role: "root" }
+    login_port: "{{ mongo_port }}"
+    login_database: "admin"
+    login_user: "{{ mongo_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', mongo_admin_password_var) }}"
+    update_password: "on_create"
+    state: present
+  when: mongo_admin_password_var is not none
+  no_log: true
+  register: mongo_admin_result
+
+# Application users are created under the admin login; update_password on_create keeps
+# the task idempotent on reruns instead of reporting a change it cannot verify.
+# Прикладные пользователи создаются под логином администратора; update_password
+# on_create сохраняет идемпотентность задачи при повторных прогонах вместо изменения,
+# которое невозможно проверить.
+- name: Create the MongoDB users
+  community.mongodb.mongodb_user:
+    name: "{{ item.name }}"
+    password: "{{ lookup('ansible.builtin.vars', item.password_var) }}"
+    database: "{{ item.database | default('admin') }}"
+    roles: >-
+      {{
+        item.roles
+        | default([{'db': item.database | default('admin'), 'role': 'readWrite'}])
+      }}
+    login_port: "{{ mongo_port }}"
+    login_database: "admin"
+    login_user: "{{ mongo_admin_user }}"
+    login_password: >-
+      {{
+        lookup('ansible.builtin.vars', mongo_admin_password_var)
+        if mongo_admin_password_var is not none else omit
+      }}
+    update_password: "on_create"
+    state: present
+  loop: "{{ mongo_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  register: mongo_users_result
+
+# Summarize what changed when debug output is enabled.
+# Итоговая сводка изменений при включённом debug-выводе.
+- name: Display MongoDB change summary
+  ansible.builtin.debug:
+    msg: >-
+      MongoDB {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}:
+      bound to {{ mongo_bind_ip }}:{{ mongo_port }},
+      authorization {{ mongo_authorization }},
+      {{ mongo_users | length }} managed users.
+  when:
+    - mongo_debug_mode | bool
+    - >-
+      (mongo_prerequisite_result.changed | default(false) | bool)
+      or (mongo_key_result.changed | default(false) | bool)
+      or (mongo_repository_result.changed | default(false) | bool)
+      or (mongo_package_result.changed | default(false) | bool)
+      or (mongo_config_result.changed | default(false) | bool)
+      or (mongo_service_result.changed | default(false) | bool)
+      or (mongo_admin_result is defined
+          and (mongo_admin_result.changed | default(false) | bool))
+      or (mongo_users_result is defined
+          and (mongo_users_result.changed | default(false) | bool))
+  tags:
+    - debug

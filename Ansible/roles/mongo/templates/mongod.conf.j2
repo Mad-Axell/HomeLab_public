@@ -1,0 +1,25 @@
+{{ ansible_managed | comment }}
+# Owned by the mongo Ansible role. mongod.conf has no drop-in mechanism, so the role
+# owns the whole file; the package does not rewrite it after installation.
+#
+# Принадлежит роли Ansible mongo. У mongod.conf нет механизма drop-in, поэтому роль
+# владеет файлом целиком; пакет не переписывает его после установки.
+storage:
+  dbPath: {{ mongo_db_path }}
+
+systemLog:
+  destination: file
+  logAppend: true
+  path: {{ mongo_log_path }}
+
+net:
+  port: {{ mongo_port }}
+  bindIp: {{ mongo_bind_ip }}
+{% if mongo_authorization == 'enabled' %}
+
+security:
+  authorization: enabled
+{% endif %}
+{% if mongo_extra_settings | length > 0 %}
+{{ mongo_extra_settings | to_nice_yaml(indent=2) }}
+{% endif %}

@@ -1,0 +1,10 @@
+---
+# mongod applies authorization and bind changes only at start; it has no configuration
+# reload, so a changed configuration takes effect through a restart.
+# mongod применяет изменения авторизации и привязки только при старте; перечитывания
+# конфигурации у него нет, поэтому изменённая конфигурация вступает в силу через
+# перезапуск.
+- name: Restart MongoDB
+  ansible.builtin.systemd:
+    name: "{{ mongo_service_name }}"
+    state: restarted
