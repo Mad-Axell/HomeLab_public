@@ -46,7 +46,8 @@ scraped hosts are installed by the separate `node_exporter` role.
 | `prometheus_scrape_interval` | string | no | `"15s"` | Global scrape interval. |
 | `prometheus_evaluation_interval` | string | no | `"15s"` | Global rule evaluation interval. |
 | `prometheus_scrape_configs` | list | no | `[]` | Complete `scrape_configs` content; when empty the `prometheus` and `nodes` jobs are generated. |
-| `prometheus_extra_scrape_configs` | list | no | `[]` | Extra jobs appended after the generated `prometheus`/`nodes` jobs; ignored when `prometheus_scrape_configs` is set. |
+| `prometheus_extra_scrape_configs` | list | no | `[]` | Extra jobs appended verbatim after the generated `prometheus`/`nodes` jobs; ignored when `prometheus_scrape_configs` is set. |
+| `prometheus_extra_jobs` | list | no | `[]` | Generated jobs `{name, groups, port, interval?}` appended after `nodes`; targets resolved from inventory groups via hostvars inside the role. |
 | `prometheus_target_groups` | list | no | `["all"]` | Inventory groups scanned for `nodes` job targets. |
 | `prometheus_node_exporter_port` | integer | no | `9100` | node_exporter port on generated targets. |
 | `prometheus_service_name` | string | no | `"prometheus"` | systemd service name. |

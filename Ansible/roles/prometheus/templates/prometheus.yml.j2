@@ -22,6 +22,12 @@ scrape_configs:
   - job_name: "nodes"
     static_configs:
       - targets: {{ prometheus_resolved_targets | default([]) | to_json }}
+{% for job in prometheus_resolved_extra_jobs | default([]) %}
+  - job_name: "{{ job.name }}"
+    scrape_interval: "{{ job.interval }}"
+    static_configs:
+      - targets: {{ job.targets | to_json }}
+{%- endfor %}
 {%- if prometheus_extra_scrape_configs | length > 0 %}
 {{ prometheus_extra_scrape_configs | to_nice_yaml(indent=2) | indent(2, true) }}
 {%- endif %}

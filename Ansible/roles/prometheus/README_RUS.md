@@ -44,7 +44,8 @@
 | `prometheus_scrape_interval` | string | no | `"15s"` | Глобальный интервал опроса. |
 | `prometheus_evaluation_interval` | string | no | `"15s"` | Глобальный интервал вычисления правил. |
 | `prometheus_scrape_configs` | list | no | `[]` | Полное содержимое `scrape_configs`; когда пусто, генерируются задания `prometheus` и `nodes`. |
-| `prometheus_extra_scrape_configs` | list | no | `[]` | Дополнительные задания, дописываемые после генерируемых `prometheus`/`nodes`; игнорируется при заданном `prometheus_scrape_configs`. |
+| `prometheus_extra_scrape_configs` | list | no | `[]` | Дополнительные задания, дословно дописываемые после генерируемых `prometheus`/`nodes`; игнорируется при заданном `prometheus_scrape_configs`. |
+| `prometheus_extra_jobs` | list | no | `[]` | Генерируемые задания `{name, groups, port, interval?}`, дописываемые после `nodes`; цели разрешаются из групп инвентаря через hostvars внутри роли. |
 | `prometheus_target_groups` | list | no | `["all"]` | Группы инвентаря для генерации целей задания `nodes`. |
 | `prometheus_node_exporter_port` | integer | no | `9100` | Порт node_exporter на генерируемых целях. |
 | `prometheus_service_name` | string | no | `"prometheus"` | Имя systemd-сервиса. |

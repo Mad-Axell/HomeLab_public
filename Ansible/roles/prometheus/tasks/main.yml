@@ -50,6 +50,35 @@
       {{ targets | unique | sort }}
   when: prometheus_scrape_configs | length == 0
 
+# The extra jobs are resolved the same way, one target list per job. The whole
+# structure is computed here because hostvars is only usable inside the role -
+# host_vars values referencing it break inventory evaluation on other hosts.
+# Дополнительные задания разрешаются так же, по списку целей на задание. Вся
+# структура вычисляется здесь, потому что hostvars применим только внутри роли -
+# значения host_vars со ссылкой на него ломают вычисление инвентаря на других
+# хостах.
+- name: Resolve the extra generated scrape jobs
+  ansible.builtin.set_fact:
+    prometheus_resolved_extra_jobs: >-
+      {%- set jobs = [] -%}
+      {%- for job in prometheus_extra_jobs -%}
+      {%- set targets = [] -%}
+      {%- for group in job.groups -%}
+      {%- for host in groups[group] | default([]) -%}
+      {%- set address = hostvars[host].ansible_host | default(host) -%}
+      {%- set _ = targets.append(address ~ ':' ~ job.port | string) -%}
+      {%- endfor -%}
+      {%- endfor -%}
+      {%- set _ = jobs.append({
+        'name': job.name,
+        'interval': job.interval | default(prometheus_scrape_interval),
+        'targets': targets | unique | sort }) -%}
+      {%- endfor -%}
+      {{ jobs }}
+  when: >-
+    prometheus_scrape_configs | length == 0
+    and prometheus_extra_jobs | length > 0
+
 # The file is owned whole rather than edited in place: a scrape list generated
 # from the inventory cannot be reconciled key by key with a file someone may
 # have touched by hand. diff is off because scrape_configs can carry basic_auth

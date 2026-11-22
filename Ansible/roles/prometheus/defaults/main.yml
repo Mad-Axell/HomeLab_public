@@ -59,6 +59,23 @@ prometheus_scrape_configs: []
 # prometheus_scrape_configs.
 prometheus_extra_scrape_configs: []
 
+# List of dicts. Additional generated jobs appended after the "nodes" job when
+# prometheus_scrape_configs is empty. Keys per item: name (job_name), groups
+# (inventory groups whose members become targets), port (scraped on every
+# member), interval (optional, defaults to prometheus_scrape_interval). Targets
+# are resolved through hostvars inside the role, so inventory addresses are not
+# duplicated in variables - unlike prometheus_extra_scrape_configs, which is
+# rendered verbatim and must not reference hostvars from host_vars.
+# Список словарей. Дополнительные генерируемые задания, дописываемые после
+# задания "nodes", когда prometheus_scrape_configs пуст. Ключи элемента: name
+# (job_name), groups (группы инвентаря - члены становятся целями), port (порт
+# опроса на каждом члене), interval (опционально, по умолчанию
+# prometheus_scrape_interval). Цели разрешаются через hostvars внутри роли,
+# поэтому адреса инвентаря не дублируются в переменных - в отличие от
+# prometheus_extra_scrape_configs, которая выводится дословно и не должна
+# ссылаться на hostvars из host_vars.
+prometheus_extra_jobs: []
+
 # List of strings. Inventory groups scanned for scrape targets of the generated
 # "nodes" job; used only when prometheus_scrape_configs is empty. The address of
 # a member is its ansible_host, falling back to the inventory name.
