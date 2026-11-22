@@ -45,4 +45,9 @@ netbox_seed_devices: []
 netbox_seed_virtual_machines: []
 netbox_seed_device_interfaces: []
 netbox_seed_vm_interfaces: []
+# MAC addresses are separate objects since NetBox 4.2; each entry needs
+# mac_address plus an assigned_object reference to an existing interface.
+# MAC-адреса - отдельные объекты начиная с NetBox 4.2; каждая запись содержит
+# mac_address и ссылку assigned_object на существующий интерфейс.
+netbox_seed_mac_addresses: []
 netbox_seed_ip_addresses: []

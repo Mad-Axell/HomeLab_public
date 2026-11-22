@@ -211,6 +211,19 @@
   when: netbox_seed_vm_interfaces | length > 0
   register: netbox_seed_vm_interfaces_result
 
+# --- MACs attach to interfaces, so they come right after them ---
+# --- MAC-адреса привязываются к интерфейсам, поэтому идут сразу за ними ---
+- name: Ensure MAC addresses
+  netbox.netbox.netbox_mac_address:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_mac_addresses }}"
+  when: netbox_seed_mac_addresses | length > 0
+  register: netbox_seed_macs_result
+
 # --- Addresses last: they attach to interfaces that must already exist ---
 # --- Адреса последними: они привязываются к уже существующим интерфейсам ---
 - name: Ensure IP addresses
@@ -261,6 +274,7 @@
       {{ netbox_seed_prefixes | length }} prefixes,
       {{ netbox_seed_devices | length }} devices,
       {{ netbox_seed_virtual_machines | length }} VMs,
+      {{ netbox_seed_mac_addresses | length }} MACs,
       {{ netbox_seed_ip_addresses | length }} IPs.
   when: netbox_seed_debug_mode | bool
   tags:

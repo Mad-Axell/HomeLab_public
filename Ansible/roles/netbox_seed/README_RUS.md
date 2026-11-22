@@ -11,7 +11,7 @@
 Проверяет URL и токен API, затем по порядку применяет: RIR → сайты → стойки →
 производители → роли устройств и IPAM-роли → типы устройств → группы VLAN и VLAN →
 типы кластеров и кластеры → префиксы → устройства → виртуальные машины →
-интерфейсы устройств и VM → IP-адреса → первичные IP устройств и VM.
+интерфейсы устройств и VM → MAC-адреса → IP-адреса → первичные IP устройств и VM.
 
 ## Требования
 
@@ -54,6 +54,7 @@
 | `netbox_seed_virtual_machines` | list | no | `[]` | `data` для `netbox_virtual_machine`. `primary_ip4` — как у устройств. |
 | `netbox_seed_device_interfaces` | list | no | `[]` | `data` для `netbox_device_interface`. |
 | `netbox_seed_vm_interfaces` | list | no | `[]` | `data` для `netbox_vm_interface`. |
+| `netbox_seed_mac_addresses` | list | no | `[]` | `data` для `netbox_mac_address`; каждый элемент содержит `mac_address` и `assigned_object`, указывающий на существующий интерфейс. |
 | `netbox_seed_ip_addresses` | list | no | `[]` | `data` для `netbox_ip_address`. |
 
 ## Использование

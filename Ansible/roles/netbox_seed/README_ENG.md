@@ -11,7 +11,7 @@ primary IPs in a second pass after the addresses exist.
 Validates the API URL and token, then applies in order: RIRs → sites → racks →
 manufacturers → device roles and IPAM roles → device types → VLAN groups and
 VLANs → cluster types and clusters → prefixes → devices → virtual machines →
-device and VM interfaces → IP addresses → primary IPs of devices and VMs.
+device and VM interfaces → MAC addresses → IP addresses → primary IPs of devices and VMs.
 
 ## Requirements
 
@@ -54,6 +54,7 @@ device and VM interfaces → IP addresses → primary IPs of devices and VMs.
 | `netbox_seed_virtual_machines` | list | no | `[]` | `data` for `netbox_virtual_machine`. `primary_ip4` same as devices. |
 | `netbox_seed_device_interfaces` | list | no | `[]` | `data` for `netbox_device_interface`. |
 | `netbox_seed_vm_interfaces` | list | no | `[]` | `data` for `netbox_vm_interface`. |
+| `netbox_seed_mac_addresses` | list | no | `[]` | `data` for `netbox_mac_address`; each item needs `mac_address` and `assigned_object` pointing at an existing interface. |
 | `netbox_seed_ip_addresses` | list | no | `[]` | `data` for `netbox_ip_address`. |
 
 ## Usage
