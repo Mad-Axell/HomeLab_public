@@ -36,7 +36,7 @@ mongo_repository_arch: "amd64"
 
 # String. URL of the ASCII-armored MongoDB signing key for the 9.0 series.
 # Строка. URL ASCII-armored ключа подписи MongoDB для серии 9.0.
-mongo_repository_key_url: "https://www.mongodb.org/static/pgp/server-9.0.asc"
+mongo_repository_key_url: "https://pgp.mongodb.com/server-9.0.asc"
 
 # String. Directory holding the repository signing key.
 # Строка. Каталог с ключом подписи репозитория.

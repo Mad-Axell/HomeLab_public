@@ -63,7 +63,7 @@
 | `mongo_repository_suite` | string | no | `"trixie/mongodb-org/9.0"` | Suite: выпуск Debian + серия MongoDB. |
 | `mongo_repository_component` | string | no | `"main"` | Компонент репозитория. |
 | `mongo_repository_arch` | string | no | `"amd64"` | Закреплённая APT-архитектура. |
-| `mongo_repository_key_url` | string | no | `"https://www.mongodb.org/static/pgp/server-9.0.asc"` | URL ключа подписи серии 9.0. |
+| `mongo_repository_key_url` | string | no | `"https://pgp.mongodb.com/server-9.0.asc"` | URL ключа подписи серии 9.0. |
 | `mongo_keyring_directory` | string | no | `"/etc/apt/keyrings"` | Каталог ключа подписи. |
 | `mongo_keyring_file` | string | no | `"mongodb-server-9.0.asc"` | Имя файла ключа (.asc = ASCII-armored). |
 | `mongo_prerequisite_packages` | list | no | `["ca-certificates", "python3-apt"]` | Пакеты до подключения репозитория. |
