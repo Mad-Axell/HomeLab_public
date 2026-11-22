@@ -1,0 +1,11 @@
+{{ ansible_managed | comment }}
+# Plaintext account definitions owned by the mosquitto role, hashed in place into the
+# broker password file by mosquitto_passwd -U. Readable only by root; secrets arrive by
+# variable name from VARS/secrets.yml.
+#
+# Определения аккаунтов с открытыми паролями, принадлежащие роли mosquitto; хэшируются
+# на месте в файл паролей брокера командой mosquitto_passwd -U. Доступен только root;
+# секреты приходят по имени переменной из VARS/secrets.yml.
+{% for user in mosquitto_users %}
+{{ user.name }}:{{ lookup('ansible.builtin.vars', user.password_var) }}
+{% endfor %}

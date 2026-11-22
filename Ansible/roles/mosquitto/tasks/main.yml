@@ -1,0 +1,252 @@
+---
+# Validate the input before touching the host.
+# Проверка ввода до изменения хоста.
+- name: Validate Mosquitto configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - mosquitto_port | int > 0
+      - mosquitto_tls_port | int > 0
+      - mosquitto_users is sequence
+      - mosquitto_acl_entries is sequence
+      - mosquitto_listener_enabled | bool or mosquitto_tls_enabled | bool
+    fail_msg: >-
+      mosquitto requires Debian, valid ports, sequence types for users and ACL entries,
+      and at least one enabled listener.
+
+# A broker that rejects anonymous clients needs at least one account, otherwise it
+# accepts nothing at all and the failure looks like a networking problem.
+# Брокеру, отклоняющему анонимных клиентов, нужен хотя бы один аккаунт, иначе он не
+# принимает никого, и отказ выглядит как сетевая проблема.
+- name: Require accounts when anonymous access is denied
+  ansible.builtin.assert:
+    that:
+      - mosquitto_users | length > 0
+    fail_msg: >-
+      mosquitto_allow_anonymous is false and mosquitto_users is empty: no client would
+      be able to connect. Declare accounts in mosquitto_users or allow anonymous access
+      explicitly.
+  when: not (mosquitto_allow_anonymous | bool)
+
+# Each account takes its password by variable name, resolved at run time from
+# VARS/secrets.yml, so the secret never lands in host_vars or the output.
+# Каждый аккаунт получает пароль по имени переменной, разрешаемой во время прогона из
+# VARS/secrets.yml, поэтому секрет не попадает ни в host_vars, ни в вывод.
+- name: Validate the Mosquitto account passwords
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.password_var is defined
+      - lookup('ansible.builtin.vars', item.password_var, default=none) is not none
+    fail_msg: >-
+      Every mosquitto_users entry needs a name and a password_var naming a variable
+      defined in VARS/secrets.yml.
+  loop: "{{ mosquitto_users }}"
+  loop_control:
+    label: "{{ item.name | default('unknown') }}"
+  no_log: true
+
+# TLS file paths are required only when the TLS listener is enabled; a missing path
+# here would fail inside the broker with an unreadable config error.
+# Пути к файлам TLS обязательны только при включённом TLS-listener'е; пропущенный путь
+# проявился бы внутри брокера ошибкой чтения конфигурации.
+- name: Validate the TLS certificate paths
+  ansible.builtin.assert:
+    that:
+      - mosquitto_tls_cafile is string
+      - mosquitto_tls_certfile is string
+      - mosquitto_tls_keyfile is string
+    fail_msg: >-
+      mosquitto_tls_enabled requires mosquitto_tls_cafile, mosquitto_tls_certfile and
+      mosquitto_tls_keyfile pointing at files already present on the host.
+  when: mosquitto_tls_enabled | bool
+
+# The certificates are issued by the project CA and delivered outside this role; the
+# role only proves the broker will be able to read them before it writes the listener.
+# Сертификаты выпускает CA проекта и доставляет их отдельно; роль лишь доказывает, что
+# брокер сможет их прочитать, до того как запишет listener.
+- name: Read the TLS certificate files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ mosquitto_tls_cafile }}"
+    - "{{ mosquitto_tls_certfile }}"
+    - "{{ mosquitto_tls_keyfile }}"
+  loop_control:
+    label: "{{ item }}"
+  register: mosquitto_tls_files_result
+  check_mode: false
+  when: mosquitto_tls_enabled | bool
+
+# A missing certificate is a failed run with a clear message, not a broker that refuses
+# to start after the next restart.
+# Отсутствующий сертификат - это падение прогона с понятным сообщением, а не брокер,
+# который откажется стартовать после очередного перезапуска.
+- name: Require the TLS files to exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isreg
+    fail_msg: >-
+      TLS file {{ item.item }} does not exist on the host; provision the certificates
+      before enabling mosquitto_tls_enabled.
+  loop: "{{ mosquitto_tls_files_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('unknown') }}"
+  when: mosquitto_tls_enabled | bool
+
+# Install the broker package from Debian; the container image does not ship it.
+# Установка пакета брокера из Debian; образ контейнера его не содержит.
+- name: Install the Mosquitto package
+  ansible.builtin.apt:
+    name: "{{ mosquitto_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: mosquitto_package_result
+
+# Settings go into the conf.d drop-in the packaged mosquitto.conf already includes, so
+# the distribution file stays untouched and keeps whatever the next package version
+# changes.
+# Настройки пишутся в drop-in conf.d, который уже подключает поставляемый
+# mosquitto.conf, поэтому дистрибутивный файл остаётся нетронутым и сохраняет изменения
+# следующей версии пакета.
+- name: Configure the Mosquitto broker
+  ansible.builtin.template:
+    src: "mosquitto.conf.j2"
+    dest: "{{ mosquitto_managed_config }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Restart Mosquitto
+  register: mosquitto_config_result
+
+# The ACL file grants each authenticated client exactly the topics declared in
+# mosquitto_acl_entries; everything not granted is denied.
+# ACL-файл разрешает каждому аутентифицированному клиенту ровно те топики, что
+# объявлены в mosquitto_acl_entries; всё не разрешённое запрещено.
+- name: Configure the Mosquitto ACL file
+  ansible.builtin.template:
+    src: "mosquitto.acl.j2"
+    dest: "{{ mosquitto_acl_file }}"
+    owner: "mosquitto"
+    group: "mosquitto"
+    mode: "0640"
+  notify: Restart Mosquitto
+  register: mosquitto_acl_result
+  when: mosquitto_acl_entries | length > 0
+
+# Remove a stale ACL file when no entries are declared, so the file on disk cannot
+# silently differ from what the configuration references.
+# Удаление устаревшего ACL-файла при отсутствии записей, чтобы файл на диске не мог
+# молча отличаться от того, на что ссылается конфигурация.
+- name: Remove the Mosquitto ACL file
+  ansible.builtin.file:
+    path: "{{ mosquitto_acl_file }}"
+    state: absent
+  notify: Restart Mosquitto
+  when: mosquitto_acl_entries | length == 0
+
+# The plaintext definitions stay on disk so that a rerun can tell whether the accounts
+# changed; the broker itself only ever sees the hashed copy.
+# Определения с открытыми паролями остаются на диске, чтобы повторный прогон видел,
+# изменились ли аккаунты; сам брокер читает только хэшированную копию.
+- name: Render the Mosquitto password definitions
+  ansible.builtin.template:
+    src: "mosquitto.passwd.j2"
+    dest: "{{ mosquitto_password_definitions }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  no_log: true
+  diff: false
+  register: mosquitto_password_definitions_result
+  when: mosquitto_users | length > 0
+
+# Copy the definitions to the broker password file only when they changed; the copy is
+# what mosquitto_passwd then hashes in place.
+# Копирование определений в файл паролей брокера только при их изменении; именно эту
+# копию затем хэширует mosquitto_passwd на месте.
+- name: Stage the password file for hashing
+  ansible.builtin.copy:
+    src: "{{ mosquitto_password_definitions }}"
+    dest: "{{ mosquitto_password_file }}"
+    remote_src: true
+    owner: "mosquitto"
+    group: "mosquitto"
+    mode: "0600"
+  no_log: true
+  diff: false
+  register: mosquitto_password_file_result
+  when: >-
+    mosquitto_users | length > 0
+    and (mosquitto_password_definitions_result.changed | default(false) | bool)
+
+# mosquitto_passwd -U rewrites the file in place, hashing every plaintext entry. The
+# task only runs when the staged copy changed, which is what makes the two-step build
+# idempotent: hashing the broker file directly would differ from the rendered template
+# on every single run.
+# mosquitto_passwd -U переписывает файл на месте, хэшируя каждую открытую запись. Задача
+# выполняется только при изменении заготовки - именно это делает двухшаговую сборку
+# идемпотентной: прямое хэширование файла брокера отличалось бы от шаблона при каждом
+# прогоне.
+- name: Hash the Mosquitto password file
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/mosquitto_passwd"
+      - "-U"
+      - "{{ mosquitto_password_file }}"
+  changed_when: true
+  notify: Restart Mosquitto
+  when: >-
+    mosquitto_password_file_result is defined
+    and (mosquitto_password_file_result.changed | default(false) | bool)
+
+# Remove the staged and hashed password files when no accounts are declared, so stale
+# credentials do not linger on the host.
+# Удаление заготовки и хэшированного файла паролей при отсутствии аккаунтов, чтобы
+# устаревшие учётные данные не оставались на хосте.
+- name: Remove the Mosquitto password files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ mosquitto_password_definitions }}"
+    - "{{ mosquitto_password_file }}"
+  loop_control:
+    label: "{{ item }}"
+  notify: Restart Mosquitto
+  when: mosquitto_users | length == 0
+
+# Keep the broker service in its steady state; restarts belong to the handler.
+# Поддержание сервиса брокера в устойчивом состоянии; перезапуски - дело handler'а.
+- name: Manage the Mosquitto service
+  ansible.builtin.systemd:
+    name: "{{ mosquitto_service_name }}"
+    state: "{{ mosquitto_service_state }}"
+    enabled: "{{ mosquitto_service_enabled }}"
+  register: mosquitto_service_result
+
+# Summarize what changed when debug output is enabled.
+# Итоговая сводка изменений при включённом debug-выводе.
+- name: Display Mosquitto change summary
+  ansible.builtin.debug:
+    msg: >-
+      Mosquitto {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}:
+      plaintext listener {{ mosquitto_port if mosquitto_listener_enabled | bool
+      else 'disabled' }}{{ ', TLS listener ' ~ mosquitto_tls_port
+      if mosquitto_tls_enabled | bool else '' }};
+      {{ mosquitto_users | length }} accounts,
+      {{ mosquitto_acl_entries | length }} ACL entries.
+  when:
+    - mosquitto_debug_mode | bool
+    - >-
+      (mosquitto_package_result.changed | default(false) | bool)
+      or (mosquitto_config_result.changed | default(false) | bool)
+      or (mosquitto_acl_result is defined
+          and (mosquitto_acl_result.changed | default(false) | bool))
+      or (mosquitto_password_file_result is defined
+          and (mosquitto_password_file_result.changed | default(false) | bool))
+      or (mosquitto_service_result.changed | default(false) | bool)
+  tags:
+    - debug

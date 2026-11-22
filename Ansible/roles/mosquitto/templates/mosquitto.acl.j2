@@ -1,0 +1,18 @@
+{{ ansible_managed | comment }}
+# Owned by the mosquitto Ansible role. For each user the first matching rule wins and
+# everything not granted is denied, so clients see exactly the topics declared below.
+#
+# Принадлежит роли Ansible mosquitto. Для каждого пользователя побеждает первое
+# совпадение, а всё не разрешённое запрещено, поэтому клиенты видят ровно те топики,
+# что объявлены ниже.
+{% for entry in mosquitto_acl_entries %}
+user {{ entry.name }}
+{% for topic in entry.topics | default([]) %}
+{% if topic is mapping %}
+topic {{ topic.access | default('readwrite') }} {{ topic.topic }}
+{% else %}
+{{ topic }}
+{% endif %}
+{% endfor %}
+
+{% endfor %}

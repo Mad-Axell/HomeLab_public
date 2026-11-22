@@ -1,0 +1,153 @@
+---
+# Mosquitto MQTT broker configuration
+# Конфигурация MQTT-брокера Mosquitto
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+mosquitto_debug_mode: false
+
+# Packages and files
+# Пакеты и файлы
+
+# List of strings. Packages installed for the broker.
+# Список строк. Пакеты, устанавливаемые для брокера.
+mosquitto_packages:
+  - "mosquitto"
+
+# String. Drop-in configuration file this role owns completely. The packaged
+# /etc/mosquitto/mosquitto.conf already includes /etc/mosquitto/conf.d, so the
+# distribution file is left untouched and keeps whatever the next package
+# version changes.
+# Строка. Файл конфигурации drop-in, которым роль владеет целиком. Поставляемый
+# /etc/mosquitto/mosquitto.conf уже подключает /etc/mosquitto/conf.d, поэтому
+# дистрибутивный файл остаётся нетронутым и сохраняет изменения следующей
+# версии пакета.
+mosquitto_managed_config: "/etc/mosquitto/conf.d/90-ansible.conf"
+
+# String. File with plaintext "name:password" lines that is the source for the
+# hashed broker password file. It stays on disk readable only by root so that a
+# rerun can tell whether the accounts changed; the broker never reads it.
+# Строка. Файл с открытыми строками "имя:пароль", служащий источником для
+# хэшированного файла паролей брокера. Он остаётся на диске доступным только
+# root, чтобы повторный прогон видел, изменились ли аккаунты; брокер его не
+# читает.
+mosquitto_password_definitions: "/etc/mosquitto/passwd.defs"
+
+# String. Hashed password file the broker reads (the password_file directive).
+# Строка. Хэшированный файл паролей, который читает брокер (директива
+# password_file).
+mosquitto_password_file: "/etc/mosquitto/passwd"
+
+# String. ACL file the broker reads (the acl_file directive).
+# Строка. ACL-файл, который читает брокер (директива acl_file).
+mosquitto_acl_file: "/etc/mosquitto/acl"
+
+# Plaintext listener
+# Обычный listener
+
+# Boolean. Keep the plaintext MQTT listener. Hardening plan A-35 keeps port 1883
+# until every client - spruthub, Home Assistant, Frigate and WirenBoard 7 - has
+# moved to TLS; set false only after that migration.
+# Логическое значение. Сохранить MQTT-listener без шифрования. План защиты A-35
+# оставляет порт 1883, пока все клиенты - spruthub, Home Assistant, Frigate и
+# WirenBoard 7 - не перейдут на TLS; ставьте false только после этой миграции.
+mosquitto_listener_enabled: true
+
+# Integer. Port of the plaintext listener.
+# Целое число. Порт listener'а без шифрования.
+mosquitto_port: 1883
+
+# String or null. Optional bind address of the plaintext listener; null listens
+# on every interface, which is what the clients on other networks need.
+# Строка или null. Необязательный адрес привязки listener'а без шифрования; при
+# null слушает на всех интерфейсах, что и нужно клиентам из других сетей.
+mosquitto_listener_address: null
+
+# TLS listener (hardening plan A-35)
+# TLS-listener (план защиты A-35)
+
+# Boolean. Add an MQTTS listener with broker certificates.
+# Логическое значение. Добавить MQTTS-listener с сертификатами брокера.
+mosquitto_tls_enabled: false
+
+# Integer. Port of the TLS listener.
+# Целое число. Порт TLS-listener'а.
+mosquitto_tls_port: 8883
+
+# String or null. Path on the target host to the CA certificate the broker
+# presents and verifies against. The certificates are issued by the project CA
+# and delivered outside this role; the role only checks the files exist.
+# Строка или null. Путь на целевом хосте к сертификату CA, который брокер
+# предъявляет и проверяет. Сертификаты выпускает CA проекта и доставляются вне
+# этой роли; роль лишь проверяет, что файлы существуют.
+mosquitto_tls_cafile: null
+
+# String or null. Path on the target host to the broker certificate.
+# Строка или null. Путь на целевом хосте к сертификату брокера.
+mosquitto_tls_certfile: null
+
+# String or null. Path on the target host to the broker private key.
+# Строка или null. Путь на целевом хосте к закрытому ключу брокера.
+mosquitto_tls_keyfile: null
+
+# Boolean. Require clients of the TLS listener to present a certificate signed
+# by the CA above. Passwords still apply on top when a password_file is set.
+# Логическое значение. Требовать от клиентов TLS-listener'а сертификат,
+# подписанный указанным выше CA. При заданном password_file пароли действуют
+# дополнительно.
+mosquitto_tls_require_certificate: false
+
+# Authentication and authorization
+# Аутентификация и авторизация
+
+# Boolean. Allow clients to connect without credentials. false is the target of
+# hardening plan A-35: every client authenticates with its own account.
+# Логическое значение. Разрешить клиентам подключение без учётных данных.
+# false - цель плана защиты A-35: каждый клиент аутентифицируется собственным
+# аккаунтом.
+mosquitto_allow_anonymous: false
+
+# List of dicts. Broker accounts written to the password file. Keys: name and
+# password_var - the NAME of a variable holding the plaintext password, resolved
+# at run time so secrets stay out of host_vars and are read from
+# VARS/secrets.yml. Passwords are hashed on the host with mosquitto_passwd -U;
+# a name removed from the list is also removed from the file.
+# Список словарей. Аккаунты брокера, записываемые в файл паролей. Ключи: name и
+# password_var - ИМЯ переменной с открытым паролем, разрешается во время
+# прогона, чтобы секреты не попадали в host_vars и читались из
+# VARS/secrets.yml. Пароли хэшируются на хосте командой mosquitto_passwd -U;
+# имя, удалённое из списка, удаляется и из файла.
+mosquitto_users: []
+
+# List of dicts. ACL entries rendered into the acl file in order. Keys: name and
+# topics - a list of either dicts {access: read|write|readwrite|deny,
+# topic: "..."} rendered as "topic <access> <topic>" or raw strings emitted
+# verbatim, which is how "pattern" directives are written. Access control only
+# bites while clients authenticate.
+# Список словарей. Записи ACL, выводимые в acl-файл по порядку. Ключи: name и
+# topics - список либо словарей {access: read|write|readwrite|deny,
+# topic: "..."}, выводимых как "topic <доступ> <топик>", либо строк,
+# выводимых как есть, - так записываются директивы "pattern". Контроль доступа
+# работает, только пока клиенты аутентифицируются.
+mosquitto_acl_entries: []
+
+# Dict. Extra "name value" lines appended to the managed drop-in, for example
+# {max_keepalive: 60}.
+# Словарь. Дополнительные строки "имя значение", дописываемые в управляемый
+# drop-in, например {max_keepalive: 60}.
+mosquitto_extra_settings: {}
+
+# Service
+# Сервис
+
+# String. Name of the systemd service.
+# Строка. Имя systemd-сервиса.
+mosquitto_service_name: "mosquitto"
+
+# String. Steady state of the service.
+# Строка. Устойчивое состояние сервиса.
+mosquitto_service_state: "started"
+
+# Boolean. Start the service at boot.
+# Логическое значение. Запускать сервис при загрузке.
+mosquitto_service_enabled: true

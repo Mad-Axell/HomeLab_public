@@ -1,0 +1,10 @@
+---
+# SIGHUP reloads only part of the Mosquitto configuration; listener, password file and
+# TLS changes do not apply through it, so a restart is the single reliable path.
+# SIGHUP перечитывает лишь часть конфигурации Mosquitto; изменения listener'ов, файла
+# паролей и TLS через него не применяются, поэтому единственный надёжный путь -
+# перезапуск.
+- name: Restart Mosquitto
+  ansible.builtin.systemd:
+    name: "{{ mosquitto_service_name }}"
+    state: restarted

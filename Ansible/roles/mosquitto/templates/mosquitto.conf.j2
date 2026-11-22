@@ -1,0 +1,33 @@
+{{ ansible_managed | comment }}
+# Owned by the mosquitto Ansible role. The packaged mosquitto.conf includes this drop-in
+# directory; the distribution file itself is left to the packaging. Without
+# per_listener_settings the authentication directives below are global and apply to
+# every listener defined here.
+#
+# Принадлежит роли Ansible mosquitto. Поставляемый mosquitto.conf подключает этот
+# drop-in каталог; дистрибутивный файл оставлен пакетам. Без per_listener_settings
+# приведённые ниже директивы аутентификации глобальны и действуют на все listener'ы,
+# объявленные здесь.
+{% if mosquitto_listener_enabled | bool %}
+
+listener {{ mosquitto_port }}{{ ' ' ~ mosquitto_listener_address if mosquitto_listener_address is not none else '' }}
+{% endif %}
+{% if mosquitto_tls_enabled | bool %}
+
+listener {{ mosquitto_tls_port }}
+cafile {{ mosquitto_tls_cafile }}
+certfile {{ mosquitto_tls_certfile }}
+keyfile {{ mosquitto_tls_keyfile }}
+require_certificate {{ 'true' if mosquitto_tls_require_certificate | bool else 'false' }}
+{% endif %}
+
+allow_anonymous {{ 'true' if mosquitto_allow_anonymous | bool else 'false' }}
+{% if mosquitto_users | length > 0 %}
+password_file {{ mosquitto_password_file }}
+{% endif %}
+{% if mosquitto_acl_entries | length > 0 %}
+acl_file {{ mosquitto_acl_file }}
+{% endif %}
+{% for name, value in mosquitto_extra_settings.items() %}
+{{ name }} {{ value }}
+{% endfor %}
