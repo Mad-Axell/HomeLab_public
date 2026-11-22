@@ -1,0 +1,149 @@
+---
+# n8n deployment configuration
+# Конфигурация развертывания n8n
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+n8n_debug_mode: false
+
+# String. Desired Docker Compose project state: present or absent.
+# Строка. Требуемое состояние проекта Docker Compose: present или absent.
+n8n_state: "present"
+
+# String. Docker Compose project directory holding compose.yml and the .env
+# file with the database credentials and the encryption key.
+# Строка. Каталог проекта Docker Compose с compose.yml и файлом .env,
+# содержащим учётные данные базы и ключ шифрования.
+n8n_project_directory: "/opt/n8n"
+
+# String. Host directory mounted into the container as /home/node/.n8n; the
+# workflows, the local encryption artifacts and the instance state live
+# there. Owned by uid/gid 1000, the node account the container runs as.
+# Строка. Каталог хоста, монтируемый в контейнер как /home/node/.n8n; там
+# живут workflows, локальные артефакты шифрования и состояние экземпляра.
+# Принадлежит uid/gid 1000 - учётной записи node, от имени которой работает
+# контейнер.
+n8n_data_dir: "/opt/n8n/data"
+
+# String. n8n image with a tag; "stable" tracks the current stable release,
+# pin "X.Y.Z" for a fixed version.
+# Строка. Образ n8n с тегом; "stable" следует за актуальным стабильным
+# выпуском, для фиксации версии укажите "X.Y.Z".
+n8n_image: "docker.n8n.io/n8nio/n8n:stable"
+
+# String. n8n container name.
+# Строка. Имя контейнера n8n.
+n8n_container_name: "n8n"
+
+# Integer. Host port publishing the n8n web interface.
+# Целое число. Порт хоста, публикующий веб-интерфейс n8n.
+n8n_web_port: 5678
+
+# String. IANA timezone used for workflow schedules (GENERIC_TIMEZONE and TZ).
+# Строка. Часовой пояс IANA для расписаний workflows (GENERIC_TIMEZONE и TZ).
+n8n_timezone: "Europe/Moscow"
+
+# Database (external PostgreSQL)
+# База данных (внешний PostgreSQL)
+
+# String or null. Hostname or address of the PostgreSQL server. Required; the
+# project server is the postgresql host at 172.25.40.151, supplied by the
+# playbook or host_vars.
+# Строка или null. Имя или адрес сервера PostgreSQL. Обязательно; проектный
+# сервер - хост postgresql на 172.25.40.151, адрес приходит из playbook или
+# host_vars.
+n8n_db_host: null
+
+# Integer. PostgreSQL port.
+# Целое число. Порт PostgreSQL.
+n8n_db_port: 5432
+
+# String. Database n8n owns; created by this role when n8n_manage_database is
+# true.
+# Строка. База, принадлежащая n8n; создаётся этой ролью, когда
+# n8n_manage_database равен true.
+n8n_db_name: "n8n"
+
+# String. Login n8n connects as.
+# Строка. Логин, под которым подключается n8n.
+n8n_db_user: "n8n"
+
+# String or null. Name of the variable holding the database password in
+# VARS/secrets.yml; required. The password is referenced by name so its value
+# stays out of host_vars and lands only in the .env file.
+# Строка или null. Имя переменной с паролем к базе из VARS/secrets.yml;
+# обязательно. Пароль указывается по имени, чтобы его значение не попадало в
+# host_vars и попадало только в файл .env.
+n8n_db_password_var: null
+
+# Boolean. Create the database and its role on the PostgreSQL server before
+# the first start; when false the role expects them pre-created.
+# Логическое значение. Создать базу и её роль на сервере PostgreSQL до первого
+# запуска; при false роль ожидает их уже созданными.
+n8n_manage_database: true
+
+# String. Privileged account used only to create the database and the role;
+# n8n itself connects as n8n_db_user.
+# Строка. Привилегированная учётная запись только для создания базы и роли;
+# сам n8n подключается как n8n_db_user.
+n8n_db_admin_user: "postgres"
+
+# String or null. Name of the variable holding the privileged password in
+# VARS/secrets.yml; required when n8n_manage_database is true.
+# Строка или null. Имя переменной с привилегированным паролем из
+# VARS/secrets.yml; обязательно, когда n8n_manage_database равен true.
+n8n_db_admin_password_var: null
+
+# List of strings. Internal: packages the community.postgresql modules need
+# on the target host; postgres is the only supported backend.
+# Список строк. Внутренний: пакеты, нужные модулям community.postgresql на
+# целевом хосте; postgres - единственный поддерживаемый бэкенд.
+n8n_database_packages:
+  - "python3-psycopg2"
+
+# Instance
+# Экземпляр
+
+# String or null. Name of the variable holding the encryption key in
+# VARS/secrets.yml; required. n8n encrypts stored credentials with
+# N8N_ENCRYPTION_KEY: without a pinned key a re-created data directory makes
+# all saved credentials unreadable.
+# Строка или null. Имя переменной с ключом шифрования из VARS/secrets.yml;
+# обязательно. n8n шифрует сохранённые учётные данные ключом
+# N8N_ENCRYPTION_KEY: без зафиксированного ключа пересозданный каталог данных
+# делает все сохранённые учётные данные нечитаемыми.
+n8n_encryption_key_var: null
+
+# String or null. Public hostname of this instance, for example
+# "n8n.dragons-nest.home.arpa"; rendered as N8N_HOST. When null the variable
+# is omitted and n8n uses its own default.
+# Строка или null. Публичное имя этого экземпляра, например
+# "n8n.dragons-nest.home.arpa"; пишется как N8N_HOST. При null переменная не
+# выставляется и n8n использует своё умолчание.
+n8n_hostname: null
+
+# String. Protocol the embedded server speaks on its listener. "http" because
+# Traefik terminates TLS and this port is reachable only inside SERVICES.
+# Строка. Протокол встроенного сервера на его слушателе. "http", потому что
+# TLS завершает Traefik, а порт доступен только внутри SERVICES.
+n8n_protocol: "http"
+
+# String or null. External URL n8n builds webhook and callback links with;
+# rendered as WEBHOOK_URL, for example
+# "https://n8n.dragons-nest.home.arpa/". Required behind a reverse proxy so
+# webhook nodes advertise reachable addresses. When null the variable is
+# omitted.
+# Строка или null. Внешний URL, из которого n8n строит webhook- и
+# callback-ссылки; пишется как WEBHOOK_URL, например
+# "https://n8n.dragons-nest.home.arpa/". Необходим за обратным прокси, чтобы
+# webhook-узлы объявляли достижимые адреса. При null переменная не
+# выставляется.
+n8n_webhook_url: null
+
+# Boolean. Set the Secure flag on session cookies. True because the instance
+# is meant to be reached through Traefik over HTTPS; set false only for
+# direct plain-HTTP access.
+# Логическое значение. Выставлять флаг Secure сессионным cookie. Здесь true,
+# потому что экземпляр предполагается за Traefik по HTTPS; false - только
+# для прямого доступа по чистому HTTP.
+n8n_secure_cookie: true
