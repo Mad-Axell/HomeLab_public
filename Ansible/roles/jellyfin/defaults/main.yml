@@ -1,0 +1,106 @@
+---
+# Jellyfin deployment configuration
+# Конфигурация развертывания Jellyfin
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+jellyfin_debug_mode: false
+
+# APT repository
+# APT-репозиторий
+
+# String. Official Jellyfin APT repository URL.
+# Строка. URL официального APT-репозитория Jellyfin.
+jellyfin_repository_url: "https://repo.jellyfin.org/debian"
+
+# String. URL of the armored Jellyfin repository signing key.
+# Строка. URL armored-ключа подписи репозитория Jellyfin.
+jellyfin_repository_key_url: "https://repo.jellyfin.org/debian/jellyfin_team.gpg.key"
+
+# String. Local path of the downloaded signing key. APT accepts an armored
+# keyring via signed-by only under the .asc extension, so no dearmor step is
+# needed.
+# Строка. Локальный путь загруженного ключа подписи. APT принимает
+# armored-keyring через signed-by только с расширением .asc, поэтому шаг
+# dearmor не требуется.
+jellyfin_repository_keyring: "/etc/apt/keyrings/jellyfin.asc"
+
+# String. APT sources filename under /etc/apt/sources.list.d.
+# Строка. Имя файла источника APT в /etc/apt/sources.list.d.
+jellyfin_repository_filename: "jellyfin"
+
+# String. Repository component.
+# Строка. Компонент репозитория.
+jellyfin_repository_component: "main"
+
+# String. APT architecture of Jellyfin packages.
+# Строка. APT-архитектура пакетов Jellyfin.
+jellyfin_apt_architecture: "amd64"
+
+# Packages
+# Пакеты
+
+# List of strings. Packages installed from the Jellyfin repository; the
+# jellyfin meta package pulls jellyfin-server, jellyfin-web and
+# jellyfin-ffmpeg.
+# Список строк. Пакеты, устанавливаемые из репозитория Jellyfin; метапакет
+# jellyfin подтягивает jellyfin-server, jellyfin-web и jellyfin-ffmpeg.
+jellyfin_packages:
+  - "jellyfin"
+
+# List of strings. VAAPI driver and diagnostic packages for hardware
+# transcoding. The target node uses the AMD iGPU of the Ryzen 7 8700G, whose
+# driver is mesa-va-drivers, not intel-media-va-driver; override this list on
+# Intel hardware.
+# Список строк. Пакеты драйверов VAAPI и диагностики для аппаратного
+# транскодирования. На целевом узле стоит AMD iGPU процессора Ryzen 7 8700G,
+# драйвером которого является mesa-va-drivers, а не intel-media-va-driver; на
+# Intel-железе список нужно переопределить.
+jellyfin_transcoding_packages:
+  - "libva2"
+  - "libva-drm2"
+  - "mesa-va-drivers"
+  - "vainfo"
+
+# Hardware access
+# Доступ к оборудованию
+
+# String. Service account created by the jellyfin package.
+# Строка. Сервисная учетная запись, создаваемая пакетом jellyfin.
+jellyfin_service_user: "jellyfin"
+
+# List of strings. Device groups the service account joins for /dev/dri
+# access; the groups themselves are created when missing so the role works
+# before the GPU nodes appear.
+# Список строк. Группы устройств, в которые входит сервисная учетная запись
+# для доступа к /dev/dri; отсутствующие группы создаются, чтобы роль
+# работала до появления узлов GPU.
+jellyfin_device_groups:
+  - "render"
+  - "video"
+
+# Media directories
+# Каталоги медиа
+
+# List of strings. Host directories created by the role and meant as mount
+# points for media bind-mounts provided by provisioning. Concrete paths are
+# private-repo values, so the list is empty here.
+# Список строк. Каталоги хоста, создаваемые ролью как точки монтирования для
+# bind-монтирований медиа, предоставляемых провижинингом. Конкретные пути -
+# значения приватного репозитория, поэтому список здесь пуст.
+jellyfin_media_dirs: []
+
+# Service
+# Сервис
+
+# String. systemd unit name of the Jellyfin server.
+# Строка. Имя systemd-юнита сервера Jellyfin.
+jellyfin_service_name: "jellyfin"
+
+# String. Desired stable service state: started or stopped.
+# Строка. Желаемое устойчивое состояние сервиса: started или stopped.
+jellyfin_service_state: "started"
+
+# Boolean. Enable the service at boot.
+# Логическое значение. Включает сервис при загрузке.
+jellyfin_service_enabled: true

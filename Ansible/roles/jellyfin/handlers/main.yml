@@ -1,0 +1,9 @@
+---
+# Restart the server when the service account's device groups changed, so it
+# picks up the new render access.
+# Перезапуск сервера при изменении групп устройств сервисной учетной записи,
+# чтобы подхватить новый доступ к рендерингу.
+- name: Restart Jellyfin server
+  ansible.builtin.systemd:
+    name: "{{ jellyfin_service_name }}"
+    state: restarted

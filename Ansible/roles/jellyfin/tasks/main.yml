@@ -1,0 +1,164 @@
+---
+# Validate the platform and the input structure before changing anything.
+# Проверка платформы и структуры входов до внесения изменений.
+- name: Validate Jellyfin deployment configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Debian"
+      - jellyfin_packages is sequence
+      - jellyfin_packages is not string
+      - jellyfin_packages | length > 0
+      - jellyfin_transcoding_packages is sequence
+      - jellyfin_transcoding_packages is not string
+      - jellyfin_device_groups is sequence
+      - jellyfin_device_groups is not string
+      - jellyfin_media_dirs is sequence
+      - jellyfin_media_dirs is not string
+      - jellyfin_service_state in ["started", "stopped"]
+    fail_msg: >-
+      jellyfin requires a Debian-family host and valid package, group and
+      media directory lists.
+    quiet: true
+
+# Ensure TLS verification works for downloading the signing key and that the
+# apt_repository module has python3-apt.
+# Обеспечение проверки TLS при загрузке ключа подписи и наличия python3-apt
+# для модуля apt_repository.
+- name: Install Jellyfin repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - "ca-certificates"
+      - "python3-apt"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: jellyfin_prerequisite_result
+
+# Create the keyring directory for the repository signing key.
+# Создание каталога keyring для ключа подписи репозитория.
+- name: Create APT keyring directory
+  ansible.builtin.file:
+    path: "{{ jellyfin_repository_keyring | dirname }}"
+    state: directory
+    mode: "0755"
+  register: jellyfin_keyring_directory_result
+
+# Download the armored Jellyfin signing key without apt-key, which is removed
+# from modern Debian.
+# Загрузка armored-ключа подписи Jellyfin без apt-key, удалённого из
+# современного Debian.
+- name: Download Jellyfin APT signing key
+  ansible.builtin.get_url:
+    url: "{{ jellyfin_repository_key_url }}"
+    dest: "{{ jellyfin_repository_keyring }}"
+    mode: "0644"
+  register: jellyfin_key_result
+
+# Register the official Jellyfin repository for the current Debian release;
+# the jellyfin package does not exist in Debian proper.
+# Регистрация официального репозитория Jellyfin для текущего релиза Debian:
+# пакета jellyfin в самом Debian нет.
+- name: Configure Jellyfin APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ jellyfin_apt_architecture }} signed-by={{ jellyfin_repository_keyring }}]
+      {{ jellyfin_repository_url }} {{ ansible_facts.distribution_release }} {{ jellyfin_repository_component }}
+    filename: "{{ jellyfin_repository_filename }}"
+    state: present
+  register: jellyfin_repository_result
+
+# Install Jellyfin and the VAAPI transcoding packages; the cache is always
+# refreshed because the repository may have just been added. In check mode a
+# repository that is only forecast cannot be indexed, so the task runs only
+# when the repository already exists.
+# Установка Jellyfin и пакетов транскодирования VAAPI; кэш обновляется
+# всегда, так как репозиторий мог быть только что добавлен. В check mode ещё
+# не созданный репозиторий не индексируется, поэтому задача выполняется
+# только когда репозиторий уже существует.
+- name: Install Jellyfin packages
+  ansible.builtin.apt:
+    name: "{{ jellyfin_packages + jellyfin_transcoding_packages }}"
+    state: present
+    update_cache: true
+  when: >-
+    not ansible_check_mode
+    or (jellyfin_repository_result is defined
+        and not (jellyfin_repository_result.changed | default(false) | bool))
+  register: jellyfin_package_result
+
+# Create the declared media mount points; the bind-mounts themselves are
+# provided by provisioning, so only the directories belong to this role.
+# Создание объявленных точек монтирования медиа; сами bind-монтирования
+# предоставляет провижининг, поэтому роли принадлежат только каталоги.
+- name: Create Jellyfin media directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ jellyfin_media_dirs }}"
+  register: jellyfin_media_dirs_result
+
+# Ensure the device groups exist; on a container without GPU nodes yet udev
+# may not have created render, and user cannot join a missing group.
+# Обеспечение существования групп устройств: в контейнере без узлов GPU udev
+# мог ещё не создать render, а пользователь не может вступить в отсутствующую
+# группу.
+- name: Create Jellyfin device groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ jellyfin_device_groups }}"
+  register: jellyfin_device_groups_result
+
+# Grant the service account access to the render device; a running server
+# picks up new supplementary groups only after a restart.
+# Предоставление сервисной учетной записи доступа к устройству рендеринга;
+# работающий сервер подхватывает новые дополнительные группы только после
+# перезапуска.
+- name: Add the Jellyfin user to device groups
+  ansible.builtin.user:
+    name: "{{ jellyfin_service_user }}"
+    groups: "{{ jellyfin_device_groups }}"
+    append: true
+  notify: Restart Jellyfin server
+  register: jellyfin_user_result
+
+# Keep the Jellyfin server in the requested stable state; the restart caused
+# by the group change runs through the handler at play end.
+# Удержание сервера Jellyfin в запрошенном устойчивом состоянии; перезапуск,
+# вызванный изменением групп, выполняется через handler в конце play.
+- name: Manage the Jellyfin service
+  ansible.builtin.systemd:
+    name: "{{ jellyfin_service_name }}"
+    state: "{{ jellyfin_service_state }}"
+    enabled: "{{ jellyfin_service_enabled }}"
+  register: jellyfin_service_result
+
+# Summarize user-visible changes.
+# Сводка видимых пользователю изменений.
+- name: Display Jellyfin change summary
+  ansible.builtin.debug:
+    msg: "Jellyfin media server {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}."
+  when:
+    - jellyfin_debug_mode | bool
+    - >-
+      (jellyfin_prerequisite_result is defined
+      and (jellyfin_prerequisite_result.changed | default(false) | bool))
+      or (jellyfin_keyring_directory_result is defined
+      and (jellyfin_keyring_directory_result.changed | default(false) | bool))
+      or (jellyfin_key_result is defined
+      and (jellyfin_key_result.changed | default(false) | bool))
+      or (jellyfin_repository_result is defined
+      and (jellyfin_repository_result.changed | default(false) | bool))
+      or (jellyfin_package_result is defined
+      and (jellyfin_package_result.changed | default(false) | bool))
+      or (jellyfin_media_dirs_result is defined
+      and (jellyfin_media_dirs_result.changed | default(false) | bool))
+      or (jellyfin_device_groups_result is defined
+      and (jellyfin_device_groups_result.changed | default(false) | bool))
+      or (jellyfin_user_result is defined
+      and (jellyfin_user_result.changed | default(false) | bool))
+      or (jellyfin_service_result is defined
+      and (jellyfin_service_result.changed | default(false) | bool))
+  tags:
+    - debug
