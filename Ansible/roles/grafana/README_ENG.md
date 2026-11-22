@@ -114,6 +114,7 @@ of this role.
 | `grafana_dashboards_provider_path` | string | no | `"/etc/grafana/provisioning/dashboards/dashboards.yaml"` | Path of the dashboards provider file. |
 | `grafana_dashboards_path` | string | no | `"/var/lib/grafana/dashboards"` | Directory scanned by the provider. |
 | `grafana_dashboards` | list | no | `[]` | Dashboard JSON files; relative names are resolved in the role's `files/` directory. |
+| `grafana_homepath` | string | no | `"/usr/share/grafana"` | Grafana installation home; the working directory the grafana-cli commands run in. |
 | `grafana_plugins_path` | string | no | `"/var/lib/grafana/plugins"` | Plugin directory; the role creates it before `grafana-cli plugins ls`, which fails without it. |
 | `grafana_plugins` | list | no | `["alexanderzobnin-zabbix-app"]` | Plugin IDs for `grafana-cli plugins install`. |
 | `grafana_service_name` | string | no | `"grafana-server"` | systemd unit name. |

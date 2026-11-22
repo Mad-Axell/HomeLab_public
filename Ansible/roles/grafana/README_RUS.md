@@ -111,6 +111,7 @@ domain/root_url, встроенный администратор, подключ
 | `grafana_dashboards_provider_path` | string | no | `"/etc/grafana/provisioning/dashboards/dashboards.yaml"` | Путь файла провайдера дашбордов. |
 | `grafana_dashboards_path` | string | no | `"/var/lib/grafana/dashboards"` | Каталог, сканируемый провайдером. |
 | `grafana_dashboards` | list | no | `[]` | JSON-файлы дашбордов; относительные имена ищутся в `files/` роли. |
+| `grafana_homepath` | string | no | `"/usr/share/grafana"` | Домашний каталог установки Grafana; рабочий каталог команд grafana-cli. |
 | `grafana_plugins_path` | string | no | `"/var/lib/grafana/plugins"` | Каталог плагинов; создаётся ролью до `grafana-cli plugins ls`, который без него падает. |
 | `grafana_plugins` | list | no | `["alexanderzobnin-zabbix-app"]` | ID плагинов для `grafana-cli plugins install`. |
 | `grafana_service_name` | string | no | `"grafana-server"` | Имя systemd-юнита. |

@@ -289,6 +289,7 @@
       - "/usr/sbin/grafana-cli"
       - "plugins"
       - "ls"
+    chdir: "{{ grafana_homepath }}"
   changed_when: false
   check_mode: false
   when: grafana_cli_stat.stat.exists
@@ -309,6 +310,7 @@
       - "plugins"
       - "install"
       - "{{ item }}"
+    chdir: "{{ grafana_homepath }}"
   loop: >-
     {{
       grafana_plugins | difference(

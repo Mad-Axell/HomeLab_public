@@ -187,6 +187,12 @@ grafana_dashboards: []
 # Plugins
 # Плагины
 
+# String. Grafana installation home; grafana-cli refuses to install plugins
+# unless it runs with this as the working directory or --homepath.
+# Строка. Домашний каталог установки Grafana; grafana-cli отказывается ставить
+# плагины без него как рабочего каталога или --homepath.
+grafana_homepath: "/usr/share/grafana"
+
 # String. Directory grafana-cli installs plugins into; the grafana package
 # does not ship it, so the role creates it before listing or installing.
 # Строка. Каталог, в который grafana-cli ставит плагины; пакет grafana его
