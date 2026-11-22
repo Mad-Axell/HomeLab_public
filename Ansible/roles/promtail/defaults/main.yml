@@ -1,0 +1,155 @@
+---
+# Promtail role configuration
+# Конфигурация роли Promtail
+
+# Boolean. Enable change notifications in debug output
+# Логическое значение. Включить уведомления об изменениях в debug-выводе
+promtail_debug_mode: false
+
+# Loki connection
+# Подключение к Loki
+
+# String or null. Required Loki push API endpoint, for example
+# http://loki.example.invalid:3100/loki/api/v1/push; the role fails before any
+# change when it is not set
+# Строка или null. Обязательный endpoint Loki push API, например
+# http://loki.example.invalid:3100/loki/api/v1/push; без него роль падает до
+# внесения изменений
+promtail_loki_url: null
+
+# Grafana APT repository
+# APT-репозиторий Grafana
+
+# String. Grafana APT repository URL; Debian ships no promtail package, so the
+# vendor repository is the installation source
+# Строка. URL APT-репозитория Grafana; пакета promtail в Debian нет, поэтому
+# репозиторий вендора является источником установки
+promtail_repository_url: "https://apt.grafana.com"
+
+# String. Suite of the Grafana APT repository; Grafana publishes a single
+# stable suite independent of the Debian release
+# Строка. Suite APT-репозитория Grafana; Grafana публикует единственный
+# stable suite, не зависящий от релиза Debian
+promtail_repository_suite: "stable"
+
+# String. Component of the Grafana APT repository
+# Строка. Компонент APT-репозитория Grafana
+promtail_repository_component: "main"
+
+# String. APT architecture pinned for the Grafana repository
+# Строка. APT-архитектура, закреплённая для репозитория Grafana
+promtail_repository_arch: "amd64"
+
+# String. URL of the ASCII-armored Grafana signing key
+# Строка. URL ASCII-armored ключа подписи Grafana
+promtail_repository_key_url: "https://apt.grafana.com/gpg-full.key"
+
+# String. Directory holding the repository signing key
+# Строка. Каталог с ключом подписи репозитория
+promtail_keyring_directory: "/etc/apt/keyrings"
+
+# String. Key file name; the .asc extension marks an ASCII-armored keyring
+# that apt accepts through signed-by
+# Строка. Имя файла ключа; расширение .asc обозначает ASCII-armored keyring,
+# который apt принимает через signed-by
+promtail_keyring_file: "grafana.asc"
+
+# Packages
+# Пакеты
+
+# List of strings. Packages needed before the signed repository can be used
+# Список строк. Пакеты, необходимые до подключения подписанного репозитория
+promtail_prerequisite_packages:
+  - "ca-certificates"
+  - "python3-apt"
+
+# List of strings. Packages installed from the Grafana repository
+# Список строк. Пакеты, устанавливаемые из репозитория Grafana
+promtail_packages:
+  - "promtail"
+
+# Agent listener
+# Прослушиватель агента
+
+# String. Address the Promtail metrics endpoint listens on
+# Строка. Адрес, на котором слушает endpoint метрик Promtail
+promtail_http_listen_address: "0.0.0.0"
+
+# Integer. Port the Promtail metrics endpoint listens on
+# Целое число. Порт, на котором слушает endpoint метрик Promtail
+promtail_http_listen_port: 9080
+
+# String. Address the Promtail gRPC interface listens on
+# Строка. Адрес, на котором слушает gRPC-интерфейс Promtail
+promtail_grpc_listen_address: "0.0.0.0"
+
+# Integer. Port the Promtail gRPC interface listens on; zero disables it
+# Целое число. Порт, на котором слушает gRPC-интерфейс Promtail; ноль отключает его
+promtail_grpc_listen_port: 0
+
+# Log sources
+# Источники логов
+
+# String. Positions file recording how far every log source was read
+# Строка. Файл позиций, фиксирующий, докуда прочитан каждый источник логов
+promtail_positions_file: "/var/lib/promtail/positions.yaml"
+
+# String. Directory the journald files are read from; Debian keeps a persistent
+# journal, and the role creates the directory when it is missing
+# Строка. Каталог, из которого читаются файлы journald; Debian ведёт постоянный
+# журнал, а при отсутствии каталога роль его создаёт
+promtail_journal_path: "/var/log/journal"
+
+# String. How far back the journal is read when no position is recorded yet
+# Строка. Глубина чтения журнала назад, когда позиция ещё не записана
+promtail_journal_max_age: "12h"
+
+# String. Glob matched by the static varlogs job
+# Строка. Маска файлов, обрабатываемая статическим заданием varlogs
+promtail_varlog_path: "/var/log/*.log"
+
+# String. Value of the instance label attached to every scraped stream
+# Строка. Значение метки instance, присваиваемой каждому собираемому потоку
+promtail_instance_label: "{{ ansible_facts.nodename }}"
+
+# List of dicts. Extra entries appended verbatim to scrape_configs, for
+# host-specific log files outside the varlogs glob
+# Список словарей. Дополнительные записи, добавляемые как есть в
+# scrape_configs, для специфичных файлов хоста вне маски varlogs
+promtail_extra_scrape_configs: []
+
+# Permissions
+# Права доступа
+
+# String. Service account created by the promtail package
+# Строка. Сервисная учётная запись, создаваемая пакетом promtail
+promtail_service_user: "promtail"
+
+# List of strings. Supplementary groups the service account needs: adm reads
+# the files under /var/log and systemd-journal reads the journald files
+# Список строк. Дополнительные группы сервисной учётной записи: adm читает
+# файлы в /var/log, а systemd-journal — файлы journald
+promtail_user_groups:
+  - "adm"
+  - "systemd-journal"
+
+# Files and service
+# Файлы и сервис
+
+# String. Managed configuration file path; the packaged unit passes it to
+# -config.file
+# Строка. Путь управляемого файла конфигурации; пакетный юнит передаёт его в
+# -config.file
+promtail_config_path: "/etc/promtail/config.yml"
+
+# String. Promtail systemd service name
+# Строка. Имя systemd-сервиса Promtail
+promtail_service_name: "promtail"
+
+# String. Steady state of the Promtail service: started or stopped
+# Строка. Устойчивое состояние сервиса Promtail: started или stopped
+promtail_service_state: "started"
+
+# Boolean. Start the Promtail service on boot
+# Логическое значение. Запускать сервис Promtail при загрузке
+promtail_service_enabled: true

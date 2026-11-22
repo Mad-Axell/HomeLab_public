@@ -1,0 +1,9 @@
+---
+# Restart the service so it picks up a changed configuration or group
+# membership
+# Перезапуск сервиса, чтобы он подхватил изменённую конфигурацию или членство
+# в группах
+- name: Restart Promtail
+  ansible.builtin.systemd_service:
+    name: "{{ promtail_service_name }}"
+    state: restarted

@@ -1,0 +1,36 @@
+# Managed by Ansible; local changes are overwritten on the next run.
+server:
+  http_listen_address: {{ promtail_http_listen_address }}
+  http_listen_port: {{ promtail_http_listen_port }}
+  grpc_listen_address: {{ promtail_grpc_listen_address }}
+  grpc_listen_port: {{ promtail_grpc_listen_port }}
+
+positions:
+  filename: {{ promtail_positions_file }}
+
+clients:
+  - url: {{ promtail_loki_url }}
+
+scrape_configs:
+  - job_name: journal
+    journal:
+      path: {{ promtail_journal_path }}
+      max_age: {{ promtail_journal_max_age }}
+      labels:
+        job: systemd-journal
+        instance: {{ promtail_instance_label }}
+    relabel_configs:
+      - source_labels:
+          - __journal__systemd_unit
+        target_label: unit
+  - job_name: varlogs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          instance: {{ promtail_instance_label }}
+          __path__: {{ promtail_varlog_path }}
+{% if promtail_extra_scrape_configs | length > 0 %}
+{{ promtail_extra_scrape_configs | to_nice_yaml(indent=2) | indent(2, true) }}
+{% endif %}
