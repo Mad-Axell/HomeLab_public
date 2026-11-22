@@ -68,6 +68,24 @@
     enabled: "{{ docker_service_enabled }}"
   register: docker_service_result
 
+# Daemon options belong in daemon.json so the packaged unit stays untouched.
+# The handler restart is flushed below, before any later role starts creating
+# containers - log-driver is picked at container creation, not at daemon start.
+# Опции демона складываются в daemon.json, чтобы пакетный unit оставался нетронутым.
+# Перезапуск через handler сбрасывается ниже, до того как последующие роли начнут
+# создавать контейнеры, - log-driver выбирается при создании контейнера, а не при
+# старте демона.
+- name: Configure the Docker daemon
+  ansible.builtin.template:
+    src: "daemon.json.j2"
+    dest: "/etc/docker/daemon.json"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Restart Docker daemon
+  register: docker_daemon_result
+  when: docker_daemon_options | length > 0
+
 # Add declared existing users to the Docker group.
 # Добавление объявленных существующих пользователей в группу Docker.
 - name: Add users to Docker group
@@ -77,6 +95,13 @@
     append: true
   loop: "{{ docker_users }}"
   register: docker_user_result
+
+# Apply the daemon restart now: roles later in this play already build their
+# containers, and the log driver is fixed at container creation time.
+# Применение перезапуска демона сейчас: следующие роли в этом play уже собирают
+# свои контейнеры, а драйвер логирования фиксируется при создании контейнера.
+- name: Apply pending Docker daemon restarts
+  ansible.builtin.meta: flush_handlers
 
 # Report Docker installation changes without printing module results.
 # Вывод изменений установки Docker без печати результатов модулей.
@@ -92,6 +117,7 @@
       or (docker_repository_result.changed | default(false) | bool)
       or (docker_package_result.changed | default(false) | bool)
       or (docker_service_result.changed | default(false) | bool)
+      or (docker_daemon_result.changed | default(false) | bool)
       or (docker_user_result.changed | default(false) | bool)
   tags:
     - debug

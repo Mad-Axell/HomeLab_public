@@ -1,0 +1,9 @@
+---
+# Restart the daemon so daemon.json changes take effect; containers restart
+# with their configured restart policies.
+# Перезапуск демона для применения изменений daemon.json; контейнеры поднимаются
+# по своим политикам перезапуска.
+- name: Restart Docker daemon
+  ansible.builtin.systemd:
+    name: "{{ docker_service_name }}"
+    state: restarted

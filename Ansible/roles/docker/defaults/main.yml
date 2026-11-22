@@ -42,3 +42,15 @@ docker_service_enabled: true
 # List. Existing users added to the docker group.
 # Список. Существующие пользователи, добавляемые в группу docker.
 docker_users: []
+
+# Dict. Docker daemon options rendered verbatim into /etc/docker/daemon.json.
+# An empty dict leaves the daemon file unmanaged. Changing this file restarts
+# the daemon through a handler, which briefly stops every container; the role
+# flushes handlers at the end so later roles in the play already see the new
+# daemon configuration.
+# Словарь. Опции демона Docker, выводимые дословно в /etc/docker/daemon.json.
+# Пустой словарь оставляет файл демона без управления. Изменение файла
+# перезапускает демона через handler, что кратковременно останавливает все
+# контейнеры; роль сбрасывает handlers в конце, чтобы следующие за ней роли в
+# том же play уже видели новую конфигурацию демона.
+docker_daemon_options: {}

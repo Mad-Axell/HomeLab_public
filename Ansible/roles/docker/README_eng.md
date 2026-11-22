@@ -33,6 +33,7 @@ This role configures the official Docker APT repository and installs Docker Engi
 | `docker_service_state` | string | no | `"started"` | Stable service state. |
 | `docker_service_enabled` | boolean | no | `true` | Enables service at boot. |
 | `docker_users` | list | no | `[]` | Existing users to add to `docker`. |
+| `docker_daemon_options` | dict | no | `{}` | Options rendered verbatim into `/etc/docker/daemon.json`; empty leaves the file unmanaged. Changes restart the daemon via handler (containers briefly stop); the role flushes handlers at the end so later roles in the play already get the new daemon configuration. |
 
 ## Usage
 
