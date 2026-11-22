@@ -1,0 +1,31 @@
+---
+# Uptime Kuma deployment configuration
+# Конфигурация развертывания Uptime Kuma
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+uptime_debug_mode: false
+
+# String. Desired Docker Compose project state: present or absent.
+# Строка. Требуемое состояние проекта Docker Compose: present или absent.
+uptime_state: "present"
+
+# String. Docker Compose project directory.
+# Строка. Каталог проекта Docker Compose.
+uptime_project_directory: "/opt/uptime-kuma"
+
+# String. Host directory mounted into the container as /data.
+# Строка. Каталог хоста, монтируемый в контейнер как /data.
+uptime_kuma_data_dir: "/opt/uptime-kuma/data"
+
+# String. Uptime Kuma container image with pinned tag.
+# Строка. Образ контейнера Uptime Kuma с зафиксированным тегом.
+uptime_kuma_image: "louislam/uptime-kuma:1"
+
+# String. Uptime Kuma container name.
+# Строка. Имя контейнера Uptime Kuma.
+uptime_container_name: "uptime-kuma"
+
+# Integer. Host port publishing the Uptime Kuma web interface.
+# Целое число. Порт хоста, публикующий веб-интерфейс Uptime Kuma.
+uptime_port: 3001

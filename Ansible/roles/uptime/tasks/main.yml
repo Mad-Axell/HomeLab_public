@@ -1,0 +1,48 @@
+---
+# Create the Compose project directory and the persistent data directory.
+# Создание каталога проекта Compose и каталога постоянных данных.
+- name: Create Uptime Kuma directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ uptime_project_directory }}"
+    - "{{ uptime_kuma_data_dir }}"
+  register: uptime_directory_result
+
+# Deploy the Compose definition for the managed Uptime Kuma container.
+# Развертывание определения Compose для управляемого контейнера Uptime Kuma.
+- name: Configure Uptime Kuma Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_Uptime_Kuma.j2"
+    dest: "{{ uptime_project_directory }}/compose.yml"
+    mode: "0644"
+  register: uptime_compose_result
+
+# Start or update Uptime Kuma through the Docker Compose v2 module.
+# Запуск или обновление Uptime Kuma через модуль Docker Compose v2.
+- name: Deploy Uptime Kuma container
+  community.docker.docker_compose_v2:
+    project_src: "{{ uptime_project_directory }}"
+    files:
+      - "compose.yml"
+    state: "{{ uptime_state }}"
+  register: uptime_deployment_result
+
+# Report the deployment result without querying the web interface.
+# Вывод результата развертывания без опроса веб-интерфейса.
+- name: Display Uptime Kuma change summary
+  ansible.builtin.debug:
+    msg: "Uptime Kuma deployment {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - uptime_debug_mode | bool
+    - >-
+      (uptime_directory_result is defined
+      and (uptime_directory_result.changed | default(false) | bool))
+      or (uptime_compose_result is defined
+      and (uptime_compose_result.changed | default(false) | bool))
+      or (uptime_deployment_result is defined
+      and (uptime_deployment_result.changed | default(false) | bool))
+  tags:
+    - debug
