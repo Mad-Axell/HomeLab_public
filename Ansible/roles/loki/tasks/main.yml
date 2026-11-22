@@ -1,0 +1,132 @@
+---
+# Validate the platform before changing anything
+# Проверка платформы до внесения изменений
+- name: Assert the platform is Debian
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+    fail_msg: "loki supports Debian-family systems only."
+    quiet: true
+
+# Install the tools needed to fetch and use the signed repository
+# Установка инструментов, необходимых для получения и использования подписанного репозитория
+- name: Install the repository prerequisites
+  ansible.builtin.apt:
+    name: "{{ loki_prerequisite_packages }}"
+    state: present
+    update_cache: true
+  register: loki_prerequisite_result
+
+# Create the directory that holds the repository signing key
+# Создание каталога, хранящего ключ подписи репозитория
+- name: Create the APT keyring directory
+  ansible.builtin.file:
+    path: "{{ loki_keyring_directory }}"
+    state: directory
+    mode: "0755"
+  register: loki_keyring_directory_result
+
+# Download the Grafana signing key without using the deprecated apt-key
+# Загрузка ключа подписи Grafana без использования устаревшего apt-key
+- name: Download the Grafana APT signing key
+  ansible.builtin.get_url:
+    url: "{{ loki_repository_key_url }}"
+    dest: "{{ loki_keyring_directory }}/{{ loki_keyring_file }}"
+    mode: "0644"
+  register: loki_key_result
+
+# Register the Grafana repository that ships the loki package
+# Регистрация репозитория Grafana, который поставляет пакет loki
+- name: Configure the Grafana APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ loki_repository_arch }}
+      signed-by={{ loki_keyring_directory }}/{{ loki_keyring_file }}]
+      {{ loki_repository_url }} {{ loki_repository_suite }} {{ loki_repository_component }}
+    filename: "grafana"
+    state: present
+  register: loki_repository_result
+
+# Install the Loki package and its packaged service unit
+# Установка пакета Loki и поставляемого им сервисного юнита
+- name: Install the Loki package
+  ansible.builtin.apt:
+    name: "{{ loki_packages }}"
+    state: present
+    update_cache: true
+  register: loki_package_result
+
+# The packaged config keeps its state under /tmp/loki; the managed
+# configuration points at a persistent directory owned by the packaged loki
+# user instead
+# Поставляемая конфигурация хранит состояние в /tmp/loki; управляемая
+# конфигурация указывает на постоянный каталог, принадлежащий созданному
+# пакетом пользователю loki
+- name: Create the Loki data directory
+  ansible.builtin.file:
+    path: "{{ loki_data_dir }}"
+    state: directory
+    owner: "loki"
+    mode: "0750"
+  register: loki_data_dir_result
+
+# Replace the shipped example config; the freshly installed binary checks the
+# rendered file before it is put in place
+# Замена поставляемой примерной конфигурации; свежеустановленный бинарь
+# проверяет отрендеренный файл до его размещения
+- name: Configure Loki
+  ansible.builtin.template:
+    src: "config.yml.j2"
+    dest: "{{ loki_config_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    validate: "/usr/bin/loki -config.file %s -verify-config"
+  notify: Restart Loki
+  register: loki_config_result
+
+# Keep the Loki service in its steady state
+# Поддержание устойчивого состояния сервиса Loki
+- name: Manage the Loki service
+  ansible.builtin.systemd_service:
+    name: "{{ loki_service_name }}"
+    state: "{{ loki_service_state }}"
+    enabled: "{{ loki_service_enabled }}"
+  register: loki_service_result
+
+# Apply the pending restart so Loki immediately runs on the managed
+# configuration
+# Применение ожидающего перезапуска, чтобы Loki сразу работал на управляемой
+# конфигурации
+- name: Apply pending Loki restarts
+  ansible.builtin.meta: flush_handlers
+
+# Report the outcome without repeating the package manager output
+# Вывод итога без повторения вывода пакетного менеджера
+- name: Display the Loki change summary
+  ansible.builtin.debug:
+    msg: >-
+      Loki {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}:
+      HTTP {{ loki_http_listen_address }}:{{ loki_http_listen_port }},
+      storage {{ loki_data_dir }}, retention {{ loki_retention_period }}.
+  when:
+    - loki_debug_mode | bool
+    - >-
+      (loki_prerequisite_result is defined
+      and (loki_prerequisite_result.changed | default(false) | bool))
+      or (loki_keyring_directory_result is defined
+      and (loki_keyring_directory_result.changed | default(false) | bool))
+      or (loki_key_result is defined
+      and (loki_key_result.changed | default(false) | bool))
+      or (loki_repository_result is defined
+      and (loki_repository_result.changed | default(false) | bool))
+      or (loki_package_result is defined
+      and (loki_package_result.changed | default(false) | bool))
+      or (loki_data_dir_result is defined
+      and (loki_data_dir_result.changed | default(false) | bool))
+      or (loki_config_result is defined
+      and (loki_config_result.changed | default(false) | bool))
+      or (loki_service_result is defined
+      and (loki_service_result.changed | default(false) | bool))
+  tags:
+    - debug

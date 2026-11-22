@@ -1,0 +1,7 @@
+---
+# Restart the service so it picks up a changed configuration
+# Перезапуск сервиса, чтобы он подхватил изменённую конфигурацию
+- name: Restart Loki
+  ansible.builtin.systemd_service:
+    name: "{{ loki_service_name }}"
+    state: restarted

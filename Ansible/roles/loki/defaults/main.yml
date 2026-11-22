@@ -1,0 +1,121 @@
+---
+# Grafana Loki role configuration
+# Конфигурация роли Grafana Loki
+
+# Boolean. Enable change notifications in debug output
+# Логическое значение. Включить уведомления об изменениях в debug-выводе
+loki_debug_mode: false
+
+# Grafana APT repository
+# APT-репозиторий Grafana
+
+# String. Grafana APT repository URL; Debian ships no loki package, so the
+# vendor repository is the installation source
+# Строка. URL APT-репозитория Grafana; пакета loki в Debian нет, поэтому
+# репозиторий вендора является источником установки
+loki_repository_url: "https://apt.grafana.com"
+
+# String. Suite of the Grafana APT repository; Grafana publishes a single
+# stable suite independent of the Debian release
+# Строка. Suite APT-репозитория Grafana; Grafana публикует единственный
+# stable suite, не зависящий от релиза Debian
+loki_repository_suite: "stable"
+
+# String. Component of the Grafana APT repository
+# Строка. Компонент APT-репозитория Grafana
+loki_repository_component: "main"
+
+# String. APT architecture pinned for the Grafana repository
+# Строка. APT-архитектура, закреплённая для репозитория Grafana
+loki_repository_arch: "amd64"
+
+# String. URL of the ASCII-armored Grafana signing key
+# Строка. URL ASCII-armored ключа подписи Grafana
+loki_repository_key_url: "https://apt.grafana.com/gpg-full.key"
+
+# String. Directory holding the repository signing key
+# Строка. Каталог с ключом подписи репозитория
+loki_keyring_directory: "/etc/apt/keyrings"
+
+# String. Key file name; the .asc extension marks an ASCII-armored keyring
+# that apt accepts through signed-by
+# Строка. Имя файла ключа; расширение .asc обозначает ASCII-armored keyring,
+# который apt принимает через signed-by
+loki_keyring_file: "grafana.asc"
+
+# Packages
+# Пакеты
+
+# List of strings. Packages needed before the signed repository can be used
+# Список строк. Пакеты, необходимые до подключения подписанного репозитория
+loki_prerequisite_packages:
+  - "ca-certificates"
+  - "python3-apt"
+
+# List of strings. Packages installed from the Grafana repository
+# Список строк. Пакеты, устанавливаемые из репозитория Grafana
+loki_packages:
+  - "loki"
+
+# Loki server
+# Сервер Loki
+
+# Boolean. Tenant authentication; disabled on the trusted single node of this
+# homelab
+# Логическое значение. Аутентификация арендаторов; выключена на доверенном
+# одиночном узле этого homelab
+loki_auth_enabled: false
+
+# String. Address the Loki HTTP API listens on
+# Строка. Адрес, на котором слушает HTTP API Loki
+loki_http_listen_address: "0.0.0.0"
+
+# Integer. Port the Loki HTTP API listens on
+# Целое число. Порт, на котором слушает HTTP API Loki
+loki_http_listen_port: 3100
+
+# String. Address the Loki gRPC interface listens on
+# Строка. Адрес, на котором слушает gRPC-интерфейс Loki
+loki_grpc_listen_address: "0.0.0.0"
+
+# Integer. Port the Loki gRPC interface listens on
+# Целое число. Порт, на котором слушает gRPC-интерфейс Loki
+loki_grpc_listen_port: 9095
+
+# String. Loki server log level
+# Строка. Уровень логирования сервера Loki
+loki_log_level: "info"
+
+# Storage and retention
+# Хранилище и срок хранения
+
+# String. Persistent directory for chunks, the index, rules and compactor
+# state; the packaged example config keeps everything under /tmp/loki instead
+# Строка. Постоянный каталог чанков, индекса, правил и состояния компактора;
+# поставляемая пакетом примерная конфигурация держит всё в /tmp/loki
+loki_data_dir: "/var/lib/loki"
+
+# String. How long logs are kept; the compactor drops chunks older than this
+# Строка. Срок хранения логов; компактор удаляет чанки старше этого срока
+loki_retention_period: "744h"
+
+# String. Managed configuration file path; the packaged unit passes it to
+# -config.file
+# Строка. Путь управляемого файла конфигурации; пакетный юнит передаёт его в
+# -config.file
+loki_config_path: "/etc/loki/config.yml"
+
+# Service
+# Сервис
+
+# String. Loki systemd service name
+# Строка. Имя systemd-сервиса Loki
+loki_service_name: "loki"
+
+# String. Steady state of the Loki service: started or stopped
+# Строка. Устойчивое состояние сервиса Loki: started или stopped
+loki_service_state: "started"
+
+# Boolean. Start the Loki service on boot
+# Логическое значение. Запускать сервис Loki при загрузке
+loki_service_enabled: true

@@ -1,0 +1,46 @@
+# Managed by Ansible; local changes are overwritten on the next run.
+auth_enabled: {{ loki_auth_enabled | bool | lower }}
+
+server:
+  http_listen_address: {{ loki_http_listen_address }}
+  http_listen_port: {{ loki_http_listen_port }}
+  grpc_listen_address: {{ loki_grpc_listen_address }}
+  grpc_listen_port: {{ loki_grpc_listen_port }}
+  log_level: {{ loki_log_level }}
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: {{ loki_data_dir }}
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    filesystem:
+      chunks_directory: {{ loki_data_dir }}/chunks
+      rules_directory: {{ loki_data_dir }}/rules
+
+schema_config:
+  configs:
+    - from: "2020-10-24"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: {{ loki_retention_period }}
+  deletion_mode: filter-and-delete
+
+compactor:
+  working_directory: {{ loki_data_dir }}/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false
