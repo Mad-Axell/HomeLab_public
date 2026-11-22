@@ -187,6 +187,12 @@ grafana_dashboards: []
 # Plugins
 # Плагины
 
+# String. Directory grafana-cli installs plugins into; the grafana package
+# does not ship it, so the role creates it before listing or installing.
+# Строка. Каталог, в который grafana-cli ставит плагины; пакет grafana его
+# не поставляет, поэтому роль создаёт его до вывода списка или установки.
+grafana_plugins_path: "/var/lib/grafana/plugins"
+
 # List of strings. Plugin IDs installed via grafana-cli; only plugins missing
 # from "grafana-cli plugins ls" are installed.
 # Список строк. ID плагинов, устанавливаемых через grafana-cli; ставятся

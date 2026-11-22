@@ -255,6 +255,19 @@
   loop: "{{ grafana_dashboards }}"
   register: grafana_dashboards_result
 
+# Create the plugins directory; the grafana package does not ship it and
+# "grafana-cli plugins ls" fails without it, even to report an empty list.
+# Создание каталога плагинов; пакет grafana его не поставляет, и
+# "grafana-cli plugins ls" падает без него даже при пустом списке.
+- name: Create the plugins directory
+  ansible.builtin.file:
+    path: "{{ grafana_plugins_path }}"
+    state: directory
+    owner: "root"
+    group: "grafana"
+    mode: "0755"
+  register: grafana_plugins_dir_result
+
 # Locate the grafana-cli binary; on a forecast-only run it may not exist yet,
 # and the plugin listing below cannot run without it.
 # Поиск бинарника grafana-cli; при прогнозном прогоне его может ещё не быть,
@@ -347,6 +360,7 @@
       or (grafana_provider_result is defined and (grafana_provider_result.changed | default(false) | bool))
       or (grafana_dashboards_dir_result is defined and (grafana_dashboards_dir_result.changed | default(false) | bool))
       or (grafana_dashboards_result is defined and (grafana_dashboards_result.changed | default(false) | bool))
+      or (grafana_plugins_dir_result is defined and (grafana_plugins_dir_result.changed | default(false) | bool))
       or (grafana_plugins_install_result is defined and (grafana_plugins_install_result.changed | default(false) | bool))
       or (grafana_service_result is defined and (grafana_service_result.changed | default(false) | bool))
   tags:
