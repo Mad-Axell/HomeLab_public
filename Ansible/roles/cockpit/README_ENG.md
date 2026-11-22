@@ -60,7 +60,7 @@ Without extra 45Drives modules:
 
 ## Check mode and diff mode
 
-Package installation, `get_url`, `deb822_repository`, and socket management support `--check`; no meaningful content diff is available. The role does not make HTTP health requests or open a firewall port.
+Package installation, `get_url`, `deb822_repository`, and socket management support `--check`; no meaningful content diff is available. On a first `--check` run the `cockpit_45drives_packages` installation is skipped because a forecast repository cannot be indexed; once the repository exists, module packages are checked normally. The role does not make HTTP health requests or open a firewall port.
 
 ## Dependencies
 

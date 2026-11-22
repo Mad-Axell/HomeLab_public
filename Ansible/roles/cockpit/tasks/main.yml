@@ -65,7 +65,11 @@
   when: cockpit_45drives_packages | length > 0
 
 # Install extra Cockpit module packages from the 45Drives repository.
+# In check mode a repository that is only forecast cannot be indexed, so the
+# task runs only when the repository already exists.
 # Установка дополнительных пакетов модулей Cockpit из репозитория 45Drives.
+# В check mode ещё не созданный репозиторий не индексируется, поэтому задача
+# выполняется только когда репозиторий уже существует.
 - name: Install extra Cockpit module packages
   ansible.builtin.apt:
     name: "{{ cockpit_45drives_packages }}"
@@ -73,7 +77,11 @@
     update_cache: true
     cache_valid_time: "{{ cockpit_cache_valid_time }}"
   register: cockpit_45drives_package_result
-  when: cockpit_45drives_packages | length > 0
+  when:
+    - cockpit_45drives_packages | length > 0
+    - >-
+      not ansible_check_mode
+      or not (cockpit_45drives_repo_result.changed | default(false) | bool)
 
 # Report managed-state changes without making an HTTP request from the controller.
 # Вывод изменений управляемого состояния без HTTP-запроса с контроллера.
