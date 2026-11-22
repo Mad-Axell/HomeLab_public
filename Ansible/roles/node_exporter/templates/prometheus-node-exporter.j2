@@ -1,0 +1,7 @@
+{{ ansible_managed | comment }}
+# Owned by the node_exporter Ansible role. The packaged unit expands $ARGS into
+# ExecStart, so the daemon's flags live here and nowhere else.
+#
+# Принадлежит роли Ansible node_exporter. Поставляемый unit подставляет $ARGS в
+# ExecStart, поэтому флаги демона живут здесь и больше нигде.
+ARGS="--web.listen-address={{ node_exporter_listen_address }}:{{ node_exporter_listen_port }}{% for arg in node_exporter_extra_args %} {{ arg }}{% endfor %}"

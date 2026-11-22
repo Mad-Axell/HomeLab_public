@@ -1,0 +1,61 @@
+---
+# node_exporter configuration
+# Конфигурация node_exporter
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+node_exporter_debug_mode: false
+
+# Packages
+# Пакеты
+
+# List of strings. The exporter comes from Debian itself, so no vendor
+# repository is needed.
+# Список строк. Экспортер берётся из самого Debian, поэтому репозиторий вендора
+# не нужен.
+node_exporter_packages:
+  - "prometheus-node-exporter"
+
+# Daemon arguments
+# Аргументы демона
+
+# String. Environment file the packaged unit expands into ExecStart through
+# $ARGS - the only supported way to pass flags to the daemon, and this role owns
+# the file as a whole.
+# Строка. Environment-файл, который поставляемый unit подставляет в ExecStart
+# через $ARGS, - единственный поддерживаемый способ передать флаги демону, и
+# роль владеет файлом целиком.
+node_exporter_defaults_path: "/etc/default/prometheus-node-exporter"
+
+# String. Address the /metrics endpoint binds to. "0.0.0.0" listens on every
+# IPv4 interface, which is what the scraping Prometheus server needs.
+# Строка. Адрес, на котором слушает endpoint /metrics. "0.0.0.0" слушает на всех
+# IPv4-интерфейсах - именно это нужно опрашивающему серверу Prometheus.
+node_exporter_listen_address: "0.0.0.0"
+
+# Integer. TCP port of the /metrics endpoint.
+# Целое число. TCP-порт endpoint'а /metrics.
+node_exporter_listen_port: 9100
+
+# List of strings. Extra flags appended to ARGS, for example
+# "--collector.systemd" or "--collector.textfile.directory=/path".
+# Список строк. Дополнительные флаги, дописываемые в ARGS, например
+# "--collector.systemd" или "--collector.textfile.directory=/path".
+node_exporter_extra_args: []
+
+# Service
+# Сервис
+
+# String. Name of the systemd service.
+# Строка. Имя systemd-сервиса.
+node_exporter_service_name: "prometheus-node-exporter"
+
+# String. Steady state of the service: started or stopped. Argument changes are
+# applied by the restart handler, never by a restarted state here.
+# Строка. Устойчивое состояние сервиса: started или stopped. Изменения аргументов
+# применяет handler перезапуска, а не состояние restarted.
+node_exporter_service_state: "started"
+
+# Boolean. Start the service at boot.
+# Логическое значение. Запускать сервис при загрузке.
+node_exporter_service_enabled: true

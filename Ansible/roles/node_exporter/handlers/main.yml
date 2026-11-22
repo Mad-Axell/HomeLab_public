@@ -1,0 +1,10 @@
+---
+# ARGS is read at process start only, so a flag change needs a restart: the
+# exporter re-reads nothing at run time.
+# ARGS читается только при старте процесса, поэтому смена флагов требует
+# перезапуска: экспортер ничего не перечитывает на лету.
+- name: Restart node exporter
+  ansible.builtin.systemd:
+    name: "{{ node_exporter_service_name }}"
+    state: restarted
+  when: node_exporter_service_state == 'started'

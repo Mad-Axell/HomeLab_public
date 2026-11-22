@@ -1,0 +1,67 @@
+---
+# Validate the input before touching the host.
+# Проверка ввода до изменения хоста.
+- name: Validate node_exporter configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - node_exporter_listen_address is string
+      - node_exporter_listen_address | length > 0
+      - node_exporter_listen_port | int > 0
+      - node_exporter_extra_args is sequence
+    fail_msg: >-
+      node_exporter requires Debian, a listen address and a positive listen
+      port.
+    quiet: true
+
+# The exporter comes from Debian itself: the package ships the systemd unit and
+# the environment file the unit expands into ExecStart through $ARGS.
+# Экспортер берётся из самого Debian: пакет поставляет unit systemd и
+# environment-файл, который unit подставляет в ExecStart через $ARGS.
+- name: Install node_exporter
+  ansible.builtin.apt:
+    name: "{{ node_exporter_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: node_exporter_package_result
+
+# The packaged unit expands $ARGS from this environment file, so the flags live
+# here rather than in a unit override a package update could shadow.
+# Поставляемый unit подставляет $ARGS из этого environment-файла, поэтому флаги
+# живут здесь, а не в override unit'а, который обновление пакета могло бы
+# перекрыть.
+- name: Configure node_exporter arguments
+  ansible.builtin.template:
+    src: "prometheus-node-exporter.j2"
+    dest: "{{ node_exporter_defaults_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Restart node exporter
+  register: node_exporter_config_result
+
+# Manage the desired service state.
+# Управление требуемым состоянием сервиса.
+- name: Manage the node_exporter service
+  ansible.builtin.systemd:
+    name: "{{ node_exporter_service_name }}"
+    state: "{{ node_exporter_service_state }}"
+    enabled: "{{ node_exporter_service_enabled }}"
+  register: node_exporter_service_result
+
+# Display a summary of the change.
+# Отображение сводки об изменении.
+- name: Display node_exporter change summary
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }} node_exporter on
+      {{ node_exporter_listen_address }}:{{ node_exporter_listen_port }}.
+  when:
+    - node_exporter_debug_mode | bool
+    - >-
+      (node_exporter_package_result.changed | default(false) | bool)
+      or (node_exporter_config_result.changed | default(false) | bool)
+      or (node_exporter_service_result.changed | default(false) | bool)
+  tags:
+    - debug
