@@ -1,0 +1,18 @@
+services:
+  cadvisor:
+    image: {{ cadvisor_image }}
+    container_name: {{ cadvisor_container_name }}
+    restart: unless-stopped
+    privileged: {{ cadvisor_privileged | bool }}
+    volumes:
+{% for volume in cadvisor_volume_map %}
+      - "{{ volume }}"
+{% endfor %}
+    ports:
+      - "{{ cadvisor_port }}:8080"
+{% if cadvisor_extra_environment | length > 0 %}
+    environment:
+{% for env_name in cadvisor_extra_environment %}
+      {{ env_name | to_json }}: {{ cadvisor_extra_environment[env_name] | to_json }}
+{% endfor %}
+{% endif %}

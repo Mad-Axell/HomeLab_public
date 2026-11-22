@@ -1,0 +1,60 @@
+---
+# Validate the target platform before any change; all remaining inputs carry
+# safe defaults and need no assert.
+# Проверка целевой платформы до внесения изменений; все остальные входы имеют
+# безопасные значения по умолчанию и не требуют проверки.
+- name: Assert required cAdvisor inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+    fail_msg: >-
+      The cadvisor role supports Debian-family systems only.
+    quiet: true
+
+# Create the Compose project directory; cAdvisor is stateless and needs no
+# persistent data directory.
+# Создание каталога проекта Compose; cAdvisor не хранит состояние и не нуждается
+# в каталоге постоянных данных.
+- name: Create cAdvisor directory
+  ansible.builtin.file:
+    path: "{{ cadvisor_project_directory }}"
+    state: directory
+    mode: "0755"
+  register: cadvisor_directory_result
+
+# Deploy the Compose definition for the managed cAdvisor container.
+# Развертывание определения Compose для управляемого контейнера cAdvisor.
+- name: Configure cAdvisor Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_Cadvisor.j2"
+    dest: "{{ cadvisor_project_directory }}/compose.yml"
+    mode: "0644"
+  register: cadvisor_compose_result
+
+# Start or update cAdvisor through the Docker Compose v2 module.
+# Запуск или обновление cAdvisor через модуль Docker Compose v2.
+- name: Deploy cAdvisor container
+  community.docker.docker_compose_v2:
+    project_src: "{{ cadvisor_project_directory }}"
+    files:
+      - "compose.yml"
+    state: "{{ cadvisor_state }}"
+  register: cadvisor_deployment_result
+
+# Report the deployment result without querying the metrics endpoint.
+# Вывод результата развертывания без опроса endpoint метрик.
+- name: Display cAdvisor change summary
+  ansible.builtin.debug:
+    msg: >-
+      cAdvisor deployment {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}.
+  when:
+    - cadvisor_debug_mode | bool
+    - >-
+      (cadvisor_directory_result is defined
+      and (cadvisor_directory_result.changed | default(false) | bool))
+      or (cadvisor_compose_result is defined
+      and (cadvisor_compose_result.changed | default(false) | bool))
+      or (cadvisor_deployment_result is defined
+      and (cadvisor_deployment_result.changed | default(false) | bool))
+  tags:
+    - debug

@@ -1,0 +1,62 @@
+---
+# cAdvisor deployment configuration
+# Конфигурация развертывания cAdvisor
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+cadvisor_debug_mode: false
+
+# String. Desired Docker Compose project state: present or absent.
+# Строка. Требуемое состояние проекта Docker Compose: present или absent.
+cadvisor_state: "present"
+
+# String. Docker Compose project directory.
+# Строка. Каталог проекта Docker Compose.
+cadvisor_project_directory: "/opt/cadvisor"
+
+# String. cAdvisor container image with a pinned release tag; the tag is a
+# known upstream release and may be overridden when a newer pin is needed.
+# Строка. Образ контейнера cAdvisor с зафиксированным тегом релиза; тег
+# является известным релизом upstream и может быть переопределен при
+# необходимости в новом пине.
+cadvisor_image: "gcr.io/cadvisor/cadvisor:v0.49.2"
+
+# String. cAdvisor container name.
+# Строка. Имя контейнера cAdvisor.
+cadvisor_container_name: "cadvisor"
+
+# Integer. Host port publishing the cAdvisor metrics endpoint for Prometheus.
+# Целое число. Порт хоста, публикующий endpoint метрик cAdvisor для Prometheus.
+cadvisor_port: 8080
+
+# Boolean. Run the container in privileged mode; cAdvisor requires it to read
+# host-level cgroup, filesystem and device metrics.
+# Логическое значение. Запуск контейнера в привилегированном режиме; cAdvisor
+# требует его для чтения метрик cgroup, файловых систем и устройств хоста.
+cadvisor_privileged: true
+
+# String. Host path to the Docker socket mounted read-only into the container
+# so cAdvisor can enumerate running containers.
+# Строка. Путь на хосте к сокету Docker, монтируемый в контейнер в режиме
+# read-only, чтобы cAdvisor мог перечислять запущенные контейнеры.
+cadvisor_docker_socket: "/var/run/docker.sock"
+
+# List of strings. Internal set of read-only bind mounts cAdvisor needs to
+# collect host and per-container CPU, memory, network and filesystem metrics;
+# the Docker socket entry uses cadvisor_docker_socket.
+# Список строк. Внутренний набор read-only bind-монтирований, необходимых
+# cAdvisor для сбора метрик CPU, памяти, сети и файловых систем хоста и
+# контейнеров; запись сокета Docker использует cadvisor_docker_socket.
+cadvisor_volume_map:
+  - "/:/rootfs:ro"
+  - "/var/run:/var/run:ro"
+  - "/sys:/sys:ro"
+  - "/var/lib/docker:/var/lib/docker:ro"
+  - "/dev/disk:/dev/disk:ro"
+  - "{{ cadvisor_docker_socket }}:/var/run/docker.sock:ro"
+
+# Dictionary. Additional non-secret environment variables for the container;
+# an empty dictionary is allowed. Secrets must not be placed here.
+# Словарь. Дополнительные несекретные переменные окружения контейнера;
+# пустой словарь допустим. Секреты здесь размещать нельзя.
+cadvisor_extra_environment: {}
