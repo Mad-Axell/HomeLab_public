@@ -1,0 +1,254 @@
+---
+# Validate the input before touching the host.
+# Проверка ввода до изменения хоста.
+- name: Validate ClickHouse configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - clickhouse_listen_hosts is sequence
+      - clickhouse_listen_hosts | length > 0
+      - clickhouse_tcp_port | int > 0
+      - clickhouse_http_port | int > 0
+      - clickhouse_users is sequence
+    fail_msg: >-
+      clickhouse requires Debian, at least one listen host, valid ports and a sequence
+      type for users.
+
+# Each account takes its password by variable name - plaintext or a hex sha256 -
+# resolved at run time from VARS/secrets.yml, so the secret never lands in host_vars
+# or the output.
+# Каждый аккаунт получает пароль по имени переменной - открытый или hex sha256 -
+# разрешаемой во время прогона из VARS/secrets.yml, поэтому секрет не попадает ни в
+# host_vars, ни в вывод.
+- name: Validate the ClickHouse user passwords
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - (item.password_var is defined) != (item.password_sha256_var is defined)
+      - >-
+        (item.password_var is not defined)
+        or (lookup('ansible.builtin.vars', item.password_var, default=none) is not none)
+      - >-
+        (item.password_sha256_var is not defined)
+        or (lookup('ansible.builtin.vars', item.password_sha256_var, default=none) is not none)
+    fail_msg: >-
+      Every clickhouse_users entry needs a name and exactly one of password_var or
+      password_sha256_var naming a variable defined in VARS/secrets.yml.
+  loop: "{{ clickhouse_users }}"
+  loop_control:
+    label: "{{ item.name | default('unknown') }}"
+  no_log: true
+
+# The packaged "default" user accepts connections from any network with an empty
+# password. The moment the server listens beyond loopback that account must be pinned
+# down, or the open port is an open database.
+# Пользователь "default" из пакета принимает подключения из любой сети с пустым
+# паролем. Как только сервер слушает не только loopback, этот аккаунт обязан быть
+# закреплён, иначе открытый порт - это открытая база.
+- name: Require a managed default user when ClickHouse listens beyond loopback
+  ansible.builtin.assert:
+    that:
+      - "'default' in (clickhouse_users | map(attribute='name') | list)"
+    fail_msg: >-
+      ClickHouse binds {{ clickhouse_listen_hosts }} while the packaged "default" user
+      still accepts remote connections with an empty password. Declare a "default" entry
+      in clickhouse_users with a password and, where useful, a networks restriction.
+  when: >-
+    clickhouse_listen_hosts
+    | reject('match', '^(127\.|::1$|localhost$)')
+    | list | length > 0
+
+# CA certificates are needed to fetch the signing key over HTTPS; python3-apt backs the
+# apt_repository module on minimal container images.
+# Сертификаты CA нужны для загрузки ключа подписи по HTTPS; python3-apt обеспечивает
+# работу модуля apt_repository на минимальных образах контейнеров.
+- name: Install the prerequisite packages
+  ansible.builtin.apt:
+    name: "{{ clickhouse_prerequisite_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: clickhouse_prerequisite_result
+
+# Create the directory that holds the repository signing key.
+# Создание каталога, хранящего ключ подписи репозитория.
+- name: Create the APT keyring directory
+  ansible.builtin.file:
+    path: "{{ clickhouse_keyring_directory }}"
+    state: directory
+    mode: "0755"
+
+# Download the ASCII-armored signing key without the deprecated apt-key; the .asc file
+# works through signed-by.
+# Загрузка ASCII-armored ключа подписи без устаревшего apt-key; файл .asc работает
+# через signed-by.
+- name: Download the ClickHouse APT signing key
+  ansible.builtin.get_url:
+    url: "{{ clickhouse_repository_key_url }}"
+    dest: "{{ clickhouse_keyring_directory }}/{{ clickhouse_keyring_file }}"
+    mode: "0644"
+  register: clickhouse_key_result
+
+# Register the vendor repository that ships the clickhouse packages; Debian itself
+# carries none.
+# Регистрация репозитория вендора, поставляющего пакеты clickhouse; в самом Debian их
+# нет.
+- name: Configure the ClickHouse APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ clickhouse_repository_arch }}
+      signed-by={{ clickhouse_keyring_directory }}/{{ clickhouse_keyring_file }}]
+      {{ clickhouse_repository_url }} {{ clickhouse_repository_suite }}
+      {{ clickhouse_repository_component }}
+    filename: "clickhouse"
+    state: present
+  register: clickhouse_repository_result
+
+# Verify the data directory is real storage before the server starts writing into it. A
+# missing bind mount leaves an ordinary directory on the container root disk, and the
+# analytic database would grow there without complaint.
+# Проверка того, что каталог данных - настоящее хранилище, до того как сервер начнёт в
+# него писать. Отсутствующий bind mount оставляет обычный каталог на корневом диске
+# контейнера, и аналитическая база молча росла бы там.
+- name: Create the ClickHouse data directory
+  ansible.builtin.file:
+    path: "{{ clickhouse_data_directory }}"
+    state: directory
+    mode: "0755"
+  when: clickhouse_require_separate_filesystem | bool
+
+# Read the device id of the data directory and of the root; comparing them proves
+# whether the bind mount is actually in place.
+# Чтение идентификатора устройства каталога данных и корня; их сравнение доказывает,
+# действительно ли bind mount на месте.
+- name: Read the filesystem of the ClickHouse data directory
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/stat"
+      - "-c"
+      - "%d"
+      - "{{ item }}"
+  loop:
+    - "{{ clickhouse_data_directory }}"
+    - "/"
+  loop_control:
+    label: "{{ item }}"
+  register: clickhouse_device_result
+  changed_when: false
+  check_mode: false
+  when: clickhouse_require_separate_filesystem | bool
+
+# A shared filesystem means the bind mount is missing and the run stops here, before
+# the server ever writes a byte into the wrong place.
+# Общая файловая система означает отсутствие bind mount, и прогон останавливается
+# здесь, до того как сервер запишет хоть байт не туда.
+- name: Require the ClickHouse data directory to be on its own filesystem
+  ansible.builtin.assert:
+    that:
+      - (clickhouse_device_result.results[0].stdout | trim) != (clickhouse_device_result.results[1].stdout | trim)
+    fail_msg: >-
+      {{ clickhouse_data_directory }} is on the same filesystem as /, so the database
+      would grow on the container root disk instead of the storage meant for it. The
+      bind mount of the ZFS dataset is missing from the container definition, or the
+      hypervisor path did not exist when the container started. Set
+      clickhouse_require_separate_filesystem=false only if a shared root really is
+      intended.
+  when: clickhouse_require_separate_filesystem | bool
+
+# Install the server and client packages; postinstall creates the clickhouse system
+# user and the packaged configuration.
+# Установка пакетов сервера и клиента; postinstall создаёт системного пользователя
+# clickhouse и поставляемую конфигурацию.
+- name: Install the ClickHouse packages
+  ansible.builtin.apt:
+    name: "{{ clickhouse_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: clickhouse_package_result
+
+# The data directory belongs to the service account; the package already sets this,
+# and the task keeps it true on reruns.
+# Каталог данных принадлежит сервисному аккаунту; пакет уже выставляет это, а задача
+# сохраняет состояние при повторных прогонах.
+- name: Hand the data directory to the clickhouse account
+  ansible.builtin.file:
+    path: "{{ clickhouse_data_directory }}"
+    state: directory
+    owner: "clickhouse"
+    group: "clickhouse"
+    mode: "0750"
+  register: clickhouse_data_directory_result
+
+# Settings go into the config.d drop-in the packaged config.xml already merges; the
+# distribution file stays untouched for upgrades.
+# Настройки пишутся в drop-in config.d, который уже объединяет поставляемый config.xml;
+# дистрибутивный файл остаётся нетронутым для обновлений.
+- name: Configure the ClickHouse server
+  ansible.builtin.template:
+    src: "config.xml.j2"
+    dest: "{{ clickhouse_config_path }}"
+    owner: "root"
+    group: "clickhouse"
+    mode: "0640"
+  notify: Restart ClickHouse
+  register: clickhouse_config_result
+
+# Accounts go into the users.d drop-in. ClickHouse watches users.d and applies changes
+# on its own, so no restart is notified here.
+# Аккаунты пишутся в drop-in users.d. ClickHouse следит за users.d и применяет
+# изменения сам, поэтому перезапуск здесь не вызывается.
+- name: Configure the ClickHouse users
+  ansible.builtin.template:
+    src: "users.xml.j2"
+    dest: "{{ clickhouse_users_path }}"
+    owner: "root"
+    group: "clickhouse"
+    mode: "0640"
+  no_log: true
+  diff: false
+  register: clickhouse_users_result
+  when: clickhouse_users | length > 0
+
+# An empty user list means no managed accounts; remove the drop-in so the packaged
+# defaults apply again instead of a stale file.
+# Пустой список пользователей означает отсутствие управляемых аккаунтов; drop-in
+# удаляется, чтобы снова действовали умолчания пакета, а не устаревший файл.
+- name: Remove the managed users drop-in
+  ansible.builtin.file:
+    path: "{{ clickhouse_users_path }}"
+    state: absent
+  when: clickhouse_users | length == 0
+
+# Keep the server service in its steady state; restarts belong to the handler.
+# Поддержание сервиса в устойчивом состоянии; перезапуски - дело handler'а.
+- name: Manage the ClickHouse service
+  ansible.builtin.systemd:
+    name: "{{ clickhouse_service_name }}"
+    state: "{{ clickhouse_service_state }}"
+    enabled: "{{ clickhouse_service_enabled }}"
+  register: clickhouse_service_result
+
+# Summarize what changed when debug output is enabled.
+# Итоговая сводка изменений при включённом debug-выводе.
+- name: Display ClickHouse change summary
+  ansible.builtin.debug:
+    msg: >-
+      ClickHouse {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}:
+      listening on {{ clickhouse_listen_hosts | join(', ') }},
+      tcp {{ clickhouse_tcp_port }}, http {{ clickhouse_http_port }},
+      {{ clickhouse_users | length }} managed users.
+  when:
+    - clickhouse_debug_mode | bool
+    - >-
+      (clickhouse_prerequisite_result.changed | default(false) | bool)
+      or (clickhouse_key_result.changed | default(false) | bool)
+      or (clickhouse_repository_result.changed | default(false) | bool)
+      or (clickhouse_package_result.changed | default(false) | bool)
+      or (clickhouse_data_directory_result.changed | default(false) | bool)
+      or (clickhouse_config_result.changed | default(false) | bool)
+      or (clickhouse_users_result is defined
+          and (clickhouse_users_result.changed | default(false) | bool))
+      or (clickhouse_service_result.changed | default(false) | bool)
+  tags:
+    - debug

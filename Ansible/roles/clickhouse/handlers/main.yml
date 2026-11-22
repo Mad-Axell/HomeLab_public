@@ -1,0 +1,10 @@
+---
+# ClickHouse reloads users.d on its own, but listen_host and port changes bind sockets
+# only at start, so a configuration change takes effect through a restart.
+# ClickHouse перечитывает users.d сам, но изменения listen_host и портов привязывают
+# сокеты только при старте, поэтому изменение конфигурации вступает в силу через
+# перезапуск.
+- name: Restart ClickHouse
+  ansible.builtin.systemd:
+    name: "{{ clickhouse_service_name }}"
+    state: restarted

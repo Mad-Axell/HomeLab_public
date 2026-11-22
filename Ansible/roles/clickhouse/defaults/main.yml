@@ -1,0 +1,146 @@
+---
+# ClickHouse server configuration
+# Конфигурация сервера ClickHouse
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+clickhouse_debug_mode: false
+
+# Vendor repository
+# Репозиторий вендора
+
+# String. URL of the ClickHouse APT repository. Debian 13 carries no clickhouse
+# packages, so the vendor repository is the supported upstream path.
+# Строка. URL APT-репозитория ClickHouse. В Debian 13 пакетов clickhouse нет,
+# поэтому репозиторий вендора - поддерживаемый апстрим-путь.
+clickhouse_repository_url: "https://packages.clickhouse.com/deb"
+
+# String. Repository suite.
+# Строка. Suite репозитория.
+clickhouse_repository_suite: "stable"
+
+# String. Repository component.
+# Строка. Компонент репозитория.
+clickhouse_repository_component: "main"
+
+# String. Pinned APT architecture.
+# Строка. Закреплённая APT-архитектура.
+clickhouse_repository_arch: "amd64"
+
+# String. URL of the ASCII-armored ClickHouse signing key.
+# Строка. URL ASCII-armored ключа подписи ClickHouse.
+clickhouse_repository_key_url: "https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key"
+
+# String. Directory holding the repository signing key.
+# Строка. Каталог с ключом подписи репозитория.
+clickhouse_keyring_directory: "/etc/apt/keyrings"
+
+# String. Key file name; the .asc extension marks an ASCII-armored keyring that
+# apt accepts through signed-by.
+# Строка. Имя файла ключа; расширение .asc обозначает ASCII-armored keyring,
+# который apt принимает через signed-by.
+clickhouse_keyring_file: "clickhouse.asc"
+
+# Packages and storage
+# Пакеты и хранилище
+
+# List of strings. Packages needed before the signed repository can be used.
+# Список строк. Пакеты, необходимые до подключения подписанного репозитория.
+clickhouse_prerequisite_packages:
+  - "ca-certificates"
+  - "python3-apt"
+
+# List of strings. Packages installed from the vendor repository.
+# Список строк. Пакеты, устанавливаемые из репозитория вендора.
+clickhouse_packages:
+  - "clickhouse-server"
+  - "clickhouse-client"
+
+# String. Working directory where ClickHouse keeps its data. In this project it
+# is meant to be a bind mount of the behemoth/databases/clickhouse ZFS dataset,
+# so the database never occupies the container root disk.
+# Строка. Рабочий каталог, где ClickHouse хранит данные. В этом проекте он
+# должен быть bind mount датасета ZFS behemoth/databases/clickhouse, чтобы база
+# никогда не занимала корневой диск контейнера.
+clickhouse_data_directory: "/var/lib/clickhouse"
+
+# Boolean. Refuse to proceed when clickhouse_data_directory sits on the same
+# filesystem as the root directory. Default true: an analytic database is real
+# data that must outlive its container, and a missing bind mount would leave it
+# silently on the container root disk. Set false only when a shared root is
+# genuinely intended.
+# Логическое значение. Отказаться продолжать, когда clickhouse_data_directory
+# находится на той же файловой системе, что и корень. По умолчанию true:
+# аналитическая база - реальные данные, которые обязаны пережить контейнер, а
+# отсутствующий bind mount молча оставил бы их на корневом диске. Ставьте
+# false, только если общий корень действительно задуман.
+clickhouse_require_separate_filesystem: true
+
+# Managed files
+# Управляемые файлы
+
+# String. Drop-in the role owns inside config.d, which the packaged config.xml
+# already merges.
+# Строка. Drop-in внутри config.d, которым владеет роль; поставляемый
+# config.xml уже объединяет его содержимое.
+clickhouse_config_path: "/etc/clickhouse-server/config.d/90-ansible.xml"
+
+# String. Drop-in the role owns inside users.d for account definitions.
+# Строка. Drop-in внутри users.d, которым владеет роль, для определений
+# аккаунтов.
+clickhouse_users_path: "/etc/clickhouse-server/users.d/90-ansible.xml"
+
+# Network
+# Сеть
+
+# List of strings. Addresses the server binds; the first entry carries the
+# replace attribute so the list overrides, not extends, the packaged defaults.
+# Список строк. Адреса, на которых слушает сервер; первая запись несёт атрибут
+# replace, поэтому список заменяет, а не дополняет умолчания пакета.
+clickhouse_listen_hosts:
+  - "127.0.0.1"
+
+# Integer. Native TCP protocol port.
+# Целое число. Порт родного TCP-протокола.
+clickhouse_tcp_port: 9000
+
+# Integer. HTTP interface port.
+# Целое число. Порт HTTP-интерфейса.
+clickhouse_http_port: 8123
+
+# Users
+# Пользователи
+
+# List of dicts. Accounts written to the managed users.d drop-in. Keys: name;
+# exactly one of password_var or password_sha256_var - each is the NAME of a
+# variable resolved at run time from VARS/secrets.yml, rendered as <password>
+# or <password_sha256_hex>; optional networks (list of <ip> elements) and
+# profile. An entry named "default" overrides the packaged default user.
+# Список словарей. Аккаунты, записываемые в управляемый drop-in users.d. Ключи:
+# name; ровно один из password_var или password_sha256_var - каждый является
+# ИМЕНЕМ переменной, разрешаемой во время прогона из VARS/secrets.yml, и
+# выводится как <password> или <password_sha256_hex>; необязательные networks
+# (список элементов <ip>) и profile. Запись с именем "default" переопределяет
+# пользователя default из пакета.
+clickhouse_users: []
+
+# Dict. Extra <name>value</name> elements appended to the managed config.d
+# drop-in, for example {max_concurrent_queries: 150}.
+# Словарь. Дополнительные элементы <имя>значение</имя>, дописываемые в
+# управляемый drop-in config.d, например {max_concurrent_queries: 150}.
+clickhouse_extra_settings: {}
+
+# Service
+# Сервис
+
+# String. Name of the systemd service.
+# Строка. Имя systemd-сервиса.
+clickhouse_service_name: "clickhouse-server"
+
+# String. Steady state of the service.
+# Строка. Устойчивое состояние сервиса.
+clickhouse_service_state: "started"
+
+# Boolean. Start the service at boot.
+# Логическое значение. Запускать сервис при загрузке.
+clickhouse_service_enabled: true

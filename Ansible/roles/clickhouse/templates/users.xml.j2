@@ -1,0 +1,33 @@
+{{ ansible_managed | comment('xml') }}
+<!-- Owned by the clickhouse Ansible role. User definitions in users.d merge with the
+     packaged users.xml; an entry named "default" overrides the packaged account, which
+     would otherwise accept remote connections with an empty password. Passwords arrive
+     by variable name from VARS/secrets.yml; the task writing this file runs no_log.
+     Принадлежит роли Ansible clickhouse. Определения пользователей из users.d
+     объединяются с поставляемым users.xml; запись "default" переопределяет аккаунт из
+     пакета, который иначе принимал бы удалённые подключения с пустым паролем. Пароли
+     приходят по имени переменной из VARS/secrets.yml; задача, пишущая этот файл,
+     работает с no_log. -->
+<clickhouse>
+    <users>
+{% for user in clickhouse_users %}
+        <{{ user.name }}>
+{% if user.password_var is defined %}
+            <password>{{ lookup('ansible.builtin.vars', user.password_var) }}</password>
+{% else %}
+            <password_sha256_hex>{{ lookup('ansible.builtin.vars', user.password_sha256_var) }}</password_sha256_hex>
+{% endif %}
+{% if user.networks is defined %}
+            <networks>
+{% for net in user.networks %}
+                <ip>{{ net }}</ip>
+{% endfor %}
+            </networks>
+{% endif %}
+{% if user.profile is defined %}
+            <profile>{{ user.profile }}</profile>
+{% endif %}
+        </{{ user.name }}>
+{% endfor %}
+    </users>
+</clickhouse>

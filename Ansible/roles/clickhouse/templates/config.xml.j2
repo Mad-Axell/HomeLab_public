@@ -1,0 +1,19 @@
+{{ ansible_managed | comment('xml') }}
+<!-- Owned by the clickhouse Ansible role. Written into config.d, which the packaged
+     config.xml already merges; the distribution file is left to upgrades. The first
+     listen_host carries replace="replace" so the declared list overrides the packaged
+     loopback entries instead of extending them.
+     Принадлежит роли Ansible clickhouse. Записано в config.d, который поставляемый
+     config.xml уже объединяет; дистрибутивный файл оставлен обновлениям. Первый
+     listen_host несёт replace="replace", поэтому объявленный список заменяет
+     loopback-записи пакета, а не дополняет их. -->
+<clickhouse>
+{% for host in clickhouse_listen_hosts %}
+    <listen_host{% if loop.first %} replace="replace"{% endif %}>{{ host }}</listen_host>
+{% endfor %}
+    <tcp_port>{{ clickhouse_tcp_port }}</tcp_port>
+    <http_port>{{ clickhouse_http_port }}</http_port>
+{% for name, value in clickhouse_extra_settings.items() %}
+    <{{ name }}>{{ value }}</{{ name }}>
+{% endfor %}
+</clickhouse>
