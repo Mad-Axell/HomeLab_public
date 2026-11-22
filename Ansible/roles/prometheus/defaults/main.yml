@@ -48,6 +48,17 @@ prometheus_evaluation_interval: "15s"
 # ниже - и это обычный способ запуска роли.
 prometheus_scrape_configs: []
 
+# List of dicts. Extra scrape jobs appended after the generated "prometheus" and
+# "nodes" jobs when prometheus_scrape_configs is empty. Use it for jobs that
+# complement inventory-derived targets, for example a cadvisor job built from a
+# docker-hosts group. Ignored when prometheus_scrape_configs is set.
+# Список словарей. Дополнительные задания опроса, дописываемые после
+# генерируемых заданий "prometheus" и "nodes", когда prometheus_scrape_configs
+# пуст. Подходит для заданий, дополняющих цели из инвентаря, - например задание
+# cadvisor по группе docker-хостов. Игнорируется при заданном
+# prometheus_scrape_configs.
+prometheus_extra_scrape_configs: []
+
 # List of strings. Inventory groups scanned for scrape targets of the generated
 # "nodes" job; used only when prometheus_scrape_configs is empty. The address of
 # a member is its ansible_host, falling back to the inventory name.
