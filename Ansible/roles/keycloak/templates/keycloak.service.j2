@@ -1,0 +1,19 @@
+# Managed by Ansible; manual edits are overwritten.
+# Управляется Ansible; ручные правки перезаписываются.
+[Unit]
+Description=Keycloak identity and access management
+Documentation=https://www.keycloak.org/documentation
+After=network.target
+
+[Service]
+Type=simple
+User={{ keycloak_system_user }}
+Group={{ keycloak_system_group }}
+EnvironmentFile={{ keycloak_env_file }}
+ExecStart={{ keycloak_install_root }}/bin/kc.sh start --optimized
+TimeoutStartSec=600
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

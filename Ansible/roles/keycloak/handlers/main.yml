@@ -1,0 +1,9 @@
+---
+# Restart the service after the configuration, the environment file or the unit
+# changed; all three are only picked up on a fresh process start
+# Перезапуск сервиса после изменения конфигурации, файла окружения или юнита:
+# все три подхватываются только новым запуском процесса
+- name: Restart Keycloak
+  ansible.builtin.systemd:
+    name: "{{ keycloak_service_name }}"
+    state: restarted

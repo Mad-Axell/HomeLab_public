@@ -1,0 +1,164 @@
+---
+# Keycloak server configuration
+# Конфигурация сервера Keycloak
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+keycloak_debug_mode: false
+
+# Java runtime
+# Java-окружение
+
+# String. Debian package providing the Java runtime. Keycloak 26 requires Java 17 or
+# newer; on Debian 13 default-jre-headless resolves to OpenJDK 21. Pin a concrete
+# package such as openjdk-21-jre-headless when the runtime version must not drift.
+# Строка. Пакет Debian с Java-окружением. Keycloak 26 требует Java 17 или новее;
+# в Debian 13 default-jre-headless разрешается в OpenJDK 21. Зафиксируйте конкретный
+# пакет вроде openjdk-21-jre-headless, когда версия окружения не должна смещаться.
+keycloak_java_package: "default-jre-headless"
+
+# Release
+# Выпуск
+
+# String. Upstream Keycloak version to install.
+# Строка. Устанавливаемая версия апстримного Keycloak.
+keycloak_version: "26.8.2"
+
+# String. URL of the release tarball.
+# Строка. URL архива выпуска.
+keycloak_download_url: >-
+  https://github.com/keycloak/keycloak/releases/download/{{ keycloak_version }}/keycloak-{{ keycloak_version }}.tar.gz
+
+# String or null. Optional checksum in get_url format, for example
+# "sha256:<hex>"; null skips verification.
+# Строка или null. Необязательная контрольная сумма в формате get_url, например
+# "sha256:<hex>"; null отключает проверку.
+keycloak_download_checksum: null
+
+# String. Where the tarball is stored on the target host.
+# Строка. Куда архив сохраняется на целевом хосте.
+keycloak_archive_path: "/tmp/keycloak-{{ keycloak_version }}.tar.gz"
+
+# String. Directory the tarball is unpacked into. Internal, derived from
+# keycloak_version; each release lives beside the others and is never overwritten.
+# Строка. Каталог, в который распаковывается архив. Внутренний, выводится из
+# keycloak_version; каждый выпуск лежит рядом с остальными и не перезаписывается.
+keycloak_release_dir: "/opt/keycloak-{{ keycloak_version }}"
+
+# String. Symlink pointing at the unpacked release; the configuration, the systemd
+# unit and the service account all reference this stable path.
+# Строка. Симлинк на распакованный выпуск; конфигурация, systemd-юнит и учётная
+# запись сервиса ссылаются на этот стабильный путь.
+keycloak_install_root: "/opt/keycloak"
+
+# System account
+# Системная учётная запись
+
+# String. System user the service runs as.
+# Строка. Системный пользователь, от имени которого работает сервис.
+keycloak_system_user: "keycloak"
+
+# String. Primary group of the service account.
+# Строка. Основная группа учётной записи сервиса.
+keycloak_system_group: "keycloak"
+
+# Database (external PostgreSQL)
+# База данных (внешний PostgreSQL)
+
+# String or null. Hostname or address of the PostgreSQL server. Required; there is
+# no safe default. The database itself and the login are created by the postgresql
+# role, not by this one.
+# Строка или null. Имя или адрес сервера PostgreSQL. Обязательно; безопасного
+# умолчания нет. Сама база и логин создаются ролью postgresql, а не этой.
+keycloak_db_host: null
+
+# Integer. PostgreSQL port.
+# Целое число. Порт PostgreSQL.
+keycloak_db_port: 5432
+
+# String. Database Keycloak owns.
+# Строка. База, принадлежащая Keycloak.
+keycloak_db_name: "keycloak"
+
+# String. Login Keycloak connects as.
+# Строка. Логин, под которым подключается Keycloak.
+keycloak_db_user: "keycloak"
+
+# Public URL and HTTP listener
+# Публичный URL и HTTP-слушатель
+
+# String or null. Public base URL of this instance; required. Behind Traefik this
+# is the external HTTPS name, for example
+# "https://keycloak.dragons-nest.home.arpa". Hostname v2 derives the HTTPS
+# requirement from the scheme of this URL.
+# Строка или null. Публичный базовый URL этого экземпляра; обязателен. За Traefik
+# это внешнее HTTPS-имя, например "https://keycloak.dragons-nest.home.arpa".
+# Hostname v2 выводит требование HTTPS из схемы этого URL.
+keycloak_hostname: null
+
+# Boolean. hostname-strict of hostname v2: reject requests whose Host does not
+# match the configured hostname.
+# Логическое значение. hostname-strict в hostname v2: отвергать запросы, чей Host
+# не совпадает с настроенным hostname.
+keycloak_hostname_strict: true
+
+# Boolean. Serve plain HTTP on the listener below. True here because Traefik
+# terminates TLS and this port is reachable only inside SERVICES.
+# Логическое значение. Отдавать чистый HTTP на слушателе ниже. Здесь true, потому
+# что TLS завершает Traefik, а порт доступен только внутри SERVICES.
+keycloak_http_enabled: true
+
+# Integer. HTTP listener port.
+# Целое число. Порт HTTP-слушателя.
+keycloak_http_port: 8080
+
+# String. Which forwarding headers from the reverse proxy Keycloak trusts.
+# "xforwarded" is the current option for proxies sending X-Forwarded-* headers;
+# Traefik sends them.
+# Строка. Каким заголовкам пересылки от обратного прокси доверяет Keycloak.
+# "xforwarded" — актуальная опция для прокси, передающих X-Forwarded-*; Traefik
+# их передаёт.
+keycloak_proxy_headers: "xforwarded"
+
+# Dict. Additional option=value pairs appended to keycloak.conf verbatim, for
+# options the role does not model directly.
+# Словарь. Дополнительные пары опция=значение, дословно добавляемые в
+# keycloak.conf, для опций, которые роль напрямую не моделирует.
+keycloak_extra_options: {}
+
+# Bootstrap administrator
+# Начальный администратор
+
+# String. Username of the bootstrap administrator created on the first start via
+# KC_BOOTSTRAP_ADMIN_USERNAME. The password is the secret
+# vault_keycloak_admin_password, passed through KC_BOOTSTRAP_ADMIN_PASSWORD.
+# Строка. Имя начального администратора, создаваемого при первом старте через
+# KC_BOOTSTRAP_ADMIN_USERNAME. Пароль — секрет vault_keycloak_admin_password,
+# передаваемый через KC_BOOTSTRAP_ADMIN_PASSWORD.
+keycloak_admin_user: "admin"
+
+# Environment file
+# Файл окружения
+
+# String. File with the secret environment read by the systemd unit through
+# EnvironmentFile. Lives outside the release tree so an upgrade cannot remove it.
+# Строка. Файл с секретным окружением, читаемый systemd-юнитом через
+# EnvironmentFile. Лежит вне дерева выпуска, чтобы обновление не могло его снести.
+keycloak_env_file: "/etc/keycloak/keycloak.env"
+
+# Service
+# Сервис
+
+# String. Name of the managed systemd unit.
+# Строка. Имя управляемого systemd-юнита.
+keycloak_service_name: "keycloak"
+
+# String. Steady state of the service: started or stopped. Restarts are performed
+# by the handler on configuration changes, never by this value.
+# Строка. Устойчивое состояние сервиса: started или stopped. Перезапуск при
+# изменении конфигурации выполняет handler, а не это значение.
+keycloak_service_state: "started"
+
+# Boolean. Start the service at boot.
+# Логическое значение. Запускать сервис при загрузке.
+keycloak_service_enabled: true

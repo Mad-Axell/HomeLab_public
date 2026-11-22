@@ -1,0 +1,16 @@
+# Managed by Ansible; manual edits are overwritten.
+# Управляется Ansible; ручные правки перезаписываются.
+
+db=postgres
+db-url=jdbc:postgresql://{{ keycloak_db_host }}:{{ keycloak_db_port }}/{{ keycloak_db_name }}
+db-username={{ keycloak_db_user }}
+
+hostname={{ keycloak_hostname }}
+hostname-strict={{ keycloak_hostname_strict | bool | lower }}
+
+http-enabled={{ keycloak_http_enabled | bool | lower }}
+http-port={{ keycloak_http_port }}
+proxy-headers={{ keycloak_proxy_headers }}
+{% for keycloak_option_name, keycloak_option_value in keycloak_extra_options.items() -%}
+{{ keycloak_option_name }}={{ keycloak_option_value }}
+{% endfor -%}

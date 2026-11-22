@@ -1,0 +1,227 @@
+---
+# Validate required external variables before changing anything. Names are
+# checked, never values, so the assert needs no no_log.
+# Проверка обязательных внешних переменных до внесения изменений. Проверяются
+# имена, а не значения, поэтому no_log не нужен.
+- name: Assert required variables are defined
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - keycloak_db_host is string
+      - (keycloak_db_host | string | trim | length) > 0
+      - keycloak_hostname is string
+      - (keycloak_hostname | string | trim | length) > 0
+      - >-
+        vault_keycloak_db_password is defined
+        and vault_keycloak_db_password is string
+        and (vault_keycloak_db_password | trim | length) > 0
+      - >-
+        vault_keycloak_admin_password is defined
+        and vault_keycloak_admin_password is string
+        and (vault_keycloak_admin_password | trim | length) > 0
+    fail_msg: >-
+      keycloak requires Debian, a non-empty keycloak_db_host and keycloak_hostname,
+      and the secrets vault_keycloak_db_password and vault_keycloak_admin_password
+      from VARS/secrets.yml loaded by the playbook.
+    quiet: true
+
+# Install the Java runtime the server runs on
+# Установка Java-окружения, на котором работает сервер
+- name: Install the Java runtime
+  ansible.builtin.apt:
+    name: "{{ keycloak_java_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: keycloak_package_result
+
+# Create the system group the service runs as
+# Создание системной группы, от имени которой работает сервис
+- name: Create the Keycloak system group
+  ansible.builtin.group:
+    name: "{{ keycloak_system_group }}"
+    system: true
+    state: present
+  register: keycloak_group_result
+
+# Create the system account the service runs as; the install root is its home
+# but is created by the unpack step, not by the account
+# Создание системной учётной записи сервиса; корень установки является её домом,
+# но создаётся шагом распаковки, а не учётной записью
+- name: Create the Keycloak system account
+  ansible.builtin.user:
+    name: "{{ keycloak_system_user }}"
+    group: "{{ keycloak_system_group }}"
+    system: true
+    shell: "/usr/sbin/nologin"
+    home: "{{ keycloak_install_root }}"
+    create_home: false
+    state: present
+  register: keycloak_user_result
+
+# Download the release tarball to the target host
+# Загрузка архива выпуска на целевой хост
+- name: Download the Keycloak release
+  ansible.builtin.get_url:
+    url: "{{ keycloak_download_url }}"
+    dest: "{{ keycloak_archive_path }}"
+    checksum: "{{ keycloak_download_checksum if keycloak_download_checksum is not none else omit }}"
+    mode: "0644"
+  register: keycloak_download_result
+
+# Unpack the release beside any older versions already present; the marker file
+# keeps a repeated run from unpacking over a live installation
+# Распаковка выпуска рядом с уже присутствующими старыми версиями; маркерный файл
+# не даёт повторному прогону распаковаться поверх живой установки
+- name: Unpack the Keycloak release
+  ansible.builtin.unarchive:
+    src: "{{ keycloak_archive_path }}"
+    dest: "/opt"
+    remote_src: true
+    owner: "{{ keycloak_system_user }}"
+    group: "{{ keycloak_system_group }}"
+    creates: "{{ keycloak_release_dir }}/bin/kc.sh"
+  register: keycloak_unarchive_result
+
+# Point the stable install path at this release; an upgrade and a rollback both
+# swap a single symlink without moving or deleting anything
+# Указание стабильного пути установки на этот выпуск; и обновление, и откат
+# сводятся к смене одного симлинка без перемещения и удаления файлов
+- name: Point the install root at this release
+  ansible.builtin.file:
+    src: "{{ keycloak_release_dir }}"
+    dest: "{{ keycloak_install_root }}"
+    state: link
+    force: true
+  notify: Restart Keycloak
+  register: keycloak_symlink_result
+
+# Render the server configuration. It holds no secrets: the database password and
+# the bootstrap admin password arrive through the environment file below, so the
+# template can show an honest diff.
+# Отрисовка конфигурации сервера. Секретов в ней нет: пароль базы и пароль
+# начального администратора приходят через файл окружения ниже, поэтому шаблон
+# может показать честный diff.
+- name: Configure Keycloak
+  ansible.builtin.template:
+    src: "keycloak.conf.j2"
+    dest: "{{ keycloak_install_root }}/conf/keycloak.conf"
+    owner: "{{ keycloak_system_user }}"
+    group: "{{ keycloak_system_group }}"
+    mode: "0640"
+  notify: Restart Keycloak
+  register: keycloak_config_result
+
+# Create the directory holding the environment file, readable only by root and
+# the service group
+# Создание каталога файла окружения, читаемого только root и группой сервиса
+- name: Create the Keycloak environment directory
+  ansible.builtin.file:
+    path: "{{ keycloak_env_file | dirname }}"
+    state: directory
+    owner: "root"
+    group: "{{ keycloak_system_group }}"
+    mode: "0750"
+
+# Write the secret environment the unit reads through EnvironmentFile. The file
+# contains passwords: the task logs nothing and produces no diff.
+# Запись секретного окружения, которое юнит читает через EnvironmentFile. Файл
+# содержит пароли: задача ничего не пишет в лог и не даёт diff.
+- name: Write the Keycloak environment file
+  ansible.builtin.template:
+    src: "keycloak.env.j2"
+    dest: "{{ keycloak_env_file }}"
+    owner: "root"
+    group: "{{ keycloak_system_group }}"
+    mode: "0640"
+  no_log: true
+  diff: false
+  notify: Restart Keycloak
+  register: keycloak_env_result
+
+# Install the systemd unit that runs the server
+# Установка systemd-юнита, запускающего сервер
+- name: Install the Keycloak systemd unit
+  ansible.builtin.template:
+    src: "keycloak.service.j2"
+    dest: "/etc/systemd/system/{{ keycloak_service_name }}.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: Restart Keycloak
+  register: keycloak_unit_result
+
+# Make systemd see a new or changed unit file before the service is managed;
+# otherwise the service task below cannot find the unit it was just handed
+# Обновление systemd при новом или изменённом юните до управления сервисом;
+# иначе задача сервиса ниже не найдёт только что переданный ей юнит
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: keycloak_unit_result.changed | default(false) | bool
+
+# Build the server with the rendered build-time options whenever the release or
+# the configuration changed. The unit starts kc.sh with --optimized, so starting
+# against a stale build fails loudly instead of silently serving old options.
+# Runs as the service account because the build writes into the release tree it
+# owns. command is required: no module wraps kc.sh. The task runs only after a
+# real change, so changed is reported honestly.
+# Сборка сервера с отрисованными build-time опциями при смене выпуска или
+# конфигурации. Юнит запускает kc.sh с --optimized, поэтому старт на устаревшей
+# сборке громко падает вместо тихой работы на старых опциях. Выполняется от
+# учётной записи сервиса, потому что сборка пишет в принадлежащее ей дерево
+# выпуска. command необходим: модуля-обёртки для kc.sh нет. Задача идёт только
+# после реального изменения, поэтому changed честен.
+- name: Build the Keycloak server
+  ansible.builtin.command:
+    cmd: "{{ keycloak_install_root }}/bin/kc.sh build"
+    chdir: "{{ keycloak_install_root }}"
+  become: true
+  become_user: "{{ keycloak_system_user }}"
+  changed_when: true
+  when: >-
+    (keycloak_unarchive_result.changed | default(false) | bool)
+    or (keycloak_config_result.changed | default(false) | bool)
+  register: keycloak_build_result
+
+# Manage the service state; a needed restart is handled by the notified handler,
+# not by this task
+# Управление состоянием сервиса; нужный перезапуск выполняет уведомлённый
+# handler, а не эта задача
+- name: Manage the Keycloak service
+  ansible.builtin.systemd:
+    name: "{{ keycloak_service_name }}"
+    state: "{{ keycloak_service_state }}"
+    enabled: "{{ keycloak_service_enabled }}"
+  register: keycloak_service_result
+
+# Apply pending restarts before the summary is printed
+# Применение отложенных перезапусков до вывода итога
+- name: Apply pending Keycloak restarts
+  ansible.builtin.meta: flush_handlers
+
+# Display a change summary. The environment-file and build results can carry
+# secrets or nothing printable, so only their changed flags are read.
+# Вывод итога изменений. Результаты файла окружения и сборки могут нести секреты
+# или не иметь выводимого содержимого, поэтому читаются только их флаги changed.
+- name: Display Keycloak change summary
+  ansible.builtin.debug:
+    msg: >-
+      Keycloak {{ keycloak_version }}
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}:
+      hostname {{ keycloak_hostname }}, HTTP port {{ keycloak_http_port }},
+      database {{ keycloak_db_name }}@{{ keycloak_db_host }}.
+  when:
+    - keycloak_debug_mode | bool
+    - >-
+      (keycloak_package_result.changed | default(false) | bool)
+      or (keycloak_download_result.changed | default(false) | bool)
+      or (keycloak_unarchive_result.changed | default(false) | bool)
+      or (keycloak_symlink_result.changed | default(false) | bool)
+      or (keycloak_config_result.changed | default(false) | bool)
+      or (keycloak_env_result.changed | default(false) | bool)
+      or (keycloak_unit_result.changed | default(false) | bool)
+      or (keycloak_build_result.changed | default(false) | bool)
+      or (keycloak_service_result.changed | default(false) | bool)
+  tags:
+    - debug
