@@ -1,0 +1,67 @@
+---
+# Vaultwarden deployment configuration
+# Конфигурация развертывания Vaultwarden
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+vaultwarden_debug_mode: false
+
+# String. Desired Docker Compose project state: present or absent.
+# Строка. Требуемое состояние проекта Docker Compose: present или absent.
+vaultwarden_state: "present"
+
+# String. Docker Compose project directory holding compose.yml.
+# Строка. Каталог проекта Docker Compose с compose.yml.
+vaultwarden_project_directory: "/opt/vaultwarden"
+
+# String. Host directory mounted into the container as /data; it holds the
+# SQLite database, attachments, sends and icon cache.
+# Строка. Каталог хоста, монтируемый в контейнер как /data; содержит базу
+# SQLite, вложения, отправки и кэш иконок.
+vaultwarden_data_dir: "/opt/vaultwarden/data"
+
+# String. Vaultwarden container image.
+# Строка. Образ контейнера Vaultwarden.
+vaultwarden_image: "vaultwarden/server:latest"
+
+# String. Vaultwarden container name.
+# Строка. Имя контейнера Vaultwarden.
+vaultwarden_container_name: "vaultwarden"
+
+# Integer. Host port publishing the Vaultwarden web interface; the container
+# listens on port 80 internally.
+# Целое число. Порт хоста, публикующий веб-интерфейс Vaultwarden; внутри
+# контейнер слушает порт 80.
+vaultwarden_port: 8222
+
+# String or null. Name of the variable holding the admin panel token, taken
+# from VARS/secrets.yml; required. The token is referenced by name so its
+# value stays out of host_vars and is written only into compose.yml.
+# Строка или null. Имя переменной с токеном админ-панели из
+# VARS/secrets.yml; обязательно. Токен указывается по имени, чтобы его
+# значение не попадало в host_vars; записывается только в compose.yml.
+vaultwarden_admin_token_var: null
+
+# String or null. Public URL of this instance (for example
+# https://vaultwarden.dragons-nest.home.arpa); null leaves DOMAIN unset.
+# Vaultwarden needs a correct DOMAIN for WebAuthn/passkey login and for
+# invite links, so set it when the instance is reachable through a name.
+# Строка или null. Публичный URL инстанса (например
+# https://vaultwarden.dragons-nest.home.arpa); при null DOMAIN не задаётся.
+# Корректный DOMAIN нужен Vaultwarden для входа по WebAuthn/passkey и для
+# ссылок приглашений, поэтому задавайте его при доступе по имени.
+vaultwarden_domain: null
+
+# Boolean. Allow open user self-registration; a password manager should not
+# accept anonymous accounts by default.
+# Логическое значение. Разрешить открытую саморегистрацию пользователей;
+# менеджер паролей по умолчанию не должен принимать анонимные учётные записи.
+vaultwarden_signups_allowed: false
+
+# Dict. Additional environment variables written verbatim into the compose
+# service definition (for example SMTP_* for invitation mail). Non-string
+# values are converted to strings.
+# Словарь. Дополнительные переменные окружения, записываемые в определение
+# сервиса compose без изменений (например SMTP_* для почты приглашений).
+# Нестроковые значения приводятся к строкам.
+vaultwarden_extra_env: {}

@@ -1,0 +1,89 @@
+---
+# Validate the platform and the required secret variable name before
+# changing anything; variable names are checked, not values, so no_log is
+# not needed here.
+# Проверка платформы и обязательного имени секретной переменной до внесения
+# изменений; проверяются имена переменных, а не значения, поэтому no_log не
+# нужен.
+- name: Validate Vaultwarden deployment configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Debian"
+      - vaultwarden_state in ["present", "absent"]
+      - vaultwarden_admin_token_var is not none
+      - vaultwarden_extra_env is mapping
+    fail_msg: >-
+      vaultwarden requires a Debian-family host and
+      vaultwarden_admin_token_var naming a variable in VARS/secrets.yml.
+    quiet: true
+
+# Verify the secret named by vaultwarden_admin_token_var actually exists;
+# the check reads the variable name, never its value.
+# Проверка, что секрет, названный в vaultwarden_admin_token_var, реально
+# существует; проверяется имя переменной, а не её значение.
+- name: Validate the Vaultwarden admin token secret
+  ansible.builtin.assert:
+    that:
+      - >-
+        lookup('ansible.builtin.vars', vaultwarden_admin_token_var,
+        default=none) is not none
+    fail_msg: "vaultwarden_admin_token_var must name a variable defined in VARS/secrets.yml."
+  no_log: true
+
+# Create the Compose project directory and the persistent data directory.
+# Создание каталога проекта Compose и каталога постоянных данных.
+- name: Create Vaultwarden directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ vaultwarden_project_directory }}"
+    - "{{ vaultwarden_data_dir }}"
+  register: vaultwarden_directory_result
+
+# Render the Compose definition; it carries the resolved admin token, so the
+# task hides both its output and the diff.
+# Рендер определения Compose; файл содержит подставленный токен
+# администратора, поэтому задача скрывает и вывод, и diff.
+- name: Configure Vaultwarden Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_Vaultwarden.j2"
+    dest: "{{ vaultwarden_project_directory }}/compose.yml"
+    mode: "0640"
+  no_log: true
+  diff: false
+  register: vaultwarden_compose_result
+
+# Start or update Vaultwarden through the Docker Compose v2 module; a
+# changed compose.yml recreates the container automatically, so no restart
+# handler is used.
+# Запуск или обновление Vaultwarden через модуль Docker Compose v2;
+# изменённый compose.yml автоматически пересоздаёт контейнер, поэтому
+# handler перезапуска не используется.
+- name: Deploy Vaultwarden container
+  community.docker.docker_compose_v2:
+    project_src: "{{ vaultwarden_project_directory }}"
+    files:
+      - "compose.yml"
+    state: "{{ vaultwarden_state }}"
+  register: vaultwarden_deployment_result
+
+# Report the deployment result without exposing the compose file or its
+# token; only the changed flags are read.
+# Вывод результата развертывания без раскрытия файла compose и его токена;
+# читаются только флаги changed.
+- name: Display Vaultwarden change summary
+  ansible.builtin.debug:
+    msg: "Vaultwarden deployment {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - vaultwarden_debug_mode | bool
+    - >-
+      (vaultwarden_directory_result is defined
+      and (vaultwarden_directory_result.changed | default(false) | bool))
+      or (vaultwarden_compose_result is defined
+      and (vaultwarden_compose_result.changed | default(false) | bool))
+      or (vaultwarden_deployment_result is defined
+      and (vaultwarden_deployment_result.changed | default(false) | bool))
+  tags:
+    - debug

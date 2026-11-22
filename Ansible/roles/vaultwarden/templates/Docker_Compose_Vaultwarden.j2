@@ -1,0 +1,19 @@
+services:
+  vaultwarden:
+    image: {{ vaultwarden_image }}
+    container_name: {{ vaultwarden_container_name }}
+    restart: unless-stopped
+    environment:
+      ADMIN_TOKEN: {{ lookup('ansible.builtin.vars', vaultwarden_admin_token_var) | to_json }}
+      SIGNUPS_ALLOWED: {{ vaultwarden_signups_allowed | bool | to_json }}
+{% if vaultwarden_domain is not none and vaultwarden_domain != '' %}
+      DOMAIN: {{ vaultwarden_domain | to_json }}
+{% endif %}
+{% for env_name, env_value in vaultwarden_extra_env.items() %}
+      {{ env_name }}: {{ env_value | string | to_json }}
+{% endfor %}
+    volumes:
+      - {{ vaultwarden_data_dir }}:/data
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "{{ vaultwarden_port }}:80"
