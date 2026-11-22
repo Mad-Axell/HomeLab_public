@@ -66,23 +66,57 @@ keycloak_system_group: "keycloak"
 # База данных (внешний PostgreSQL)
 
 # String or null. Hostname or address of the PostgreSQL server. Required; there is
-# no safe default. The database itself and the login are created by the postgresql
-# role, not by this one.
+# no safe default.
 # Строка или null. Имя или адрес сервера PostgreSQL. Обязательно; безопасного
-# умолчания нет. Сама база и логин создаются ролью postgresql, а не этой.
+# умолчания нет.
 keycloak_db_host: null
 
 # Integer. PostgreSQL port.
 # Целое число. Порт PostgreSQL.
 keycloak_db_port: 5432
 
-# String. Database Keycloak owns.
-# Строка. База, принадлежащая Keycloak.
+# String. Database Keycloak owns; created by this role when
+# keycloak_manage_database is true.
+# Строка. База, принадлежащая Keycloak; создаётся этой ролью, когда
+# keycloak_manage_database равен true.
 keycloak_db_name: "keycloak"
 
 # String. Login Keycloak connects as.
 # Строка. Логин, под которым подключается Keycloak.
 keycloak_db_user: "keycloak"
+
+# String or null. Name of the variable holding the database password, taken from
+# VARS/secrets.yml; required. The password is referenced by name so its value
+# stays out of host_vars and lands only in the environment file.
+# Строка или null. Имя переменной с паролем к базе из VARS/secrets.yml;
+# обязательно. Пароль указывается по имени, чтобы его значение не попадало в
+# host_vars и попадало только в файл окружения.
+keycloak_db_password_var: null
+
+# Boolean. Create the database and its role on the PostgreSQL server before the
+# first start; when false the role expects them pre-created.
+# Логическое значение. Создать базу и её роль на сервере PostgreSQL до первого
+# запуска; при false роль ожидает их уже созданными.
+keycloak_manage_database: true
+
+# String. Privileged account used only to create the database and the role;
+# Keycloak itself connects as keycloak_db_user.
+# Строка. Привилегированная учётная запись только для создания базы и роли;
+# сам Keycloak подключается как keycloak_db_user.
+keycloak_db_admin_user: "postgres"
+
+# String or null. Name of the variable holding the privileged password;
+# required when keycloak_manage_database is true.
+# Строка или null. Имя переменной с привилегированным паролем; обязательно,
+# когда keycloak_manage_database равен true.
+keycloak_db_admin_password_var: null
+
+# List of strings. Internal: packages the community.postgresql modules need on
+# the target host; postgres is the only supported backend.
+# Список строк. Внутренний: пакеты, нужные модулям community.postgresql на
+# целевом хосте; postgres - единственный поддерживаемый бэкенд.
+keycloak_database_packages:
+  - "python3-psycopg2"
 
 # Public URL and HTTP listener
 # Публичный URL и HTTP-слушатель
@@ -130,12 +164,18 @@ keycloak_extra_options: {}
 # Начальный администратор
 
 # String. Username of the bootstrap administrator created on the first start via
-# KC_BOOTSTRAP_ADMIN_USERNAME. The password is the secret
-# vault_keycloak_admin_password, passed through KC_BOOTSTRAP_ADMIN_PASSWORD.
+# KC_BOOTSTRAP_ADMIN_USERNAME.
 # Строка. Имя начального администратора, создаваемого при первом старте через
-# KC_BOOTSTRAP_ADMIN_USERNAME. Пароль — секрет vault_keycloak_admin_password,
-# передаваемый через KC_BOOTSTRAP_ADMIN_PASSWORD.
+# KC_BOOTSTRAP_ADMIN_USERNAME.
 keycloak_admin_user: "admin"
+
+# String or null. Name of the variable holding the bootstrap administrator
+# password, taken from VARS/secrets.yml; required. The value reaches the server
+# through KC_BOOTSTRAP_ADMIN_PASSWORD in the environment file.
+# Строка или null. Имя переменной с паролем начального администратора из
+# VARS/secrets.yml; обязательно. Значение доходит до сервера через
+# KC_BOOTSTRAP_ADMIN_PASSWORD в файле окружения.
+keycloak_admin_password_var: null
 
 # Environment file
 # Файл окружения

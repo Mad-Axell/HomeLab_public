@@ -5,7 +5,8 @@ This role installs Grafana on a Debian host from the official
 template (HTTP port, domain/root_url, built-in administrator, database
 connection), provisions datasources and dashboards declaratively, and
 installs plugins via `grafana-cli`. By default Grafana runs on an external
-PostgreSQL instance; the embedded sqlite3 backend is selected via
+PostgreSQL instance and the role creates its database and role there itself
+(`grafana_database_manage`); the embedded sqlite3 backend is selected via
 `grafana_database_type`. Passwords come from external secrets referenced by
 variable name; SSO via Keycloak is a deliberate later phase and is not part
 of this role.
@@ -15,15 +16,27 @@ of this role.
 - Validates the Debian platform, the structure of the input lists and the
   secret variable names (`grafana_admin_password_var`, plus
   `grafana_database_host` and `grafana_database_password_var` in postgres
-  mode) with an early `ansible.builtin.assert`, then verifies the named
-  secrets exist with a separate check - all before any changes.
+  mode, and `grafana_database_admin_password_var` when
+  `grafana_database_manage` is enabled) with an early
+  `ansible.builtin.assert`, then verifies the named secrets exist with a
+  separate check - all before any changes.
 - Downloads the armored signing key into `/etc/apt/keyrings/grafana.asc` and
   registers the repository
   `deb [arch=amd64 signed-by=...] https://apt.grafana.com stable main`.
-- Installs the `grafana` package and renders `grafana.ini` from a template,
-  including the `[database]` section when `grafana_database_type` is
-  `"postgres"`. The file carries passwords, so the task uses `no_log: true`
-  and `diff: false`.
+- Installs the `grafana` package and, when `grafana_database_type` is
+  `"postgres"`, the packages in `grafana_database_packages`
+  (`python3-psycopg2`) needed by the `community.postgresql` modules on the
+  target host.
+- With `grafana_database_type: "postgres"` and
+  `grafana_database_manage: true` creates the PostgreSQL role
+  `grafana_database_user` (LOGIN, password from
+  `grafana_database_password_var`) and the database
+  `grafana_database_name` owned by `grafana_database_user`; the connection
+  is made as the privileged `grafana_database_admin_user` account. Both
+  tasks run with `no_log: true`.
+- Renders `grafana.ini` from a template, including the `[database]` section
+  when `grafana_database_type` is `"postgres"`. The file carries passwords,
+  so the task uses `no_log: true` and `diff: false`.
 - Renders `/etc/grafana/provisioning/datasources/datasources.yaml` from the
   `grafana_datasources` list and the provider
   `/etc/grafana/provisioning/dashboards/dashboards.yaml` pointing at
@@ -42,15 +55,19 @@ of this role.
 
 - Debian (the project's target platform is Debian 13, LXC); `become: true`.
 - Outbound HTTPS access to `apt.grafana.com`.
-- With `grafana_database_type: "postgres"`: a network-reachable PostgreSQL
-  with the database and role already created (see "Notes").
+- With `grafana_database_type: "postgres"`: a network-reachable PostgreSQL.
+  With `grafana_database_manage: true` (the default) the role creates the
+  database and role itself as `grafana_database_admin_user`; with `false`
+  it expects them pre-created (see "Notes").
 - Secrets from `VARS/secrets.yml` named by `grafana_admin_password_var` and
-  `grafana_database_password_var`, wired in by the playbook (see "Secrets").
+  `grafana_database_password_var` (plus `grafana_database_admin_password_var`
+  when managing the database), wired in by the playbook (see "Secrets").
 
 ## Managed resources
 
 - Packages: `ca-certificates`, `python3-apt`, the packages in
-  `grafana_packages` (`grafana`).
+  `grafana_packages` (`grafana`) and, for the postgres backend,
+  `python3-psycopg2` from `grafana_database_packages`.
 - Files: `/etc/apt/keyrings/grafana.asc`,
   `/etc/apt/sources.list.d/grafana.list`, `/etc/grafana/grafana.ini`,
   `/etc/grafana/provisioning/datasources/datasources.yaml`,
@@ -58,6 +75,8 @@ of this role.
   `/var/lib/grafana/dashboards` directory and the dashboard JSON files in it,
   plugins under `/var/lib/grafana/plugins`.
 - Services: `grafana-server`.
+- Database objects: with `grafana_database_manage: true` the PostgreSQL role
+  `grafana_database_user` and the database `grafana_database_name`.
 - Users/groups, firewall/API objects: not managed. Access to
   `grafana_http_port` is configured by a separate firewall role.
 
@@ -86,6 +105,10 @@ of this role.
 | `grafana_database_name` | string | no | `"grafana"` | Database name Grafana connects to. |
 | `grafana_database_user` | string | no | `"grafana"` | Database login. |
 | `grafana_database_password_var` | string or null | in postgres mode | `null` | Name of the variable holding the database password in `VARS/secrets.yml`; required when `grafana_database_type` is `"postgres"`. |
+| `grafana_database_manage` | boolean | no | `true` | Create the database and its role before the first start; `false` expects pre-created objects. |
+| `grafana_database_admin_user` | string | no | `"postgres"` | Privileged account used only to create the database and the role. |
+| `grafana_database_admin_password_var` | string or null | in postgres+manage mode | `null` | Name of the variable holding the privileged password in `VARS/secrets.yml`; required when `grafana_database_type` is `"postgres"` and `grafana_database_manage` is `true`. |
+| `grafana_database_packages` | list | no | `["python3-psycopg2"]` | Internal: packages the `community.postgresql` modules need on the target host. |
 | `grafana_datasources_config_path` | string | no | `"/etc/grafana/provisioning/datasources/datasources.yaml"` | Path of the datasource provisioning file. |
 | `grafana_datasources` | list | no | `[]` | Datasources: each entry requires `name`, `type`, `url`; optional `access` (default `"proxy"`) and `is_default` (default `false`). |
 | `grafana_dashboards_provider_path` | string | no | `"/etc/grafana/provisioning/dashboards/dashboards.yaml"` | Path of the dashboards provider file. |
@@ -108,6 +131,7 @@ secrets.yml and never lands in host_vars. The playbook loads
 | --- | --- | --- | --- |
 | secret named by `grafana_admin_password_var` | string | yes | Password of the built-in administrator, e.g. the `grafana_admin_password` key. Checked by the early `assert`; the role fails before making changes if the variable does not exist. |
 | secret named by `grafana_database_password_var` | string | in postgres mode | PostgreSQL connection password, e.g. the `grafana_db_password` key. Required when `grafana_database_type` is `"postgres"`. |
+| secret named by `grafana_database_admin_password_var` | string | in postgres+manage mode | Password of the privileged `grafana_database_admin_user` account on the PostgreSQL server, e.g. the shared `db_admin_password` key. Required when `grafana_database_type` is `"postgres"` and `grafana_database_manage` is `true`; used only to create the database and the role. |
 
 The task that renders `grafana.ini` uses `no_log: true` and `diff: false`:
 the secrets land only in the file on the target host and are never shown in
@@ -140,6 +164,7 @@ not performed by the role; do it manually with
         grafana_admin_password_var: "grafana_admin_password"
         grafana_database_host: "postgresql.example.internal"
         grafana_database_password_var: "grafana_db_password"
+        grafana_database_admin_password_var: "db_admin_password"
         grafana_domain: "grafana.example.internal"
         grafana_root_url: "http://grafana.example.internal:3000/"
         grafana_datasources:
@@ -173,13 +198,19 @@ The role supports `--check --diff` with the following limitations:
 
 ## Dependencies
 
-- None. Only `ansible.builtin` modules are used.
+- The `community.postgresql` collection (the `postgresql_user` and
+  `postgresql_db` modules that create the database and the role); all other
+  modules are `ansible.builtin`.
 
 ## Notes
 
-- Creating the PostgreSQL database and role is out of this role's scope: the
-  `postgresql` role does that on the database host via `postgresql_roles`
-  and `postgresql_databases` before `grafana` is applied.
+- With `grafana_database_manage: true` (the default) the role creates its
+  database and role in PostgreSQL itself - per the project convention the
+  application owns its schema. This requires the password of the privileged
+  `grafana_database_admin_user` account, named by
+  `grafana_database_admin_password_var` (for example the shared
+  `db_admin_password` secret). With `grafana_database_manage: false` the
+  role expects the database and role to be already created externally.
 - Switching an existing instance from sqlite3 to PostgreSQL does not migrate
   data: after changing `grafana_database_type` Grafana starts with an empty
   database and applies its schema itself; content migration is a manual

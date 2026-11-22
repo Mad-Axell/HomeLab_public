@@ -107,10 +107,10 @@ grafana_database_host: null
 # Целое число. Порт PostgreSQL.
 grafana_database_port: 5432
 
-# String. Database name Grafana connects to. The database and its role are
-# created outside this role by the postgresql role.
-# Строка. Имя базы, к которой подключается Grafana. База и её роль создаются
-# вне этой роли - ролью postgresql.
+# String. Database name Grafana connects to; created by this role when
+# grafana_database_manage is true.
+# Строка. Имя базы, к которой подключается Grafana; создаётся этой ролью,
+# когда grafana_database_manage равен true.
 grafana_database_name: "grafana"
 
 # String. Login Grafana uses for the database.
@@ -122,6 +122,33 @@ grafana_database_user: "grafana"
 # Строка или null. Имя переменной с паролем к базе из VARS/secrets.yml;
 # обязательно, когда grafana_database_type равен "postgres".
 grafana_database_password_var: null
+
+# Boolean. Create the database and its role on the PostgreSQL server before
+# the first start; when false the role expects them pre-created.
+# Логическое значение. Создать базу и её роль на сервере PostgreSQL до
+# первого запуска; при false роль ожидает их уже созданными.
+grafana_database_manage: true
+
+# String. Privileged account used only to create the database and the role;
+# Grafana itself connects as grafana_database_user.
+# Строка. Привилегированная учётная запись только для создания базы и роли;
+# сама Grafana подключается как grafana_database_user.
+grafana_database_admin_user: "postgres"
+
+# String or null. Name of the variable holding the privileged password;
+# required when grafana_database_type is "postgres" and
+# grafana_database_manage is true.
+# Строка или null. Имя переменной с привилегированным паролем; обязательно,
+# когда grafana_database_type равен "postgres" и grafana_database_manage
+# равен true.
+grafana_database_admin_password_var: null
+
+# List of strings. Internal: packages the community.postgresql modules need
+# on the target host when the postgres backend is used.
+# Список строк. Внутренний: пакеты, нужные модулям community.postgresql на
+# целевом хосте при использовании бэкенда postgres.
+grafana_database_packages:
+  - "python3-psycopg2"
 
 # Provisioning
 # Провизионирование

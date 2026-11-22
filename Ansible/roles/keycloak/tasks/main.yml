@@ -11,19 +11,31 @@
       - (keycloak_db_host | string | trim | length) > 0
       - keycloak_hostname is string
       - (keycloak_hostname | string | trim | length) > 0
-      - >-
-        vault_keycloak_db_password is defined
-        and vault_keycloak_db_password is string
-        and (vault_keycloak_db_password | trim | length) > 0
-      - >-
-        vault_keycloak_admin_password is defined
-        and vault_keycloak_admin_password is string
-        and (vault_keycloak_admin_password | trim | length) > 0
+      - keycloak_db_password_var is not none
+      - keycloak_admin_password_var is not none
+      - not (keycloak_manage_database | bool) or keycloak_db_admin_password_var is not none
     fail_msg: >-
       keycloak requires Debian, a non-empty keycloak_db_host and keycloak_hostname,
-      and the secrets vault_keycloak_db_password and vault_keycloak_admin_password
-      from VARS/secrets.yml loaded by the playbook.
+      and the secret variable names keycloak_db_password_var and
+      keycloak_admin_password_var. Managing the database additionally requires
+      keycloak_db_admin_password_var.
     quiet: true
+
+# Verify the secrets named by the *_password_var variables actually exist; the
+# loop checks variable names, never their values.
+# Проверка, что секреты, названные в переменных *_password_var, реально
+# существуют; цикл проверяет имена переменных, а не их значения.
+- name: Validate the Keycloak secrets
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', item, default=none) is not none
+    fail_msg: "A variable named in the keycloak configuration must exist in VARS/secrets.yml."
+  loop: >-
+    {{ [keycloak_admin_password_var, keycloak_db_password_var]
+       + ([keycloak_db_admin_password_var] if keycloak_manage_database | bool else []) }}
+  loop_control:
+    label: "redacted"
+  no_log: true
 
 # Install the Java runtime the server runs on
 # Установка Java-окружения, на котором работает сервер
@@ -34,6 +46,52 @@
     update_cache: true
     cache_valid_time: 3600
   register: keycloak_package_result
+
+# Install the Python driver the community.postgresql modules need on this
+# host; postgres is the only supported backend.
+# Установка Python-драйвера, нужного модулям community.postgresql на этом
+# хосте; postgres - единственный поддерживаемый бэкенд.
+- name: Install the PostgreSQL module dependencies
+  ansible.builtin.apt:
+    name: "{{ keycloak_database_packages }}"
+    state: present
+  register: keycloak_database_packages_result
+
+# The server owns the database it lives in, as every application here does.
+# Starting Keycloak against a database nobody created fails at boot with a
+# connection error, which says nothing about the database being absent.
+# Сервер владеет базой, в которой живёт, как и всякое приложение здесь. Старт
+# Keycloak на базе, которую никто не создал, падает при загрузке ошибкой
+# подключения, и та ничего не говорит об отсутствии самой базы.
+- name: Create the Keycloak database role
+  community.postgresql.postgresql_user:
+    name: "{{ keycloak_db_user }}"
+    password: "{{ lookup('ansible.builtin.vars', keycloak_db_password_var) }}"
+    role_attr_flags: "LOGIN"
+    login_host: "{{ keycloak_db_host }}"
+    login_port: "{{ keycloak_db_port }}"
+    login_user: "{{ keycloak_db_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', keycloak_db_admin_password_var) }}"
+    login_db: "postgres"
+    state: present
+  when: keycloak_manage_database | bool
+  no_log: true
+  register: keycloak_db_role_result
+
+- name: Create the Keycloak database
+  community.postgresql.postgresql_db:
+    name: "{{ keycloak_db_name }}"
+    owner: "{{ keycloak_db_user }}"
+    encoding: "UTF-8"
+    template: "template0"
+    login_host: "{{ keycloak_db_host }}"
+    login_port: "{{ keycloak_db_port }}"
+    login_user: "{{ keycloak_db_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', keycloak_db_admin_password_var) }}"
+    state: present
+  when: keycloak_manage_database | bool
+  no_log: true
+  register: keycloak_db_result
 
 # Create the system group the service runs as
 # Создание системной группы, от имени которой работает сервис
@@ -215,6 +273,9 @@
     - keycloak_debug_mode | bool
     - >-
       (keycloak_package_result.changed | default(false) | bool)
+      or (keycloak_database_packages_result.changed | default(false) | bool)
+      or (keycloak_db_role_result.changed | default(false) | bool)
+      or (keycloak_db_result.changed | default(false) | bool)
       or (keycloak_download_result.changed | default(false) | bool)
       or (keycloak_unarchive_result.changed | default(false) | bool)
       or (keycloak_symlink_result.changed | default(false) | bool)

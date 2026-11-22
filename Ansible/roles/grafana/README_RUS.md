@@ -4,7 +4,8 @@
 `apt.grafana.com`, пишет `/etc/grafana/grafana.ini` из шаблона (HTTP-порт,
 domain/root_url, встроенный администратор, подключение к базе данных),
 декларативно провизионирует источники данных и дашборды и ставит плагины
-через `grafana-cli`. По умолчанию Grafana работает на внешнем PostgreSQL;
+через `grafana-cli`. По умолчанию Grafana работает на внешнем PostgreSQL и
+роль сама создаёт свою базу и роль в нём (`grafana_database_manage`);
 встроенный sqlite3 выбирается через `grafana_database_type`. Пароли
 приходят из внешних секретов по имени переменной; SSO через Keycloak -
 осознанно следующий этап и в эту роль не входит.
@@ -13,15 +14,25 @@ domain/root_url, встроенный администратор, подключ
 
 - Проверяет платформу Debian, структуру входных списков, имена секретных
   переменных (`grafana_admin_password_var`, при postgres также
-  `grafana_database_host` и `grafana_database_password_var`) ранним
-  `ansible.builtin.assert`, а затем отдельной проверкой убеждается, что
-  названные секреты существуют - всё до любых изменений.
+  `grafana_database_host` и `grafana_database_password_var`, а при
+  `grafana_database_manage` ещё и `grafana_database_admin_password_var`)
+  ранним `ansible.builtin.assert`, а затем отдельной проверкой убеждается,
+  что названные секреты существуют - всё до любых изменений.
 - Скачивает armored-ключ подписи в `/etc/apt/keyrings/grafana.asc` и
   подключает репозиторий
   `deb [arch=amd64 signed-by=...] https://apt.grafana.com stable main`.
-- Устанавливает пакет `grafana` и пишет `grafana.ini` из шаблона, включая
-  секцию `[database]` при `grafana_database_type: "postgres"`. Файл
-  содержит пароли, поэтому таска использует `no_log: true` и `diff: false`.
+- Устанавливает пакет `grafana` и, при `grafana_database_type: "postgres"`,
+  пакеты из `grafana_database_packages` (`python3-psycopg2`), нужные модулям
+  `community.postgresql` на целевом хосте.
+- При `grafana_database_type: "postgres"` и `grafana_database_manage: true`
+  создаёт роль PostgreSQL `grafana_database_user` (LOGIN, пароль из
+  `grafana_database_password_var`) и базу `grafana_database_name` с
+  владельцем `grafana_database_user`; подключение выполняется
+  привилегированной учётной записью `grafana_database_admin_user`. Обе таски
+  идут с `no_log: true`.
+- Пишет `grafana.ini` из шаблона, включая секцию `[database]` при
+  `grafana_database_type: "postgres"`. Файл содержит пароли, поэтому таска
+  использует `no_log: true` и `diff: false`.
 - Пишет `/etc/grafana/provisioning/datasources/datasources.yaml` из списка
   `grafana_datasources` и провайдер
   `/etc/grafana/provisioning/dashboards/dashboards.yaml`, указывающий на
@@ -40,16 +51,20 @@ domain/root_url, встроенный администратор, подключ
 
 - Debian (целевая платформа проекта - Debian 13, LXC); `become: true`.
 - Исходящий HTTPS-доступ к `apt.grafana.com`.
-- При `grafana_database_type: "postgres"`: доступный по сети PostgreSQL с уже
-  созданной базой и ролью (см. раздел "Примечания").
+- При `grafana_database_type: "postgres"`: доступный по сети PostgreSQL.
+  При `grafana_database_manage: true` (по умолчанию) роль создаёт базу и
+  роль сама от имени `grafana_database_admin_user`; при `false` ожидает их
+  уже созданными (см. раздел "Примечания").
 - Секреты из `VARS/secrets.yml`, названные в `grafana_admin_password_var` и
-  `grafana_database_password_var`, подключённые playbook'ом (см. раздел
-  "Секреты").
+  `grafana_database_password_var` (а при управлении базой также в
+  `grafana_database_admin_password_var`), подключённые playbook'ом (см.
+  раздел "Секреты").
 
 ## Изменяемые ресурсы
 
 - Packages: `ca-certificates`, `python3-apt`, пакеты из `grafana_packages`
-  (`grafana`).
+  (`grafana`) и, при бэкенде postgres, `python3-psycopg2` из
+  `grafana_database_packages`.
 - Files: `/etc/apt/keyrings/grafana.asc`,
   `/etc/apt/sources.list.d/grafana.list`, `/etc/grafana/grafana.ini`,
   `/etc/grafana/provisioning/datasources/datasources.yaml`,
@@ -57,6 +72,8 @@ domain/root_url, встроенный администратор, подключ
   `/var/lib/grafana/dashboards` и JSON-файлы дашбордов в нём, плагины в
   `/var/lib/grafana/plugins`.
 - Services: `grafana-server`.
+- Database objects: при `grafana_database_manage: true` роль PostgreSQL
+  `grafana_database_user` и база `grafana_database_name`.
 - Users/groups, firewall/API objects: не управляются. Доступ к
   `grafana_http_port` настраивается отдельной ролью firewall.
 
@@ -85,6 +102,10 @@ domain/root_url, встроенный администратор, подключ
 | `grafana_database_name` | string | no | `"grafana"` | Имя базы Grafana. |
 | `grafana_database_user` | string | no | `"grafana"` | Логин подключения к базе. |
 | `grafana_database_password_var` | string или null | при postgres | `null` | Имя переменной с паролем к базе в `VARS/secrets.yml`; обязательно при `grafana_database_type: "postgres"`. |
+| `grafana_database_manage` | boolean | no | `true` | Создавать базу и её роль до первого запуска; при `false` ожидаются готовые объекты. |
+| `grafana_database_admin_user` | string | no | `"postgres"` | Привилегированная учётная запись, используемая только для создания базы и роли. |
+| `grafana_database_admin_password_var` | string или null | при postgres и manage | `null` | Имя переменной с привилегированным паролем в `VARS/secrets.yml`; обязательно при `grafana_database_type: "postgres"` и `grafana_database_manage: true`. |
+| `grafana_database_packages` | list | no | `["python3-psycopg2"]` | Внутреннее: пакеты для модулей `community.postgresql` на целевом хосте. |
 | `grafana_datasources_config_path` | string | no | `"/etc/grafana/provisioning/datasources/datasources.yaml"` | Путь файла провизионирования источников. |
 | `grafana_datasources` | list | no | `[]` | Источники данных: у каждого обязательны `name`, `type`, `url`; опциональны `access` (по умолчанию `"proxy"`) и `is_default` (по умолчанию `false`). |
 | `grafana_dashboards_provider_path` | string | no | `"/etc/grafana/provisioning/dashboards/dashboards.yaml"` | Путь файла провайдера дашбордов. |
@@ -107,6 +128,7 @@ domain/root_url, встроенный администратор, подключ
 | --- | --- | --- | --- |
 | секрет из `grafana_admin_password_var` | string | yes | Пароль встроенного администратора, например ключ `grafana_admin_password`. Проверяется ранним `assert`; роль падает до внесения изменений, если переменная не существует. |
 | секрет из `grafana_database_password_var` | string | при postgres | Пароль подключения к PostgreSQL, например ключ `grafana_db_password`. Обязателен при `grafana_database_type: "postgres"`. |
+| секрет из `grafana_database_admin_password_var` | string | при postgres и manage | Пароль привилегированной учётной записи `grafana_database_admin_user` на сервере PostgreSQL, например общий ключ `db_admin_password`. Обязателен при `grafana_database_type: "postgres"` и `grafana_database_manage: true`; используется только для создания базы и роли. |
 
 Таска, пишущая `grafana.ini`, использует `no_log: true` и `diff: false`:
 секреты попадают только в файл на целевом хосте и не показываются в выводе и
@@ -138,6 +160,7 @@ diff. Пароль администратора применяется один 
         grafana_admin_password_var: "grafana_admin_password"
         grafana_database_host: "postgresql.example.internal"
         grafana_database_password_var: "grafana_db_password"
+        grafana_database_admin_password_var: "db_admin_password"
         grafana_domain: "grafana.example.internal"
         grafana_root_url: "http://grafana.example.internal:3000/"
         grafana_datasources:
@@ -169,13 +192,19 @@ diff. Пароль администратора применяется один 
 
 ## Зависимости
 
-- None. Используются только модули `ansible.builtin`.
+- Коллекция `community.postgresql` (модули `postgresql_user` и
+  `postgresql_db` для создания базы и роли); остальные модули -
+  `ansible.builtin`.
 
 ## Примечания
 
-- Создание базы и роли PostgreSQL вне области этой роли: их заводит роль
-  `postgresql` на хосте базы через `postgresql_roles` и
-  `postgresql_databases` до применения `grafana`.
+- При `grafana_database_manage: true` (по умолчанию) роль сама создаёт свою
+  базу и роль в PostgreSQL - по конвенции проекта приложение владеет своей
+  схемой. Для этого нужен пароль привилегированной учётной записи
+  `grafana_database_admin_user`, названный в
+  `grafana_database_admin_password_var` (например, общий секрет
+  `db_admin_password`). При `grafana_database_manage: false` роль ожидает,
+  что база и роль уже созданы внешним способом.
 - Перевод существующего инстанса с sqlite3 на PostgreSQL не переносит данные:
   при смене `grafana_database_type` Grafana стартует с пустой базой и
   накатывает схему сама; миграция содержимого - ручная операция вне роли.

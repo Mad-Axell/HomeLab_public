@@ -29,11 +29,16 @@
       - >-
         grafana_database_type != "postgres"
         or grafana_database_password_var is not none
+      - >-
+        grafana_database_type != "postgres"
+        or not (grafana_database_manage | bool)
+        or grafana_database_admin_password_var is not none
     fail_msg: >-
       grafana requires a Debian-family host, a grafana_admin_password_var secret
       variable name and well-formed grafana_datasources entries (name, type, url).
       With grafana_database_type "postgres" it also needs grafana_database_host
-      and grafana_database_password_var.
+      and grafana_database_password_var, and managing the database additionally
+      requires grafana_database_admin_password_var.
     quiet: true
 
 # Verify the secrets named by the *_password_var variables actually exist;
@@ -47,7 +52,10 @@
     fail_msg: "A variable named in the grafana configuration must exist in VARS/secrets.yml."
   loop: >-
     {{ [grafana_admin_password_var]
-       + ([grafana_database_password_var] if grafana_database_type == "postgres" else []) }}
+       + ([grafana_database_password_var] if grafana_database_type == "postgres" else [])
+       + ([grafana_database_admin_password_var]
+          if (grafana_database_type == "postgres" and (grafana_database_manage | bool))
+          else []) }}
   loop_control:
     label: "redacted"
   no_log: true
@@ -117,6 +125,55 @@
     or (grafana_repository_result is defined
         and not (grafana_repository_result.changed | default(false) | bool))
   register: grafana_package_result
+
+# Install the Python driver the community.postgresql modules need on this
+# host; it comes from Debian itself and is only relevant for the postgres
+# backend.
+# Установка Python-драйвера, нужного модулям community.postgresql на этом
+# хосте; он берётся из самого Debian и актуален только для бэкенда postgres.
+- name: Install the PostgreSQL module dependencies
+  ansible.builtin.apt:
+    name: "{{ grafana_database_packages }}"
+    state: present
+  when: grafana_database_type == "postgres"
+  register: grafana_database_packages_result
+
+# The server owns the database it lives in, as every application here does.
+# Starting Grafana against a database nobody created fails on schema
+# initialisation with a connection error, which says nothing about the
+# database being absent.
+# Сервер владеет базой, в которой живёт, как и всякое приложение здесь. Старт
+# Grafana на базе, которую никто не создал, падает на инициализации схемы
+# ошибкой подключения, и та ничего не говорит об отсутствии самой базы.
+- name: Create the Grafana database role
+  community.postgresql.postgresql_user:
+    name: "{{ grafana_database_user }}"
+    password: "{{ lookup('ansible.builtin.vars', grafana_database_password_var) }}"
+    role_attr_flags: "LOGIN"
+    login_host: "{{ grafana_database_host }}"
+    login_port: "{{ grafana_database_port }}"
+    login_user: "{{ grafana_database_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', grafana_database_admin_password_var) }}"
+    login_db: "postgres"
+    state: present
+  when: grafana_database_type == "postgres" and grafana_database_manage | bool
+  no_log: true
+  register: grafana_db_role_result
+
+- name: Create the Grafana database
+  community.postgresql.postgresql_db:
+    name: "{{ grafana_database_name }}"
+    owner: "{{ grafana_database_user }}"
+    encoding: "UTF-8"
+    template: "template0"
+    login_host: "{{ grafana_database_host }}"
+    login_port: "{{ grafana_database_port }}"
+    login_user: "{{ grafana_database_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', grafana_database_admin_password_var) }}"
+    state: present
+  when: grafana_database_type == "postgres" and grafana_database_manage | bool
+  no_log: true
+  register: grafana_db_result
 
 # Render the main configuration. It carries the admin password and, in
 # postgres mode, the database password, so nothing about it is logged or
@@ -282,6 +339,9 @@
       or (grafana_key_result is defined and (grafana_key_result.changed | default(false) | bool))
       or (grafana_repository_result is defined and (grafana_repository_result.changed | default(false) | bool))
       or (grafana_package_result is defined and (grafana_package_result.changed | default(false) | bool))
+      or (grafana_database_packages_result is defined and (grafana_database_packages_result.changed | default(false) | bool))
+      or (grafana_db_role_result is defined and (grafana_db_role_result.changed | default(false) | bool))
+      or (grafana_db_result is defined and (grafana_db_result.changed | default(false) | bool))
       or (grafana_config_result is defined and (grafana_config_result.changed | default(false) | bool))
       or (grafana_datasources_result is defined and (grafana_datasources_result.changed | default(false) | bool))
       or (grafana_provider_result is defined and (grafana_provider_result.changed | default(false) | bool))
