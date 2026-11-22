@@ -31,6 +31,11 @@ netbox_seed_state: "present"
 # netbox.netbox, поэтому поля - в точности те, что документирует модуль.
 netbox_seed_rirs: []
 netbox_seed_sites: []
+# Locations are site children used for devices placed in rooms instead of a
+# rack position (workstations, TVs, wall-mounted gear).
+# Локации - потомки сайта для устройств, стоящих в помещениях, а не в стойке
+# (рабочие станции, телевизоры, настенное оборудование).
+netbox_seed_locations: []
 netbox_seed_racks: []
 netbox_seed_manufacturers: []
 netbox_seed_device_roles: []
@@ -38,6 +43,10 @@ netbox_seed_ipam_roles: []
 netbox_seed_device_types: []
 netbox_seed_vlan_groups: []
 netbox_seed_vlans: []
+# Wireless LAN groups and WLANs (SSIDs). A WLAN references its VLAN by name.
+# Группы беспроводных сетей и сами WLAN (SSID). WLAN ссылается на VLAN по имени.
+netbox_seed_wireless_lan_groups: []
+netbox_seed_wireless_lans: []
 netbox_seed_cluster_types: []
 netbox_seed_clusters: []
 netbox_seed_prefixes: []
@@ -50,6 +59,18 @@ netbox_seed_device_bays: []
 netbox_seed_virtual_machines: []
 netbox_seed_device_interfaces: []
 netbox_seed_vm_interfaces: []
+# Cables connect two already existing terminations; each entry needs
+# termination_a_type/termination_b_type (for example dcim.interface) and the
+# matching termination_a/termination_b references.
+# Кабели соединяют две уже существующие терминации; каждая запись содержит
+# termination_a_type/termination_b_type (например dcim.interface) и ссылки
+# termination_a/termination_b.
+netbox_seed_cables: []
+# Services describe which daemon runs on which device or VM; entries carry
+# name, protocol, ports and a device or virtual_machine reference.
+# Сервисы описывают, какой демон на каком устройстве или VM работает; записи
+# содержат name, protocol, ports и ссылку device или virtual_machine.
+netbox_seed_services: []
 # MAC addresses are separate objects since NetBox 4.2; each entry needs
 # mac_address plus an assigned_object reference to an existing interface.
 # MAC-адреса - отдельные объекты начиная с NetBox 4.2; каждая запись содержит

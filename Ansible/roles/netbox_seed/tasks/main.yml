@@ -49,6 +49,17 @@
   when: netbox_seed_sites | length > 0
   register: netbox_seed_sites_result
 
+- name: Ensure locations
+  netbox.netbox.netbox_location:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_locations }}"
+  when: netbox_seed_locations | length > 0
+  register: netbox_seed_locations_result
+
 - name: Ensure racks
   netbox.netbox.netbox_rack:
     netbox_url: "{{ netbox_seed_api_url }}"
@@ -126,6 +137,28 @@
   when: netbox_seed_vlans | length > 0
   register: netbox_seed_vlans_result
 
+- name: Ensure wireless LAN groups
+  netbox.netbox.netbox_wireless_lan_group:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_wireless_lan_groups }}"
+  when: netbox_seed_wireless_lan_groups | length > 0
+  register: netbox_seed_wlan_groups_result
+
+- name: Ensure wireless LANs
+  netbox.netbox.netbox_wireless_lan:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_wireless_lans }}"
+  when: netbox_seed_wireless_lans | length > 0
+  register: netbox_seed_wlans_result
+
 - name: Ensure cluster types
   netbox.netbox.netbox_cluster_type:
     netbox_url: "{{ netbox_seed_api_url }}"
@@ -202,12 +235,16 @@
 
 # --- Interfaces belong to their parents, so they come after devices and VMs ---
 # --- Интерфейсы принадлежат родителям, поэтому идут после устройств и VM ---
+# The custom wireless_lans key is stripped: the collection module has no M2M
+# field, WLAN links are applied through the REST API further below.
+# Ключ wireless_lans отрезается: у модуля коллекции нет M2M-поля, привязка к
+# WLAN применяется через REST API ниже.
 - name: Ensure device interfaces
   netbox.netbox.netbox_device_interface:
     netbox_url: "{{ netbox_seed_api_url }}"
     netbox_token: "{{ netbox_seed_api_token }}"
     validate_certs: "{{ netbox_seed_validate_certs }}"
-    data: "{{ item }}"
+    data: "{{ item | dict2items | rejectattr('key', 'in', ['wireless_lans']) | items2dict }}"
     state: "{{ netbox_seed_state }}"
   loop: "{{ netbox_seed_device_interfaces }}"
   when: netbox_seed_device_interfaces | length > 0
@@ -223,6 +260,71 @@
   loop: "{{ netbox_seed_vm_interfaces }}"
   when: netbox_seed_vm_interfaces | length > 0
   register: netbox_seed_vm_interfaces_result
+
+# --- WLAN <-> wireless-interface links: no collection support, so resolve
+#     WLAN ids once and PATCH each interface that lists wireless_lans ---
+# --- Привязка WLAN к радио-интерфейсам: коллекция это поле не поддерживает,
+#     поэтому id WLAN резолвятся один раз и интерфейсы патчатся напрямую ---
+- name: Fetch wireless LAN objects
+  ansible.builtin.uri:
+    url: "{{ netbox_seed_api_url }}/api/wireless/wireless-lans/?limit=0"
+    method: GET
+    headers:
+      Authorization: "Token {{ netbox_seed_api_token }}"
+    return_content: true
+    status_code: 200
+  register: netbox_seed_wlan_objects
+  changed_when: false
+  when: netbox_seed_device_interfaces | selectattr('wireless_lans', 'defined') | list | length > 0
+
+- name: Look up interfaces that carry wireless LAN links
+  ansible.builtin.uri:
+    url: "{{ netbox_seed_api_url }}/api/dcim/interfaces/?device={{ item.device }}&name={{ item.name }}"
+    method: GET
+    headers:
+      Authorization: "Token {{ netbox_seed_api_token }}"
+    return_content: true
+    status_code: 200
+  register: netbox_seed_wlan_iface_lookup
+  changed_when: false
+  loop: "{{ netbox_seed_device_interfaces | selectattr('wireless_lans', 'defined') | list }}"
+  when: netbox_seed_device_interfaces | selectattr('wireless_lans', 'defined') | list | length > 0
+
+- name: Attach wireless LANs to wireless interfaces
+  ansible.builtin.uri:
+    url: "{{ netbox_seed_api_url }}/api/dcim/interfaces/{{ item.0.json.results[0].id }}/"
+    method: PATCH
+    headers:
+      Authorization: "Token {{ netbox_seed_api_token }}"
+    body:
+      wireless_lans: >-
+        {{ netbox_seed_wlan_objects.json.results
+           | selectattr('ssid', 'in', item.1.wireless_lans)
+           | map(attribute='id') | list }}
+    body_format: json
+    status_code: 200
+  loop: >-
+    {{ netbox_seed_wlan_iface_lookup.results
+       | zip(netbox_seed_device_interfaces | selectattr('wireless_lans', 'defined') | list)
+       | list }}
+  when: >-
+    (item.0.json.results[0].wireless_lans | map(attribute='id') | list | sort)
+    != (netbox_seed_wlan_objects.json.results
+        | selectattr('ssid', 'in', item.1.wireless_lans)
+        | map(attribute='id') | list | sort)
+
+# --- Cables terminate on interfaces, so they come after them ---
+# --- Кабели терминируются на интерфейсах, поэтому идут после них ---
+- name: Ensure cables
+  netbox.netbox.netbox_cable:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_cables }}"
+  when: netbox_seed_cables | length > 0
+  register: netbox_seed_cables_result
 
 # --- MACs attach to interfaces, so they come right after them ---
 # --- MAC-адреса привязываются к интерфейсам, поэтому идут сразу за ними ---
@@ -249,6 +351,21 @@
   loop: "{{ netbox_seed_ip_addresses }}"
   when: netbox_seed_ip_addresses | length > 0
   register: netbox_seed_ips_result
+
+# --- Services bind to devices/VMs and may reference addresses, so they come
+#     after the IP pass ---
+# --- Сервисы привязываются к устройствам/VM и могут ссылаться на адреса,
+#     поэтому идут после создания адресов ---
+- name: Ensure services
+  netbox.netbox.netbox_service:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_services }}"
+  when: netbox_seed_services | length > 0
+  register: netbox_seed_services_result
 
 # --- Primary IPs only after the addresses they point at exist ---
 # --- Первичные IP только после того, как адреса, на которые они ссылаются, созданы ---
@@ -285,9 +402,13 @@
       {{ netbox_seed_racks | length }} racks,
       {{ netbox_seed_vlans | length }} VLANs,
       {{ netbox_seed_prefixes | length }} prefixes,
+      {{ netbox_seed_locations | length }} locations,
       {{ netbox_seed_devices | length }} devices,
       {{ netbox_seed_device_bays | length }} device bays,
       {{ netbox_seed_virtual_machines | length }} VMs,
+      {{ netbox_seed_wireless_lans | length }} WLANs,
+      {{ netbox_seed_cables | length }} cables,
+      {{ netbox_seed_services | length }} services,
       {{ netbox_seed_mac_addresses | length }} MACs,
       {{ netbox_seed_ip_addresses | length }} IPs.
   when: netbox_seed_debug_mode | bool

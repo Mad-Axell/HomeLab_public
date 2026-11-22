@@ -40,6 +40,7 @@ device and VM interfaces → MAC addresses → IP addresses → primary IPs of d
 | `netbox_seed_state` | string | no | `present` | `present` or `absent` for all objects. |
 | `netbox_seed_rirs` | list | no | `[]` | `data` for `netbox_rir`. |
 | `netbox_seed_sites` | list | no | `[]` | `data` for `netbox_site`. |
+| `netbox_seed_locations` | list | no | `[]` | `data` for `netbox_location`; site children for room-placed devices. |
 | `netbox_seed_racks` | list | no | `[]` | `data` for `netbox_rack`. |
 | `netbox_seed_manufacturers` | list | no | `[]` | `data` for `netbox_manufacturer`. |
 | `netbox_seed_device_roles` | list | no | `[]` | `data` for `netbox_device_role`. |
@@ -52,6 +53,10 @@ device and VM interfaces → MAC addresses → IP addresses → primary IPs of d
 | `netbox_seed_prefixes` | list | no | `[]` | `data` for `netbox_prefix`. |
 | `netbox_seed_devices` | list | no | `[]` | `data` for `netbox_device`. `primary_ip4` is applied in a second pass after the addresses exist. |
 | `netbox_seed_device_bays` | list | no | `[]` | `data` for `netbox_device_bay`; each item needs `name`, `device` (parent) and `installed_device` (child). |
+| `netbox_seed_wireless_lan_groups` | list | no | `[]` | `data` for `netbox_wireless_lan_group`. |
+| `netbox_seed_wireless_lans` | list | no | `[]` | `data` for `netbox_wireless_lan`; `vlan` may reference a VLAN by name. |
+| `netbox_seed_cables` | list | no | `[]` | `data` for `netbox_cable`; terminations reference existing interfaces. |
+| `netbox_seed_services` | list | no | `[]` | `data` for `netbox_service`; `device` or `virtual_machine` plus `protocol`/`ports`. |
 | `netbox_seed_virtual_machines` | list | no | `[]` | `data` for `netbox_virtual_machine`. `primary_ip4` same as devices. |
 | `netbox_seed_device_interfaces` | list | no | `[]` | `data` for `netbox_device_interface`. |
 | `netbox_seed_vm_interfaces` | list | no | `[]` | `data` for `netbox_vm_interface`. |
