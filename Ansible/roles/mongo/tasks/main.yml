@@ -171,13 +171,34 @@
       - { db: "admin", role: "root" }
     login_port: "{{ mongo_port }}"
     login_database: "admin"
-    login_user: "{{ mongo_admin_user }}"
-    login_password: "{{ lookup('ansible.builtin.vars', mongo_admin_password_var) }}"
     update_password: "on_create"
     state: present
   when: mongo_admin_password_var is not none
   no_log: true
+  failed_when: false
   register: mongo_admin_result
+
+# An authentication failure above means the localhost exception is closed, so the
+# account already exists and only needs its state asserted under its own credentials.
+# Ошибка аутентификации выше означает, что localhost exception закрыто, - аккаунт
+# уже существует, и ему нужна только проверка состояния под собственной учёткой.
+- name: Assert the MongoDB admin user under its credentials
+  community.mongodb.mongodb_user:
+    name: "{{ mongo_admin_user }}"
+    password: "{{ lookup('ansible.builtin.vars', mongo_admin_password_var) }}"
+    database: "admin"
+    roles:
+      - { db: "admin", role: "root" }
+    login_port: "{{ mongo_port }}"
+    login_database: "admin"
+    login_user: "{{ mongo_admin_user }}"
+    login_password: "{{ lookup('ansible.builtin.vars', mongo_admin_password_var) }}"
+    update_password: "on_create"
+    state: present
+  when:
+    - mongo_admin_password_var is not none
+    - mongo_admin_result is failed
+  no_log: true
 
 # Application users are created under the admin login; update_password on_create keeps
 # the task idempotent on reruns instead of reporting a change it cannot verify.
