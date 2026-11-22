@@ -1,0 +1,19 @@
+---
+# A full restart is used instead of `wg syncconf`: syncconf applies additions
+# and changes but never removes peers dropped from the configuration, so
+# deleted clients would silently keep their access. The restart drops the
+# tunnel for a moment, which is acceptable for a remote-access service.
+# Используется полный рестарт вместо `wg syncconf`: syncconf применяет
+# добавления и изменения, но никогда не удаляет пиров, убранных из
+# конфигурации, поэтому удалённые клиенты молча сохранили бы доступ. Рестарт
+# на мгновение роняет туннель, что приемлемо для сервиса удалённого доступа.
+
+# Recreate the interface after a configuration change; skipped when the
+# operator keeps the tunnel stopped
+# Пересоздание интерфейса после изменения конфигурации; пропускается, когда
+# оператор держит туннель остановленным
+- name: Restart WireGuard interface
+  ansible.builtin.systemd_service:
+    name: "wg-quick@{{ wireguard_interface_name }}"
+    state: "restarted"
+  when: wireguard_service_state == 'started'

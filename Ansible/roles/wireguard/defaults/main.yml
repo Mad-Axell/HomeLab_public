@@ -1,0 +1,120 @@
+---
+# WireGuard remote-access server configuration
+# Конфигурация сервера удалённого доступа WireGuard
+
+# Interface settings
+# Настройки интерфейса
+
+# String. Name of the WireGuard interface; also selects the wg-quick instance
+# and the configuration file name inside the configuration directory
+# Строка. Имя интерфейса WireGuard; также определяет инстанс wg-quick
+# и имя конфигурационного файла внутри каталога конфигурации
+wireguard_interface_name: "wg0"
+
+# String or null. Tunnel address of the server with prefix, for example
+# "10.50.250.1/24"; required, set it before running the role
+# Строка или null. Туннельный адрес сервера с префиксом, например
+# "10.50.250.1/24"; обязателен, задайте его до запуска роли
+wireguard_tunnel_address: null
+
+# Integer. UDP port the interface listens on; the upstream firewall forwards
+# this port to the container
+# Целое число. UDP-порт, который слушает интерфейс; вышестоящий файрвол
+# пробрасывает этот порт на контейнер
+wireguard_listen_port: 51820
+
+# Peers
+# Пиры
+
+# List of dicts. Peer definitions rendered into the interface configuration;
+# an empty list installs a server that accepts no clients
+# Список словарей. Определения пиров, записываемые в конфигурацию интерфейса;
+# пустой список ставит сервер, не принимающий клиентов
+#
+# Keys per item:
+# - name (required): peer name, written as a comment above its Peer section
+# - group (optional): informational ACL tag such as "admin" or "user"; the
+#   upstream firewall uses it to group peer addresses, inside the
+#   configuration the tag only lands as a comment
+# - allowed_ips (required): list of CIDRs routed to this peer, normally a
+#   single /32 from the tunnel subnet
+# - public_key or public_key_var (one required): the peer public key given
+#   directly or as the name of a variable resolved at run time
+# - preshared_key_var (optional): name of the variable holding the preshared
+#   key; a plain preshared_key value is rejected because secrets live only in
+#   VARS/secrets.yml
+# - persistent_keepalive (optional): seconds between keepalive packets
+#
+# Ключи элемента:
+# - name (обязателен): имя пира, пишется комментарием над его секцией Peer
+# - group (опционально): информационная ACL-метка вида "admin" или "user";
+#   вышестоящий файрвол группирует по ней адреса пиров, в конфигурацию метка
+#   попадает только комментарием
+# - allowed_ips (обязателен): список CIDR, маршрутизируемых к пиру, обычно
+#   один /32 из туннельной подсети
+# - public_key или public_key_var (один обязателен): публичный ключ пира
+#   напрямую или именем переменной, разрешаемой во время прогона
+# - preshared_key_var (опционально): имя переменной с preshared-ключом;
+#   открытое значение preshared_key отвергается, так как секреты хранятся
+#   только в VARS/secrets.yml
+# - persistent_keepalive (опционально): секунды между keepalive-пакетами
+wireguard_peers: []
+
+# Secrets
+# Секреты
+
+# String or null. Name of the variable holding the server private key;
+# required. The key itself is resolved at run time and never lives in
+# defaults or inventory - conventionally vault_wireguard_server_private_key
+# in VARS/secrets.yml
+# Строка или null. Имя переменной с приватным ключом сервера; обязателен.
+# Сам ключ разрешается во время прогона и никогда не хранится в defaults или
+# inventory - по конвенции vault_wireguard_server_private_key в
+# VARS/secrets.yml
+wireguard_private_key_var: null
+
+# Service
+# Сервис
+
+# String. Steady state of the wg-quick instance: started or stopped
+# Строка. Устойчивое состояние инстанса wg-quick: started или stopped
+wireguard_service_state: "started"
+
+# Boolean. Start the wg-quick instance on boot
+# Логическое значение. Запускать инстанс wg-quick при загрузке
+wireguard_service_enabled: true
+
+# Internal paths and packages
+# Внутренние пути и пакеты
+
+# String. Internal. Directory that holds the interface configuration files
+# Строка. Внутреннее. Каталог с файлами конфигурации интерфейсов
+wireguard_config_dir: "/etc/wireguard"
+
+# String. Internal. Sysctl drop-in that enables IPv4 forwarding so tunnel
+# traffic reaches the internal networks
+# Строка. Внутреннее. Файл sysctl, включающий форвардинг IPv4, чтобы
+# туннельный трафик доходил до внутренних сетей
+wireguard_sysctl_file: "/etc/sysctl.d/99-wireguard-forward.conf"
+
+# String. Internal. Path of the wg-quick template unit shipped by
+# wireguard-tools; checked before the service is managed so a check-mode run
+# on a fresh host does not fail on the missing unit
+# Строка. Внутреннее. Путь шаблонного юнита wg-quick из пакета
+# wireguard-tools; проверяется перед управлением сервисом, чтобы check-прогон
+# на чистом хосте не падал на отсутствующем юните
+wireguard_unit_path: "/lib/systemd/system/wg-quick@.service"
+
+# List of strings. Internal. Packages installed by the role; wireguard-tools
+# brings wg and wg-quick, while the kernel module comes from the container host
+# Список строк. Внутреннее. Пакеты, устанавливаемые ролью; wireguard-tools
+# приносит wg и wg-quick, а модуль ядра предоставляет хост контейнера
+wireguard_packages:
+  - "wireguard-tools"
+
+# Role output
+# Вывод роли
+
+# Boolean. Enable change notifications in debug output
+# Логическое значение. Включить уведомления об изменениях в debug-выводе
+wireguard_debug_mode: false

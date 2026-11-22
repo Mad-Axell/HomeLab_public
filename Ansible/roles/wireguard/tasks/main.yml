@@ -1,0 +1,167 @@
+---
+# Read the tunnel device state, which the documented unprivileged LXC needs
+# either for the kernel module path or for the userspace fallback
+# Чтение состояния устройства туннеля, которое описанному в документации
+# unprivileged LXC нужно либо для пути через модуль ядра, либо для userspace-варианта
+- name: Check whether the tunnel device is present
+  ansible.builtin.stat:
+    path: "/dev/net/tun"
+  register: wireguard_tun_device_result
+
+# Validate the platform, the tunnel device and the peer contract before any change
+# Проверка платформы, устройства туннеля и контракта пиров до любого изменения
+- name: Assert required WireGuard variables are defined
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - wireguard_tun_device_result.stat.exists | default(false)
+      - wireguard_tunnel_address is string
+      - (wireguard_tunnel_address | trim | length) > 0
+      - wireguard_private_key_var is string
+      - (wireguard_private_key_var | trim | length) > 0
+      - >-
+        lookup('ansible.builtin.vars', wireguard_private_key_var, default=none)
+        is not none
+      - wireguard_peers | selectattr('name', 'undefined') | list | length == 0
+      - >-
+        wireguard_peers | selectattr('allowed_ips', 'undefined')
+        | list | length == 0
+      - >-
+        wireguard_peers | selectattr('public_key', 'undefined')
+        | selectattr('public_key_var', 'undefined') | list | length == 0
+      - >-
+        wireguard_peers | selectattr('preshared_key', 'defined')
+        | list | length == 0
+    fail_msg: >-
+      wireguard requires Debian, a present /dev/net/tun, a non-empty
+      wireguard_tunnel_address and wireguard_private_key_var naming a defined
+      variable; every peer needs name, allowed_ips and public_key or
+      public_key_var, and preshared keys are accepted only via
+      preshared_key_var
+    quiet: true
+
+# Resolve the secrets into facts so the template stays readable and a missing
+# variable fails here, before the first change, instead of mid-render;
+# no_log keeps the values hidden
+# Разрешение секретов в факты, чтобы шаблон оставался читаемым, а отсутствующая
+# переменная падала здесь, до первого изменения, а не в середине рендера;
+# no_log скрывает значения
+- name: Resolve the WireGuard secrets
+  ansible.builtin.set_fact:
+    wireguard_resolved_private_key: >-
+      {{ lookup('ansible.builtin.vars', wireguard_private_key_var) }}
+    wireguard_resolved_peers: >-
+      {%- set out = [] -%}
+      {%- for peer in wireguard_peers -%}
+      {%- set resolved = {
+        'resolved_public_key': (lookup('ansible.builtin.vars', peer.public_key_var)
+          if peer.public_key_var is defined else peer.public_key)
+      } -%}
+      {%- if peer.preshared_key_var is defined -%}
+      {%- set _ = resolved.update({
+        'resolved_preshared_key': lookup('ansible.builtin.vars', peer.preshared_key_var)
+      }) -%}
+      {%- endif -%}
+      {%- set _ = out.append(peer | combine(resolved)) -%}
+      {%- endfor -%}
+      {{ out }}
+  no_log: true
+
+# Install the user-space tools; the kernel module is provided by the container
+# host, which is why the wireguard metapackage is not pulled in
+# Установка пользовательских утилит; модуль ядра предоставляет хост контейнера,
+# поэтому метапакет wireguard не ставится
+- name: Install the WireGuard packages
+  ansible.builtin.apt:
+    name: "{{ wireguard_packages }}"
+    state: present
+    update_cache: true
+  register: wireguard_package_result
+
+# Enable IPv4 forwarding, without which the container drops tunnel packets
+# addressed to the internal networks
+# Включение форвардинга IPv4, без которого контейнер отбрасывает туннельные
+# пакеты, адресованные внутренним сетям
+- name: Enable IPv4 forwarding for the tunnel
+  ansible.posix.sysctl:
+    name: "net.ipv4.ip_forward"
+    value: "1"
+    sysctl_file: "{{ wireguard_sysctl_file }}"
+    sysctl_set: true
+    reload: true
+    state: present
+  register: wireguard_forwarding_result
+
+# Restrict the configuration directory to root before the file holding private
+# and preshared keys lands in it
+# Ограничение доступа к каталогу конфигурации только для root до записи файла
+# с приватным и preshared-ключами
+- name: Create the WireGuard configuration directory
+  ansible.builtin.file:
+    path: "{{ wireguard_config_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0700"
+  register: wireguard_config_dir_result
+
+# Render the interface configuration; it contains the server private key and
+# preshared keys, so it is root-only and never shown in logs or diff
+# Формирование конфигурации интерфейса; она содержит приватный ключ сервера и
+# preshared-ключи, поэтому доступна только root и не выводится в логи и diff
+- name: Write the WireGuard interface configuration
+  ansible.builtin.template:
+    src: "wg0.conf.j2"
+    dest: "{{ wireguard_config_dir }}/{{ wireguard_interface_name }}.conf"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  notify: Restart WireGuard interface
+  register: wireguard_config_result
+  no_log: true
+  diff: false
+
+# Read whether the wg-quick template unit exists, so the service task is
+# skipped in a check-mode run on a host where the package is not installed yet
+# Чтение наличия шаблонного юнита wg-quick, чтобы сервисный таск пропускался
+# в check-прогоне на хосте, где пакет ещё не установлен
+- name: Check whether the wg-quick unit is available
+  ansible.builtin.stat:
+    path: "{{ wireguard_unit_path }}"
+  register: wireguard_unit_result
+
+# Keep the tunnel in its steady state; on a real run the unit is always present
+# here because the package task above installs it
+# Поддержание туннеля в устойчивом состоянии; в реальном прогоне юнит здесь
+# всегда есть, так как пакетный таск выше его устанавливает
+- name: Manage the WireGuard service
+  ansible.builtin.systemd_service:
+    name: "wg-quick@{{ wireguard_interface_name }}"
+    state: "{{ wireguard_service_state }}"
+    enabled: "{{ wireguard_service_enabled }}"
+  register: wireguard_service_result
+  when: wireguard_unit_result.stat.exists | default(false)
+
+# Report the outcome without repeating package manager or key material
+# Вывод итога без повторения вывода пакетного менеджера и ключевого материала
+- name: Display WireGuard change summary
+  ansible.builtin.debug:
+    msg: >-
+      WireGuard interface {{ wireguard_interface_name }}
+      ({{ wireguard_tunnel_address }}):
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - wireguard_debug_mode | bool
+    - >-
+      (wireguard_package_result is defined
+      and (wireguard_package_result.changed | default(false) | bool))
+      or (wireguard_forwarding_result is defined
+      and (wireguard_forwarding_result.changed | default(false) | bool))
+      or (wireguard_config_dir_result is defined
+      and (wireguard_config_dir_result.changed | default(false) | bool))
+      or (wireguard_config_result is defined
+      and (wireguard_config_result.changed | default(false) | bool))
+      or (wireguard_service_result is defined
+      and (wireguard_service_result.changed | default(false) | bool))
+  tags:
+    - debug
