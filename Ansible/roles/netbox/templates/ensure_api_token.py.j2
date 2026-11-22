@@ -14,7 +14,7 @@ if not exists:
     token = Token(
         user=user,
         description={{ netbox_api_token_description | to_json }},
-        write_enabled={{ netbox_api_token_write_enabled | to_json }},
+        write_enabled={{ netbox_api_token_write_enabled | bool | string | capitalize }},
     )
     token.key = key
     token.token = plaintext
