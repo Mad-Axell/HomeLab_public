@@ -12,7 +12,14 @@
       - cockpit_cache_valid_time | int >= 0
       - cockpit_socket_name is not none
       - cockpit_socket_name | length > 0
-    fail_msg: "cockpit requires a Debian-family host, a non-empty package list, a non-negative cache lifetime, and a socket unit name."
+      - cockpit_45drives_packages is sequence
+      - cockpit_45drives_packages is not string
+      - cockpit_45drives_packages | length == 0 or cockpit_45drives_repo_key_url | length > 0
+      - cockpit_45drives_packages | length == 0 or cockpit_45drives_repo_key_path | length > 0
+      - cockpit_45drives_packages | length == 0 or cockpit_45drives_repo_uri | length > 0
+      - cockpit_45drives_packages | length == 0 or cockpit_45drives_repo_suites | length > 0
+      - cockpit_45drives_packages | length == 0 or cockpit_45drives_repo_components | length > 0
+    fail_msg: "cockpit requires a Debian-family host, a non-empty package list, a non-negative cache lifetime, a socket unit name, and consistent 45Drives repository settings when cockpit_45drives_packages is not empty."
 
 # Install Cockpit and its storage-management interface from configured repositories.
 # Установка Cockpit и его интерфейса управления хранилищем из настроенных репозиториев.
@@ -33,15 +40,53 @@
     state: started
   register: cockpit_socket_result
 
+# Fetch the 45Drives repository signing key for extra Cockpit modules.
+# Загрузка ключа подписи репозитория 45Drives для дополнительных модулей Cockpit.
+- name: Install the 45Drives repository key
+  ansible.builtin.get_url:
+    url: "{{ cockpit_45drives_repo_key_url }}"
+    dest: "{{ cockpit_45drives_repo_key_path }}"
+    mode: "0644"
+  register: cockpit_45drives_key_result
+  when: cockpit_45drives_packages | length > 0
+
+# Register the 45Drives APT repository that ships extra Cockpit modules.
+# Подключение APT-репозитория 45Drives с дополнительными модулями Cockpit.
+- name: Add the 45Drives APT repository
+  ansible.builtin.deb822_repository:
+    name: "45drives"
+    types: deb
+    uris: "{{ cockpit_45drives_repo_uri }}"
+    suites: "{{ cockpit_45drives_repo_suites }}"
+    components: "{{ cockpit_45drives_repo_components }}"
+    signed_by: "{{ cockpit_45drives_repo_key_path }}"
+    state: present
+  register: cockpit_45drives_repo_result
+  when: cockpit_45drives_packages | length > 0
+
+# Install extra Cockpit module packages from the 45Drives repository.
+# Установка дополнительных пакетов модулей Cockpit из репозитория 45Drives.
+- name: Install extra Cockpit module packages
+  ansible.builtin.apt:
+    name: "{{ cockpit_45drives_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: "{{ cockpit_cache_valid_time }}"
+  register: cockpit_45drives_package_result
+  when: cockpit_45drives_packages | length > 0
+
 # Report managed-state changes without making an HTTP request from the controller.
 # Вывод изменений управляемого состояния без HTTP-запроса с контроллера.
 - name: Display Cockpit change summary
   ansible.builtin.debug:
-    msg: "Cockpit packages or socket {{ 'would change' if ansible_check_mode else 'changed' }}."
+    msg: "Cockpit packages, 45Drives repository, or socket {{ 'would change' if ansible_check_mode else 'changed' }}."
   when:
     - cockpit_debug_mode | bool
     - >-
       cockpit_package_result.changed | default(false) | bool
       or cockpit_socket_result.changed | default(false) | bool
+      or cockpit_45drives_key_result.changed | default(false) | bool
+      or cockpit_45drives_repo_result.changed | default(false) | bool
+      or cockpit_45drives_package_result.changed | default(false) | bool
   tags:
     - debug

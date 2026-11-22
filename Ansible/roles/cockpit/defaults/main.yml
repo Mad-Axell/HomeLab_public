@@ -19,3 +19,32 @@ cockpit_cache_valid_time: 3600
 # String. Systemd socket unit that exposes the Cockpit web interface.
 # Строка. Unit сокета systemd, предоставляющий веб-интерфейс Cockpit.
 cockpit_socket_name: "cockpit.socket"
+
+# List. Extra Cockpit module packages installed from the 45Drives repository;
+# the repository is configured only while this list is not empty.
+# Список. Дополнительные пакеты модулей Cockpit из репозитория 45Drives;
+# репозиторий подключается только при непустом списке.
+cockpit_45drives_packages:
+  - "cockpit-navigator"
+
+# Internal. URL of the 45Drives APT repository signing key.
+# Внутреннее. URL ключа подписи APT-репозитория 45Drives.
+cockpit_45drives_repo_key_url: "https://repo.45drives.com/key/gpg.asc"
+
+# Internal. Local path of the dearmored 45Drives repository key.
+# Внутреннее. Локальный путь ключа репозитория 45Drives в формате dearmor.
+cockpit_45drives_repo_key_path: "/usr/share/keyrings/45drives-archive-keyring.gpg"
+
+# Internal. Base URI of the 45Drives APT repository.
+# Внутреннее. Базовый URI APT-репозитория 45Drives.
+cockpit_45drives_repo_uri: "https://repo.45drives.com/debian"
+
+# Internal. Suites of the 45Drives APT repository.
+# Внутреннее. Сьюты APT-репозитория 45Drives.
+cockpit_45drives_repo_suites:
+  - "focal"
+
+# Internal. Components of the 45Drives APT repository.
+# Внутреннее. Компоненты APT-репозитория 45Drives.
+cockpit_45drives_repo_components:
+  - "main"

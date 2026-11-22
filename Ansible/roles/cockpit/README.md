@@ -2,8 +2,8 @@
 
 ## Русский
 
-Устанавливает Cockpit и штатный интерфейс управления дисками `cockpit-storaged` на Debian. Полная документация: [README_RUS.md](README_RUS.md)
+Устанавливает Cockpit, `cockpit-storaged` и дополнительные модули из репозитория 45Drives (по умолчанию файловый менеджер `cockpit-navigator`) на Debian. Полная документация: [README_RUS.md](README_RUS.md)
 
 ## English
 
-Installs Cockpit and the standard `cockpit-storaged` disk-management interface on Debian. Full documentation: [README_ENG.md](README_ENG.md)
+Installs Cockpit, `cockpit-storaged`, and extra modules from the 45Drives repository (the `cockpit-navigator` file manager by default) on Debian. Full documentation: [README_ENG.md](README_ENG.md)
