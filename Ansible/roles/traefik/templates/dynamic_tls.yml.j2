@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+# Default certificate store managed by the traefik role.
+# Хранилище сертификата по умолчанию, управляемое ролью traefik.
+
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: "{{ traefik_tls_cert_path }}"
+        keyFile: "{{ traefik_tls_key_path }}"
+  certificates:
+    - certFile: "{{ traefik_tls_cert_path }}"
+      keyFile: "{{ traefik_tls_key_path }}"

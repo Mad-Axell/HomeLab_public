@@ -1,0 +1,330 @@
+---
+# Validate the platform and the required TLS inputs before changing anything.
+# Проверка платформы и обязательных TLS-входов до внесения изменений.
+- name: Assert required Traefik inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - >-
+        not (traefik_tls_enabled | bool)
+        or (traefik_tls_cert is string
+            and (traefik_tls_cert | trim | length) > 0)
+      - >-
+        not (traefik_tls_enabled | bool)
+        or (vault_traefik_tls_key is defined
+            and vault_traefik_tls_key is string
+            and (vault_traefik_tls_key | trim | length) > 0)
+    fail_msg: >-
+      The traefik role supports Debian-family systems. With traefik_tls_enabled
+      set, both traefik_tls_cert and vault_traefik_tls_key (from
+      VARS/secrets.yml) must be non-empty strings.
+    quiet: true
+
+# Create the primary group of the dedicated service account.
+# Создание основной группы выделенной служебной учётной записи.
+- name: Create the Traefik group
+  ansible.builtin.group:
+    name: "{{ traefik_group }}"
+    state: present
+    system: true
+  register: traefik_group_result
+
+# Create the unprivileged account Traefik runs as; it needs no home or shell.
+# Создание непривилегированной учётной записи Traefik; домашний каталог и shell не нужны.
+- name: Create the Traefik user
+  ansible.builtin.user:
+    name: "{{ traefik_user }}"
+    group: "{{ traefik_group }}"
+    home: "/nonexistent"
+    create_home: false
+    shell: "/usr/sbin/nologin"
+    system: true
+    state: present
+  register: traefik_user_result
+
+# Create the configuration layout, including the TLS directory when TLS is on.
+# Создание структуры каталогов, включая TLS-каталог при включённом TLS.
+- name: Create the Traefik directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "root"
+    group: "{{ traefik_group }}"
+    mode: "0750"
+  loop: >-
+    {{ [traefik_config_dir, traefik_dynamic_dir]
+       + ([traefik_tls_dir] if (traefik_tls_enabled | bool) else []) }}
+  register: traefik_directories_result
+
+# Detect the installed build through the version marker left after extraction.
+# Определение установленной сборки по маркеру версии, оставленному после распаковки.
+- name: Check the installed Traefik version marker
+  ansible.builtin.stat:
+    path: "{{ traefik_version_marker_path }}"
+  register: traefik_version_marker_stat
+
+# Read the marker content only when the marker file exists.
+# Чтение содержимого маркера только при существовании файла маркера.
+- name: Read the installed Traefik version marker
+  ansible.builtin.slurp:
+    path: "{{ traefik_version_marker_path }}"
+  when: traefik_version_marker_stat.stat.exists
+  register: traefik_version_marker_result
+
+# Compare the marker with the pinned release to decide the install steps.
+# Сравнение маркера с зафиксированным релизом для выбора шагов установки.
+- name: Compute whether a Traefik install is needed
+  ansible.builtin.set_fact:
+    traefik_install_needed: >-
+      {{ (traefik_version_marker_result.content | default('') | b64decode | trim)
+         != traefik_version }}
+
+# Download the pinned upstream tarball; a checksum is verified only when pinned.
+# Загрузка зафиксированного апстрим-архива; контрольная сумма проверяется при её наличии.
+- name: Download the Traefik release archive
+  ansible.builtin.get_url:
+    url: "{{ traefik_download_url }}"
+    dest: "{{ traefik_archive_path }}"
+    checksum: >-
+      {{ "sha256:" ~ traefik_archive_checksum
+         if traefik_archive_checksum is not none else omit }}
+    mode: "0644"
+  when: traefik_install_needed | bool
+  register: traefik_download_result
+
+# Extract only the binary from the tarball. Skipped in check mode: the download
+# above does not create the archive when predicting, so extraction cannot run.
+# Распаковка только бинарного файла из архива. Пропускается в check mode: при
+# прогнозировании загрузка выше не создаёт архив, поэтому распаковка невозможна.
+- name: Install the Traefik binary
+  ansible.builtin.unarchive:
+    src: "{{ traefik_archive_path }}"
+    dest: "{{ traefik_binary_path | dirname }}"
+    include:
+      - "traefik"
+    remote_src: true
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when:
+    - traefik_install_needed | bool
+    - not ansible_check_mode
+  notify: Restart Traefik
+  register: traefik_install_result
+
+# Record the version actually unpacked so later runs and upgrades stay honest.
+# Фиксация фактически распакованной версии для честности последующих прогонов.
+- name: Write the installed Traefik version marker
+  ansible.builtin.copy:
+    content: "{{ traefik_version }}\n"
+    dest: "{{ traefik_version_marker_path }}"
+    owner: "root"
+    group: "{{ traefik_group }}"
+    mode: "0644"
+  when: traefik_install_needed | bool
+  register: traefik_marker_result
+
+# Drop the downloaded tarball once its content is installed.
+# Удаление скачанного архива после установки его содержимого.
+- name: Remove the Traefik release archive
+  ansible.builtin.file:
+    path: "{{ traefik_archive_path }}"
+    state: absent
+  when: traefik_install_needed | bool
+  register: traefik_archive_cleanup_result
+
+# Render the static configuration: entry points, redirect, file provider.
+# Рендер статической конфигурации: точки входа, редирект, file provider.
+- name: Configure the Traefik static configuration
+  ansible.builtin.template:
+    src: "traefik.yml.j2"
+    dest: "{{ traefik_config_path }}"
+    owner: "root"
+    group: "{{ traefik_group }}"
+    mode: "0644"
+  notify: Restart Traefik
+  register: traefik_static_config_result
+
+# Install the public certificate chain; a restart applies it because the file
+# lives outside the watched dynamic directory.
+# Установка публичной цепочки сертификата; применяется перезапуском, так как файл
+# лежит вне отслеживаемого динамического каталога.
+- name: Install the Traefik TLS certificate
+  ansible.builtin.copy:
+    content: "{{ traefik_tls_cert }}"
+    dest: "{{ traefik_tls_cert_path }}"
+    owner: "root"
+    group: "{{ traefik_group }}"
+    mode: "0644"
+  when: traefik_tls_enabled | bool
+  notify: Restart Traefik
+  register: traefik_tls_cert_result
+
+# Install the private key with locked-down permissions and hidden output.
+# Установка закрытого ключа с ограниченными правами и скрытым выводом.
+- name: Install the Traefik TLS private key
+  ansible.builtin.copy:
+    content: "{{ vault_traefik_tls_key }}"
+    dest: "{{ traefik_tls_key_path }}"
+    owner: "root"
+    group: "{{ traefik_group }}"
+    mode: "0640"
+  when: traefik_tls_enabled | bool
+  notify: Restart Traefik
+  no_log: true
+  diff: false
+  register: traefik_tls_key_result
+
+# Register the supplied pair as the default certificate for the secure entry point.
+# Назначение переданной пары сертификатом по умолчанию для защищённой точки входа.
+- name: Configure the Traefik TLS certificate store
+  ansible.builtin.template:
+    src: "dynamic_tls.yml.j2"
+    dest: "{{ traefik_tls_dynamic_path }}"
+    owner: "root"
+    group: "{{ traefik_group }}"
+    mode: "0644"
+  when: traefik_tls_enabled | bool
+  register: traefik_tls_dynamic_result
+
+# Remove the certificate material and its dynamic registration when TLS is off.
+# Удаление материалов сертификата и их динамической регистрации при выключенном TLS.
+- name: Remove the Traefik TLS files when TLS is disabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ traefik_tls_dynamic_path }}"
+    - "{{ traefik_tls_key_path }}"
+    - "{{ traefik_tls_cert_path }}"
+  when: not (traefik_tls_enabled | bool)
+  notify: Restart Traefik
+  register: traefik_tls_cleanup_result
+
+# Build the managed file set so stale dynamic files can be identified below.
+# Формирование набора управляемых файлов для поиска устаревших динамических файлов ниже.
+- name: Compute the managed dynamic file set
+  ansible.builtin.set_fact:
+    traefik_managed_dynamic_files: >-
+      {{ (traefik_dynamic_config_files | map(attribute='name') | map('basename') | list)
+         + ([traefik_tls_dynamic_path | basename] if (traefik_tls_enabled | bool) else []) }}
+
+# Write the public dynamic configurations; the file provider reloads them in place.
+# Запись публичных динамических конфигураций; file provider перечитывает их на месте.
+- name: Deploy the Traefik dynamic configuration files
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ traefik_dynamic_dir }}/{{ item.name | basename }}"
+    owner: "root"
+    group: "{{ traefik_group }}"
+    mode: "0644"
+  loop: "{{ traefik_dynamic_config_files | rejectattr('sensitive') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: traefik_dynamic_files_result
+
+# Write the sensitive dynamic configurations without exposing their contents.
+# Запись чувствительных динамических конфигураций без раскрытия их содержимого.
+- name: Deploy the sensitive Traefik dynamic configuration files
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ traefik_dynamic_dir }}/{{ item.name | basename }}"
+    owner: "root"
+    group: "{{ traefik_group }}"
+    mode: "0644"
+  loop: "{{ traefik_dynamic_config_files | selectattr('sensitive') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  diff: false
+  register: traefik_dynamic_sensitive_result
+
+# List the YAML files present in the watched directory.
+# Составление списка YAML-файлов в отслеживаемом каталоге.
+- name: List the present dynamic configuration files
+  ansible.builtin.find:
+    paths: "{{ traefik_dynamic_dir }}"
+    patterns: "*.yml,*.yaml"
+    file_type: file
+  register: traefik_dynamic_find_result
+
+# Delete files that are no longer managed, or stale routers keep answering.
+# Удаление файлов, которые больше не управляются, иначе устаревшие роутеры продолжат отвечать.
+- name: Remove the unmanaged dynamic configuration files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ traefik_dynamic_find_result.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename not in traefik_managed_dynamic_files
+  register: traefik_dynamic_cleanup_result
+
+# Install the systemd unit; a unit change requires a daemon reload before restart.
+# Установка systemd-юнита; его изменение требует daemon-reload до перезапуска.
+- name: Configure the Traefik systemd unit
+  ansible.builtin.template:
+    src: "traefik.service.j2"
+    dest: "{{ traefik_unit_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Traefik
+  register: traefik_unit_result
+
+# Bring the service to its requested steady state and boot flag.
+# Приведение сервиса к запрошенному устойчивому состоянию и флагу автозапуска.
+- name: Manage the Traefik service
+  ansible.builtin.systemd_service:
+    name: "{{ traefik_service_name }}"
+    state: "{{ traefik_service_state }}"
+    enabled: "{{ traefik_service_enabled }}"
+  register: traefik_service_result
+
+# Summarize every user-visible change without exposing file contents or items.
+# Сводка всех пользовательски значимых изменений без раскрытия содержимого файлов.
+- name: Display the Traefik change summary
+  ansible.builtin.debug:
+    msg: >-
+      Traefik {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}.
+  when:
+    - traefik_debug_mode | bool
+    - >-
+      (traefik_group_result is defined
+       and (traefik_group_result.changed | default(false) | bool))
+      or (traefik_user_result is defined
+          and (traefik_user_result.changed | default(false) | bool))
+      or (traefik_directories_result is defined
+          and (traefik_directories_result.changed | default(false) | bool))
+      or (traefik_download_result is defined
+          and (traefik_download_result.changed | default(false) | bool))
+      or (traefik_install_result is defined
+          and (traefik_install_result.changed | default(false) | bool))
+      or (traefik_marker_result is defined
+          and (traefik_marker_result.changed | default(false) | bool))
+      or (traefik_archive_cleanup_result is defined
+          and (traefik_archive_cleanup_result.changed | default(false) | bool))
+      or (traefik_static_config_result is defined
+          and (traefik_static_config_result.changed | default(false) | bool))
+      or (traefik_tls_cert_result is defined
+          and (traefik_tls_cert_result.changed | default(false) | bool))
+      or (traefik_tls_key_result is defined
+          and (traefik_tls_key_result.changed | default(false) | bool))
+      or (traefik_tls_dynamic_result is defined
+          and (traefik_tls_dynamic_result.changed | default(false) | bool))
+      or (traefik_tls_cleanup_result is defined
+          and (traefik_tls_cleanup_result.changed | default(false) | bool))
+      or (traefik_dynamic_files_result is defined
+          and (traefik_dynamic_files_result.changed | default(false) | bool))
+      or (traefik_dynamic_sensitive_result is defined
+          and (traefik_dynamic_sensitive_result.changed | default(false) | bool))
+      or (traefik_dynamic_cleanup_result is defined
+          and (traefik_dynamic_cleanup_result.changed | default(false) | bool))
+      or (traefik_unit_result is defined
+          and (traefik_unit_result.changed | default(false) | bool))
+      or (traefik_service_result is defined
+          and (traefik_service_result.changed | default(false) | bool))
+  tags:
+    - debug

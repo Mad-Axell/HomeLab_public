@@ -1,0 +1,33 @@
+# {{ ansible_managed }}
+# Static Traefik configuration managed by the traefik role.
+# Статическая конфигурация Traefik, управляемая ролью traefik.
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: "{{ traefik_log_level }}"
+
+entryPoints:
+  web:
+    address: ":{{ traefik_http_port }}"
+    http:
+      redirections:
+        entryPoint:
+          to: "websecure"
+          scheme: "https"
+          permanent: true
+  websecure:
+    address: ":{{ traefik_https_port }}"
+    http:
+      tls: {}
+{% if traefik_dashboard_enabled | bool %}
+api:
+  dashboard: true
+  insecure: true
+{% endif %}
+providers:
+  file:
+    directory: "{{ traefik_dynamic_dir }}"
+    watch: true

@@ -1,0 +1,13 @@
+---
+# Reload the systemd manager configuration after unit file changes.
+# Перезагрузка конфигурации менеджера systemd после изменения файла юнита.
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+# Restart Traefik after binary, certificate or static configuration changes.
+# Перезапуск Traefik после изменения бинарного файла, сертификата или статической конфигурации.
+- name: Restart Traefik
+  ansible.builtin.systemd_service:
+    name: "{{ traefik_service_name }}"
+    state: restarted

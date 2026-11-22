@@ -1,0 +1,156 @@
+---
+# Traefik reverse proxy configuration
+# Конфигурация reverse proxy Traefik
+
+# Boolean. Enable debug output after user-visible changes
+# Логическое значение. Включить debug-вывод после пользовательски значимых изменений
+traefik_debug_mode: false
+
+# Installation
+# Установка
+
+# String. Pinned upstream release version, without the leading "v"
+# Строка. Фиксированная версия апстрим-релиза без ведущей "v"
+traefik_version: "3.7.19"
+
+# String. Release architecture as named in the upstream download asset
+# Строка. Архитектура релиза в именовании апстрим-ассета загрузки
+traefik_arch: "amd64"
+
+# String. URL of the release tarball; built from traefik_version and traefik_arch
+# Строка. URL архива релиза; собирается из traefik_version и traefik_arch
+traefik_download_url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}/traefik_v{{ traefik_version }}_linux_{{ traefik_arch }}.tar.gz"
+
+# String or null. Optional sha256 checksum of the release tarball; null disables
+# the verification. Pin the value from the traefik_v<version>_checksums.txt asset
+# Строка или null. Опциональная sha256-сумма архива релиза; null отключает
+# проверку. Значение берётся из ассета traefik_v<version>_checksums.txt
+traefik_archive_checksum: null
+
+# String. Temporary location of the downloaded tarball on the target host
+# Строка. Временный путь скачанного архива на целевом хосте
+traefik_archive_path: "/tmp/traefik_v{{ traefik_version }}_linux_{{ traefik_arch }}.tar.gz"
+
+# String. Absolute path of the installed Traefik binary
+# Строка. Абсолютный путь установленного бинарного файла Traefik
+traefik_binary_path: "/usr/local/bin/traefik"
+
+# String. Marker file that records the installed version for idempotent upgrades
+# Строка. Маркерный файл установленной версии для идемпотентных обновлений
+traefik_version_marker_path: "/etc/traefik/.installed-version"
+
+# Service account
+# Служебная учётная запись
+
+# String. Unprivileged account that runs Traefik
+# Строка. Непривилегированная учётная запись, от которой работает Traefik
+traefik_user: "traefik"
+
+# String. Primary group of the Traefik account
+# Строка. Основная группа учётной записи Traefik
+traefik_group: "traefik"
+
+# Paths
+# Пути
+
+# String. Directory holding the static Traefik configuration
+# Строка. Каталог со статической конфигурацией Traefik
+traefik_config_dir: "/etc/traefik"
+
+# String. Directory watched by the file provider for dynamic configuration
+# Строка. Каталог, отслеживаемый file provider для динамической конфигурации
+traefik_dynamic_dir: "/etc/traefik/dynamic"
+
+# String. Directory holding the TLS certificate and private key
+# Строка. Каталог с TLS-сертификатом и закрытым ключом
+traefik_tls_dir: "/etc/traefik/tls"
+
+# String. Managed static configuration file
+# Строка. Управляемый файл статической конфигурации
+traefik_config_path: "{{ traefik_config_dir }}/traefik.yml"
+
+# String. Managed dynamic file that registers the supplied certificate as default
+# Строка. Управляемый динамический файл, назначающий переданный сертификат по умолчанию
+traefik_tls_dynamic_path: "{{ traefik_dynamic_dir }}/10-tls.yml"
+
+# String. Destination of the supplied PEM certificate chain
+# Строка. Путь назначения переданной PEM-цепочки сертификата
+traefik_tls_cert_path: "{{ traefik_tls_dir }}/fullchain.pem"
+
+# String. Destination of the supplied PEM private key
+# Строка. Путь назначения переданного PEM-ключа
+traefik_tls_key_path: "{{ traefik_tls_dir }}/privkey.pem"
+
+# String. Managed systemd unit file
+# Строка. Управляемый файл systemd-юнита
+traefik_unit_path: "/etc/systemd/system/traefik.service"
+
+# Entry points and routing
+# Точки входа и маршрутизация
+
+# Integer. HTTP entry point port; requests are redirected to HTTPS
+# Целое число. Порт HTTP-точки входа; запросы перенаправляются на HTTPS
+traefik_http_port: 80
+
+# Integer. HTTPS entry point port
+# Целое число. Порт HTTPS-точки входа
+traefik_https_port: 443
+
+# String. Base domain available to dynamic file content, which is rendered as
+# Jinja, so router rules may reference {{ traefik_domain }}. Placeholder value;
+# override it with the real zone served by this proxy
+# Строка. Базовый домен, доступный содержимому динамических файлов, которое
+# рендерится как Jinja, поэтому правила роутеров могут ссылаться на
+# {{ traefik_domain }}. Значение-заглушка; переопределите реальной зоной,
+# обслуживаемой этим прокси
+traefik_domain: "example.internal"
+
+# List of dictionaries. Dynamic file-provider configurations written into
+# traefik_dynamic_dir. Each item requires "name" (file name; only its basename is
+# used) and "content" (YAML rendered as Jinja). Optional "sensitive: true"
+# suppresses the task output and diff for items that embed credential material;
+# the file provider reloads these files without a restart
+# Список словарей. Динамические конфигурации file provider, записываемые в
+# traefik_dynamic_dir. Каждый элемент требует "name" (имя файла; используется
+# только basename) и "content" (YAML, рендерится как Jinja). Опциональный
+# "sensitive: true" подавляет вывод таски и diff для элементов с учётными
+# данными; file provider перечитывает эти файлы без перезапуска
+traefik_dynamic_config_files: []
+
+# Boolean. Expose the Traefik dashboard and API on :8080 via api.insecure
+# Логическое значение. Открыть дашборд и API Traefik на :8080 через api.insecure
+traefik_dashboard_enabled: false
+
+# String. Traefik log level: DEBUG, INFO, WARN or ERROR
+# Строка. Уровень логирования Traefik: DEBUG, INFO, WARN или ERROR
+traefik_log_level: "INFO"
+
+# TLS
+# TLS
+
+# Boolean. Enable HTTPS with the externally supplied certificate and key
+# Логическое значение. Включить HTTPS с сертификатом и ключом, переданными извне
+traefik_tls_enabled: false
+
+# String or null. PEM certificate chain content; required when
+# traefik_tls_enabled is true. The public certificate is not a secret; the
+# matching key is the external secret vault_traefik_tls_key
+# Строка или null. Содержимое PEM-цепочки сертификата; обязательно при
+# traefik_tls_enabled = true. Публичный сертификат не является секретом;
+# соответствующий ключ — внешний секрет vault_traefik_tls_key
+traefik_tls_cert: null
+
+# Service
+# Сервис
+
+# String. systemd unit name
+# Строка. Имя systemd-юнита
+traefik_service_name: "traefik"
+
+# String. Desired steady service state: started or stopped
+# Строка. Требуемое устойчивое состояние сервиса: started или stopped
+traefik_service_state: "started"
+
+# Boolean. Enable the service at boot
+# Логическое значение. Включить сервис при загрузке
+traefik_service_enabled: true

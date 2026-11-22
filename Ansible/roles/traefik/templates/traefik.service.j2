@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Traefik reverse proxy
+Documentation=https://doc.traefik.io/traefik/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ traefik_user }}
+Group={{ traefik_group }}
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+ExecStart={{ traefik_binary_path }} --configFile={{ traefik_config_path }}
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
