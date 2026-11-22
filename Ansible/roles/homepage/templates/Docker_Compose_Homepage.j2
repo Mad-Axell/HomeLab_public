@@ -1,0 +1,19 @@
+services:
+  homepage:
+    image: {{ homepage_image }}
+    container_name: {{ homepage_container_name }}
+    restart: unless-stopped
+{% if (homepage_allowed_hosts is not none and homepage_allowed_hosts != '') or homepage_env | length > 0 %}
+    environment:
+{% if homepage_allowed_hosts is not none and homepage_allowed_hosts != '' %}
+      HOMEPAGE_ALLOWED_HOSTS: {{ homepage_allowed_hosts | to_json }}
+{% endif %}
+{% for env_name, env_value in homepage_env.items() %}
+      {{ env_name }}: {{ env_value | string | to_json }}
+{% endfor %}
+{% endif %}
+    volumes:
+      - {{ homepage_config_dir }}:/app/config
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "{{ homepage_port }}:3000"

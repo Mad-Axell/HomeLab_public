@@ -1,0 +1,88 @@
+---
+# Homepage deployment configuration
+# Конфигурация развертывания Homepage
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+homepage_debug_mode: false
+
+# String. Desired Docker Compose project state: present or absent.
+# Строка. Требуемое состояние проекта Docker Compose: present или absent.
+homepage_state: "present"
+
+# String. Docker Compose project directory holding compose.yml.
+# Строка. Каталог проекта Docker Compose с compose.yml.
+homepage_project_directory: "/opt/homepage"
+
+# String. Host directory mounted into the container as /app/config; the
+# rendered YAML configuration files live there.
+# Строка. Каталог хоста, монтируемый в контейнер как /app/config; там лежат
+# сгенерированные YAML-файлы конфигурации.
+homepage_config_dir: "/opt/homepage/config"
+
+# String. Homepage container image.
+# Строка. Образ контейнера Homepage.
+homepage_image: "ghcr.io/gethomepage/homepage:latest"
+
+# String. Homepage container name.
+# Строка. Имя контейнера Homepage.
+homepage_container_name: "homepage"
+
+# Integer. Host port publishing the Homepage web interface; the container
+# listens on port 3000 internally.
+# Целое число. Порт хоста, публикующий веб-интерфейс Homepage; внутри
+# контейнер слушает порт 3000.
+homepage_port: 3000
+
+# String or null. Comma-separated host names Homepage accepts in the HTTP
+# Host header (HOMEPAGE_ALLOWED_HOSTS); required by upstream for every name
+# the dashboard is opened under, for example
+# "homepage.dragons-nest.home.arpa,172.25.40.14". null leaves the variable
+# unset, which allows only localhost access.
+# Строка или null. Список имён хостов через запятую, которые Homepage
+# принимает в HTTP-заголовке Host (HOMEPAGE_ALLOWED_HOSTS); upstream требует
+# перечислить каждое имя, под которым открывается панель, например
+# "homepage.dragons-nest.home.arpa,172.25.40.14". При null переменная не
+# задаётся, что допускает доступ только через localhost.
+homepage_allowed_hosts: null
+
+# Dict. Additional environment variables written verbatim into the compose
+# service definition; this is the place for HOMEPAGE_VAR_* secrets referenced
+# from the YAML configuration. Non-string values are converted to strings.
+# Словарь. Дополнительные переменные окружения, записываемые в определение
+# сервиса compose без изменений; сюда относятся секреты HOMEPAGE_VAR_*,
+# на которые ссылается YAML-конфигурация. Нестроковые значения приводятся к
+# строкам.
+homepage_env: {}
+
+# Dashboard content
+# Содержимое панели
+
+# List of dicts. Service groups in the verbatim upstream services.yaml
+# structure: each list item is a single-key dict whose key is the group name
+# and whose value is a list of single-key service dicts with their options
+# (href, icon, description, widget, ...). Concrete catalog entries are
+# private-repo values, so the list is empty here.
+# Список словарей. Группы сервисов в оригинальной структуре upstream
+# services.yaml: каждый элемент списка - словарь с одним ключом, где ключ -
+# имя группы, а значение - список словарей сервисов с их опциями (href,
+# icon, description, widget, ...). Конкретные записи каталога - значения
+# приватного репозитория, поэтому список здесь пуст.
+homepage_services: []
+
+# List of dicts. Top-level widgets in the verbatim upstream widgets.yaml
+# structure: each list item is a single-key dict whose key is the widget
+# type (search, datetime, resources, uptimekuma, ...) and whose value is its
+# options.
+# Список словарей. Виджеты верхнего уровня в оригинальной структуре upstream
+# widgets.yaml: каждый элемент списка - словарь с одним ключом, где ключ -
+# тип виджета (search, datetime, resources, uptimekuma, ...), а значение -
+# его опции.
+homepage_widgets: []
+
+# Dict. Global settings rendered verbatim into settings.yaml (title, theme,
+# layout, headerStyle, statusStyle, ...); upstream option names apply.
+# Словарь. Глобальные настройки, записываемые в settings.yaml без изменений
+# (title, theme, layout, headerStyle, statusStyle, ...); действуют имена
+# опций upstream.
+homepage_settings: {}

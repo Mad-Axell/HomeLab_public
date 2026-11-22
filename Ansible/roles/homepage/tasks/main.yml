@@ -1,0 +1,114 @@
+---
+# Validate the platform and the input structure before changing anything.
+# Проверка платформы и структуры входов до внесения изменений.
+- name: Validate Homepage deployment configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Debian"
+      - homepage_state in ["present", "absent"]
+      - homepage_services is sequence
+      - homepage_services is not string
+      - homepage_widgets is sequence
+      - homepage_widgets is not string
+      - homepage_settings is mapping
+      - homepage_env is mapping
+    fail_msg: >-
+      homepage requires a Debian-family host, a valid project state and
+      well-formed services, widgets, settings and environment inputs.
+    quiet: true
+
+# Create the Compose project directory and the configuration directory
+# mounted into the container.
+# Создание каталога проекта Compose и каталога конфигурации, монтируемого в
+# контейнер.
+- name: Create Homepage directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ homepage_project_directory }}"
+    - "{{ homepage_config_dir }}"
+  register: homepage_directory_result
+
+# Render the Compose definition; homepage_env may carry HOMEPAGE_VAR_*
+# secrets for widgets, so the diff is hidden while the changed flag stays
+# visible.
+# Рендер определения Compose; homepage_env может содержать секреты
+# HOMEPAGE_VAR_* для виджетов, поэтому diff скрыт, а флаг changed остаётся
+# видимым.
+- name: Configure Homepage Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_Homepage.j2"
+    dest: "{{ homepage_project_directory }}/compose.yml"
+    mode: "0644"
+  diff: false
+  register: homepage_compose_result
+
+# Render the services catalog; the file carries {{HOMEPAGE_VAR_*}}
+# placeholders rather than secret values, so the diff stays visible.
+# Рендер каталога сервисов; файл содержит заглушки {{HOMEPAGE_VAR_*}}, а не
+# значения секретов, поэтому diff остаётся видимым.
+- name: Configure Homepage services catalog
+  ansible.builtin.template:
+    src: "services.yaml.j2"
+    dest: "{{ homepage_config_dir }}/services.yaml"
+    mode: "0644"
+  register: homepage_services_result
+
+# Render the top-level widgets file from homepage_widgets.
+# Рендер файла виджетов верхнего уровня из homepage_widgets.
+- name: Configure Homepage widgets
+  ansible.builtin.template:
+    src: "widgets.yaml.j2"
+    dest: "{{ homepage_config_dir }}/widgets.yaml"
+    mode: "0644"
+  register: homepage_widgets_result
+
+# Render the global settings file from homepage_settings.
+# Рендер файла глобальных настроек из homepage_settings.
+- name: Configure Homepage settings
+  ansible.builtin.template:
+    src: "settings.yaml.j2"
+    dest: "{{ homepage_config_dir }}/settings.yaml"
+    mode: "0644"
+  register: homepage_settings_result
+
+# Start or update Homepage through the Docker Compose v2 module; changed
+# compose or configuration files recreate or restart the container
+# automatically, so no restart handler is used.
+# Запуск или обновление Homepage через модуль Docker Compose v2; изменённые
+# файлы compose или конфигурации автоматически пересоздают или перезапускают
+# контейнер, поэтому handler перезапуска не используется.
+- name: Deploy Homepage container
+  community.docker.docker_compose_v2:
+    project_src: "{{ homepage_project_directory }}"
+    files:
+      - "compose.yml"
+    state: "{{ homepage_state }}"
+  register: homepage_deployment_result
+
+# Report the deployment result; only the changed flags are read, so nothing
+# about the environment leaks.
+# Вывод результата развертывания; читаются только флаги changed, поэтому
+# ничего об окружении не раскрывается.
+- name: Display Homepage change summary
+  ansible.builtin.debug:
+    msg: "Homepage deployment {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - homepage_debug_mode | bool
+    - >-
+      (homepage_directory_result is defined
+      and (homepage_directory_result.changed | default(false) | bool))
+      or (homepage_compose_result is defined
+      and (homepage_compose_result.changed | default(false) | bool))
+      or (homepage_services_result is defined
+      and (homepage_services_result.changed | default(false) | bool))
+      or (homepage_widgets_result is defined
+      and (homepage_widgets_result.changed | default(false) | bool))
+      or (homepage_settings_result is defined
+      and (homepage_settings_result.changed | default(false) | bool))
+      or (homepage_deployment_result is defined
+      and (homepage_deployment_result.changed | default(false) | bool))
+  tags:
+    - debug
