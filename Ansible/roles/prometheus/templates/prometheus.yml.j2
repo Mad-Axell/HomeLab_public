@@ -1,0 +1,25 @@
+{{ ansible_managed | comment }}
+# Owned by the prometheus Ansible role. scrape_configs is rendered verbatim from
+# prometheus_scrape_configs, or a "prometheus" self-job and one "nodes" job are
+# generated from prometheus_target_groups and prometheus_node_exporter_port.
+#
+# Принадлежит роли Ansible prometheus. scrape_configs выводится дословно из
+# prometheus_scrape_configs, либо генерируются задание "prometheus" для самого
+# сервера и одно задание "nodes" из prometheus_target_groups и
+# prometheus_node_exporter_port.
+global:
+  scrape_interval: {{ prometheus_scrape_interval }}
+  evaluation_interval: {{ prometheus_evaluation_interval }}
+
+scrape_configs:
+{%- if prometheus_scrape_configs | length > 0 %}
+{{ prometheus_scrape_configs | to_nice_yaml(indent=2) | indent(2, true) }}
+{%- else %}
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "nodes"
+    static_configs:
+      - targets: {{ prometheus_resolved_targets | default([]) | to_json }}
+{%- endif %}

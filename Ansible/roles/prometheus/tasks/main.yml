@@ -1,0 +1,97 @@
+---
+# Validate the input before touching the host.
+# Проверка ввода до изменения хоста.
+- name: Validate Prometheus configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - prometheus_scrape_configs is sequence
+      - prometheus_target_groups is sequence
+      - prometheus_target_groups | length > 0
+      - prometheus_node_exporter_port | int > 0
+    fail_msg: >-
+      prometheus requires Debian, a scrape_configs list and at least one
+      inventory target group for the generated job.
+    quiet: true
+
+# Prometheus comes from Debian itself. The package ships the systemd unit, the
+# prometheus account, and a binary whose patched defaults already read
+# /etc/prometheus/prometheus.yml and store in /var/lib/prometheus/metrics2, so
+# /etc/default/prometheus keeps its empty ARGS and stays with the packaging.
+# Prometheus берётся из самого Debian. Пакет поставляет unit systemd, учётную
+# запись prometheus и бинарь, чьи пропатченные умолчания уже читают
+# /etc/prometheus/prometheus.yml и хранят данные в /var/lib/prometheus/metrics2,
+# поэтому /etc/default/prometheus остаётся с пустым ARGS и у пакетов.
+- name: Install Prometheus
+  ansible.builtin.apt:
+    name: "{{ prometheus_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: prometheus_package_result
+
+# The scrape list is resolved once, ahead of the template, so the generated job
+# and the change summary describe the same set of addresses. unique + sort keep
+# the rendered file identical across runs whatever order the inventory reports.
+# Список опроса вычисляется один раз, до шаблона, чтобы генерируемое задание и
+# сводка изменений описывали один и тот же набор адресов. unique + sort делают
+# рендер одинаковым между прогонами вне зависимости от порядка, который возвращает
+# инвентарь.
+- name: Resolve the generated scrape targets
+  ansible.builtin.set_fact:
+    prometheus_resolved_targets: >-
+      {%- set targets = [] -%}
+      {%- for group in prometheus_target_groups -%}
+      {%- for host in groups[group] | default([]) -%}
+      {%- set address = hostvars[host].ansible_host | default(host) -%}
+      {%- set _ = targets.append(address ~ ':' ~ prometheus_node_exporter_port) -%}
+      {%- endfor -%}
+      {%- endfor -%}
+      {{ targets | unique | sort }}
+  when: prometheus_scrape_configs | length == 0
+
+# The file is owned whole rather than edited in place: a scrape list generated
+# from the inventory cannot be reconciled key by key with a file someone may
+# have touched by hand. diff is off because scrape_configs can carry basic_auth
+# or bearer_token credentials.
+# Файл принадлежит роли целиком, а не правится по месту: список опроса,
+# генерируемый из инвентаря, нельзя сверить поключево с файлом, который могли
+# тронуть руками. diff выключен, потому что scrape_configs может нести учётные
+# данные basic_auth или bearer_token.
+- name: Configure Prometheus
+  ansible.builtin.template:
+    src: "prometheus.yml.j2"
+    dest: "{{ prometheus_config_path }}"
+    owner: "prometheus"
+    group: "prometheus"
+    mode: "0640"
+  diff: false
+  notify: Reload prometheus
+  register: prometheus_config_result
+
+# Manage the desired service state.
+# Управление требуемым состоянием сервиса.
+- name: Manage the Prometheus service
+  ansible.builtin.systemd:
+    name: "{{ prometheus_service_name }}"
+    state: "{{ prometheus_service_state }}"
+    enabled: "{{ prometheus_service_enabled }}"
+  register: prometheus_service_result
+
+# Display a summary of the change.
+# Отображение сводки об изменении.
+- name: Display Prometheus change summary
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }} Prometheus:
+      {{ prometheus_resolved_targets | default([]) | length }} generated targets
+      on port {{ prometheus_node_exporter_port }},
+      {{ prometheus_scrape_configs | length }} custom scrape jobs.
+  when:
+    - prometheus_debug_mode | bool
+    - >-
+      (prometheus_package_result.changed | default(false) | bool)
+      or (prometheus_config_result.changed | default(false) | bool)
+      or (prometheus_service_result.changed | default(false) | bool)
+  tags:
+    - debug

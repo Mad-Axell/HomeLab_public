@@ -1,0 +1,11 @@
+---
+# A changed configuration is applied by reload: the packaged unit maps reload to
+# SIGHUP, which re-reads prometheus.yml without interrupting queries or scraping.
+# Изменённая конфигурация применяется перечитыванием: unit пакета отображает
+# reload на SIGHUP, который перечитывает prometheus.yml, не прерывая ни запросы,
+# ни опрос.
+- name: Reload prometheus
+  ansible.builtin.systemd:
+    name: "{{ prometheus_service_name }}"
+    state: reloaded
+  when: prometheus_service_state == 'started'

@@ -1,0 +1,80 @@
+---
+# Prometheus server configuration
+# Конфигурация сервера Prometheus
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+prometheus_debug_mode: false
+
+# Packages
+# Пакеты
+
+# List of strings. Packages installed for the server. Prometheus comes from
+# Debian itself: the package ships the systemd unit, the prometheus account, and
+# a binary patched to read /etc/prometheus/prometheus.yml by default, so neither
+# a vendor repository nor /etc/default flags are needed.
+# Список строк. Пакеты, устанавливаемые для сервера. Prometheus берётся из
+# самого Debian: пакет поставляет unit systemd, учётную запись prometheus и
+# бинарь, пропатченный читать /etc/prometheus/prometheus.yml по умолчанию,
+# поэтому ни репозиторий вендора, ни флаги в /etc/default не нужны.
+prometheus_packages:
+  - "prometheus"
+
+# Configuration
+# Конфигурация
+
+# String. Main configuration file, rendered from this role's template and owned
+# by it as a whole. It may carry scrape credentials, which is why the task hides
+# the diff.
+# Строка. Главный файл конфигурации, рендерится из шаблона роли и принадлежит ей
+# целиком. Он может нести учётные данные опроса, поэтому задача скрывает diff.
+prometheus_config_path: "/etc/prometheus/prometheus.yml"
+
+# String. Global scrape interval for every job without its own.
+# Строка. Глобальный интервал опроса для всех заданий без собственного.
+prometheus_scrape_interval: "15s"
+
+# String. Global rule evaluation interval.
+# Строка. Глобальный интервал вычисления правил.
+prometheus_evaluation_interval: "15s"
+
+# List of dicts. Complete scrape_configs content, rendered verbatim into the
+# configuration. When empty, the template instead generates a "prometheus"
+# self-job and one "nodes" job from the inventory groups below - which is the
+# normal way to run this role.
+# Список словарей. Полное содержимое scrape_configs, выводимое в конфигурацию
+# дословно. Когда список пуст, шаблон вместо него генерирует задание
+# "prometheus" для самого сервера и одно задание "nodes" из групп инвентаря
+# ниже - и это обычный способ запуска роли.
+prometheus_scrape_configs: []
+
+# List of strings. Inventory groups scanned for scrape targets of the generated
+# "nodes" job; used only when prometheus_scrape_configs is empty. The address of
+# a member is its ansible_host, falling back to the inventory name.
+# Список строк. Группы инвентаря, сканируемые на цели генерируемого задания
+# "nodes"; используется, только когда prometheus_scrape_configs пуст. Адресом
+# члена служит его ansible_host, при отсутствии - имя в инвентаре.
+prometheus_target_groups:
+  - "all"
+
+# Integer. Port scraped on every generated target - the node_exporter port.
+# Целое число. Порт, опрашиваемый на каждой генерируемой цели, - порт
+# node_exporter.
+prometheus_node_exporter_port: 9100
+
+# Service
+# Сервис
+
+# String. Name of the systemd service.
+# Строка. Имя systemd-сервиса.
+prometheus_service_name: "prometheus"
+
+# String. Steady state of the service: started or stopped. Configuration changes
+# are applied by the reload handler, never by a restarted state here.
+# Строка. Устойчивое состояние сервиса: started или stopped. Изменения
+# конфигурации применяет handler перечитывания, а не состояние restarted.
+prometheus_service_state: "started"
+
+# Boolean. Start the service at boot.
+# Логическое значение. Запускать сервис при загрузке.
+prometheus_service_enabled: true
