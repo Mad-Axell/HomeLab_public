@@ -1,0 +1,76 @@
+---
+# Sprut.hub deployment configuration
+# Конфигурация развертывания Sprut.hub
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+spruthub_debug_mode: false
+
+# String. Desired Docker Compose project state: present or absent.
+# Строка. Требуемое состояние проекта Docker Compose: present или absent.
+spruthub_state: "present"
+
+# String. Docker Compose project directory.
+# Строка. Каталог проекта Docker Compose.
+spruthub_project_directory: "/opt/spruthub"
+
+# String. Host directory mounted into the container as the data volume.
+# Строка. Каталог хоста, монтируемый в контейнер как том данных.
+spruthub_data_dir: "/opt/spruthub/data"
+
+# String or null. Required Sprut.hub image reference with tag; the vendor
+# distributes the image through license-bound channels, not a public registry,
+# so the exact reference must be supplied by the caller.
+# Строка или null. Обязательная ссылка на образ Sprut.hub с тегом; вендор
+# распространяет образ через каналы с лицензией, а не публичный реестр,
+# поэтому точную ссылку передает вызывающая сторона.
+spruthub_image: null
+
+# String. Sprut.hub container name.
+# Строка. Имя контейнера Sprut.hub.
+spruthub_container_name: "spruthub"
+
+# String. Mount target of the data volume inside the container; must match the
+# layout of the vendor image.
+# Строка. Точка монтирования тома данных внутри контейнера; должна
+# соответствовать внутренней структуре образа вендора.
+spruthub_container_data_path: "/data"
+
+# String. Docker network mode for the container; host mode is required for
+# LAN discovery protocols used by the hub.
+# Строка. Сетевой режим Docker для контейнера; режим host нужен для протоколов
+# обнаружения устройств в LAN, используемых хабом.
+spruthub_network_mode: "host"
+
+# List of strings. Published port mappings in "host:container" form; applied
+# only when spruthub_network_mode is not "host" and ignored otherwise.
+# Список строк. Публикации портов в форме "хост:контейнер"; применяются только
+# когда spruthub_network_mode не равен "host", иначе игнорируются.
+spruthub_ports: []
+
+# List of strings. Host devices passed through into the container, for example
+# a Zigbee or Z-Wave USB coordinator such as /dev/ttyUSB0 or a /dev/serial/by-id
+# path; an empty list is allowed.
+# Список строк. Устройства хоста, пробрасываемые в контейнер, например
+# USB-координатор Zigbee или Z-Wave вида /dev/ttyUSB0 или путь
+# /dev/serial/by-id; пустой список допустим.
+spruthub_devices: []
+
+# List of strings. Extra bind mounts in "host_path:container_path[:options]"
+# form added to the container; an empty list is allowed.
+# Список строк. Дополнительные bind-монтирования в форме
+# "путь_хоста:путь_контейнера[:опции]"; пустой список допустим.
+spruthub_extra_volumes: []
+
+# Boolean. Run the container in privileged mode; needed only when the vendor
+# image requires broad hardware access beyond the listed devices.
+# Логическое значение. Запуск контейнера в привилегированном режиме; нужен
+# только если образу вендора требуется широкий доступ к оборудованию сверх
+# перечисленных устройств.
+spruthub_privileged: false
+
+# Dictionary. Additional non-secret environment variables for the container;
+# an empty dictionary is allowed. Secrets must not be placed here.
+# Словарь. Дополнительные несекретные переменные окружения контейнера;
+# пустой словарь допустим. Секреты здесь размещать нельзя.
+spruthub_extra_environment: {}

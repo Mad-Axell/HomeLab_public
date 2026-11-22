@@ -1,0 +1,62 @@
+---
+# Validate the platform and the required vendor image reference before any change.
+# Проверка платформы и обязательной ссылки на образ вендора до внесения изменений.
+- name: Assert required Sprut.hub inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - spruthub_image is string
+      - (spruthub_image | trim | length) > 0
+    fail_msg: >-
+      The spruthub role supports Debian-family systems and requires
+      spruthub_image to be a non-empty image reference supplied by the caller.
+    quiet: true
+
+# Create the Compose project directory and the persistent data directory.
+# Создание каталога проекта Compose и каталога постоянных данных.
+- name: Create Sprut.hub directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ spruthub_project_directory }}"
+    - "{{ spruthub_data_dir }}"
+  register: spruthub_directory_result
+
+# Deploy the Compose definition for the managed Sprut.hub container.
+# Развертывание определения Compose для управляемого контейнера Sprut.hub.
+- name: Configure Sprut.hub Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_Spruthub.j2"
+    dest: "{{ spruthub_project_directory }}/compose.yml"
+    mode: "0644"
+  register: spruthub_compose_result
+
+# Start or update Sprut.hub through the Docker Compose v2 module.
+# Запуск или обновление Sprut.hub через модуль Docker Compose v2.
+- name: Deploy Sprut.hub container
+  community.docker.docker_compose_v2:
+    project_src: "{{ spruthub_project_directory }}"
+    files:
+      - "compose.yml"
+    state: "{{ spruthub_state }}"
+  register: spruthub_deployment_result
+
+# Report the deployment result without querying the web interface.
+# Вывод результата развертывания без опроса веб-интерфейса.
+- name: Display Sprut.hub change summary
+  ansible.builtin.debug:
+    msg: >-
+      Sprut.hub deployment {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}.
+  when:
+    - spruthub_debug_mode | bool
+    - >-
+      (spruthub_directory_result is defined
+      and (spruthub_directory_result.changed | default(false) | bool))
+      or (spruthub_compose_result is defined
+      and (spruthub_compose_result.changed | default(false) | bool))
+      or (spruthub_deployment_result is defined
+      and (spruthub_deployment_result.changed | default(false) | bool))
+  tags:
+    - debug

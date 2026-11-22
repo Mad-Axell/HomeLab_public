@@ -1,0 +1,30 @@
+services:
+  spruthub:
+    image: {{ spruthub_image }}
+    container_name: {{ spruthub_container_name }}
+    restart: unless-stopped
+    privileged: {{ spruthub_privileged | bool }}
+    network_mode: {{ spruthub_network_mode }}
+{% if spruthub_network_mode != "host" and spruthub_ports | length > 0 %}
+    ports:
+{% for port_mapping in spruthub_ports %}
+      - "{{ port_mapping }}"
+{% endfor %}
+{% endif %}
+    volumes:
+      - "{{ spruthub_data_dir }}:{{ spruthub_container_data_path }}"
+{% for volume in spruthub_extra_volumes %}
+      - "{{ volume }}"
+{% endfor %}
+{% if spruthub_devices | length > 0 %}
+    devices:
+{% for device in spruthub_devices %}
+      - "{{ device }}"
+{% endfor %}
+{% endif %}
+{% if spruthub_extra_environment | length > 0 %}
+    environment:
+{% for env_name in spruthub_extra_environment %}
+      {{ env_name | to_json }}: {{ spruthub_extra_environment[env_name] | to_json }}
+{% endfor %}
+{% endif %}
