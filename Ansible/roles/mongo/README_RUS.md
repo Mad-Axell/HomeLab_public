@@ -1,9 +1,9 @@
 # mongo
 
-Роль устанавливает документную СУБД MongoDB 8.0 на LXC `172.25.40.153`.
+Роль устанавливает документную СУБД MongoDB 9.0 на LXC `172.25.40.153`.
 В Debian 13 пакета mongodb нет из-за лицензирования (SSPL), поэтому
 используется вендорный APT-репозиторий `repo.mongodb.org` — поддерживаемый
-апстрим-путь; suite `trixie/mongodb-org/8.0` опубликован апстримом.
+апстрим-путь; suite `trixie/mongodb-org/9.0` опубликован апстримом.
 
 `mongod.conf` не имеет механизма drop-in, поэтому роль владеет файлом целиком
 — пакет не переписывает его после установки.
@@ -16,9 +16,9 @@
 - Проверяет, что `mongo_admin_password_var` и каждый `password_var` из
   `mongo_users` разрешаются в переменные из `VARS/secrets.yml`.
 - Скачивает ASCII-armored ключ подписи в
-  `/etc/apt/keyrings/mongodb-server-8.0.asc` и регистрирует
+  `/etc/apt/keyrings/mongodb-server-9.0.asc` и регистрирует
   `deb [arch=amd64 signed-by=...] https://repo.mongodb.org/apt/debian
-  trixie/mongodb-org/8.0 main` в
+  trixie/mongodb-org/9.0 main` в
   `/etc/apt/sources.list.d/mongodb-org.list`.
 - Устанавливает `mongodb-org` (мета-пакет вендора) и `python3-pymongo`,
   нужный модулям `community.mongodb`.
@@ -47,7 +47,7 @@
 ## Изменяемые ресурсы
 
 - Packages: `mongo_prerequisite_packages`, `mongo_packages`.
-- Files: `/etc/apt/keyrings/mongodb-server-8.0.asc`,
+- Files: `/etc/apt/keyrings/mongodb-server-9.0.asc`,
   `/etc/apt/sources.list.d/mongodb-org.list`, `/etc/mongod.conf`.
 - Services: `mongod`.
 - Users/groups: none на уровне ОС (пользователь `mongodb` создаётся пакетом);
@@ -60,12 +60,12 @@
 | --- | --- | --- | --- | --- |
 | `mongo_debug_mode` | boolean | no | `false` | Сводка после значимых изменений. |
 | `mongo_repository_url` | string | no | `"https://repo.mongodb.org/apt/debian"` | URL APT-репозитория вендора. |
-| `mongo_repository_suite` | string | no | `"trixie/mongodb-org/8.0"` | Suite: выпуск Debian + серия MongoDB. |
+| `mongo_repository_suite` | string | no | `"trixie/mongodb-org/9.0"` | Suite: выпуск Debian + серия MongoDB. |
 | `mongo_repository_component` | string | no | `"main"` | Компонент репозитория. |
 | `mongo_repository_arch` | string | no | `"amd64"` | Закреплённая APT-архитектура. |
-| `mongo_repository_key_url` | string | no | `"https://www.mongodb.org/static/pgp/server-8.0.asc"` | URL ключа подписи серии 8.0. |
+| `mongo_repository_key_url` | string | no | `"https://www.mongodb.org/static/pgp/server-9.0.asc"` | URL ключа подписи серии 9.0. |
 | `mongo_keyring_directory` | string | no | `"/etc/apt/keyrings"` | Каталог ключа подписи. |
-| `mongo_keyring_file` | string | no | `"mongodb-server-8.0.asc"` | Имя файла ключа (.asc = ASCII-armored). |
+| `mongo_keyring_file` | string | no | `"mongodb-server-9.0.asc"` | Имя файла ключа (.asc = ASCII-armored). |
 | `mongo_prerequisite_packages` | list | no | `["ca-certificates", "python3-apt"]` | Пакеты до подключения репозитория. |
 | `mongo_packages` | list | no | `["mongodb-org", "python3-pymongo"]` | Сервер и pymongo для community.mongodb. |
 | `mongo_config_path` | string | no | `"/etc/mongod.conf"` | Файл конфигурации (роль владеет целиком). |

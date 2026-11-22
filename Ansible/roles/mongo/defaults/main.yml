@@ -17,14 +17,14 @@ mongo_debug_mode: false
 mongo_repository_url: "https://repo.mongodb.org/apt/debian"
 
 # String. Repository suite naming the Debian release and the MongoDB series.
-# trixie/mongodb-org/8.0 is published upstream for Debian 13; the project
+# trixie/mongodb-org/9.0 is published upstream for Debian 13; the project
 # instructions use bookworm/mongodb-org/8.0 on hosts where trixie was not yet
 # published.
 # Строка. Suite репозитория, содержащий выпуск Debian и серию MongoDB.
-# trixie/mongodb-org/8.0 опубликован апстримом для Debian 13; инструкции
+# trixie/mongodb-org/9.0 опубликован апстримом для Debian 13; инструкции
 # проекта используют bookworm/mongodb-org/8.0 на хостах, где trixie ещё не был
 # опубликован.
-mongo_repository_suite: "trixie/mongodb-org/8.0"
+mongo_repository_suite: "trixie/mongodb-org/9.0"
 
 # String. Repository component.
 # Строка. Компонент репозитория.
@@ -34,9 +34,9 @@ mongo_repository_component: "main"
 # Строка. Закреплённая APT-архитектура.
 mongo_repository_arch: "amd64"
 
-# String. URL of the ASCII-armored MongoDB signing key for the 8.0 series.
-# Строка. URL ASCII-armored ключа подписи MongoDB для серии 8.0.
-mongo_repository_key_url: "https://www.mongodb.org/static/pgp/server-8.0.asc"
+# String. URL of the ASCII-armored MongoDB signing key for the 9.0 series.
+# Строка. URL ASCII-armored ключа подписи MongoDB для серии 9.0.
+mongo_repository_key_url: "https://www.mongodb.org/static/pgp/server-9.0.asc"
 
 # String. Directory holding the repository signing key.
 # Строка. Каталог с ключом подписи репозитория.
@@ -46,7 +46,7 @@ mongo_keyring_directory: "/etc/apt/keyrings"
 # apt accepts through signed-by.
 # Строка. Имя файла ключа; расширение .asc обозначает ASCII-armored keyring,
 # который apt принимает через signed-by.
-mongo_keyring_file: "mongodb-server-8.0.asc"
+mongo_keyring_file: "mongodb-server-9.0.asc"
 
 # Packages
 # Пакеты
