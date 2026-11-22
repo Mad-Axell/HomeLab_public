@@ -1,0 +1,23 @@
+# Runs inside "manage.py shell" via stdin. Creates the v2 API token only when its
+# key is absent; the stored value is a digest, so presence is the only checkable
+# property. Prints a single word consumed by changed_when: "exists" or "created".
+import os
+
+from users.models import Token, User
+
+full_token = os.environ["NETBOX_API_TOKEN_VALUE"]
+key, _, plaintext = full_token[4:].partition(".")
+
+exists = Token.objects.filter(key=key).exists()
+if not exists:
+    user = User.objects.get(username={{ lookup('ansible.builtin.vars', netbox_superuser_name_var) | to_json }})
+    token = Token(
+        user=user,
+        description={{ netbox_api_token_description | to_json }},
+        write_enabled={{ netbox_api_token_write_enabled | to_json }},
+    )
+    token.key = key
+    token.token = plaintext
+    token.save()
+
+print("exists" if exists else "created")

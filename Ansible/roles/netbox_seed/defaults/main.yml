@@ -1,0 +1,48 @@
+---
+# Boolean. Show a summary of applied changes.
+# Логическое значение. Показывать сводку применённых изменений.
+netbox_seed_debug_mode: false
+
+# String or null. Base URL of the NetBox instance, for example
+# "http://172.25.40.15". Required: the role talks only to the REST API.
+# Строка или null. Базовый URL инстанса NetBox, например "http://172.25.40.15".
+# Обязательна: роль общается только с REST API.
+netbox_seed_api_url: null
+
+# String or null. Name of the variable holding the API token in the
+# 'nbt_<key>.<plaintext>' form. Required; the value lives in VARS/secrets.yml.
+# Строка или null. Имя переменной с токеном API вида 'nbt_<key>.<plaintext>'.
+# Обязательна; значение живёт в VARS/secrets.yml.
+netbox_seed_api_token_var: null
+
+# Boolean. Verify TLS certificates when the API URL is https.
+# Логическое значение. Проверять TLS-сертификаты, когда URL API - https.
+netbox_seed_validate_certs: true
+
+# String. Desired state for every managed object.
+# Строка. Желаемое состояние для всех управляемых объектов.
+netbox_seed_state: "present"
+
+# Lists of module data dicts, applied in dependency order. Every item is passed
+# verbatim as the `data` argument of the matching netbox.netbox module, so the
+# fields are exactly those the module documents.
+# Списки словарей данных модулей, применяемые в порядке зависимостей. Каждый
+# элемент передаётся как есть в аргумент `data` соответствующего модуля
+# netbox.netbox, поэтому поля - в точности те, что документирует модуль.
+netbox_seed_rirs: []
+netbox_seed_sites: []
+netbox_seed_racks: []
+netbox_seed_manufacturers: []
+netbox_seed_device_roles: []
+netbox_seed_ipam_roles: []
+netbox_seed_device_types: []
+netbox_seed_vlan_groups: []
+netbox_seed_vlans: []
+netbox_seed_cluster_types: []
+netbox_seed_clusters: []
+netbox_seed_prefixes: []
+netbox_seed_devices: []
+netbox_seed_virtual_machines: []
+netbox_seed_device_interfaces: []
+netbox_seed_vm_interfaces: []
+netbox_seed_ip_addresses: []

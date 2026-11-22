@@ -1,0 +1,267 @@
+---
+# Every managed object arrives as a ready `data` dict for the matching
+# netbox.netbox module; the role only applies them in dependency order.
+# Каждый управляемый объект приходит готовым словарём `data` для соответствующего
+# модуля netbox.netbox; роль лишь применяет их в порядке зависимостей.
+- name: Validate the NetBox seed configuration
+  ansible.builtin.assert:
+    that:
+      - netbox_seed_api_url is not none
+      - netbox_seed_api_url is string
+      - netbox_seed_api_url is match('^https?://')
+      - netbox_seed_api_token_var is not none
+      - lookup('ansible.builtin.vars', netbox_seed_api_token_var, default=none) is not none
+      - >-
+        lookup('ansible.builtin.vars', netbox_seed_api_token_var)
+        is match('^nbt_[A-Za-z0-9]+\\.[A-Za-z0-9]{16,}$')
+      - netbox_seed_state in ['present', 'absent']
+    fail_msg: >-
+      netbox_seed needs an http(s) API URL and a variable holding a v2 API token
+      in the 'nbt_<key>.<plaintext>' form.
+
+- name: Resolve the API token once for all calls
+  ansible.builtin.set_fact:
+    netbox_seed_api_token: "{{ lookup('ansible.builtin.vars', netbox_seed_api_token_var) }}"
+  no_log: true
+
+# --- Foundation: IPAM/DCIM objects other records reference ---
+# --- Фундамент: объекты IPAM/DCIM, на которые ссылаются остальные записи ---
+
+- name: Ensure RIRs
+  netbox.netbox.netbox_rir:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_rirs }}"
+  when: netbox_seed_rirs | length > 0
+  register: netbox_seed_rirs_result
+
+- name: Ensure sites
+  netbox.netbox.netbox_site:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_sites }}"
+  when: netbox_seed_sites | length > 0
+  register: netbox_seed_sites_result
+
+- name: Ensure racks
+  netbox.netbox.netbox_rack:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_racks }}"
+  when: netbox_seed_racks | length > 0
+  register: netbox_seed_racks_result
+
+- name: Ensure manufacturers
+  netbox.netbox.netbox_manufacturer:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_manufacturers }}"
+  when: netbox_seed_manufacturers | length > 0
+  register: netbox_seed_manufacturers_result
+
+- name: Ensure device roles
+  netbox.netbox.netbox_device_role:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_device_roles }}"
+  when: netbox_seed_device_roles | length > 0
+  register: netbox_seed_device_roles_result
+
+- name: Ensure IPAM roles
+  netbox.netbox.netbox_ipam_role:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_ipam_roles }}"
+  when: netbox_seed_ipam_roles | length > 0
+  register: netbox_seed_ipam_roles_result
+
+- name: Ensure device types
+  netbox.netbox.netbox_device_type:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_device_types }}"
+  when: netbox_seed_device_types | length > 0
+  register: netbox_seed_device_types_result
+
+- name: Ensure VLAN groups
+  netbox.netbox.netbox_vlan_group:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_vlan_groups }}"
+  when: netbox_seed_vlan_groups | length > 0
+  register: netbox_seed_vlan_groups_result
+
+- name: Ensure VLANs
+  netbox.netbox.netbox_vlan:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_vlans }}"
+  when: netbox_seed_vlans | length > 0
+  register: netbox_seed_vlans_result
+
+- name: Ensure cluster types
+  netbox.netbox.netbox_cluster_type:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_cluster_types }}"
+  when: netbox_seed_cluster_types | length > 0
+  register: netbox_seed_cluster_types_result
+
+- name: Ensure clusters
+  netbox.netbox.netbox_cluster:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_clusters }}"
+  when: netbox_seed_clusters | length > 0
+  register: netbox_seed_clusters_result
+
+# --- Prefixes need their VLANs and RIRs to exist first ---
+# --- Префиксам сначала нужны их VLAN и RIR ---
+- name: Ensure prefixes
+  netbox.netbox.netbox_prefix:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_prefixes }}"
+  when: netbox_seed_prefixes | length > 0
+  register: netbox_seed_prefixes_result
+
+# --- Devices and VMs; primary IPs are stripped here and applied after the
+#     addresses exist, otherwise creation references an address nobody has yet ---
+# --- Устройства и VM; первичные IP здесь отрезаются и применяются после
+#     создания адресов, иначе создание ссылается на ещё несуществующий адрес ---
+- name: Ensure devices
+  netbox.netbox.netbox_device:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item | dict2items | rejectattr('key', 'in', ['primary_ip4', 'primary_ip6']) | items2dict }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_devices }}"
+  when: netbox_seed_devices | length > 0
+  register: netbox_seed_devices_result
+
+- name: Ensure virtual machines
+  netbox.netbox.netbox_virtual_machine:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item | dict2items | rejectattr('key', 'in', ['primary_ip4', 'primary_ip6']) | items2dict }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_virtual_machines }}"
+  when: netbox_seed_virtual_machines | length > 0
+  register: netbox_seed_vms_result
+
+# --- Interfaces belong to their parents, so they come after devices and VMs ---
+# --- Интерфейсы принадлежат родителям, поэтому идут после устройств и VM ---
+- name: Ensure device interfaces
+  netbox.netbox.netbox_device_interface:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_device_interfaces }}"
+  when: netbox_seed_device_interfaces | length > 0
+  register: netbox_seed_device_interfaces_result
+
+- name: Ensure VM interfaces
+  netbox.netbox.netbox_vm_interface:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_vm_interfaces }}"
+  when: netbox_seed_vm_interfaces | length > 0
+  register: netbox_seed_vm_interfaces_result
+
+# --- Addresses last: they attach to interfaces that must already exist ---
+# --- Адреса последними: они привязываются к уже существующим интерфейсам ---
+- name: Ensure IP addresses
+  netbox.netbox.netbox_ip_address:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_ip_addresses }}"
+  when: netbox_seed_ip_addresses | length > 0
+  register: netbox_seed_ips_result
+
+# --- Primary IPs only after the addresses they point at exist ---
+# --- Первичные IP только после того, как адреса, на которые они ссылаются, созданы ---
+- name: Assign primary IPs to devices
+  netbox.netbox.netbox_device:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_devices | selectattr('primary_ip4', 'defined') | list }}"
+  when: netbox_seed_devices | selectattr('primary_ip4', 'defined') | list | length > 0
+  register: netbox_seed_device_primary_result
+
+- name: Assign primary IPs to virtual machines
+  netbox.netbox.netbox_virtual_machine:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_virtual_machines | selectattr('primary_ip4', 'defined') | list }}"
+  when: netbox_seed_virtual_machines | selectattr('primary_ip4', 'defined') | list | length > 0
+  register: netbox_seed_vm_primary_result
+
+# Report the totals without echoing any object payload.
+# Вывод итогов без повторения содержимого объектов.
+- name: Display the NetBox seed summary
+  ansible.builtin.debug:
+    msg: >-
+      NetBox seed applied to {{ netbox_seed_api_url }}:
+      {{ netbox_seed_rirs | length }} RIRs,
+      {{ netbox_seed_sites | length }} sites,
+      {{ netbox_seed_racks | length }} racks,
+      {{ netbox_seed_vlans | length }} VLANs,
+      {{ netbox_seed_prefixes | length }} prefixes,
+      {{ netbox_seed_devices | length }} devices,
+      {{ netbox_seed_virtual_machines | length }} VMs,
+      {{ netbox_seed_ip_addresses | length }} IPs.
+  when: netbox_seed_debug_mode | bool
+  tags:
+    - debug

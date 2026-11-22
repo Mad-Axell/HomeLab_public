@@ -18,10 +18,30 @@
     that:
       - lookup('ansible.builtin.vars', item, default=none) is not none
     fail_msg: "A variable named in the netbox configuration must exist in VARS/secrets.yml."
-  loop: "{{ [netbox_secret_key_var, netbox_database_password_var] + ([netbox_redis_password_var] if netbox_redis_password_var is not none else []) }}"
+  loop: "{{ [netbox_secret_key_var, netbox_database_password_var] + ([netbox_redis_password_var] if netbox_redis_password_var is not none else []) + ([netbox_api_token_var] if netbox_api_token_var is not none else []) }}"
   loop_control:
     label: "redacted"
   no_log: true
+
+# A v2 token string is 'nbt_<key>.<plaintext>'; anything else either fails to
+# authenticate later or, worse, silently splits wrong inside the creation script.
+# The token belongs to the web superuser, so that account must be configured too.
+# Строка токена v2 имеет вид 'nbt_<key>.<plaintext>'; любой другой формат либо не
+# пройдёт аутентификацию позже, либо, что хуже, молча неправильно разделится внутри
+# скрипта создания. Токен принадлежит веб-суперпользователю, поэтому эта учётная
+# запись тоже должна быть сконфигурирована.
+- name: Validate the API token format
+  ansible.builtin.assert:
+    that:
+      - netbox_api_token_value is match('^nbt_[A-Za-z0-9]+\\.[A-Za-z0-9]{16,}$')
+      - netbox_superuser_name_var is not none
+    fail_msg: >-
+      netbox_api_token must look like 'nbt_<key>.<plaintext>' with a plaintext of at
+      least 16 characters, and netbox_superuser_name_var must be set to own it.
+  vars:
+    netbox_api_token_value: "{{ lookup('ansible.builtin.vars', netbox_api_token_var) }}"
+  no_log: true
+  when: netbox_api_token_var is not none
 
 - name: Install NetBox packages
   ansible.builtin.apt:
@@ -285,6 +305,32 @@
     - "'False' in (netbox_superuser_stat.stdout | default(''))"
   register: netbox_superuser_result
 
+# The token is created only when its key is absent: the stored value is a digest,
+# so presence is all that can be verified - never the plaintext itself. A lost
+# plaintext means a new key, not a rewrite. The secret travels in the environment,
+# never on the command line.
+# Токен создаётся только когда его ключа нет: хранится дайджест, поэтому проверить
+# можно лишь факт наличия, но не сам plaintext. Потерянный plaintext означает новый
+# ключ, а не перезапись. Секрет идёт через окружение, а не в командной строке.
+- name: Ensure the NetBox API token exists
+  ansible.builtin.command:
+    argv:
+      - "{{ netbox_install_root }}/venv/bin/python"
+      - "{{ netbox_install_root }}/netbox/manage.py"
+      - "shell"
+    stdin: "{{ lookup('ansible.builtin.template', 'ensure_api_token.py.j2') }}"
+  environment:
+    NETBOX_API_TOKEN_VALUE: "{{ lookup('ansible.builtin.vars', netbox_api_token_var) }}"
+  become: true
+  become_user: "{{ netbox_system_user }}"
+  changed_when: "'created' in netbox_api_token_result.stdout"
+  failed_when: >-
+    'exists' not in netbox_api_token_result.stdout
+    and 'created' not in netbox_api_token_result.stdout
+  register: netbox_api_token_result
+  no_log: true
+  when: netbox_api_token_var is not none
+
 # Written without validate: the file is a bare server block, and nginx -t on it alone
 # fails because a server block outside an http context is not a configuration. The whole
 # configuration is checked below instead, once the site is enabled and the default is gone.
@@ -358,6 +404,7 @@
       or (netbox_pip_result.changed | default(false) | bool)
       or (netbox_configuration_result.changed | default(false) | bool)
       or (netbox_migrate_result.changed | default(false) | bool)
+      or (netbox_api_token_result.changed | default(false) | bool)
       or (netbox_service_result.changed | default(false) | bool)
   tags:
     - debug

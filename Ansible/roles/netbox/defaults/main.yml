@@ -136,6 +136,28 @@ netbox_secret_key_var: null
 # пока существуют токены с его идентификатором: удаление инвалидирует их все.
 netbox_api_token_peppers_var: null
 
+# String or null. Name of the variable holding a pre-formed v2 API token in the
+# 'nbt_<key>.<plaintext>' form. When set, the role creates the token for the web
+# superuser so automation can call the API; the value itself lives in
+# VARS/secrets.yml. The stored token is an HMAC digest, so an existing key can only
+# be checked for presence - never read back or compared. Losing the plaintext means
+# issuing a new key, not recovering the old one.
+# Строка или null. Имя переменной с готовым токеном API v2 вида
+# 'nbt_<key>.<plaintext>'. Когда задано, роль создаёт токен для веб-суперпользователя,
+# чтобы автоматика могла ходить в API; само значение живёт в VARS/secrets.yml.
+# Сохранённый токен - HMAC-дайджест, поэтому существующий ключ можно только
+# проверить на наличие, но не прочитать и не сравнить. Потеря plaintext означает
+# выпуск нового ключа, а не восстановление старого.
+netbox_api_token_var: null
+
+# String. Description attached to the managed API token.
+# Строка. Описание, прикрепляемое к управляемому токену API.
+netbox_api_token_description: "Ansible automation"
+
+# Boolean. Whether the managed API token may write through the API.
+# Логическое значение. Может ли управляемый токен API писать через API.
+netbox_api_token_write_enabled: true
+
 # Database
 # База данных
 

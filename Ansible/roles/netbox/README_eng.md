@@ -51,6 +51,15 @@ rather than dependency resolution. `netbox_pip_extra_requirements` appends
 specifiers to the same pip invocation, so the constraint reaches the resolver
 instead of being patched by a separate downgrade afterwards.
 
+## The API token is created once
+
+When `netbox_api_token_var` is set, the role creates a v2 API token for the web
+superuser. The value must be a ready-made `nbt_<key>.<plaintext>` string from the
+secrets store: NetBox stores only an HMAC digest, so the role can only verify the
+key exists - an existing token is never rewritten or compared; when rotating,
+issue a new key. A write-enabled token is required by seed and integration
+playbooks that talk to the REST API.
+
 ## ALLOWED_HOSTS
 
 A request whose `Host` header is not listed is rejected by Django. The symptom is a site
