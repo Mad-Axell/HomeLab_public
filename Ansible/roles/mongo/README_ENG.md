@@ -17,7 +17,7 @@ the package does not rewrite it after installation.
 - Validates that `mongo_admin_password_var` and every `password_var` in
   `mongo_users` resolve to variables from `VARS/secrets.yml`.
 - Downloads the ASCII-armored signing key to
-  `/etc/apt/keyrings/mongodb-server-9.0.asc` and registers
+  `/etc/apt/keyrings/mongodb-server-9.asc` and registers
   `deb [arch=amd64 signed-by=...] https://repo.mongodb.org/apt/debian
   trixie/mongodb-org/9.0 main` in
   `/etc/apt/sources.list.d/mongodb-org.list`.
@@ -49,7 +49,7 @@ the package does not rewrite it after installation.
 ## Managed resources
 
 - Packages: `mongo_prerequisite_packages`, `mongo_packages`.
-- Files: `/etc/apt/keyrings/mongodb-server-9.0.asc`,
+- Files: `/etc/apt/keyrings/mongodb-server-9.asc`,
   `/etc/apt/sources.list.d/mongodb-org.list`, `/etc/mongod.conf`.
 - Services: `mongod`.
 - Users/groups: none at OS level (the `mongodb` user comes from the
@@ -65,9 +65,9 @@ the package does not rewrite it after installation.
 | `mongo_repository_suite` | string | no | `"trixie/mongodb-org/9.0"` | Suite: Debian release + MongoDB series. |
 | `mongo_repository_component` | string | no | `"main"` | Repository component. |
 | `mongo_repository_arch` | string | no | `"amd64"` | Pinned APT architecture. |
-| `mongo_repository_key_url` | string | no | `"https://pgp.mongodb.com/server-9.0.asc"` | Signing key URL for the 9.0 series. |
+| `mongo_repository_key_url` | string | no | `"https://pgp.mongodb.com/server-9.asc"` | Signing key URL for the 9.0 series. |
 | `mongo_keyring_directory` | string | no | `"/etc/apt/keyrings"` | Directory of the signing key. |
-| `mongo_keyring_file` | string | no | `"mongodb-server-9.0.asc"` | Key file name (.asc = ASCII-armored). |
+| `mongo_keyring_file` | string | no | `"mongodb-server-9.asc"` | Key file name (.asc = ASCII-armored). |
 | `mongo_prerequisite_packages` | list | no | `["ca-certificates", "python3-apt"]` | Packages needed before the repository. |
 | `mongo_packages` | list | no | `["mongodb-org", "python3-pymongo"]` | Server and pymongo for community.mongodb. |
 | `mongo_config_path` | string | no | `"/etc/mongod.conf"` | Configuration file (owned as a whole). |

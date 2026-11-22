@@ -16,7 +16,7 @@
 - Проверяет, что `mongo_admin_password_var` и каждый `password_var` из
   `mongo_users` разрешаются в переменные из `VARS/secrets.yml`.
 - Скачивает ASCII-armored ключ подписи в
-  `/etc/apt/keyrings/mongodb-server-9.0.asc` и регистрирует
+  `/etc/apt/keyrings/mongodb-server-9.asc` и регистрирует
   `deb [arch=amd64 signed-by=...] https://repo.mongodb.org/apt/debian
   trixie/mongodb-org/9.0 main` в
   `/etc/apt/sources.list.d/mongodb-org.list`.
@@ -47,7 +47,7 @@
 ## Изменяемые ресурсы
 
 - Packages: `mongo_prerequisite_packages`, `mongo_packages`.
-- Files: `/etc/apt/keyrings/mongodb-server-9.0.asc`,
+- Files: `/etc/apt/keyrings/mongodb-server-9.asc`,
   `/etc/apt/sources.list.d/mongodb-org.list`, `/etc/mongod.conf`.
 - Services: `mongod`.
 - Users/groups: none на уровне ОС (пользователь `mongodb` создаётся пакетом);
@@ -63,9 +63,9 @@
 | `mongo_repository_suite` | string | no | `"trixie/mongodb-org/9.0"` | Suite: выпуск Debian + серия MongoDB. |
 | `mongo_repository_component` | string | no | `"main"` | Компонент репозитория. |
 | `mongo_repository_arch` | string | no | `"amd64"` | Закреплённая APT-архитектура. |
-| `mongo_repository_key_url` | string | no | `"https://pgp.mongodb.com/server-9.0.asc"` | URL ключа подписи серии 9.0. |
+| `mongo_repository_key_url` | string | no | `"https://pgp.mongodb.com/server-9.asc"` | URL ключа подписи серии 9.0. |
 | `mongo_keyring_directory` | string | no | `"/etc/apt/keyrings"` | Каталог ключа подписи. |
-| `mongo_keyring_file` | string | no | `"mongodb-server-9.0.asc"` | Имя файла ключа (.asc = ASCII-armored). |
+| `mongo_keyring_file` | string | no | `"mongodb-server-9.asc"` | Имя файла ключа (.asc = ASCII-armored). |
 | `mongo_prerequisite_packages` | list | no | `["ca-certificates", "python3-apt"]` | Пакеты до подключения репозитория. |
 | `mongo_packages` | list | no | `["mongodb-org", "python3-pymongo"]` | Сервер и pymongo для community.mongodb. |
 | `mongo_config_path` | string | no | `"/etc/mongod.conf"` | Файл конфигурации (роль владеет целиком). |
