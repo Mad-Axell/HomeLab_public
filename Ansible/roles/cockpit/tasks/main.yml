@@ -65,9 +65,11 @@
   when: cockpit_45drives_packages | length > 0
 
 # Install extra Cockpit module packages from the 45Drives repository.
-# In check mode a repository that is only forecast cannot be indexed, so the
-# task runs only when the repository already exists.
+# The cache is always refreshed because the repository may have just been
+# added. In check mode a repository that is only forecast cannot be indexed,
+# so the task runs only when the repository already exists.
 # Установка дополнительных пакетов модулей Cockpit из репозитория 45Drives.
+# Кэш обновляется всегда, так как репозиторий мог быть только что добавлен.
 # В check mode ещё не созданный репозиторий не индексируется, поэтому задача
 # выполняется только когда репозиторий уже существует.
 - name: Install extra Cockpit module packages
@@ -75,7 +77,6 @@
     name: "{{ cockpit_45drives_packages }}"
     state: present
     update_cache: true
-    cache_valid_time: "{{ cockpit_cache_valid_time }}"
   register: cockpit_45drives_package_result
   when:
     - cockpit_45drives_packages | length > 0
