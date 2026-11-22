@@ -1,0 +1,160 @@
+---
+# Validate the platform and the endpoint and dialplan contract before any change
+# Проверка платформы и контракта конечных точек и диалплана до любого изменения
+- name: Assert required Asterisk variables are defined
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == 'Debian'
+      - asterisk_sip_port | int > 0
+      - asterisk_transports | length > 0
+      - (asterisk_endpoints | length) > 0
+      - asterisk_endpoints | selectattr('name', 'undefined') | list | length == 0
+      - asterisk_endpoints | selectattr('context', 'undefined') | list | length == 0
+      - >-
+        asterisk_endpoints | selectattr('auth_username', 'defined')
+        | selectattr('auth_password_var', 'undefined') | list | length == 0
+      - >-
+        asterisk_endpoints | selectattr('auth_password', 'defined')
+        | list | length == 0
+      - (asterisk_dialplan | length) > 0
+      - asterisk_dialplan | selectattr('context', 'undefined') | list | length == 0
+      - >-
+        asterisk_dialplan | selectattr('extensions', 'undefined')
+        | list | length == 0
+      - >-
+        asterisk_dialplan | map(attribute='extensions', default=[]) | flatten
+        | selectattr('exten', 'undefined') | list | length == 0
+      - >-
+        asterisk_dialplan | map(attribute='extensions', default=[]) | flatten
+        | selectattr('priority', 'undefined') | list | length == 0
+      - >-
+        asterisk_dialplan | map(attribute='extensions', default=[]) | flatten
+        | selectattr('app', 'undefined') | list | length == 0
+    fail_msg: >-
+      asterisk requires Debian, at least one endpoint with name and context
+      (authenticated endpoints take auth_password_var naming a defined
+      variable; a plain auth_password is rejected) and at least one dialplan
+      context with extensions carrying exten, priority and app
+    quiet: true
+
+# Resolve the SIP secrets into facts so the templates stay readable and a
+# missing variable fails here, before the first change, instead of mid-render;
+# no_log keeps the values hidden
+# Разрешение SIP-секретов в факты, чтобы шаблоны оставались читаемыми, а
+# отсутствующая переменная падала здесь, до первого изменения, а не в середине
+# рендера; no_log скрывает значения
+- name: Resolve the Asterisk endpoint secrets
+  ansible.builtin.set_fact:
+    asterisk_resolved_endpoints: >-
+      {%- set out = [] -%}
+      {%- for ep in asterisk_endpoints -%}
+      {%- set resolved = {} -%}
+      {%- if ep.auth_password_var is defined -%}
+      {%- set _ = resolved.update({
+        'resolved_auth_password': lookup('ansible.builtin.vars', ep.auth_password_var)
+      }) -%}
+      {%- endif -%}
+      {%- set _ = out.append(ep | combine(resolved)) -%}
+      {%- endfor -%}
+      {{ out }}
+  no_log: true
+
+# Install the daemon from the Debian packages
+# Установка демона из пакетов Debian
+- name: Install the Asterisk packages
+  ansible.builtin.apt:
+    name: "{{ asterisk_packages }}"
+    state: present
+    update_cache: true
+  register: asterisk_package_result
+
+# Render the endpoint and transport configuration; it contains SIP secrets, so
+# it is readable only to root and the daemon group and never shown in logs or
+# diff. Transport binds are not re-applied by a core reload, hence the restart
+# Формирование конфигурации конечных точек и транспортов; она содержит
+# SIP-секреты, поэтому читается только root и группой демона и не выводится в
+# логи и diff. Привязки транспортов core reload не переприменяет, поэтому рестарт
+- name: Write the PJSIP configuration
+  ansible.builtin.template:
+    src: "pjsip.conf.j2"
+    dest: "{{ asterisk_config_dir }}/pjsip.conf"
+    owner: "root"
+    group: "{{ asterisk_group }}"
+    mode: "0640"
+  notify: Restart Asterisk
+  register: asterisk_pjsip_result
+  no_log: true
+  diff: false
+
+# Render the media port range; it is applied only at daemon start, so it shares
+# the restart handler with the PJSIP configuration
+# Формирование диапазона медиапортов; он применяется только при запуске демона,
+# поэтому разделяет handler рестарта с конфигурацией PJSIP
+- name: Write the RTP configuration
+  ansible.builtin.template:
+    src: "rtp.conf.j2"
+    dest: "{{ asterisk_config_dir }}/rtp.conf"
+    owner: "root"
+    group: "{{ asterisk_group }}"
+    mode: "0640"
+  notify: Restart Asterisk
+  register: asterisk_rtp_result
+
+# Render the dialplan; a core reload picks it up on a running daemon, so the
+# lighter handler is used and calls in progress survive
+# Формирование диалплана; его подхватывает core reload на работающем демоне,
+# поэтому используется более лёгкий handler, и текущие вызовы не обрываются
+- name: Write the dialplan configuration
+  ansible.builtin.template:
+    src: "extensions.conf.j2"
+    dest: "{{ asterisk_config_dir }}/extensions.conf"
+    owner: "root"
+    group: "{{ asterisk_group }}"
+    mode: "0640"
+  notify: Reload Asterisk
+  register: asterisk_dialplan_result
+
+# Read whether the asterisk unit exists, so the service task is skipped in a
+# check-mode run on a host where the package is not installed yet
+# Чтение наличия юнита asterisk, чтобы сервисный таск пропускался в check-прогоне
+# на хосте, где пакет ещё не установлен
+- name: Check whether the Asterisk unit is available
+  ansible.builtin.stat:
+    path: "{{ asterisk_unit_path }}"
+  register: asterisk_unit_result
+
+# Keep the daemon in its steady state; on a real run the unit is always present
+# here because the package task above installs it
+# Поддержание демона в устойчивом состоянии; в реальном прогоне юнит здесь
+# всегда есть, так как пакетный таск выше его устанавливает
+- name: Manage the Asterisk service
+  ansible.builtin.systemd_service:
+    name: "{{ asterisk_service_name }}"
+    state: "{{ asterisk_service_state }}"
+    enabled: "{{ asterisk_service_enabled }}"
+  register: asterisk_service_result
+  when: asterisk_unit_result.stat.exists | default(false)
+
+# Report the outcome without repeating package manager output or SIP secrets
+# Вывод итога без повторения вывода пакетного менеджера и SIP-секретов
+- name: Display Asterisk change summary
+  ansible.builtin.debug:
+    msg: >-
+      Asterisk service {{ asterisk_service_name }}
+      on port {{ asterisk_sip_port }}:
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - asterisk_debug_mode | bool
+    - >-
+      (asterisk_package_result is defined
+      and (asterisk_package_result.changed | default(false) | bool))
+      or (asterisk_pjsip_result is defined
+      and (asterisk_pjsip_result.changed | default(false) | bool))
+      or (asterisk_rtp_result is defined
+      and (asterisk_rtp_result.changed | default(false) | bool))
+      or (asterisk_dialplan_result is defined
+      and (asterisk_dialplan_result.changed | default(false) | bool))
+      or (asterisk_service_result is defined
+      and (asterisk_service_result.changed | default(false) | bool))
+  tags:
+    - debug

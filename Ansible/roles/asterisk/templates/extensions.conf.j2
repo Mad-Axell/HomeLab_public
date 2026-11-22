@@ -1,0 +1,13 @@
+; Managed by Ansible role asterisk - manual changes will be overwritten
+
+[general]
+static = yes
+writeprotect = yes
+
+{% for ctx in asterisk_dialplan %}
+[{{ ctx.context }}]
+{% for line in ctx.extensions %}
+exten = {{ line.exten }},{{ line.priority }},{{ line.app }}
+{% endfor %}
+
+{% endfor %}

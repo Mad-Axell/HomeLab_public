@@ -1,0 +1,157 @@
+---
+# Asterisk SIP server role configuration
+# Конфигурация роли SIP-сервера Asterisk
+
+# SIP transport settings
+# Настройки SIP-транспорта
+
+# Integer. Port the SIP transports bind on all addresses; the upstream
+# firewall forwards SIP signaling to it
+# Целое число. Порт, который SIP-транспорты слушают на всех адресах;
+# вышестоящий файрвол пробрасывает на него SIP-сигнализацию
+asterisk_sip_port: 5060
+
+# List of strings. Protocols a transport section is rendered for; valid
+# values are udp and tcp
+# Список строк. Протоколы, для которых пишутся секции транспорта; допустимые
+# значения udp и tcp
+asterisk_transports:
+  - "udp"
+  - "tcp"
+
+# String or null. Address advertised in SIP and SDP when the server sits
+# behind NAT; normally the outside address of the forwarding router
+# Строка или null. Адрес, объявляемый в SIP и SDP, когда сервер находится за
+# NAT; обычно внешний адрес пробрасывающего роутера
+asterisk_external_address: null
+
+# List of strings. Internal networks the external address does not apply to;
+# clients inside them get the real server address in SIP/SDP
+# Список строк. Внутренние сети, к которым внешний адрес не применяется;
+# клиентам внутри них SIP/SDP отдаёт реальный адрес сервера
+asterisk_local_nets: []
+
+# RTP settings
+# Настройки RTP
+
+# Integer. First port of the RTP media range; the upstream firewall forwards
+# this range to the server
+# Целое число. Первый порт диапазона RTP-медиа; вышестоящий файрвол
+# пробрасывает этот диапазон на сервер
+asterisk_rtp_port_start: 10000
+
+# Integer. Last port of the RTP media range
+# Целое число. Последний порт диапазона RTP-медиа
+asterisk_rtp_port_end: 20000
+
+# Endpoints
+# Конечные точки
+
+# List of dicts. Endpoint/trunk definitions rendered into pjsip.conf;
+# required, at least one item
+# Список словарей. Определения конечных точек/транков, записываемые в
+# pjsip.conf; обязателен, минимум один элемент
+#
+# Keys per item:
+# - name (required): section name shared by the endpoint, auth, aor and
+#   identify sections
+# - context (required): dialplan context inbound calls enter
+# - allowed_codecs (optional): list of codecs; defaults to ulaw and alaw
+# - direct_media (optional boolean): let endpoints exchange media directly
+# - auth_username (optional): enables a userpass auth section; requires
+#   auth_password_var
+# - auth_password_var (required with auth_username): name of the variable
+#   holding the SIP secret, resolved at run time; a plain auth_password value
+#   is rejected because secrets live only in VARS/secrets.yml
+# - aors (optional): list of static contact URIs; when auth_username is set
+#   and the list is empty, an empty aor section is written so remote phones
+#   can register
+# - identify_matches (optional): list of IP addresses or CIDRs whose inbound
+#   signaling is matched to this endpoint without auth (trunk by source IP)
+# - registration (optional): dict with server_uri and client_uri and an
+#   optional retry_interval, rendered as an outbound registration section
+# - extra (optional): dict of additional endpoint options, useful for NAT
+#   tuning such as force_rport, rtp_symmetric or rewrite_contact
+#
+# Ключи элемента:
+# - name (обязателен): имя секций endpoint, auth, aor и identify
+# - context (обязателен): контекст диалплана для входящих вызовов
+# - allowed_codecs (опционально): список кодеков; по умолчанию ulaw и alaw
+# - direct_media (опционально, логическое): прямой обмен медиа между точками
+# - auth_username (опционально): включает секцию userpass-аутентификации;
+#   требует auth_password_var
+# - auth_password_var (обязателен при auth_username): имя переменной с
+#   SIP-секретом, разрешаемой во время прогона; открытое значение
+#   auth_password отвергается, так как секреты хранятся только в
+#   VARS/secrets.yml
+# - aors (опционально): список статических contact URI; при заданном
+#   auth_username и пустом списке пишется пустая секция aor для регистраций
+# - identify_matches (опционально): список IP-адресов или CIDR, чья входящая
+#   сигнализация сопоставляется этой точке без аутентификации (транк по
+#   адресу источника)
+# - registration (опционально): словарь с server_uri и client_uri и
+#   опциональным retry_interval, пишется как секция исходящей регистрации
+# - extra (опционально): словарь дополнительных опций endpoint, удобный для
+#   настройки NAT - force_rport, rtp_symmetric или rewrite_contact
+asterisk_endpoints: []
+
+# Dialplan
+# Диалплан
+
+# List of dicts. Dialplan contexts rendered into extensions.conf; required,
+# at least one item. Keys per item: context (required) and extensions
+# (required list of dicts with exten, priority and app)
+# Список словарей. Контексты диалплана, записываемые в extensions.conf;
+# обязателен, минимум один элемент. Ключи элемента: context (обязателен) и
+# extensions (обязательный список словарей с exten, priority и app)
+asterisk_dialplan: []
+
+# Service
+# Сервис
+
+# String. Managed service name
+# Строка. Имя управляемого сервиса
+asterisk_service_name: "asterisk"
+
+# String. Steady state of the service: started or stopped
+# Строка. Устойчивое состояние сервиса: started или stopped
+asterisk_service_state: "started"
+
+# Boolean. Start the service on boot
+# Логическое значение. Запускать сервис при загрузке
+asterisk_service_enabled: true
+
+# Internal paths and packages
+# Внутренние пути и пакеты
+
+# String. Internal. Directory with the Asterisk configuration files
+# Строка. Внутреннее. Каталог с файлами конфигурации Asterisk
+asterisk_config_dir: "/etc/asterisk"
+
+# String. Internal. Path of the unit shipped by the asterisk package; checked
+# before the service is managed so a check-mode run on a fresh host does not
+# fail on the missing unit
+# Строка. Внутреннее. Путь юнита из пакета asterisk; проверяется перед
+# управлением сервисом, чтобы check-прогон на чистом хосте не падал на
+# отсутствующем юните
+asterisk_unit_path: "/lib/systemd/system/asterisk.service"
+
+# String. Internal. Group the daemon runs under; configuration files are made
+# readable to it
+# Строка. Внутреннее. Группа, под которой работает демон; файлы конфигурации
+# делаются ей читаемыми
+asterisk_group: "asterisk"
+
+# List of strings. Internal. Packages installed by the role; the daemon ships
+# with Debian itself
+# Список строк. Внутреннее. Пакеты, устанавливаемые ролью; демон поставляется
+# самим Debian
+asterisk_packages:
+  - "asterisk"
+
+# Role output
+# Вывод роли
+
+# Boolean. Enable change notifications in debug output
+# Логическое значение. Включить уведомления об изменениях в debug-выводе
+asterisk_debug_mode: false

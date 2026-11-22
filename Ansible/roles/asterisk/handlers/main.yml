@@ -1,0 +1,31 @@
+---
+# The PJSIP and RTP configuration is applied through a full restart: transport
+# binds and the media port range are only read at daemon start, and `core
+# reload` silently leaves them unchanged. The restart drops calls in progress,
+# which is acceptable for this service.
+# Конфигурация PJSIP и RTP применяется полным рестартом: привязки транспортов
+# и диапазон медиапортов читаются только при запуске демона, и `core reload`
+# молча оставляет их без изменений. Рестарт обрывает текущие вызовы, что
+# приемлемо для этого сервиса.
+
+# Recreate the daemon after a structural configuration change; skipped when
+# the operator keeps the service stopped
+# Пересоздание демона после структурного изменения конфигурации; пропускается,
+# когда оператор держит сервис остановленным
+- name: Restart Asterisk
+  ansible.builtin.systemd_service:
+    name: "{{ asterisk_service_name }}"
+    state: "restarted"
+  when: asterisk_service_state == 'started'
+
+# Reload the dialplan without dropping calls; the CLI command is used directly
+# because `core reload` re-reads extensions.conf on a running daemon and not
+# every shipped unit carries an ExecReload line
+# Перезагрузка диалплана без обрыва вызовов; команда CLI используется напрямую,
+# так как `core reload` перечитывает extensions.conf на работающем демоне, а
+# строка ExecReload есть не в каждом поставляемом юните
+- name: Reload Asterisk
+  ansible.builtin.command:
+    cmd: "/usr/sbin/asterisk -rx 'core reload'"
+  changed_when: true
+  when: asterisk_service_state == 'started'

@@ -1,0 +1,77 @@
+; Managed by Ansible role asterisk - manual changes will be overwritten
+
+; Transports
+{% for proto in asterisk_transports %}
+
+[transport-{{ proto }}]
+type = transport
+protocol = {{ proto }}
+bind = 0.0.0.0:{{ asterisk_sip_port }}
+{% if asterisk_external_address is not none -%}
+external_signaling_address = {{ asterisk_external_address }}
+external_media_address = {{ asterisk_external_address }}
+{% endif -%}
+{% for net in asterisk_local_nets -%}
+local_net = {{ net }}
+{% endfor -%}
+{% endfor %}
+{% for ep in asterisk_resolved_endpoints %}
+
+; Endpoint: {{ ep.name }}
+[{{ ep.name }}]
+type = endpoint
+context = {{ ep.context }}
+disallow = all
+allow = {{ (ep.allowed_codecs | default(['ulaw', 'alaw'])) | join(',') }}
+{% if ep.direct_media is defined -%}
+direct_media = {{ 'yes' if ep.direct_media | bool else 'no' }}
+{% endif -%}
+{% if ep.auth_username is defined -%}
+auth = {{ ep.name }}
+{% endif -%}
+{% if ep.auth_username is defined or (ep.aors is defined and (ep.aors | length) > 0) -%}
+aors = {{ ep.name }}
+{% endif -%}
+{% if ep.registration is defined and ep.auth_username is defined -%}
+outbound_auth = {{ ep.name }}
+{% endif -%}
+{% for key, value in (ep.extra | default({})).items() -%}
+{{ key }} = {{ value }}
+{% endfor %}
+{% if ep.auth_username is defined %}
+
+[{{ ep.name }}]
+type = auth
+auth_type = userpass
+username = {{ ep.auth_username }}
+password = {{ ep.resolved_auth_password }}
+{% endif %}
+{% if ep.auth_username is defined or (ep.aors is defined and (ep.aors | length) > 0) %}
+
+[{{ ep.name }}]
+type = aor
+{% for contact in ep.aors | default([]) -%}
+contact = {{ contact }}
+{% endfor %}
+{% endif %}
+{% if ep.identify_matches is defined and (ep.identify_matches | length) > 0 %}
+
+[{{ ep.name }}]
+type = identify
+endpoint = {{ ep.name }}
+{% for match in ep.identify_matches -%}
+match = {{ match }}
+{% endfor %}
+{% endif %}
+{% if ep.registration is defined %}
+
+[{{ ep.name }}-registration]
+type = registration
+transport = transport-{{ asterisk_transports | first }}
+server_uri = {{ ep.registration.server_uri }}
+client_uri = {{ ep.registration.client_uri }}
+{% if ep.registration.retry_interval is defined -%}
+retry_interval = {{ ep.registration.retry_interval }}
+{% endif %}
+{% endif %}
+{% endfor %}
