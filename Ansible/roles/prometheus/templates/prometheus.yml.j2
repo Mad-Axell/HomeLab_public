@@ -12,7 +12,7 @@ global:
   evaluation_interval: {{ prometheus_evaluation_interval }}
 
 scrape_configs:
-{%- if prometheus_scrape_configs | length > 0 %}
+{% if prometheus_scrape_configs | length > 0 %}
 {{ prometheus_scrape_configs | to_nice_yaml(indent=2) | indent(2, true) }}
 {%- else %}
   - job_name: "prometheus"
