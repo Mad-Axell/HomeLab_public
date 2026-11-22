@@ -19,7 +19,7 @@ traefik_arch: "amd64"
 
 # String. URL of the release tarball; built from traefik_version and traefik_arch
 # Строка. URL архива релиза; собирается из traefik_version и traefik_arch
-traefik_download_url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}/traefik_v{{ traefik_version }}_linux_{{ traefik_arch }}.tar.gz"
+traefik_download_url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}/traefik_v{{ traefik_version }}_linux_{{ traefik_arch }}.tar.gz"  # noqa yaml[line-length]
 
 # String or null. Optional sha256 checksum of the release tarball; null disables
 # the verification. Pin the value from the traefik_v<version>_checksums.txt asset

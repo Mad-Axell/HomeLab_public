@@ -209,15 +209,6 @@
   notify: Restart Keycloak
   register: keycloak_unit_result
 
-# Make systemd see a new or changed unit file before the service is managed;
-# otherwise the service task below cannot find the unit it was just handed
-# Обновление systemd при новом или изменённом юните до управления сервисом;
-# иначе задача сервиса ниже не найдёт только что переданный ей юнит
-- name: Reload systemd
-  ansible.builtin.systemd:
-    daemon_reload: true
-  when: keycloak_unit_result.changed | default(false) | bool
-
 # Build the server with the rendered build-time options whenever the release or
 # the configuration changed. The unit starts kc.sh with --optimized, so starting
 # against a stale build fails loudly instead of silently serving old options.
@@ -242,15 +233,18 @@
     or (keycloak_config_result.changed | default(false) | bool)
   register: keycloak_build_result
 
-# Manage the service state; a needed restart is handled by the notified handler,
-# not by this task
-# Управление состоянием сервиса; нужный перезапуск выполняет уведомлённый
-# handler, а не эта задача
+# Manage the service state; daemon_reload makes systemd see the unit file just
+# written above, and a needed restart is handled by the notified handler, not
+# by this task
+# Управление состоянием сервисом; daemon_reload показывает systemd только что
+# записанный юнит, а нужный перезапуск выполняет уведомлённый handler, а не эта
+# задача
 - name: Manage the Keycloak service
   ansible.builtin.systemd:
     name: "{{ keycloak_service_name }}"
     state: "{{ keycloak_service_state }}"
     enabled: "{{ keycloak_service_enabled }}"
+    daemon_reload: true
   register: keycloak_service_result
 
 # Apply pending restarts before the summary is printed
