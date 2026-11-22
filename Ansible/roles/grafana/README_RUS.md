@@ -2,22 +2,26 @@
 
 Роль устанавливает Grafana на Debian-хост из официального APT-репозитория
 `apt.grafana.com`, пишет `/etc/grafana/grafana.ini` из шаблона (HTTP-порт,
-domain/root_url, встроенный администратор), декларативно провизионирует
-источники данных и дашборды и ставит плагины через `grafana-cli`. Локальный
-администратор получает пароль из внешнего секрета; SSO через Keycloak -
+domain/root_url, встроенный администратор, подключение к базе данных),
+декларативно провизионирует источники данных и дашборды и ставит плагины
+через `grafana-cli`. По умолчанию Grafana работает на внешнем PostgreSQL;
+встроенный sqlite3 выбирается через `grafana_database_type`. Пароли
+приходят из внешних секретов по имени переменной; SSO через Keycloak -
 осознанно следующий этап и в эту роль не входит.
 
 ## Что делает
 
-- Проверяет платформу Debian, структуру входных списков и наличие секрета
-  `vault_grafana_admin_password` одним ранним `ansible.builtin.assert` до
-  любых изменений.
+- Проверяет платформу Debian, структуру входных списков, имена секретных
+  переменных (`grafana_admin_password_var`, при postgres также
+  `grafana_database_host` и `grafana_database_password_var`) ранним
+  `ansible.builtin.assert`, а затем отдельной проверкой убеждается, что
+  названные секреты существуют - всё до любых изменений.
 - Скачивает armored-ключ подписи в `/etc/apt/keyrings/grafana.asc` и
   подключает репозиторий
   `deb [arch=amd64 signed-by=...] https://apt.grafana.com stable main`.
-- Устанавливает пакет `grafana` и пишет `grafana.ini` из шаблона. Файл
-  содержит пароль администратора, поэтому таска использует `no_log: true` и
-  `diff: false`.
+- Устанавливает пакет `grafana` и пишет `grafana.ini` из шаблона, включая
+  секцию `[database]` при `grafana_database_type: "postgres"`. Файл
+  содержит пароли, поэтому таска использует `no_log: true` и `diff: false`.
 - Пишет `/etc/grafana/provisioning/datasources/datasources.yaml` из списка
   `grafana_datasources` и провайдер
   `/etc/grafana/provisioning/dashboards/dashboards.yaml`, указывающий на
@@ -36,8 +40,11 @@ domain/root_url, встроенный администратор), деклар�
 
 - Debian (целевая платформа проекта - Debian 13, LXC); `become: true`.
 - Исходящий HTTPS-доступ к `apt.grafana.com`.
-- Секрет `vault_grafana_admin_password`, подключённый playbook'ом (см.
-  раздел "Секреты").
+- При `grafana_database_type: "postgres"`: доступный по сети PostgreSQL с уже
+  созданной базой и ролью (см. раздел "Примечания").
+- Секреты из `VARS/secrets.yml`, названные в `grafana_admin_password_var` и
+  `grafana_database_password_var`, подключённые playbook'ом (см. раздел
+  "Секреты").
 
 ## Изменяемые ресурсы
 
@@ -71,6 +78,13 @@ domain/root_url, встроенный администратор), деклар�
 | `grafana_domain` | string | no | `"localhost"` | Публичное доменное имя инстанса (`domain` в grafana.ini). |
 | `grafana_root_url` | string или null | no | `null` | Полный root URL для ссылок; при `null` Grafana вычисляет его из protocol/domain/http_port. |
 | `grafana_admin_user` | string | no | `"admin"` | Логин встроенного администратора. |
+| `grafana_admin_password_var` | string или null | yes | `null` | Имя переменной с паролем администратора в `VARS/secrets.yml`; задаётся по имени, чтобы значение не попадало в host_vars. |
+| `grafana_database_type` | string | no | `"postgres"` | Бэкенд базы: `"postgres"` или `"sqlite3"`. |
+| `grafana_database_host` | string или null | при postgres | `null` | Хост PostgreSQL; проверяется `assert`, когда `grafana_database_type` равен `"postgres"`. |
+| `grafana_database_port` | integer | no | `5432` | Порт PostgreSQL. |
+| `grafana_database_name` | string | no | `"grafana"` | Имя базы Grafana. |
+| `grafana_database_user` | string | no | `"grafana"` | Логин подключения к базе. |
+| `grafana_database_password_var` | string или null | при postgres | `null` | Имя переменной с паролем к базе в `VARS/secrets.yml`; обязательно при `grafana_database_type: "postgres"`. |
 | `grafana_datasources_config_path` | string | no | `"/etc/grafana/provisioning/datasources/datasources.yaml"` | Путь файла провизионирования источников. |
 | `grafana_datasources` | list | no | `[]` | Источники данных: у каждого обязательны `name`, `type`, `url`; опциональны `access` (по умолчанию `"proxy"`) и `is_default` (по умолчанию `false`). |
 | `grafana_dashboards_provider_path` | string | no | `"/etc/grafana/provisioning/dashboards/dashboards.yaml"` | Путь файла провайдера дашбордов. |
@@ -83,16 +97,23 @@ domain/root_url, встроенный администратор), деклар�
 
 ## Секреты
 
+Секреты задаются не прямыми именами, а через переменные `*_password_var`,
+указывающие на ключи `VARS/secrets.yml` (конвенция проекта, как в
+`zabbix_server` и `netbox`): значение секрета остаётся только в secrets.yml
+и не попадает в host_vars. Playbook подключает `VARS/secrets.yml` через
+`vars_files`.
+
 | Variable | Type | Required | Description |
 | --- | --- | --- | --- |
-| `vault_grafana_admin_password` | string | yes | Пароль встроенного администратора. Приходит из `VARS/secrets.yml`, который playbook подключает через `vars_files`; в `defaults/main.yml` не объявляется. Проверяется ранним `assert`, и роль падает до внесения изменений, если секрет не задан. |
+| секрет из `grafana_admin_password_var` | string | yes | Пароль встроенного администратора, например ключ `grafana_admin_password`. Проверяется ранним `assert`; роль падает до внесения изменений, если переменная не существует. |
+| секрет из `grafana_database_password_var` | string | при postgres | Пароль подключения к PostgreSQL, например ключ `grafana_db_password`. Обязателен при `grafana_database_type: "postgres"`. |
 
 Таска, пишущая `grafana.ini`, использует `no_log: true` и `diff: false`:
-секрет попадает только в файл на целевом хосте и не показывается в выводе и
-diff. Значение применяется один раз - когда Grafana создаёт учётную запись
-при первом старте (файл пишется до первого запуска сервиса). Смена пароля
-существующего администратора ролью не выполняется; это делается вручную через
-`grafana-cli admin reset-admin-password` или через UI/API.
+секреты попадают только в файл на целевом хосте и не показываются в выводе и
+diff. Пароль администратора применяется один раз - когда Grafana создаёт
+учётную запись при первом старте (файл пишется до первого запуска сервиса).
+Смена пароля существующего администратора ролью не выполняется; это делается
+вручную через `grafana-cli admin reset-admin-password` или через UI/API.
 
 ## Handlers
 
@@ -114,6 +135,9 @@ diff. Значение применяется один раз - когда Grafa
   roles:
     - role: grafana
       vars:
+        grafana_admin_password_var: "grafana_admin_password"
+        grafana_database_host: "postgresql.example.internal"
+        grafana_database_password_var: "grafana_db_password"
         grafana_domain: "grafana.example.internal"
         grafana_root_url: "http://grafana.example.internal:3000/"
         grafana_datasources:
@@ -149,6 +173,12 @@ diff. Значение применяется один раз - когда Grafa
 
 ## Примечания
 
+- Создание базы и роли PostgreSQL вне области этой роли: их заводит роль
+  `postgresql` на хосте базы через `postgresql_roles` и
+  `postgresql_databases` до применения `grafana`.
+- Перевод существующего инстанса с sqlite3 на PostgreSQL не переносит данные:
+  при смене `grafana_database_type` Grafana стартует с пустой базой и
+  накатывает схему сама; миграция содержимого - ручная операция вне роли.
 - Ключ репозитория хранится как armored `.asc`: APT принимает armored-keyring
   через `signed-by` только с расширением `.asc`, поэтому отдельный шаг
   `gpg --dearmor` не нужен - как и в ролях `docker` и `yandex_disk`.

@@ -74,13 +74,54 @@ grafana_root_url: null
 # Admin account
 # Учётная запись администратора
 
-# String. Login of the built-in administrator. The password comes from the
-# external secret vault_grafana_admin_password and is applied when Grafana
-# creates the account on first start.
-# Строка. Логин встроенного администратора. Пароль приходит из внешнего
-# секрета vault_grafana_admin_password и применяется, когда Grafana создаёт
-# учётную запись при первом старте.
+# String. Login of the built-in administrator.
+# Строка. Логин встроенного администратора.
 grafana_admin_user: "admin"
+
+# String or null. Name of the variable holding the admin password, taken from
+# VARS/secrets.yml; required. The password is referenced by name so its value
+# stays out of host_vars, and it is applied when Grafana creates the account
+# on first start.
+# Строка или null. Имя переменной с паролем администратора из
+# VARS/secrets.yml; обязательно. Пароль указывается по имени, чтобы его
+# значение не попадало в host_vars; применяется, когда Grafana создаёт
+# учётную запись при первом старте.
+grafana_admin_password_var: null
+
+# Database
+# База данных
+
+# String. Database backend: "postgres" for the shared PostgreSQL instance or
+# "sqlite3" for Grafana's embedded database.
+# Строка. Бэкенд базы данных: "postgres" для общего инстанса PostgreSQL или
+# "sqlite3" для встроенной базы Grafana.
+grafana_database_type: "postgres"
+
+# String or null. PostgreSQL host; required when grafana_database_type is
+# "postgres".
+# Строка или null. Хост PostgreSQL; обязателен, когда grafana_database_type
+# равен "postgres".
+grafana_database_host: null
+
+# Integer. PostgreSQL port.
+# Целое число. Порт PostgreSQL.
+grafana_database_port: 5432
+
+# String. Database name Grafana connects to. The database and its role are
+# created outside this role by the postgresql role.
+# Строка. Имя базы, к которой подключается Grafana. База и её роль создаются
+# вне этой роли - ролью postgresql.
+grafana_database_name: "grafana"
+
+# String. Login Grafana uses for the database.
+# Строка. Логин, с которым Grafana ходит в базу.
+grafana_database_user: "grafana"
+
+# String or null. Name of the variable holding the database password, taken
+# from VARS/secrets.yml; required when grafana_database_type is "postgres".
+# Строка или null. Имя переменной с паролем к базе из VARS/secrets.yml;
+# обязательно, когда grafana_database_type равен "postgres".
+grafana_database_password_var: null
 
 # Provisioning
 # Провизионирование

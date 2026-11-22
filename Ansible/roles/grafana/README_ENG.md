@@ -2,23 +2,28 @@
 
 This role installs Grafana on a Debian host from the official
 `apt.grafana.com` APT repository, renders `/etc/grafana/grafana.ini` from a
-template (HTTP port, domain/root_url, built-in administrator), provisions
-datasources and dashboards declaratively, and installs plugins via
-`grafana-cli`. The local administrator gets its password from an external
-secret; SSO via Keycloak is a deliberate later phase and is not part of this
-role.
+template (HTTP port, domain/root_url, built-in administrator, database
+connection), provisions datasources and dashboards declaratively, and
+installs plugins via `grafana-cli`. By default Grafana runs on an external
+PostgreSQL instance; the embedded sqlite3 backend is selected via
+`grafana_database_type`. Passwords come from external secrets referenced by
+variable name; SSO via Keycloak is a deliberate later phase and is not part
+of this role.
 
 ## What it does
 
 - Validates the Debian platform, the structure of the input lists and the
-  presence of the `vault_grafana_admin_password` secret with a single early
-  `ansible.builtin.assert` before any changes.
+  secret variable names (`grafana_admin_password_var`, plus
+  `grafana_database_host` and `grafana_database_password_var` in postgres
+  mode) with an early `ansible.builtin.assert`, then verifies the named
+  secrets exist with a separate check - all before any changes.
 - Downloads the armored signing key into `/etc/apt/keyrings/grafana.asc` and
   registers the repository
   `deb [arch=amd64 signed-by=...] https://apt.grafana.com stable main`.
-- Installs the `grafana` package and renders `grafana.ini` from a template.
-  The file carries the admin password, so the task uses `no_log: true` and
-  `diff: false`.
+- Installs the `grafana` package and renders `grafana.ini` from a template,
+  including the `[database]` section when `grafana_database_type` is
+  `"postgres"`. The file carries passwords, so the task uses `no_log: true`
+  and `diff: false`.
 - Renders `/etc/grafana/provisioning/datasources/datasources.yaml` from the
   `grafana_datasources` list and the provider
   `/etc/grafana/provisioning/dashboards/dashboards.yaml` pointing at
@@ -37,8 +42,10 @@ role.
 
 - Debian (the project's target platform is Debian 13, LXC); `become: true`.
 - Outbound HTTPS access to `apt.grafana.com`.
-- The `vault_grafana_admin_password` secret wired in by the playbook (see
-  "Secrets").
+- With `grafana_database_type: "postgres"`: a network-reachable PostgreSQL
+  with the database and role already created (see "Notes").
+- Secrets from `VARS/secrets.yml` named by `grafana_admin_password_var` and
+  `grafana_database_password_var`, wired in by the playbook (see "Secrets").
 
 ## Managed resources
 
@@ -72,6 +79,13 @@ role.
 | `grafana_domain` | string | no | `"localhost"` | Public domain name of the instance (`domain` in grafana.ini). |
 | `grafana_root_url` | string or null | no | `null` | Full root URL used in generated links; `null` lets Grafana derive it from protocol/domain/http_port. |
 | `grafana_admin_user` | string | no | `"admin"` | Login of the built-in administrator. |
+| `grafana_admin_password_var` | string or null | yes | `null` | Name of the variable holding the admin password in `VARS/secrets.yml`; referenced by name so the value stays out of host_vars. |
+| `grafana_database_type` | string | no | `"postgres"` | Database backend: `"postgres"` or `"sqlite3"`. |
+| `grafana_database_host` | string or null | in postgres mode | `null` | PostgreSQL host; asserted when `grafana_database_type` is `"postgres"`. |
+| `grafana_database_port` | integer | no | `5432` | PostgreSQL port. |
+| `grafana_database_name` | string | no | `"grafana"` | Database name Grafana connects to. |
+| `grafana_database_user` | string | no | `"grafana"` | Database login. |
+| `grafana_database_password_var` | string or null | in postgres mode | `null` | Name of the variable holding the database password in `VARS/secrets.yml`; required when `grafana_database_type` is `"postgres"`. |
 | `grafana_datasources_config_path` | string | no | `"/etc/grafana/provisioning/datasources/datasources.yaml"` | Path of the datasource provisioning file. |
 | `grafana_datasources` | list | no | `[]` | Datasources: each entry requires `name`, `type`, `url`; optional `access` (default `"proxy"`) and `is_default` (default `false`). |
 | `grafana_dashboards_provider_path` | string | no | `"/etc/grafana/provisioning/dashboards/dashboards.yaml"` | Path of the dashboards provider file. |
@@ -84,17 +98,24 @@ role.
 
 ## Secrets
 
+Secrets are not referenced by direct names but through `*_password_var`
+variables pointing at keys of `VARS/secrets.yml` (the project convention,
+same as `zabbix_server` and `netbox`): the secret value lives only in
+secrets.yml and never lands in host_vars. The playbook loads
+`VARS/secrets.yml` via `vars_files`.
+
 | Variable | Type | Required | Description |
 | --- | --- | --- | --- |
-| `vault_grafana_admin_password` | string | yes | Password of the built-in administrator. Supplied from `VARS/secrets.yml`, which the playbook loads via `vars_files`; it is never declared in `defaults/main.yml`. It is checked by the early `assert`, and the role fails before making changes if the secret is missing. |
+| secret named by `grafana_admin_password_var` | string | yes | Password of the built-in administrator, e.g. the `grafana_admin_password` key. Checked by the early `assert`; the role fails before making changes if the variable does not exist. |
+| secret named by `grafana_database_password_var` | string | in postgres mode | PostgreSQL connection password, e.g. the `grafana_db_password` key. Required when `grafana_database_type` is `"postgres"`. |
 
 The task that renders `grafana.ini` uses `no_log: true` and `diff: false`:
-the secret lands only in the file on the target host and is never shown in
-the output or the diff. The value is applied once, when Grafana creates the
-admin account on first start (the file is written before the first service
-start). Changing the password of an existing administrator is not performed
-by the role; do it manually with `grafana-cli admin reset-admin-password` or
-through the UI/API.
+the secrets land only in the file on the target host and are never shown in
+the output or the diff. The admin password is applied once, when Grafana
+creates the admin account on first start (the file is written before the
+first service start). Changing the password of an existing administrator is
+not performed by the role; do it manually with
+`grafana-cli admin reset-admin-password` or through the UI/API.
 
 ## Handlers
 
@@ -116,6 +137,9 @@ through the UI/API.
   roles:
     - role: grafana
       vars:
+        grafana_admin_password_var: "grafana_admin_password"
+        grafana_database_host: "postgresql.example.internal"
+        grafana_database_password_var: "grafana_db_password"
         grafana_domain: "grafana.example.internal"
         grafana_root_url: "http://grafana.example.internal:3000/"
         grafana_datasources:
@@ -153,6 +177,13 @@ The role supports `--check --diff` with the following limitations:
 
 ## Notes
 
+- Creating the PostgreSQL database and role is out of this role's scope: the
+  `postgresql` role does that on the database host via `postgresql_roles`
+  and `postgresql_databases` before `grafana` is applied.
+- Switching an existing instance from sqlite3 to PostgreSQL does not migrate
+  data: after changing `grafana_database_type` Grafana starts with an empty
+  database and applies its schema itself; content migration is a manual
+  operation outside the role.
 - The repository key is stored as an armored `.asc`: APT accepts an armored
   keyring via `signed-by` only under the `.asc` extension, so no separate
   `gpg --dearmor` step is needed - the same approach as the `docker` and

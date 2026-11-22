@@ -1,10 +1,10 @@
 ---
-# Validate the platform, the input structure and the required secret before
-# changing anything; variable names are checked, not values, so no_log is not
-# needed here.
-# Проверка платформы, структуры входов и обязательного секрета до внесения
-# изменений; проверяются имена переменных, а не значения, поэтому no_log не
-# нужен.
+# Validate the platform, the input structure and the required secret variable
+# names before changing anything; variable names are checked, not values, so
+# no_log is not needed here.
+# Проверка платформы, структуры входов и обязательных имён секретных
+# переменных до внесения изменений; проверяются имена переменных, а не
+# значения, поэтому no_log не нужен.
 - name: Validate required Grafana configuration
   ansible.builtin.assert:
     that:
@@ -20,12 +20,37 @@
         | union(grafana_datasources | selectattr("type", "undefined"))
         | union(grafana_datasources | selectattr("url", "undefined"))
         | list | length == 0
+      - grafana_admin_password_var is not none
+      - grafana_database_type in ["sqlite3", "postgres"]
       - >-
-        vault_grafana_admin_password is defined
-        and vault_grafana_admin_password is string
-        and (vault_grafana_admin_password | trim | length) > 0
-    fail_msg: "grafana requires a Debian-family host and a non-empty vault_grafana_admin_password; every grafana_datasources entry needs name, type and url."
+        grafana_database_type != "postgres"
+        or (grafana_database_host is string
+            and (grafana_database_host | trim | length) > 0)
+      - >-
+        grafana_database_type != "postgres"
+        or grafana_database_password_var is not none
+    fail_msg: >-
+      grafana requires a Debian-family host, a grafana_admin_password_var secret
+      variable name and well-formed grafana_datasources entries (name, type, url).
+      With grafana_database_type "postgres" it also needs grafana_database_host
+      and grafana_database_password_var.
     quiet: true
+
+# Verify the secrets named by the *_password_var variables actually exist;
+# the loop checks variable names, never their values.
+# Проверка, что секреты, названные в переменных *_password_var, реально
+# существуют; цикл проверяет имена переменных, а не их значения.
+- name: Validate the Grafana secrets
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', item, default=none) is not none
+    fail_msg: "A variable named in the grafana configuration must exist in VARS/secrets.yml."
+  loop: >-
+    {{ [grafana_admin_password_var]
+       + ([grafana_database_password_var] if grafana_database_type == "postgres" else []) }}
+  loop_control:
+    label: "redacted"
+  no_log: true
 
 # Ensure TLS verification works for downloading the signing key and that the
 # apt_repository module has python3-apt.
@@ -93,16 +118,16 @@
         and not (grafana_repository_result.changed | default(false) | bool))
   register: grafana_package_result
 
-# Render the main configuration. It carries the admin password, so nothing
-# about it is logged or diffed; the password lands only in the file and is
-# applied when Grafana creates the admin account on first start. The file is
-# written before the first service start below, which is what makes that
-# first start pick the password up.
-# Рендер основной конфигурации. В ней пароль администратора, поэтому ничего о
-# ней не логируется и не показывается в diff; пароль попадает только в файл и
-# применяется, когда Grafana создаёт учётную запись при первом старте. Файл
-# пишется до первого запуска сервиса ниже, что и позволяет этому запуску
-# подхватить пароль.
+# Render the main configuration. It carries the admin password and, in
+# postgres mode, the database password, so nothing about it is logged or
+# diffed; the passwords land only in the file. The file is written before
+# the first service start below, which is what makes that first start pick
+# the admin password up when the account is created.
+# Рендер основной конфигурации. В ней пароль администратора и, в режиме
+# postgres, пароль к базе, поэтому ничего о ней не логируется и не
+# показывается в diff; пароли попадают только в файл. Файл пишется до первого
+# запуска сервиса ниже, что и позволяет этому запуску подхватить пароль
+# администратора при создании учётной записи.
 - name: Configure Grafana
   ansible.builtin.template:
     src: "grafana.ini.j2"
