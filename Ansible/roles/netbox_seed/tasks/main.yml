@@ -176,6 +176,19 @@
   when: netbox_seed_devices | length > 0
   register: netbox_seed_devices_result
 
+# --- Bays need their parent and child devices to exist first ---
+# --- Bays требуют, чтобы parent- и child-устройства уже существовали ---
+- name: Ensure device bays
+  netbox.netbox.netbox_device_bay:
+    netbox_url: "{{ netbox_seed_api_url }}"
+    netbox_token: "{{ netbox_seed_api_token }}"
+    validate_certs: "{{ netbox_seed_validate_certs }}"
+    data: "{{ item }}"
+    state: "{{ netbox_seed_state }}"
+  loop: "{{ netbox_seed_device_bays }}"
+  when: netbox_seed_device_bays | length > 0
+  register: netbox_seed_device_bays_result
+
 - name: Ensure virtual machines
   netbox.netbox.netbox_virtual_machine:
     netbox_url: "{{ netbox_seed_api_url }}"
@@ -273,6 +286,7 @@
       {{ netbox_seed_vlans | length }} VLANs,
       {{ netbox_seed_prefixes | length }} prefixes,
       {{ netbox_seed_devices | length }} devices,
+      {{ netbox_seed_device_bays | length }} device bays,
       {{ netbox_seed_virtual_machines | length }} VMs,
       {{ netbox_seed_mac_addresses | length }} MACs,
       {{ netbox_seed_ip_addresses | length }} IPs.

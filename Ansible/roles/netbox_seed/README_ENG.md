@@ -51,6 +51,7 @@ device and VM interfaces → MAC addresses → IP addresses → primary IPs of d
 | `netbox_seed_clusters` | list | no | `[]` | `data` for `netbox_cluster`. |
 | `netbox_seed_prefixes` | list | no | `[]` | `data` for `netbox_prefix`. |
 | `netbox_seed_devices` | list | no | `[]` | `data` for `netbox_device`. `primary_ip4` is applied in a second pass after the addresses exist. |
+| `netbox_seed_device_bays` | list | no | `[]` | `data` for `netbox_device_bay`; each item needs `name`, `device` (parent) and `installed_device` (child). |
 | `netbox_seed_virtual_machines` | list | no | `[]` | `data` for `netbox_virtual_machine`. `primary_ip4` same as devices. |
 | `netbox_seed_device_interfaces` | list | no | `[]` | `data` for `netbox_device_interface`. |
 | `netbox_seed_vm_interfaces` | list | no | `[]` | `data` for `netbox_vm_interface`. |

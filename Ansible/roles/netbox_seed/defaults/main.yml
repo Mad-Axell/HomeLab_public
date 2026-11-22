@@ -42,6 +42,11 @@ netbox_seed_cluster_types: []
 netbox_seed_clusters: []
 netbox_seed_prefixes: []
 netbox_seed_devices: []
+# Device bays live on parent devices and hold child devices; each entry needs
+# name, device (the parent) and installed_device (the child).
+# Device bays живут на parent-устройствах и держат child-устройства; каждая
+# запись содержит name, device (родителя) и installed_device (потомка).
+netbox_seed_device_bays: []
 netbox_seed_virtual_machines: []
 netbox_seed_device_interfaces: []
 netbox_seed_vm_interfaces: []

@@ -51,6 +51,7 @@
 | `netbox_seed_clusters` | list | no | `[]` | `data` для `netbox_cluster`. |
 | `netbox_seed_prefixes` | list | no | `[]` | `data` для `netbox_prefix`. |
 | `netbox_seed_devices` | list | no | `[]` | `data` для `netbox_device`. Поле `primary_ip4` применяется отдельным проходом после адресов. |
+| `netbox_seed_device_bays` | list | no | `[]` | `data` для `netbox_device_bay`; каждый элемент содержит `name`, `device` (родителя) и `installed_device` (потомка). |
 | `netbox_seed_virtual_machines` | list | no | `[]` | `data` для `netbox_virtual_machine`. `primary_ip4` — как у устройств. |
 | `netbox_seed_device_interfaces` | list | no | `[]` | `data` для `netbox_device_interface`. |
 | `netbox_seed_vm_interfaces` | list | no | `[]` | `data` для `netbox_vm_interface`. |
