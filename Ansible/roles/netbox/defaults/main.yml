@@ -85,6 +85,19 @@ netbox_packages:
   # запускается, и на его место в stdout попадает ошибка оболочки.
   - "sudo"
 
+# List of strings. Extra pip requirement specifiers added to the requirements.txt
+# install, used to pin transitive dependencies the release leaves unbounded.
+# pymdown-extensions 13.x is incompatible with the Markdown version NetBox pins and
+# aborts the bundled documentation build with 'Highlight.__init__() missing 1
+# required positional argument: md'.
+# Список строк. Дополнительные спецификаторы пакетов pip, добавляемые к установке
+# requirements.txt, чтобы запинить транзитивные зависимости, которые выпуск не
+# ограничивает. pymdown-extensions 13.x несовместим с запиненной NetBox версией
+# Markdown и обрывает сборку встроенной документации ошибкой
+# 'Highlight.__init__() missing 1 required positional argument: md'.
+netbox_pip_extra_requirements:
+  - "pymdown-extensions<13"
+
 # Application
 # Приложение
 

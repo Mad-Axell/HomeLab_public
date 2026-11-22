@@ -40,6 +40,17 @@ NetBox needs two and will not share one. The task queue and the cache have diffe
 lifetimes; clearing the cache would discard queued jobs if they sat on the same number. The
 role refuses a configuration that gives both the same value.
 
+## Transitive pip dependencies
+
+The release `requirements.txt` pins direct dependencies and leaves transitive
+ones unbounded — and the newest version is not guaranteed compatible.
+pymdown-extensions 13.x turned out incompatible with the pinned Markdown version
+and aborted the bundled documentation build with `Highlight.__init__() missing 1
+required positional argument: md`, which reads as a problem in NetBox sources
+rather than dependency resolution. `netbox_pip_extra_requirements` appends
+specifiers to the same pip invocation, so the constraint reaches the resolver
+instead of being patched by a separate downgrade afterwards.
+
 ## ALLOWED_HOSTS
 
 A request whose `Host` header is not listed is rejected by Django. The symptom is a site

@@ -168,7 +168,7 @@
   ansible.builtin.pip:
     requirements: "{{ netbox_install_root }}/requirements.txt"
     virtualenv: "{{ netbox_install_root }}/venv"
-    extra_args: "--upgrade"
+    extra_args: "--upgrade {{ netbox_pip_extra_requirements | join(' ') }}"
   register: netbox_pip_result
 
 - name: Configure NetBox
