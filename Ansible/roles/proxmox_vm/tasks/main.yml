@@ -275,8 +275,8 @@
       {% for line in proxmox_vm_config_result.stdout_lines | default([]) %}
       {% if line | regex_search('^[a-zA-Z]+\d*:[ \t]') %}
       {% set _ = cur.update({
-           (line | regex_replace('^([a-zA-Z]+\d*):[ \t].*$', '\1')):
-           (line | regex_replace('^[a-zA-Z]+\d*:[ \t](.*)$', '\1'))}) %}
+           (line | regex_replace('^([a-zA-Z]+\d*):[ \t].*$', '\\1')):
+           (line | regex_replace('^[a-zA-Z]+\d*:[ \t](.*)$', '\\1'))}) %}
       {% endif %}
       {% endfor %}
       {% set want = {
