@@ -123,6 +123,7 @@
   ansible.builtin.command:
     cmd: "{{ proxmox_vm_create_cmd }}"
   register: proxmox_vm_create_result
+  changed_when: proxmox_vm_create_result.rc == 0
   when: proxmox_vm_status_result.rc != 0
 
 # Import the image as an unused disk; the output carries the target volid
@@ -133,6 +134,7 @@
       qm importdisk {{ proxmox_vm_target.proxmox.vmid }}
       {{ proxmox_vm_image_file }} {{ proxmox_vm_disk_storage }} --format qcow2
   register: proxmox_vm_import_result
+  changed_when: proxmox_vm_import_result.rc == 0
   when: proxmox_vm_status_result.rc != 0
 
 # Pull the imported volume id out of the importdisk output, dropping the
@@ -157,6 +159,7 @@
       --scsi0 {{ proxmox_vm_disk_volid }},discard=on,iothread=1,ssd=1
       --boot order=scsi0
   register: proxmox_vm_attach_result
+  changed_when: proxmox_vm_attach_result.rc == 0
   when:
     - proxmox_vm_status_result.rc != 0
     - proxmox_vm_disk_volid | default('') | length > 0
@@ -186,6 +189,7 @@
       qm resize {{ proxmox_vm_target.proxmox.vmid }} scsi0
       {{ proxmox_vm_disk_size }}
   register: proxmox_vm_resize_result
+  changed_when: proxmox_vm_resize_result.rc == 0
   when:
     - >-
       (proxmox_vm_config_result.stdout
@@ -238,6 +242,7 @@
       qm set {{ proxmox_vm_target.proxmox.vmid }}
       {{ proxmox_vm_set_args }}
   register: proxmox_vm_set_result
+  changed_when: proxmox_vm_set_result.rc == 0
   when:
     - proxmox_vm_status_result.rc == 0
     - proxmox_vm_set_args | default([]) | length > 0
@@ -250,6 +255,7 @@
   ansible.builtin.command:
     cmd: "qm start {{ proxmox_vm_target.proxmox.vmid }}"
   register: proxmox_vm_start_result
+  changed_when: proxmox_vm_start_result.rc == 0
   when:
     - proxmox_vm_start | bool
     - "'status: running' not in proxmox_vm_status_result.stdout"
