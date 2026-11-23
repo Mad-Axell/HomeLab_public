@@ -230,13 +230,23 @@
 - name: Read the VM configuration after attach
   ansible.builtin.command:
     cmd: "qm config {{ proxmox_vm_target.proxmox.vmid }}"
-  register: proxmox_vm_config_result
+  register: proxmox_vm_config_after_result
   changed_when: false
   failed_when: false
   check_mode: false
   when:
     - proxmox_vm_attach_result is defined
     - proxmox_vm_attach_result.changed | default(false) | bool
+
+# A skipped task with register overwrites the variable, so the freshest
+# config is whichever read produced a stdout
+# Пропущенная задача с register перезатирает переменную, поэтому свежая
+# конфигурация — та, чьё чтение дало stdout
+- name: Keep the freshest VM configuration
+  ansible.builtin.set_fact:
+    proxmox_vm_config_stdout: >-
+      {{ proxmox_vm_config_after_result.stdout
+         | default(proxmox_vm_config_result.stdout | default('')) }}
 
 # Grow the disk only when the imported image is smaller than requested; qcow2
 # imports keep their virtual size, so a second run sees size already reached.
@@ -254,11 +264,11 @@
   changed_when: proxmox_vm_resize_result.rc == 0
   when:
     - >-
-      (proxmox_vm_config_result.stdout
+      (proxmox_vm_config_stdout
        | regex_findall('^scsi0: .*size=([0-9]+)G', multiline=true) | first | default(0) | int)
       > 0
     - >-
-      (proxmox_vm_config_result.stdout
+      (proxmox_vm_config_stdout
        | regex_findall('^scsi0: .*size=([0-9]+)G', multiline=true) | first | default(0) | int)
       < (proxmox_vm_settings.disk_size | regex_replace('G$', '') | int)
 
@@ -271,7 +281,7 @@
 - name: Compute the differing scalar parameters
   ansible.builtin.set_fact:
     proxmox_vm_set_args: >-
-      {% set cur = proxmox_vm_config_result.stdout | default('') | from_yaml %}
+      {% set cur = proxmox_vm_config_stdout | default('') | from_yaml %}
       {% set want = {
            'cores': proxmox_vm_settings.cores | string,
            'memory': proxmox_vm_settings.memory | string,
