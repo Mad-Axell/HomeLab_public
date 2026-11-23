@@ -36,7 +36,7 @@
 | `zabbix_agentless_host_templates` | list | нет | `[]` | Имена привязанных шаблонов (должны совпадать с сервером). |
 | `zabbix_agentless_host_macros` | list | нет | `[]` | Словари `{macro, value}`; значения с окончанием `_var` разрешаются как имена переменных. |
 | `zabbix_agentless_host_description` | string | нет | `""` | Описание хоста. |
-| `zabbix_agentless_host_status` | bool | нет | `true` | `false` создаёт хост выключенным. |
+| `zabbix_agentless_host_status` | string | нет | `"enabled"` | `"enabled"` или `"disabled"`. |
 
 ## Пример
 

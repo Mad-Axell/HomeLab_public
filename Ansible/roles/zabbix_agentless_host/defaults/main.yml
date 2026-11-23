@@ -72,6 +72,6 @@ zabbix_agentless_host_macros: []
 # Строка. Произвольное описание, сохраняемое в объекте хоста.
 zabbix_agentless_host_description: ""
 
-# Boolean. True keeps the host enabled, false creates it disabled.
-# Логическое значение. True оставляет хост включённым, false создаёт выключенным.
-zabbix_agentless_host_status: true
+# String. Host status on the server: "enabled" or "disabled".
+# Строка. Статус хоста на сервере: "enabled" или "disabled".
+zabbix_agentless_host_status: "enabled"

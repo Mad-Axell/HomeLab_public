@@ -37,7 +37,7 @@ scenarios) have something to bind to.
 | `zabbix_agentless_host_templates` | list | no | `[]` | Linked template names (must match the server). |
 | `zabbix_agentless_host_macros` | list | no | `[]` | `{macro, value}` dicts; values ending in `_var` are resolved as variable names. |
 | `zabbix_agentless_host_description` | string | no | `""` | Host description. |
-| `zabbix_agentless_host_status` | bool | no | `true` | `false` creates the host disabled. |
+| `zabbix_agentless_host_status` | string | no | `"enabled"` | `"enabled"` or `"disabled"`. |
 
 ## Example
 
