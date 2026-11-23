@@ -55,14 +55,17 @@
     state: present
   register: coral_edge_tpu_repository_result
 
-# Install the Coral runtime package after the repository is available.
-# Установка пакета среды выполнения Coral после подключения репозитория.
+# Install the Coral runtime package after the repository is available. In check
+# mode the repository is only simulated, so a not-found package is tolerated.
+# Установка пакета среды выполнения Coral после подключения репозитория. В check
+# mode репозиторий лишь имитируется, поэтому отсутствие пакета допускается.
 - name: Install Coral runtime package
   ansible.builtin.apt:
     name: "{{ coral_edge_tpu_package_name }}"
     state: present
     update_cache: true
   register: coral_edge_tpu_package_result
+  failed_when: not ansible_check_mode and coral_edge_tpu_package_result is failed
 
 # Add only the explicitly requested device-forwarding lines to the container.
 # Добавление в контейнер только явно запрошенных строк проброса устройств.
