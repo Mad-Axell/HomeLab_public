@@ -1,0 +1,77 @@
+---
+# Agentless host registration in Zabbix
+# Регистрация безагентного хоста в Zabbix
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+zabbix_agentless_host_debug_mode: false
+
+# This role installs nothing on the device. Appliance guests like Home
+# Assistant OS take no agent, so the only thing there is to manage is the
+# host object on the Zabbix server. The interface carries type 'agent' and no
+# listener: it exists so server-side simple checks (ICMP ping, TCP service
+# probes) have an address to work with.
+#
+# Эта роль ничего не устанавливает на устройство. Appliance-гости вроде Home
+# Assistant OS не принимают агент, поэтому управлять здесь можно только
+# объектом хоста на сервере Zabbix. Интерфейс несёт тип 'agent' без слушателя:
+# он существует, чтобы серверные простые проверки (ICMP ping, проверки
+# TCP-сервисов) имели адрес для работы.
+
+# String or null. Base URL of the Zabbix frontend.
+# Строка или null. Базовый URL веб-интерфейса Zabbix.
+zabbix_agentless_host_api_url: null
+
+# String. API account used for registration.
+# Строка. Учётная запись API, используемая для регистрации.
+zabbix_agentless_host_api_user: "Admin"
+
+# String or null. Name of the variable holding the API password.
+# Строка или null. Имя переменной с паролем API.
+zabbix_agentless_host_api_password_var: null
+
+# String. Name of the host object on the server.
+# Строка. Имя объекта хоста на сервере.
+zabbix_agentless_host_name: "{{ inventory_hostname }}"
+
+# String. Address the server probes. A hostvars record wins when the role
+# runs against localhost, as in the agentless onboarding play.
+# Строка. Адрес, который опрашивает сервер. Запись hostvars выигрывает, когда
+# роль выполняется на localhost, как в play безагентного онбординга.
+zabbix_agentless_host_address: >-
+  {{ hostvars[zabbix_agentless_host_target_host].ansible_host
+     if zabbix_agentless_host_target_host is not none
+     and zabbix_agentless_host_target_host in hostvars
+     else ansible_host | default(inventory_hostname) }}
+
+# String or null. Inventory host record the object describes; null means the
+# role applies to inventory_hostname directly.
+# Строка или null. Запись инвентаря, которую описывает объект; null означает,
+# что роль применяется непосредственно к inventory_hostname.
+zabbix_agentless_host_target_host: null
+
+# List of strings. Host groups. Zabbix rejects a host with none; missing
+# groups are created first.
+# Список строк. Группы хостов. Хост без единой группы Zabbix отвергает;
+# отсутствующие группы создаются заранее.
+zabbix_agentless_host_groups: []
+
+# List of strings. Templates linked to the host; names must match the server
+# exactly. Simple-check templates ("ICMP Ping") work without an agent.
+# Список строк. Шаблоны, привязанные к хосту; имена обязаны точно совпадать с
+# сервером. Шаблоны простых проверок ("ICMP Ping") работают без агента.
+zabbix_agentless_host_templates: []
+
+# List of dicts. Host macros as {macro, value}; a value named by a variable is
+# resolved when it ends with "_var".
+# Список словарей. Макросы хоста в виде {macro, value}; значение, заданное
+# именем переменной (окончание "_var"), разрешается через lookup.
+zabbix_agentless_host_macros: []
+
+# String. Free-text description stored on the host object.
+# Строка. Произвольное описание, сохраняемое в объекте хоста.
+zabbix_agentless_host_description: ""
+
+# Boolean. True keeps the host enabled, false creates it disabled.
+# Логическое значение. True оставляет хост включённым, false создаёт выключенным.
+zabbix_agentless_host_status: true

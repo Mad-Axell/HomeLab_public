@@ -1,0 +1,129 @@
+---
+# Fail fast on a missing API URL or password variable: an unconfigured run
+# must not touch the server
+# Раннее падение при отсутствии URL API или переменной пароля: ненастроенный
+# прогон не должен трогать сервер
+- name: Validate the role contract
+  ansible.builtin.assert:
+    that:
+      - zabbix_agentless_host_api_url is not none
+      - zabbix_agentless_host_api_password_var is not none
+      - zabbix_agentless_host_groups | length > 0
+      - >-
+        zabbix_agentless_host_target_host is none
+        or zabbix_agentless_host_target_host in hostvars
+    fail_msg: >-
+      zabbix_agentless_host requires an API URL, an API password variable and
+      at least one host group; target_host must exist in inventory.
+    quiet: true
+
+# The password lives in VARS/secrets.yml under a name passed in
+# zabbix_agentless_host_api_password_var; the role never sees a literal value
+# Пароль живёт в VARS/secrets.yml под именем, переданным в
+# zabbix_agentless_host_api_password_var; роль никогда не видит литеральное
+# значение
+- name: Require the named secret variables to exist
+  ansible.builtin.assert:
+    that:
+      - "{{ item }} is defined or lookup('ansible.builtin.vars', item, default='') | length > 0"
+    fail_msg: "A variable named in the zabbix_agentless_host configuration must exist in VARS/secrets.yml."
+  loop:
+    - "{{ zabbix_agentless_host_api_password_var }}"
+
+# Resolve the poll address once: the target record wins over the running host
+# Разрешение адреса опроса один раз: запись цели выигрывает у текущего хоста
+- name: Resolve the probe address
+  ansible.builtin.set_fact:
+    zabbix_agentless_host_resolved_address: "{{ zabbix_agentless_host_address }}"
+
+# Macros ending with "_var" are looked up in the variable space; the rest are
+# literal
+# Макросы с окончанием "_var" разрешаются через пространство переменных;
+# остальные — литеральные
+- name: Resolve the host macros
+  ansible.builtin.set_fact:
+    zabbix_agentless_host_resolved_macros: >-
+      {%- set out = [] -%}
+      {%- for m in zabbix_agentless_host_macros -%}
+      {%- set _ = out.append({
+           'macro': m.macro,
+           'value': lookup('ansible.builtin.vars', m.value)
+                    if (m.value | string) is match('.*_var$')
+                    else m.value}) -%}
+      {%- endfor -%}
+      {{ out }}
+  when: zabbix_agentless_host_macros | length > 0
+
+# Create groups the host will join; Zabbix refuses to link a host to a group
+# that does not exist. Throttled: Zabbix API deadlocks under parallel writes
+# Создание групп, в которые вступит хост; Zabbix отказывается привязывать хост
+# к несуществующей группе. Throttle: Zabbix API залипает под параллельной записью
+- name: Ensure the host groups exist
+  community.zabbix.zabbix_group:
+    host_group: "{{ item }}"
+    state: present
+  loop: "{{ zabbix_agentless_host_groups }}"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_zabbix_url_path: ""
+    ansible_host: "{{ zabbix_agentless_host_api_url | urlsplit('hostname') }}"
+    ansible_connection: "httpapi"
+    ansible_network_os: "community.zabbix.zabbix"
+    ansible_httpapi_port: "{{ zabbix_agentless_host_api_url | urlsplit('port') | default(80, true) }}"
+    ansible_httpapi_use_ssl: "{{ (zabbix_agentless_host_api_url | urlsplit('scheme')) == 'https' }}"
+    ansible_httpapi_validate_certs: false
+    ansible_user: "{{ zabbix_agentless_host_api_user }}"
+    ansible_httpapi_pass: "{{ lookup('ansible.builtin.vars', zabbix_agentless_host_api_password_var) }}"
+  register: zabbix_agentless_host_group_result
+  throttle: 1
+  failed_when:
+    - zabbix_agentless_host_group_result is failed
+    - "'already exists' not in (zabbix_agentless_host_group_result.msg | default(''))"
+
+# The interface is type 'agent' with no listener: it only supplies the IP for
+# server-side simple checks
+# Интерфейс имеет тип 'agent' без слушателя: он лишь даёт IP для серверных
+# простых проверок
+- name: Register the agentless device on the Zabbix server
+  community.zabbix.zabbix_host:
+    host_name: "{{ zabbix_agentless_host_name }}"
+    host_groups: "{{ zabbix_agentless_host_groups }}"
+    link_templates: "{{ zabbix_agentless_host_templates }}"
+    description: "{{ zabbix_agentless_host_description }}"
+    status: "{{ zabbix_agentless_host_status }}"
+    state: present
+    macros: "{{ zabbix_agentless_host_resolved_macros | default([]) }}"
+    interfaces:
+      - type: agent
+        main: 1
+        useip: 1
+        ip: "{{ zabbix_agentless_host_resolved_address }}"
+        dns: ""
+        port: "10050"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_zabbix_url_path: ""
+    ansible_host: "{{ zabbix_agentless_host_api_url | urlsplit('hostname') }}"
+    ansible_connection: "httpapi"
+    ansible_network_os: "community.zabbix.zabbix"
+    ansible_httpapi_port: "{{ zabbix_agentless_host_api_url | urlsplit('port') | default(80, true) }}"
+    ansible_httpapi_use_ssl: "{{ (zabbix_agentless_host_api_url | urlsplit('scheme')) == 'https' }}"
+    ansible_httpapi_validate_certs: false
+    ansible_user: "{{ zabbix_agentless_host_api_user }}"
+    ansible_httpapi_pass: "{{ lookup('ansible.builtin.vars', zabbix_agentless_host_api_password_var) }}"
+  no_log: true
+  register: zabbix_agentless_host_result
+
+- name: Display Zabbix agentless host change summary
+  ansible.builtin.debug:
+    msg: >-
+      {{ zabbix_agentless_host_name }} registered agentless
+      at {{ zabbix_agentless_host_resolved_address }};
+      templates {{ zabbix_agentless_host_templates | join(', ') }}.
+  when:
+    - zabbix_agentless_host_debug_mode | bool
+    - zabbix_agentless_host_result.changed | default(false) | bool
+  tags:
+    - debug
