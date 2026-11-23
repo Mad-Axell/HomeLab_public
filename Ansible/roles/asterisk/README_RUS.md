@@ -59,7 +59,8 @@ Debian пакета `asterisk` нет начиная с bookworm, см. баг 1
 - Files: `/etc/asterisk/pjsip.conf` (0640, root:asterisk);
   `/etc/asterisk/extensions.conf` (0640, root:asterisk);
   `/etc/asterisk/rtp.conf` (0640, root:asterisk).
-- Services: `asterisk`.
+- Services: `asterisk` (пакет Sangoma поставляет sysvinit-скрипт;
+  systemd управляет им через генерируемый юнит).
 - Users/groups: системные пользователь и группа `asterisk` (создаются ролью)
 - Firewall/API objects: none
 
@@ -79,7 +80,6 @@ Debian пакета `asterisk` нет начиная с bookworm, см. баг 1
 | `asterisk_service_state` | string | no | `"started"` | Устойчивое состояние сервиса: `started` или `stopped`. |
 | `asterisk_service_enabled` | boolean | no | `true` | Запускать сервис при загрузке. |
 | `asterisk_config_dir` | string | no | `"/etc/asterisk"` | Внутреннее. Каталог конфигурации. |
-| `asterisk_unit_path` | string | no | `"/lib/systemd/system/asterisk.service"` | Внутреннее. Путь юнита; проверяется перед управлением сервисом. |
 | `asterisk_user` | string | no | `"asterisk"` | Внутреннее. Пользователь демона; создаётся до установки пакета по документации Sangoma. |
 | `asterisk_group` | string | no | `"asterisk"` | Внутреннее. Группа демона, которой читаемы файлы конфигурации. |
 | `asterisk_repository_url` | string | no | `"http://deb.freepbx.org/freepbx17-prod"` | APT-репозиторий Sangoma FreePBX; в Debian пакета asterisk нет начиная с bookworm (баг 1031046). |

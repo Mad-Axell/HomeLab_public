@@ -128,14 +128,6 @@ asterisk_service_enabled: true
 # Строка. Внутреннее. Каталог с файлами конфигурации Asterisk
 asterisk_config_dir: "/etc/asterisk"
 
-# String. Internal. Path of the unit shipped by the asterisk package; checked
-# before the service is managed so a check-mode run on a fresh host does not
-# fail on the missing unit
-# Строка. Внутреннее. Путь юнита из пакета asterisk; проверяется перед
-# управлением сервисом, чтобы check-прогон на чистом хосте не падал на
-# отсутствующем юните
-asterisk_unit_path: "/lib/systemd/system/asterisk.service"
-
 # String. Internal. User the daemon runs under; created before the package
 # install as documented by Sangoma
 # Строка. Внутреннее. Пользователь, под которым работает демон; создаётся до

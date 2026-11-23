@@ -175,26 +175,29 @@
   notify: Reload Asterisk
   register: asterisk_dialplan_result
 
-# Read whether the asterisk unit exists, so the service task is skipped in a
-# check-mode run on a host where the package is not installed yet
-# Чтение наличия юнита asterisk, чтобы сервисный таск пропускался в check-прогоне
-# на хосте, где пакет ещё не установлен
-- name: Check whether the Asterisk unit is available
-  ansible.builtin.stat:
-    path: "{{ asterisk_unit_path }}"
-  register: asterisk_unit_result
+# Read whether the asterisk service is registered; the Sangoma package ships a
+# sysvinit script that systemd wraps in a generated unit, so a plain file stat
+# would not see it, and in a check-mode run on a fresh host the service task is
+# skipped
+# Чтение регистрации сервиса asterisk; пакет Sangoma поставляет sysvinit-скрипт,
+# который systemd оборачивает в генерируемый юнит, поэтому обычный stat файла его
+# не увидит, а в check-прогоне на чистом хосте сервисный таск пропускается
+- name: Collect the service facts
+  ansible.builtin.service_facts:
 
-# Keep the daemon in its steady state; on a real run the unit is always present
-# here because the package task above installs it
-# Поддержание демона в устойчивом состоянии; в реальном прогоне юнит здесь
-# всегда есть, так как пакетный таск выше его устанавливает
+# Keep the daemon in its steady state; on a real run the service is always
+# registered here because the package task above installs it
+# Поддержание демона в устойчивом состоянии; в реальном прогоне сервис здесь
+# всегда зарегистрирован, так как пакетный таск выше его устанавливает
 - name: Manage the Asterisk service
   ansible.builtin.systemd_service:
     name: "{{ asterisk_service_name }}"
     state: "{{ asterisk_service_state }}"
     enabled: "{{ asterisk_service_enabled }}"
   register: asterisk_service_result
-  when: asterisk_unit_result.stat.exists | default(false)
+  when: >-
+    (ansible_facts.services[asterisk_service_name ~ '.service'] is defined)
+    or (ansible_facts.services[asterisk_service_name] is defined)
 
 # Report the outcome without repeating package manager output or SIP secrets
 # Вывод итога без повторения вывода пакетного менеджера и SIP-секретов

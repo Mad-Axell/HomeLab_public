@@ -63,7 +63,8 @@ provider), and Asterisk answers the calls and routes them to internal phones.
 - Files: `/etc/asterisk/pjsip.conf` (0640, root:asterisk);
   `/etc/asterisk/extensions.conf` (0640, root:asterisk);
   `/etc/asterisk/rtp.conf` (0640, root:asterisk).
-- Services: `asterisk`.
+- Services: `asterisk` (the Sangoma package ships a sysvinit script;
+  systemd manages it through a generated unit).
 - Users/groups: `asterisk` system user and group (created by the role)
 - Firewall/API objects: none
 
@@ -83,7 +84,6 @@ provider), and Asterisk answers the calls and routes them to internal phones.
 | `asterisk_service_state` | string | no | `"started"` | Steady service state: `started` or `stopped`. |
 | `asterisk_service_enabled` | boolean | no | `true` | Start the service at boot. |
 | `asterisk_config_dir` | string | no | `"/etc/asterisk"` | Internal. Configuration directory. |
-| `asterisk_unit_path` | string | no | `"/lib/systemd/system/asterisk.service"` | Internal. Unit path; checked before the service is managed. |
 | `asterisk_user` | string | no | `"asterisk"` | Internal. Daemon user; created before the package install as documented by Sangoma. |
 | `asterisk_group` | string | no | `"asterisk"` | Internal. Daemon group the configuration files are readable to. |
 | `asterisk_repository_url` | string | no | `"http://deb.freepbx.org/freepbx17-prod"` | Sangoma FreePBX APT repository; Debian ships no asterisk package since bookworm (bug 1031046). |
