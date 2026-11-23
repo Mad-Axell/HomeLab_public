@@ -10,7 +10,7 @@
       delegate_to: localhost
       become: false
       vars:
-        ansible_python_interpreter: "{{ ansible_playbook_python }}'
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
 
     - name: Create the pfSense rollback-copy directory
       ansible.builtin.file:
@@ -127,7 +127,7 @@
       delegate_to: localhost
       become: false
       vars:
-        ansible_python_interpreter: "{{ ansible_playbook_python }}'
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
 
     - name: Confirm the pfSense transaction to the rollback watchdog
       ansible.builtin.file:
@@ -195,4 +195,4 @@
       delegate_to: localhost
       become: false
       vars:
-        ansible_python_interpreter: "{{ ansible_playbook_python }}'
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
