@@ -98,7 +98,25 @@
 # и описание добавляются условно
 - name: Compute the VM create command
   ansible.builtin.set_fact:
-    proxmox_vm_create_cmd: >-
+    proxmox_vm_create_cmd: "{{ _proxmox_vm_create_cmd }}"
+  vars:
+    _proxmox_vm_vlan: >-
+      {{ ',tag=' ~ proxmox_vm_target.network.vlan_tag
+         if proxmox_vm_target.network.vlan_tag is defined
+         and proxmox_vm_target.network.vlan_tag is not none
+         and proxmox_vm_target.network.vlan_tag | int > 0
+         else '' }}
+    _proxmox_vm_efidisk: >-
+      {{ '--efidisk0 "' ~ proxmox_vm_disk_storage
+         ~ ':0,efitype=4m,pre-enrolled-keys=0"'
+         if proxmox_vm_efidisk | bool else '' }}
+    _proxmox_vm_serial: >-
+      {{ '--serial0 socket' if proxmox_vm_serial_socket | bool else '' }}
+    _proxmox_vm_notes: >-
+      {{ '--description "'
+         ~ (proxmox_vm_description | replace('\n', ' ') | replace('"', "'"))
+         ~ '"' if proxmox_vm_description | length > 0 else '' }}
+    _proxmox_vm_create_cmd: >-
       qm create {{ proxmox_vm_target.proxmox.vmid }}
       --name {{ proxmox_vm_target_host }}
       --memory {{ proxmox_vm_memory }}
@@ -110,11 +128,10 @@
       --machine {{ proxmox_vm_machine }}
       --scsihw {{ proxmox_vm_scsihw }}
       --agent enabled={{ 1 if proxmox_vm_agent_enabled | bool else 0 }}
-      --net0 "virtio={{ proxmox_vm_target.network.mac }},bridge={{ proxmox_vm_target.network.bridge }}{{ ',tag=' ~ proxmox_vm_target.network.vlan_tag if proxmox_vm_target.network.vlan_tag is defined and proxmox_vm_target.network.vlan_tag is not none and proxmox_vm_target.network.vlan_tag | int > 0 else '' }}"
-      {{ ('--efidisk0 "' ~ proxmox_vm_disk_storage ~ ':0,efitype=4m,pre-enrolled-keys=0"') if proxmox_vm_efidisk | bool else '' }}
-      {{ '--serial0 socket' if proxmox_vm_serial_socket | bool else '' }}
+      --net0 "virtio={{ proxmox_vm_target.network.mac }},bridge={{ proxmox_vm_target.network.bridge }}{{ _proxmox_vm_vlan }}"
+      {{ _proxmox_vm_efidisk }} {{ _proxmox_vm_serial }}
       --onboot {{ 1 if proxmox_vm_onboot | bool else 0 }}
-      {{ ('--description "' ~ (proxmox_vm_description | replace('\n', ' ') | replace('"', "'")) ~ '"') if proxmox_vm_description | length > 0 else '' }}
+      {{ _proxmox_vm_notes }}
   when: proxmox_vm_status_result.rc != 0
 
 # Create the VM shell without any disk; the image is imported next
