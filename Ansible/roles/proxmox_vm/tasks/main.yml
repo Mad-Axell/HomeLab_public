@@ -189,7 +189,7 @@
   ansible.builtin.set_fact:
     proxmox_vm_disk_volid: >-
       {{ proxmox_vm_import_result.stdout | default('')
-        | regex_search('unused\d+:([^\x27]+)', '\1') | first }}
+        | regex_search('unused\d+:([^\x27]+)', '\1') | default([]) | first | default('') }}
   when: proxmox_vm_status_result.rc != 0
 
 # Attach the imported disk as scsi0 with discard and iothread; the q35
