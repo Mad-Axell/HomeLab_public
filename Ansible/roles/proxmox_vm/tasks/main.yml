@@ -1,0 +1,278 @@
+---
+# Resolve the inventory record once so every later read is one hop
+# Разрешение записи инвентаря один раз, чтобы каждое чтение ниже было в один шаг
+- name: Resolve the VM inventory record
+  ansible.builtin.set_fact:
+    proxmox_vm_target: "{{ hostvars[proxmox_vm_target_host] }}"
+  no_log: true
+
+# Validate the contract before anything changes: the target must name a VM
+# record on this node, carry an image URL and resolve to a network profile
+# Проверка контракта до любых изменений: цель должна называть запись VM на этой
+# ноде, нести URL образа и разрешаться в сетевой профиль
+- name: Validate Proxmox VM inventory data
+  ansible.builtin.assert:
+    that:
+      - proxmox_vm_target_host is string
+      - proxmox_vm_target_host | length > 0
+      - proxmox_vm_target_host in hostvars
+      - proxmox_vm_image_url is string
+      - proxmox_vm_image_url | length > 0
+      - proxmox_vm_target.proxmox.type == 'vm'
+      - proxmox_vm_target.proxmox.node == inventory_hostname
+      - proxmox_vm_target.proxmox.vmid | int > 0
+      - proxmox_vm_target.ansible_host is defined
+      - proxmox_vm_target.network.bridge is defined
+      - proxmox_vm_target.network.mac is defined
+      - >-
+        proxmox_vm_target.network.vlan_tag is not defined
+        or proxmox_vm_target.network.vlan_tag is none
+        or proxmox_vm_target.network.vlan_tag | int > 0
+    fail_msg: >-
+      proxmox_vm_target_host must name an inventory host with
+      proxmox.type 'vm' on this node, an image URL, a MAC and a bridge.
+    quiet: true
+
+# Name the files the image download produces; a .xz archive decompresses to
+# the same name without the suffix
+# Имена файлов, которые даёт загрузка образа; архив .xz распаковывается в то же
+# имя без суффикса
+- name: Compute the image paths
+  ansible.builtin.set_fact:
+    proxmox_vm_image_archive: >-
+      {{ proxmox_vm_image_dir }}/{{ proxmox_vm_image_url | basename }}
+    proxmox_vm_image_file: >-
+      {{ proxmox_vm_image_dir }}/{{ (proxmox_vm_image_url | basename) | regex_replace('\.xz$', '') }}
+
+# The directory is standard on every Proxmox node but cheap to guarantee
+# Каталог стандартен на любой ноде Proxmox, но гарантировать его дёшево
+- name: Create the image directory
+  ansible.builtin.file:
+    path: "{{ proxmox_vm_image_dir }}"
+    state: directory
+    mode: "0755"
+
+# The decompressed file is the marker: an existing .qcow2 means the download
+# and the unpack already happened
+# Распакованный файл является маркером: существующий .qcow2 означает, что
+# загрузка и распаковка уже произошли
+- name: Check whether the disk image exists on the node
+  ansible.builtin.stat:
+    path: "{{ proxmox_vm_image_file }}"
+  register: proxmox_vm_image_stat
+
+- name: Download the VM disk image
+  ansible.builtin.get_url:
+    url: "{{ proxmox_vm_image_url }}"
+    dest: "{{ proxmox_vm_image_archive }}"
+    mode: "0644"
+  register: proxmox_vm_image_result
+  when: not proxmox_vm_image_stat.stat.exists
+
+# XZ archives decompress in place; `creates` keeps the run idempotent
+# Архивы XZ распаковываются на месте; `creates` сохраняет идемпотентность
+- name: Decompress the downloaded image
+  ansible.builtin.command:
+    cmd: "xz -df {{ proxmox_vm_image_archive }}"
+    creates: "{{ proxmox_vm_image_file }}"
+  register: proxmox_vm_decompress_result
+  changed_when: proxmox_vm_decompress_result.rc == 0
+  when:
+    - proxmox_vm_image_archive != proxmox_vm_image_file
+    - not proxmox_vm_image_stat.stat.exists
+
+# `qm status` doubles as the existence probe: a missing VM exits non-zero
+# `qm status` одновременно служит проверкой существования: отсутствующая VM
+# завершается с ненулевым кодом
+- name: Read the VM status
+  ansible.builtin.command:
+    cmd: "qm status {{ proxmox_vm_target.proxmox.vmid }}"
+  register: proxmox_vm_status_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# Assemble the create command once; the EFI disk, the serial socket, the VLAN
+# tag and the description join conditionally
+# Сборка команды создания один раз; EFI-диск, последовательный сокет, VLAN-тег
+# и описание добавляются условно
+- name: Compute the VM create command
+  ansible.builtin.set_fact:
+    proxmox_vm_create_cmd: >-
+      qm create {{ proxmox_vm_target.proxmox.vmid }}
+      --name {{ proxmox_vm_target_host }}
+      --memory {{ proxmox_vm_memory }}
+      --cores {{ proxmox_vm_cores }}
+      --sockets {{ proxmox_vm_sockets }}
+      --balloon {{ proxmox_vm_balloon }}
+      --ostype {{ proxmox_vm_ostype }}
+      --bios {{ proxmox_vm_bios }}
+      --machine {{ proxmox_vm_machine }}
+      --scsihw {{ proxmox_vm_scsihw }}
+      --agent enabled={{ 1 if proxmox_vm_agent_enabled | bool else 0 }}
+      --net0 "virtio={{ proxmox_vm_target.network.mac }},bridge={{ proxmox_vm_target.network.bridge }}{{ ',tag=' ~ proxmox_vm_target.network.vlan_tag if proxmox_vm_target.network.vlan_tag is defined and proxmox_vm_target.network.vlan_tag is not none and proxmox_vm_target.network.vlan_tag | int > 0 else '' }}"
+      {{ ('--efidisk0 "' ~ proxmox_vm_disk_storage ~ ':0,efitype=4m,pre-enrolled-keys=0"') if proxmox_vm_efidisk | bool else '' }}
+      {{ '--serial0 socket' if proxmox_vm_serial_socket | bool else '' }}
+      --onboot {{ 1 if proxmox_vm_onboot | bool else 0 }}
+      {{ ('--description "' ~ (proxmox_vm_description | replace('\n', ' ') | replace('"', "'")) ~ '"') if proxmox_vm_description | length > 0 else '' }}
+  when: proxmox_vm_status_result.rc != 0
+
+# Create the VM shell without any disk; the image is imported next
+# Создание оболочки VM без диска; образ импортируется следующим шагом
+- name: Create the VM
+  ansible.builtin.command:
+    cmd: "{{ proxmox_vm_create_cmd }}"
+  register: proxmox_vm_create_result
+  when: proxmox_vm_status_result.rc != 0
+
+# Import the image as an unused disk; the output carries the target volid
+# Импорт образа как неиспользуемого диска; вывод несёт целевой volid
+- name: Import the disk image
+  ansible.builtin.command:
+    cmd: >-
+      qm importdisk {{ proxmox_vm_target.proxmox.vmid }}
+      {{ proxmox_vm_image_file }} {{ proxmox_vm_disk_storage }} --format qcow2
+  register: proxmox_vm_import_result
+  when: proxmox_vm_status_result.rc != 0
+
+# Pull the imported volume id out of the importdisk output, dropping the
+# 'unusedN:' prefix the message adds
+# Извлечение id импортированного тома из вывода importdisk с отбрасыванием
+# префикса 'unusedN:', который добавляет сообщение
+- name: Resolve the imported disk volume
+  ansible.builtin.set_fact:
+    proxmox_vm_disk_volid: >-
+      {{ proxmox_vm_import_result.stdout | default('')
+        | regex_search('unused\d+:([^\x27]+)', '\1') | first }}
+  when: proxmox_vm_status_result.rc != 0
+
+# Attach the imported disk as scsi0 with discard and iothread; the q35
+# machine with virtio-scsi-single supports both
+# Подключение импортированного диска как scsi0 с discard и iothread; машина q35
+# с virtio-scsi-single поддерживает оба
+- name: Attach the imported disk as scsi0
+  ansible.builtin.command:
+    cmd: >-
+      qm set {{ proxmox_vm_target.proxmox.vmid }}
+      --scsi0 {{ proxmox_vm_disk_volid }},discard=on,iothread=1,ssd=1
+      --boot order=scsi0
+  register: proxmox_vm_attach_result
+  when:
+    - proxmox_vm_status_result.rc != 0
+    - proxmox_vm_disk_volid | default('') | length > 0
+
+# Read the current config once; the resize check and the parameter reconcile
+# both compare against it
+# Чтение текущей конфигурации один раз; проверка resize и сверка параметров
+# сравниваются с ней
+- name: Read the VM configuration
+  ansible.builtin.command:
+    cmd: "qm config {{ proxmox_vm_target.proxmox.vmid }}"
+  register: proxmox_vm_config_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# Grow the disk only when the imported image is smaller than requested; qcow2
+# imports keep their virtual size, so a second run sees size already reached.
+# A missing size marker means the disk is not attached yet and must not grow
+# Увеличение диска только когда импортированный образ меньше запрошенного;
+# qcow2-импорт сохраняет виртуальный размер, поэтому повторный прогон видит,
+# что размер уже достигнут. Отсутствие метки размера означает, что диск ещё не
+# подключён и расти не должен
+- name: Grow the scsi0 disk to the requested size
+  ansible.builtin.command:
+    cmd: >-
+      qm resize {{ proxmox_vm_target.proxmox.vmid }} scsi0
+      {{ proxmox_vm_disk_size }}
+  register: proxmox_vm_resize_result
+  when:
+    - >-
+      (proxmox_vm_config_result.stdout
+       | regex_search('^scsi0: .*size=(\d+)G', '\1') | first | default(0) | int)
+      > 0
+    - >-
+      (proxmox_vm_config_result.stdout
+       | regex_search('^scsi0: .*size=(\d+)G', '\1') | first | default(0) | int)
+      < (proxmox_vm_disk_size | regex_replace('G$', '') | int)
+
+# Build the `qm set` arguments for scalar parameters whose live value differs
+# from the desired one; disk, NIC and firmware are creation-time choices and
+# are not rewritten on reruns
+# Формирование аргументов `qm set` для скалярных параметров, чьё текущее
+# значение отличается от желаемого; диск, NIC и прошивка — решения момента
+# создания и при повторах не перезаписываются
+- name: Compute the differing scalar parameters
+  ansible.builtin.set_fact:
+    proxmox_vm_set_args: >-
+      {% set cur = {} %}
+      {% for line in proxmox_vm_config_result.stdout_lines %}
+      {% if line | regex_search('^[a-zA-Z]+\d*:[ \t]') %}
+      {% set _ = cur.update({
+           (line | regex_replace('^([a-zA-Z]+\d*):[ \t].*$', '\1')):
+           (line | regex_replace('^[a-zA-Z]+\d*:[ \t](.*)$', '\1'))}) %}
+      {% endif %}
+      {% endfor %}
+      {% set want = {
+           'cores': proxmox_vm_cores | string,
+           'memory': proxmox_vm_memory | string,
+           'balloon': proxmox_vm_balloon | string,
+           'sockets': proxmox_vm_sockets | string,
+           'onboot': '1' if proxmox_vm_onboot | bool else '0',
+           'agent': 'enabled=1' if proxmox_vm_agent_enabled | bool
+                    else 'enabled=0'} %}
+      {% set ns = namespace(args=[]) %}
+      {% for k, v in want.items() %}
+      {% if (cur[k] | default('') | string) != (v | string) %}
+      {% set ns.args = ns.args + ['--' ~ k ~ ' ' ~ v] %}
+      {% endif %}
+      {% endfor %}
+      {{ ns.args | join(' ') }}
+  when: proxmox_vm_status_result.rc == 0
+
+# Apply only when at least one scalar parameter drifted
+# Применение только когда хотя бы один скалярный параметр разошёлся
+- name: Apply the differing scalar parameters
+  ansible.builtin.command:
+    cmd: >-
+      qm set {{ proxmox_vm_target.proxmox.vmid }}
+      {{ proxmox_vm_set_args }}
+  register: proxmox_vm_set_result
+  when:
+    - proxmox_vm_status_result.rc == 0
+    - proxmox_vm_set_args | default([]) | length > 0
+
+# Start the VM when asked and it is not already running; the status probe
+# words the running state as "status: running"
+# Старт VM по запросу, если она ещё не запущена; проверка статуса выражает
+# состояние работы как "status: running"
+- name: Start the VM
+  ansible.builtin.command:
+    cmd: "qm start {{ proxmox_vm_target.proxmox.vmid }}"
+  register: proxmox_vm_start_result
+  when:
+    - proxmox_vm_start | bool
+    - "'status: running' not in proxmox_vm_status_result.stdout"
+
+# Report the outcome without echoing image URLs or command lines
+# Вывод итога без повторения URL образов и командных строк
+- name: Display Proxmox VM change summary
+  ansible.builtin.debug:
+    msg: >-
+      VM {{ proxmox_vm_target.proxmox.vmid }} ({{ proxmox_vm_target_host }}):
+      {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
+  when:
+    - proxmox_vm_debug_mode | bool
+    - >-
+      (proxmox_vm_image_result is defined
+      and (proxmox_vm_image_result.changed | default(false) | bool))
+      or (proxmox_vm_create_result is defined
+      and (proxmox_vm_create_result.changed | default(false) | bool))
+      or (proxmox_vm_import_result is defined
+      and (proxmox_vm_import_result.changed | default(false) | bool))
+      or (proxmox_vm_set_result is defined
+      and (proxmox_vm_set_result.changed | default(false) | bool))
+      or (proxmox_vm_start_result is defined
+      and (proxmox_vm_start_result.changed | default(false) | bool))
+  tags:
+    - debug

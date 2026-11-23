@@ -1,0 +1,121 @@
+---
+# proxmox_vm — create a KVM virtual machine on the Proxmox node the role runs
+# on, importing a downloaded qcow2 (or .qcow2.xz) disk image. Inventory shape
+# matches proxmox_lxc: the VM record lives in hosts.yml, the role resolves it
+# through hostvars by proxmox_vm_target_host.
+#
+# proxmox_vm — создание KVM-виртуальной машины на ноде Proxmox, где запущена
+# роль, с импортом скачанного образа qcow2 (или .qcow2.xz). Форма записи в
+# инвентаре совпадает с proxmox_lxc: запись VM живёт в hosts.yml, роль находит
+# её через hostvars по proxmox_vm_target_host.
+
+# Target
+# Цель
+
+# String or null. Required. Name of the inventory host record describing the
+# VM; its proxmox.node must equal inventory_hostname and proxmox.type must
+# be 'vm'.
+# Строка или null. Обязательный. Имя записи хоста в инвентаре, описывающей VM;
+# её proxmox.node должен совпадать с inventory_hostname, а proxmox.type
+# быть 'vm'.
+proxmox_vm_target_host: null
+
+# Compute
+# Вычислительные ресурсы
+
+# Integer. vCPU cores
+# Целое. Ядра vCPU
+proxmox_vm_cores: 2
+
+# Integer. CPU sockets
+# Целое. Сокеты CPU
+proxmox_vm_sockets: 1
+
+# Integer. Memory in MiB
+# Целое. Память в МиБ
+proxmox_vm_memory: 2048
+
+# Integer. Balloon target in MiB; 0 disables the balloon device
+# Целое. Целевое значение balloon в МиБ; 0 отключает balloon-устройство
+proxmox_vm_balloon: 0
+
+# Disk
+# Диск
+
+# String. Target size of the scsi0 disk after import, e.g. "64G"; the disk is
+# only grown, never shrunk
+# Строка. Целевой размер диска scsi0 после импорта, например "64G"; диск только
+# увеличивается, никогда не уменьшается
+proxmox_vm_disk_size: "32G"
+
+# String. Proxmox storage that receives the imported disk and the EFI disk
+# Строка. Хранилище Proxmox, принимающее импортируемый диск и EFI-диск
+proxmox_vm_disk_storage: "local-lvm"
+
+# Image
+# Образ
+
+# String or null. Required. URL of the disk image to download onto the node
+# and import; .qcow2 files are used directly, .xz archives are decompressed
+# Строка или null. Обязательный. URL образа диска для загрузки на ноду и
+# импорта; файлы .qcow2 используются напрямую, архивы .xz распаковываются
+proxmox_vm_image_url: null
+
+# String. Directory on the node holding the downloaded image
+# Строка. Каталог на ноде для скачанного образа
+proxmox_vm_image_dir: "/var/lib/vz/template/iso"
+
+# Firmware and machine
+# Прошивка и машина
+
+# String. BIOS type; HAOS and modern appliances boot with ovmf (UEFI)
+# Строка. Тип BIOS; HAOS и современные appliance загружаются через ovmf (UEFI)
+proxmox_vm_bios: "ovmf"
+
+# String. Machine type
+# Строка. Тип машины
+proxmox_vm_machine: "q35"
+
+# String. SCSI controller
+# Строка. SCSI-контроллер
+proxmox_vm_scsihw: "virtio-scsi-single"
+
+# String. Guest OS type hint
+# Строка. Подсказка типа гостевой ОС
+proxmox_vm_ostype: "l26"
+
+# Boolean. Create an EFI disk; required when proxmox_vm_bios is ovmf
+# Логическое значение. Создать EFI-диск; обязательно при proxmox_vm_bios ovmf
+proxmox_vm_efidisk: true
+
+# Boolean. Expose a serial console socket for `qm terminal`
+# Логическое значение. Вывести сокет последовательной консоли для `qm terminal`
+proxmox_vm_serial_socket: true
+
+# Lifecycle
+# Жизненный цикл
+
+# Boolean. Enable the QEMU guest agent channel; appliance images like HAOS
+# ship the agent, and guest exec depends on it
+# Логическое значение. Включить канал QEMU guest agent; образы appliance вроде
+# HAOS несут агент, и guest exec зависит от него
+proxmox_vm_agent_enabled: true
+
+# Boolean. Start the VM when the node boots
+# Логическое значение. Стартовать VM при загрузке ноды
+proxmox_vm_onboot: true
+
+# Boolean. Start the VM after creation
+# Логическое значение. Стартовать VM после создания
+proxmox_vm_start: true
+
+# String. Description written into the VM config notes
+# Строка. Описание, записываемое в заметки конфигурации VM
+proxmox_vm_description: ""
+
+# Role output
+# Вывод роли
+
+# Boolean. Enable change notifications in debug output
+# Логическое значение. Включить уведомления об изменениях в debug-выводе
+proxmox_vm_debug_mode: false
