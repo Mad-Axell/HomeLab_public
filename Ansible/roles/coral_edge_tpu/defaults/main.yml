@@ -25,3 +25,11 @@ coral_edge_tpu_lxc_vmid: null
 # List. Required LXC configuration lines granting only the intended devices.
 # Список. Обязательные строки конфигурации LXC, предоставляющие доступ только к нужным устройствам.
 coral_edge_tpu_lxc_device_lines: null
+
+# Boolean. Install the libedgetpu runtime on the Proxmox host itself. Only needed
+# for bare-metal inference on the host; a container that merely receives the USB
+# device carries the runtime inside its own image (Frigate does).
+# Логическое значение. Устанавливать libedgetpu на сам хост Proxmox. Нужно только
+# для инференса на голом хосте; контейнер, которому просто проброшено USB-
+# устройство, несёт рантайм в своём образе (Frigate несёт).
+coral_edge_tpu_host_packages: true

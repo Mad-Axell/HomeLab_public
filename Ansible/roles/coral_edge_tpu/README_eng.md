@@ -32,6 +32,7 @@ This role adds the Coral repository, installs the runtime, and writes the suppli
 | `coral_edge_tpu_package_name` | string | no | `"libedgetpu1-std"` | Runtime package. |
 | `coral_edge_tpu_lxc_vmid` | integer | yes | `null` | Existing LXC VMID. |
 | `coral_edge_tpu_lxc_device_lines` | list | yes | `null` | Exact LXC device-forwarding lines. |
+| `coral_edge_tpu_host_packages` | bool | no | `true` | Install libedgetpu on the Proxmox host; `false` for pure device passthrough into an LXC (runtime lives inside the image). |
 
 ## Usage
 

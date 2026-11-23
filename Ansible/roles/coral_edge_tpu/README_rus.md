@@ -32,6 +32,7 @@
 | `coral_edge_tpu_package_name` | string | no | `"libedgetpu1-std"` | Пакет runtime. |
 | `coral_edge_tpu_lxc_vmid` | integer | yes | `null` | VMID существующего LXC. |
 | `coral_edge_tpu_lxc_device_lines` | list | yes | `null` | Конкретные строки проброса устройств LXC. |
+| `coral_edge_tpu_host_packages` | bool | no | `true` | Ставить libedgetpu на сам хост Proxmox; `false` для чистого проброса устройства в LXC (рантайм внутри образа). |
 
 ## Использование
 
