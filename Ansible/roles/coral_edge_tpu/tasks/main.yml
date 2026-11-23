@@ -18,12 +18,14 @@
     path: "/etc/pve/lxc/{{ coral_edge_tpu_lxc_vmid }}.conf"
   register: coral_edge_tpu_lxc_config_stat
 
-# Stop before modifying an unknown or missing LXC container.
-# Остановка до изменения неизвестного или отсутствующего контейнера LXC.
+# Stop before modifying an unknown or missing LXC container; in check mode the
+# container legitimately does not exist yet, so the guard passes by design.
+# Остановка до изменения неизвестного или отсутствующего контейнера; в check
+# mode контейнер законно ещё не создан, поэтому проверка пропускается по дизайну.
 - name: Assert LXC configuration file exists
   ansible.builtin.assert:
     that:
-      - coral_edge_tpu_lxc_config_stat.stat.exists
+      - coral_edge_tpu_lxc_config_stat.stat.exists or ansible_check_mode
     fail_msg: "LXC configuration file /etc/pve/lxc/{{ coral_edge_tpu_lxc_vmid }}.conf does not exist."
 
 # Create the keyring directory used by the Coral APT repository.
