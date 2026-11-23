@@ -189,7 +189,7 @@
   ansible.builtin.set_fact:
     proxmox_vm_disk_volid: >-
       {{ proxmox_vm_import_result.stdout | default('')
-        | regex_search('unused\d+:([^\x27]+)', '\1') | default([], true) | first | default('') }}
+        | regex_findall('unused\d+:([^\x27]+)') | first | default('') }}
   when: proxmox_vm_status_result.rc != 0
 
 # Attach the imported disk as scsi0 with discard and iothread; the q35
@@ -237,11 +237,11 @@
   when:
     - >-
       (proxmox_vm_config_result.stdout
-       | regex_search('^scsi0: .*size=(\d+)G', '\1') | first | default(0) | int)
+       | regex_findall('^scsi0: .*size=([0-9]+)G') | first | default(0) | int)
       > 0
     - >-
       (proxmox_vm_config_result.stdout
-       | regex_search('^scsi0: .*size=(\d+)G', '\1') | first | default(0) | int)
+       | regex_findall('^scsi0: .*size=([0-9]+)G') | first | default(0) | int)
       < (proxmox_vm_settings.disk_size | regex_replace('G$', '') | int)
 
 # Build the `qm set` arguments for scalar parameters whose live value differs
