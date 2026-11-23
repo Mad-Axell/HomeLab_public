@@ -181,21 +181,37 @@
   changed_when: proxmox_vm_import_result.rc == 0
   when: proxmox_vm_status_result.rc != 0
 
-# Pull the imported volume id out of the importdisk output, dropping the
-# 'unusedN:' prefix the message adds
-# Извлечение id импортированного тома из вывода importdisk с отбрасыванием
-# префикса 'unusedN:', который добавляет сообщение
+# Read the current config once; the imported volume id, the resize check and
+# the parameter reconcile all derive from it. The config is also the reliable
+# source for an interrupted run: a VM created but left with an unattached
+# unused disk is detected here, not from importdisk wording
+# Чтение текущей конфигурации один раз; id импортированного тома, проверка
+# resize и сверка параметров выводятся из неё. Конфиг — также надёжный источник
+# для прерванного прогона: VM, созданная с неподключённым unused-диском,
+# обнаруживается здесь, а не по формулировкам importdisk
+- name: Read the VM configuration
+  ansible.builtin.command:
+    cmd: "qm config {{ proxmox_vm_target.proxmox.vmid }}"
+  register: proxmox_vm_config_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# The unused disk line carries the imported volume as `unused0: <volid>`
+# Строка unused-диска несёт импортированный том как `unused0: <volid>`
 - name: Resolve the imported disk volume
   ansible.builtin.set_fact:
     proxmox_vm_disk_volid: >-
-      {{ proxmox_vm_import_result.stdout | default('')
-        | regex_findall('unused\d+:([^\x27]+)') | first | default('') }}
-  when: proxmox_vm_status_result.rc != 0
+      {{ proxmox_vm_config_result.stdout | default('')
+        | regex_findall('^unused\d+: (.+)$') | first | default('') }}
+  when: proxmox_vm_status_result.rc == 0 or proxmox_vm_import_result is not skipped
 
-# Attach the imported disk as scsi0 with discard and iothread; the q35
-# machine with virtio-scsi-single supports both
-# Подключение импортированного диска как scsi0 с discard и iothread; машина q35
-# с virtio-scsi-single поддерживает оба
+# Attach when scsi0 is absent and an unused volume waits; on a fresh create
+# this always fires, on a rerun it heals a VM whose first attach attempt
+# failed
+# Подключение, когда scsi0 отсутствует, а unused-том ожидает; при свежем
+# создании срабатывает всегда, при повторе лечит VM, у которой первая попытка
+# подключения упала
 - name: Attach the imported disk as scsi0
   ansible.builtin.command:
     cmd: >-
@@ -205,20 +221,22 @@
   register: proxmox_vm_attach_result
   changed_when: proxmox_vm_attach_result.rc == 0
   when:
-    - proxmox_vm_status_result.rc != 0
+    - "'scsi0:' not in proxmox_vm_config_result.stdout"
     - proxmox_vm_disk_volid | default('') | length > 0
 
-# Read the current config once; the resize check and the parameter reconcile
-# both compare against it
-# Чтение текущей конфигурации один раз; проверка resize и сверка параметров
-# сравниваются с ней
-- name: Read the VM configuration
+# Re-read the config so the resize check sees the freshly attached disk
+# Повторное чтение конфигурации, чтобы проверка resize видела только что
+# подключённый диск
+- name: Read the VM configuration after attach
   ansible.builtin.command:
     cmd: "qm config {{ proxmox_vm_target.proxmox.vmid }}"
   register: proxmox_vm_config_result
   changed_when: false
   failed_when: false
   check_mode: false
+  when:
+    - proxmox_vm_attach_result is defined
+    - proxmox_vm_attach_result.changed | default(false) | bool
 
 # Grow the disk only when the imported image is smaller than requested; qcow2
 # imports keep their virtual size, so a second run sees size already reached.
@@ -237,11 +255,11 @@
   when:
     - >-
       (proxmox_vm_config_result.stdout
-       | regex_findall('^scsi0: .*size=([0-9]+)G') | first | default(0) | int)
+       | regex_findall('^scsi0: .*size=([0-9]+)G', multiline=true) | first | default(0) | int)
       > 0
     - >-
       (proxmox_vm_config_result.stdout
-       | regex_findall('^scsi0: .*size=([0-9]+)G') | first | default(0) | int)
+       | regex_findall('^scsi0: .*size=([0-9]+)G', multiline=true) | first | default(0) | int)
       < (proxmox_vm_settings.disk_size | regex_replace('G$', '') | int)
 
 # Build the `qm set` arguments for scalar parameters whose live value differs
