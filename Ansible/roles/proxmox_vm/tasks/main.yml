@@ -203,7 +203,7 @@
   ansible.builtin.set_fact:
     proxmox_vm_disk_volid: >-
       {{ proxmox_vm_config_result.stdout | default('')
-        | regex_findall('^unused\d+: (.+)$') | first | default('') }}
+        | regex_findall('^unused\d+: (.+)$', multiline=true) | first | default('') }}
   when: proxmox_vm_status_result.rc == 0 or proxmox_vm_import_result is not skipped
 
 # Attach when scsi0 is absent and an unused volume waits; on a fresh create
