@@ -1,6 +1,7 @@
 # asterisk
 
-Роль устанавливает SIP-сервер Asterisk из пакетов Debian и минимально
+Роль устанавливает SIP-сервер Asterisk из репозитория Sangoma FreePBX (в
+Debian пакета `asterisk` нет начиная с bookworm, см. баг 1031046) и минимально
 управляет его конфигурацией через шаблоны. В проекте это LXC `asterisk`
 (`172.30.150.41`) в сети CAM на pve-nvr — SIP-сервер домофона: pfSense
 пробрасывает на него сигнализацию 5060–5061 TCP/UDP и медиа 10000–20000 UDP
@@ -12,7 +13,11 @@
 - Проверяет, что целевая система — Debian, что задан хотя бы один endpoint с
   `name` и `context` и хотя бы один контекст диалплана с `extensions`,
   содержащими `exten`, `priority` и `app`.
-- Устанавливает пакет `asterisk`.
+- Регистрирует APT-репозиторий Sangoma FreePBX (ключ с
+  `deb.freepbx.org/gpg/aptly-pubkey.asc`, сохраняется в
+  `/etc/apt/keyrings/sangoma.asc`).
+- Создаёт системных пользователя и группу `asterisk`, ожидаемых пакетами.
+- Устанавливает набор пакетов `asterisk22`.
 - Пишет `/etc/asterisk/pjsip.conf` из шаблона: секции транспортов (UDP/TCP с
   опциональными `external_signaling_address`, `external_media_address` и
   `local_net` для работы за NAT) и по набору секций `endpoint`, `auth`,
@@ -40,7 +45,9 @@
 
 ## Требования
 
-- Целевая ОС: Debian (пакет `asterisk` из штатных репозиториев).
+- Целевая ОС: Debian 12 (bookworm); репозиторий `freepbx17-prod` Sangoma
+  публикует только suite bookworm. В самом Debian пакета `asterisk` нет
+  начиная с bookworm.
 - Права: `become: true`.
 - Секреты: playbook подключает `VARS/secrets.yml` через `vars_files`; роль
   сама файл секретов не загружает.
@@ -53,7 +60,7 @@
   `/etc/asterisk/extensions.conf` (0640, root:asterisk);
   `/etc/asterisk/rtp.conf` (0640, root:asterisk).
 - Services: `asterisk`.
-- Users/groups: none (группу `asterisk` создаёт пакет)
+- Users/groups: системные пользователь и группа `asterisk` (создаются ролью)
 - Firewall/API objects: none
 
 ## Переменные
@@ -73,8 +80,17 @@
 | `asterisk_service_enabled` | boolean | no | `true` | Запускать сервис при загрузке. |
 | `asterisk_config_dir` | string | no | `"/etc/asterisk"` | Внутреннее. Каталог конфигурации. |
 | `asterisk_unit_path` | string | no | `"/lib/systemd/system/asterisk.service"` | Внутреннее. Путь юнита; проверяется перед управлением сервисом. |
+| `asterisk_user` | string | no | `"asterisk"` | Внутреннее. Пользователь демона; создаётся до установки пакета по документации Sangoma. |
 | `asterisk_group` | string | no | `"asterisk"` | Внутреннее. Группа демона, которой читаемы файлы конфигурации. |
-| `asterisk_packages` | list of strings | no | `["asterisk"]` | Внутреннее. Устанавливаемые пакеты. |
+| `asterisk_repository_url` | string | no | `"http://deb.freepbx.org/freepbx17-prod"` | APT-репозиторий Sangoma FreePBX; в Debian пакета asterisk нет начиная с bookworm (баг 1031046). |
+| `asterisk_repository_suite` | string | no | `"bookworm"` | Дистрибутивный suite репозитория Sangoma (FreePBX 17 ориентирован на Debian 12). |
+| `asterisk_repository_component` | string | no | `"main"` | Компонент репозитория. |
+| `asterisk_repository_arch` | string | no | `"amd64"` | Архитектура репозитория. |
+| `asterisk_repository_key_url` | string | no | `"http://deb.freepbx.org/gpg/aptly-pubkey.asc"` | URL ключа подписи Sangoma; отпечаток `991C 357C 8A35 9D03 82BC 6E87 C4DF E68F CE6D E186`. |
+| `asterisk_keyring_directory` | string | no | `"/etc/apt/keyrings"` | Каталог с ключом подписи репозитория. |
+| `asterisk_keyring_file` | string | no | `"sangoma.asc"` | ASCII-armored файл ключа, используемый через `signed-by`. |
+| `asterisk_prerequisite_packages` | list of strings | no | `["ca-certificates", "python3-apt"]` | Пакеты, необходимые до подключения подписанного репозитория. |
+| `asterisk_packages` | list of strings | no | `["asterisk22", "asterisk22-core", "asterisk22-configs"]` | Внутреннее. Устанавливаемые пакеты; Sangoma именует сборки `asterisk<major>`. |
 | `asterisk_debug_mode` | boolean | no | `false` | Включить debug-вывод после значимых изменений. |
 
 ### Поля endpoint (`asterisk_endpoints`)

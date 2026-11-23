@@ -1,6 +1,8 @@
 # asterisk
 
-The role installs the Asterisk SIP server from the Debian packages and
+The role installs the Asterisk SIP server from the Sangoma FreePBX package
+repository (Debian ships no `asterisk` package since bookworm, see Debian bug
+1031046) and
 minimally manages its configuration through templates. In the project this is
 the LXC `asterisk` (`172.30.150.41`) in the CAM network on pve-nvr — the
 doorphone SIP server: pfSense forwards signaling `5060–5061` TCP/UDP and
@@ -12,7 +14,11 @@ provider), and Asterisk answers the calls and routes them to internal phones.
 - Checks that the target is Debian, that at least one endpoint with `name`
   and `context` is defined and that at least one dialplan context carries
   `extensions` with `exten`, `priority` and `app`.
-- Installs the `asterisk` package.
+- Registers the Sangoma FreePBX APT repository (key from
+  `deb.freepbx.org/gpg/aptly-pubkey.asc`, stored under
+  `/etc/apt/keyrings/sangoma.asc`).
+- Creates the `asterisk` system user and group expected by the packages.
+- Installs the `asterisk22` package set.
 - Renders `/etc/asterisk/pjsip.conf` from a template: transport sections
   (UDP/TCP with optional `external_signaling_address`,
   `external_media_address` and `local_net` for operation behind NAT) and a
@@ -42,7 +48,9 @@ provider), and Asterisk answers the calls and routes them to internal phones.
 
 ## Requirements
 
-- Target OS: Debian (the `asterisk` package from the stock repositories).
+- Target OS: Debian 12 (bookworm); the Sangoma `freepbx17-prod` repository
+  only publishes a bookworm suite. Debian itself carries no `asterisk`
+  package since bookworm.
 - Privileges: `become: true`.
 - Secrets: the playbook includes `VARS/secrets.yml` through `vars_files`;
   the role does not load the secrets file itself.
@@ -56,7 +64,7 @@ provider), and Asterisk answers the calls and routes them to internal phones.
   `/etc/asterisk/extensions.conf` (0640, root:asterisk);
   `/etc/asterisk/rtp.conf` (0640, root:asterisk).
 - Services: `asterisk`.
-- Users/groups: none (the `asterisk` group is created by the package)
+- Users/groups: `asterisk` system user and group (created by the role)
 - Firewall/API objects: none
 
 ## Variables
@@ -76,8 +84,17 @@ provider), and Asterisk answers the calls and routes them to internal phones.
 | `asterisk_service_enabled` | boolean | no | `true` | Start the service at boot. |
 | `asterisk_config_dir` | string | no | `"/etc/asterisk"` | Internal. Configuration directory. |
 | `asterisk_unit_path` | string | no | `"/lib/systemd/system/asterisk.service"` | Internal. Unit path; checked before the service is managed. |
+| `asterisk_user` | string | no | `"asterisk"` | Internal. Daemon user; created before the package install as documented by Sangoma. |
 | `asterisk_group` | string | no | `"asterisk"` | Internal. Daemon group the configuration files are readable to. |
-| `asterisk_packages` | list of strings | no | `["asterisk"]` | Internal. Packages installed by the role. |
+| `asterisk_repository_url` | string | no | `"http://deb.freepbx.org/freepbx17-prod"` | Sangoma FreePBX APT repository; Debian ships no asterisk package since bookworm (bug 1031046). |
+| `asterisk_repository_suite` | string | no | `"bookworm"` | Distribution suite of the Sangoma repository (FreePBX 17 targets Debian 12). |
+| `asterisk_repository_component` | string | no | `"main"` | Repository component. |
+| `asterisk_repository_arch` | string | no | `"amd64"` | Repository architecture. |
+| `asterisk_repository_key_url` | string | no | `"http://deb.freepbx.org/gpg/aptly-pubkey.asc"` | Sangoma signing key URL; fingerprint `991C 357C 8A35 9D03 82BC 6E87 C4DF E68F CE6D E186`. |
+| `asterisk_keyring_directory` | string | no | `"/etc/apt/keyrings"` | Directory holding the repository signing key. |
+| `asterisk_keyring_file` | string | no | `"sangoma.asc"` | ASCII-armored keyring file used via `signed-by`. |
+| `asterisk_prerequisite_packages` | list of strings | no | `["ca-certificates", "python3-apt"]` | Packages needed before the signed repository can be used. |
+| `asterisk_packages` | list of strings | no | `["asterisk22", "asterisk22-core", "asterisk22-configs"]` | Internal. Packages installed by the role; Sangoma names builds `asterisk<major>`. |
 | `asterisk_debug_mode` | boolean | no | `false` | Enable debug output after significant changes. |
 
 ### Endpoint fields (`asterisk_endpoints`)

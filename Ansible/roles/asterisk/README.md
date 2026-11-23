@@ -2,7 +2,8 @@
 
 ## Русский
 
-Роль устанавливает Asterisk из пакетов Debian и минимально управляет его
+Роль устанавливает Asterisk из репозитория Sangoma FreePBX (в Debian пакета
+нет начиная с bookworm) и минимально управляет его
 конфигурацией через шаблоны: транспорты и конечные точки/транки в
 `pjsip.conf`, контексты диалплана в `extensions.conf` и диапазон портов медиа
 в `rtp.conf`. В проекте — SIP-сервер домофона, принимающий вызовы из WAN3
@@ -12,7 +13,8 @@
 
 ## English
 
-The role installs Asterisk from the Debian packages and minimally manages its
+The role installs Asterisk from the Sangoma FreePBX repository (Debian ships
+no asterisk package since bookworm) and minimally manages its
 configuration through templates: transports and endpoints/trunks in
 `pjsip.conf`, dialplan contexts in `extensions.conf` and the media port range
 in `rtp.conf`. In the project it is the doorphone SIP server receiving calls

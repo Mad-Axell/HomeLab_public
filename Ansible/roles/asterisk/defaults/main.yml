@@ -136,18 +136,73 @@ asterisk_config_dir: "/etc/asterisk"
 # отсутствующем юните
 asterisk_unit_path: "/lib/systemd/system/asterisk.service"
 
+# String. Internal. User the daemon runs under; created before the package
+# install as documented by Sangoma
+# Строка. Внутреннее. Пользователь, под которым работает демон; создаётся до
+# установки пакета, как описано в документации Sangoma
+asterisk_user: "asterisk"
+
 # String. Internal. Group the daemon runs under; configuration files are made
 # readable to it
 # Строка. Внутреннее. Группа, под которой работает демон; файлы конфигурации
 # делаются ей читаемыми
 asterisk_group: "asterisk"
 
-# List of strings. Internal. Packages installed by the role; the daemon ships
-# with Debian itself
-# Список строк. Внутреннее. Пакеты, устанавливаемые ролью; демон поставляется
-# самим Debian
+# Vendor repository
+# Репозиторий вендора
+
+# String. URL of the Sangoma FreePBX APT repository. Debian carries no asterisk
+# package since bookworm (bug 1031046), so the Sangoma-maintained repository is
+# the supported source of current Asterisk packages
+# Строка. URL APT-репозитория Sangoma FreePBX. В Debian пакета asterisk нет
+# начиная с bookworm (баг 1031046), поэтому репозиторий Sangoma - поддерживаемый
+# источник актуальных пакетов Asterisk
+asterisk_repository_url: "http://deb.freepbx.org/freepbx17-prod"
+
+# String. Distribution suite of the Sangoma repository; FreePBX 17 targets
+# Debian 12
+# Строка. Дистрибутивный suite репозитория Sangoma; FreePBX 17 ориентирован на
+# Debian 12
+asterisk_repository_suite: "bookworm"
+
+# String. Repository component
+# Строка. Компонент репозитория
+asterisk_repository_component: "main"
+
+# String. Repository architecture
+# Строка. Архитектура репозитория
+asterisk_repository_arch: "amd64"
+
+# String. URL of the Sangoma APT signing key; fingerprint per Sangoma
+# documentation: 991C 357C 8A35 9D03 82BC 6E87 C4DF E68F CE6D E186
+# Строка. URL ключа подписи APT-репозитория Sangoma; отпечаток по документации
+# Sangoma: 991C 357C 8A35 9D03 82BC 6E87 C4DF E68F CE6D E186
+asterisk_repository_key_url: "http://deb.freepbx.org/gpg/aptly-pubkey.asc"
+
+# String. Directory holding the repository signing key
+# Строка. Каталог с ключом подписи репозитория
+asterisk_keyring_directory: "/etc/apt/keyrings"
+
+# String. Key file name; the .asc extension marks an ASCII-armored keyring that
+# apt accepts through signed-by
+# Строка. Имя файла ключа; расширение .asc обозначает ASCII-armored keyring,
+# который apt принимает через signed-by
+asterisk_keyring_file: "sangoma.asc"
+
+# List of strings. Packages needed before the signed repository can be used
+# Список строк. Пакеты, необходимые до подключения подписанного репозитория
+asterisk_prerequisite_packages:
+  - "ca-certificates"
+  - "python3-apt"
+
+# List of strings. Internal. Packages installed by the role; the Sangoma
+# repository names its builds asterisk<major>
+# Список строк. Внутреннее. Пакеты, устанавливаемые ролью; репозиторий Sangoma
+# именует сборки asterisk<major>
 asterisk_packages:
-  - "asterisk"
+  - "asterisk22"
+  - "asterisk22-core"
+  - "asterisk22-configs"
 
 # Role output
 # Вывод роли

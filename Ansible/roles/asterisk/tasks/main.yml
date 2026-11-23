@@ -59,8 +59,69 @@
       {{ out }}
   no_log: true
 
-# Install the daemon from the Debian packages
-# Установка демона из пакетов Debian
+# CA certificates and python3-apt back the repository tasks on minimal
+# container images
+# Сертификаты CA и python3-apt обеспечивают работу репозиторных тасков на
+# минимальных образах контейнеров
+- name: Install the prerequisite packages
+  ansible.builtin.apt:
+    name: "{{ asterisk_prerequisite_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: asterisk_prerequisite_result
+
+# Create the directory that holds the repository signing key
+# Создание каталога, хранящего ключ подписи репозитория
+- name: Create the APT keyring directory
+  ansible.builtin.file:
+    path: "{{ asterisk_keyring_directory }}"
+    state: directory
+    mode: "0755"
+
+# Download the ASCII-armored signing key; the .asc file works through signed-by
+# Загрузка ASCII-armored ключа подписи; файл .asc работает через signed-by
+- name: Download the Sangoma APT signing key
+  ansible.builtin.get_url:
+    url: "{{ asterisk_repository_key_url }}"
+    dest: "{{ asterisk_keyring_directory }}/{{ asterisk_keyring_file }}"
+    mode: "0644"
+  register: asterisk_key_result
+
+# Register the Sangoma repository; Debian ships no asterisk package since
+# bookworm, so the vendor repository is the supported source
+# Регистрация репозитория Sangoma; в Debian пакета asterisk нет начиная с
+# bookworm, поэтому репозиторий вендора - поддерживаемый источник
+- name: Configure the Sangoma APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ asterisk_repository_arch }}
+      signed-by={{ asterisk_keyring_directory }}/{{ asterisk_keyring_file }}]
+      {{ asterisk_repository_url }} {{ asterisk_repository_suite }}
+      {{ asterisk_repository_component }}
+    filename: "sangoma-freepbx"
+    state: present
+  register: asterisk_repository_result
+
+# The Sangoma packages expect the service account to pre-exist
+# Пакеты Sangoma ожидают заранее созданную сервисную учётную запись
+- name: Create the Asterisk service group
+  ansible.builtin.group:
+    name: "{{ asterisk_group }}"
+    system: true
+    state: present
+
+- name: Create the Asterisk service account
+  ansible.builtin.user:
+    name: "{{ asterisk_user }}"
+    group: "{{ asterisk_group }}"
+    system: true
+    create_home: false
+    shell: "/usr/sbin/nologin"
+    state: present
+
+# Install the daemon from the Sangoma packages
+# Установка демона из пакетов Sangoma
 - name: Install the Asterisk packages
   ansible.builtin.apt:
     name: "{{ asterisk_packages }}"
