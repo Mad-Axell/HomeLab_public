@@ -93,9 +93,8 @@
 - name: Create the Immich database extensions
   community.postgresql.postgresql_ext:
     name: "{{ item }}"
-    db: "{{ immich_db_name }}"
     cascade: true
-    login_db: "postgres"
+    login_db: "{{ immich_db_name }}"
     login_host: "{{ immich_db_host }}"
     login_port: "{{ immich_db_port }}"
     login_user: "{{ immich_db_admin_user }}"
