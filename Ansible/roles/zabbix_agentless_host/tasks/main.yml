@@ -25,7 +25,7 @@
 - name: Require the named secret variables to exist
   ansible.builtin.assert:
     that:
-      - "{{ item }} is defined or lookup('ansible.builtin.vars', item, default='') | length > 0"
+      - lookup('ansible.builtin.vars', item, default='') | length > 0
     fail_msg: "A variable named in the zabbix_agentless_host configuration must exist in VARS/secrets.yml."
   loop:
     - "{{ zabbix_agentless_host_api_password_var }}"
