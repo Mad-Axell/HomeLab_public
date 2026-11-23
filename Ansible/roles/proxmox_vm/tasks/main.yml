@@ -302,12 +302,12 @@
   ansible.builtin.command:
     cmd: >-
       qm set {{ proxmox_vm_target.proxmox.vmid }}
-      {{ proxmox_vm_set_args }}
+      {{ proxmox_vm_set_args | trim }}
   register: proxmox_vm_set_result
   changed_when: proxmox_vm_set_result.rc == 0
   when:
     - proxmox_vm_status_result.rc == 0
-    - proxmox_vm_set_args | default([]) | length > 0
+    - proxmox_vm_set_args | default('') | trim | length > 0
 
 # Start the VM when asked and it is not already running; the status probe
 # words the running state as "status: running"
