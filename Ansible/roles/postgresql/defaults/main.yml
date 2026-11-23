@@ -28,6 +28,20 @@ postgresql_packages:
   - "python3-psycopg2"
   - "sudo"
 
+# List of strings. Additional APT packages installed after the server; meant
+# for extensions the distribution ships, such as postgresql-17-pgvector
+# Список строк. Дополнительные APT-пакеты, устанавливаемые после сервера; для
+# расширений, которые поставляет дистрибутив, например postgresql-17-pgvector
+postgresql_extra_packages: []
+
+# List of strings. URLs of .deb packages installed after the server; meant for
+# extensions Debian does not ship, such as VectorChord (vchord) which Immich
+# requires since v1.133. The apt module downloads each file itself
+# Список строк. URL .deb-пакетов, устанавливаемых после сервера; для расширений,
+# которых в Debian нет, например VectorChord (vchord), обязательного для Immich
+# с v1.133. Модуль apt скачивает каждый файл сам
+postgresql_remote_debs: []
+
 # String. Directory holding every cluster of this host. On Debian it is also the home
 # directory of the postgres user, and the distribution creates the default cluster inside
 # it during package installation.

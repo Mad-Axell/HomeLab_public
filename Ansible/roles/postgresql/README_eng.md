@@ -26,6 +26,17 @@ without creating a cluster, which lets the data directory be handed over before 
 initialises inside it. Installing the server in the same step would run `initdb` against a
 directory still owned by root.
 
+## Extensions
+
+`postgresql_extra_packages` adds APT packages after the server, meant for
+extensions the distribution ships — e.g. `postgresql-17-pgvector`, the required
+dependency of VectorChord. `postgresql_remote_debs` installs `.deb` packages by
+URL for extensions Debian does not ship — e.g. VectorChord (`vchord`), required
+by Immich since v1.133; the `apt` module downloads each file itself. Preloaded
+extensions are enabled through `postgresql_extra_settings`, e.g.
+`shared_preload_libraries: "'vchord.so'"` — the drop-in notifies a restart, so
+the library is loaded before any role or database below it is created.
+
 ## Settings go in a drop-in, authentication does not
 
 Tuning is written to `conf.d/10-ansible.conf`. `postgresql.conf` belongs to the Debian

@@ -95,6 +95,37 @@
     cache_valid_time: 3600
   register: postgresql_package_result
 
+# Extensions the distribution ships, like pgvector, install from the same
+# mirrors
+# Расширения, которые поставляет дистрибутив, например pgvector, ставятся с тех
+# же зеркал
+- name: Install the extra PostgreSQL packages
+  ansible.builtin.apt:
+    name: "{{ postgresql_extra_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: postgresql_extra_packages_result
+  when: postgresql_extra_packages | length > 0
+
+# Extensions Debian does not ship, like VectorChord, install from .deb URLs;
+# the apt module downloads each file itself. The server package is already
+# present, so its dependencies resolve locally
+# Расширения, которых в Debian нет, например VectorChord, ставятся по URL
+# .deb-файлов; модуль apt скачивает каждый файл сам. Пакет сервера уже
+# установлен, поэтому зависимости разрешаются локально
+- name: Install the remote PostgreSQL deb packages
+  ansible.builtin.apt:
+    deb: "{{ item }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  loop: "{{ postgresql_remote_debs }}"
+  loop_control:
+    label: "{{ item | basename }}"
+  register: postgresql_remote_debs_result
+  when: postgresql_remote_debs | length > 0
+
 # Read which cluster the distribution created, instead of assuming a version. Debian names
 # the configuration path after the major version and the cluster name, and both change
 # between releases.
@@ -233,6 +264,8 @@
     - postgresql_debug_mode | bool
     - >-
       (postgresql_package_result.changed | default(false) | bool)
+      or (postgresql_extra_packages_result.changed | default(false) | bool)
+      or (postgresql_remote_debs_result.changed | default(false) | bool)
       or (postgresql_data_root_result.changed | default(false) | bool)
       or (postgresql_settings_result.changed | default(false) | bool)
       or (postgresql_hba_result.changed | default(false) | bool)
