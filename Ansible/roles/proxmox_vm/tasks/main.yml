@@ -271,14 +271,7 @@
 - name: Compute the differing scalar parameters
   ansible.builtin.set_fact:
     proxmox_vm_set_args: >-
-      {% set cur = {} %}
-      {% for line in proxmox_vm_config_result.stdout_lines | default([]) %}
-      {% if line | regex_search('^[a-zA-Z]+\d*:[ \t]') %}
-      {% set _ = cur.update({
-           (line | regex_replace('^([a-zA-Z]+\d*):[ \t].*$', '\\1')):
-           (line | regex_replace('^[a-zA-Z]+\d*:[ \t](.*)$', '\\1'))}) %}
-      {% endif %}
-      {% endfor %}
+      {% set cur = proxmox_vm_config_result.stdout | default('') | from_yaml %}
       {% set want = {
            'cores': proxmox_vm_settings.cores | string,
            'memory': proxmox_vm_settings.memory | string,
