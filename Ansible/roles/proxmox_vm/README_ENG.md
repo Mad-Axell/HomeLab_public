@@ -34,6 +34,10 @@ same shape `proxmox_lxc` uses, with `proxmox.type: vm`.
 
 ## Variables
 
+Every tunable is read from the **target** host variables first
+(`hostvars[target].proxmox_vm_<name>`) and falls back to the variable given on
+the Proxmox node — the same convention `proxmox_lxc` uses.
+
 | Variable | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `proxmox_vm_target_host` | string | yes | `null` | Inventory name of the VM record. |

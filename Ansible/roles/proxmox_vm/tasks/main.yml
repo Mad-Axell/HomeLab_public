@@ -6,6 +6,33 @@
     proxmox_vm_target: "{{ hostvars[proxmox_vm_target_host] }}"
   no_log: true
 
+# Compute resources live in the target host vars first and fall back to the
+# role variables given on the Proxmox node
+# Вычислительные ресурсы сначала берутся из host_vars целевого хоста с фолбэком
+# на переменные роли, заданные на ноде Proxmox
+- name: Compute the effective VM settings
+  ansible.builtin.set_fact:
+    proxmox_vm_settings:
+      cores: "{{ proxmox_vm_target.proxmox_vm_cores | default(proxmox_vm_cores) }}"
+      sockets: "{{ proxmox_vm_target.proxmox_vm_sockets | default(proxmox_vm_sockets) }}"
+      memory: "{{ proxmox_vm_target.proxmox_vm_memory | default(proxmox_vm_memory) }}"
+      balloon: "{{ proxmox_vm_target.proxmox_vm_balloon | default(proxmox_vm_balloon) }}"
+      disk_size: "{{ proxmox_vm_target.proxmox_vm_disk_size | default(proxmox_vm_disk_size) }}"
+      disk_storage: "{{ proxmox_vm_target.proxmox_vm_disk_storage | default(proxmox_vm_disk_storage) }}"
+      image_url: "{{ proxmox_vm_target.proxmox_vm_image_url | default(proxmox_vm_image_url) }}"
+      image_dir: "{{ proxmox_vm_target.proxmox_vm_image_dir | default(proxmox_vm_image_dir) }}"
+      bios: "{{ proxmox_vm_target.proxmox_vm_bios | default(proxmox_vm_bios) }}"
+      machine: "{{ proxmox_vm_target.proxmox_vm_machine | default(proxmox_vm_machine) }}"
+      scsihw: "{{ proxmox_vm_target.proxmox_vm_scsihw | default(proxmox_vm_scsihw) }}"
+      ostype: "{{ proxmox_vm_target.proxmox_vm_ostype | default(proxmox_vm_ostype) }}"
+      efidisk: "{{ proxmox_vm_target.proxmox_vm_efidisk | default(proxmox_vm_efidisk) }}"
+      serial_socket: "{{ proxmox_vm_target.proxmox_vm_serial_socket | default(proxmox_vm_serial_socket) }}"
+      agent_enabled: "{{ proxmox_vm_target.proxmox_vm_agent_enabled | default(proxmox_vm_agent_enabled) }}"
+      onboot: "{{ proxmox_vm_target.proxmox_vm_onboot | default(proxmox_vm_onboot) }}"
+      start: "{{ proxmox_vm_target.proxmox_vm_start | default(proxmox_vm_start) }}"
+      description: "{{ proxmox_vm_target.proxmox_vm_description | default(proxmox_vm_description) }}"
+      debug_mode: "{{ proxmox_vm_target.proxmox_vm_debug_mode | default(proxmox_vm_debug_mode) }}"
+
 # Validate the contract before anything changes: the target must name a VM
 # record on this node, carry an image URL and resolve to a network profile
 # Проверка контракта до любых изменений: цель должна называть запись VM на этой
@@ -16,8 +43,8 @@
       - proxmox_vm_target_host is string
       - proxmox_vm_target_host | length > 0
       - proxmox_vm_target_host in hostvars
-      - proxmox_vm_image_url is string
-      - proxmox_vm_image_url | length > 0
+      - proxmox_vm_settings.image_url is string
+      - proxmox_vm_settings.image_url | length > 0
       - proxmox_vm_target.proxmox.type == 'vm'
       - proxmox_vm_target.proxmox.node == inventory_hostname
       - proxmox_vm_target.proxmox.vmid | int > 0
@@ -40,15 +67,15 @@
 - name: Compute the image paths
   ansible.builtin.set_fact:
     proxmox_vm_image_archive: >-
-      {{ proxmox_vm_image_dir }}/{{ proxmox_vm_image_url | basename }}
+      {{ proxmox_vm_settings.image_dir }}/{{ proxmox_vm_settings.image_url | basename }}
     proxmox_vm_image_file: >-
-      {{ proxmox_vm_image_dir }}/{{ (proxmox_vm_image_url | basename) | regex_replace('\.xz$', '') }}
+      {{ proxmox_vm_settings.image_dir }}/{{ (proxmox_vm_settings.image_url | basename) | regex_replace('\.xz$', '') }}
 
 # The directory is standard on every Proxmox node but cheap to guarantee
 # Каталог стандартен на любой ноде Proxmox, но гарантировать его дёшево
 - name: Create the image directory
   ansible.builtin.file:
-    path: "{{ proxmox_vm_image_dir }}"
+    path: "{{ proxmox_vm_settings.image_dir }}"
     state: directory
     mode: "0755"
 
@@ -63,7 +90,7 @@
 
 - name: Download the VM disk image
   ansible.builtin.get_url:
-    url: "{{ proxmox_vm_image_url }}"
+    url: "{{ proxmox_vm_settings.image_url }}"
     dest: "{{ proxmox_vm_image_archive }}"
     mode: "0644"
   register: proxmox_vm_image_result
@@ -107,30 +134,30 @@
          and proxmox_vm_target.network.vlan_tag | int > 0
          else '' }}
     _proxmox_vm_efidisk: >-
-      {{ '--efidisk0 "' ~ proxmox_vm_disk_storage
+      {{ '--efidisk0 "' ~ proxmox_vm_settings.disk_storage
          ~ ':0,efitype=4m,pre-enrolled-keys=0"'
-         if proxmox_vm_efidisk | bool else '' }}
+         if proxmox_vm_settings.efidisk | bool else '' }}
     _proxmox_vm_serial: >-
-      {{ '--serial0 socket' if proxmox_vm_serial_socket | bool else '' }}
+      {{ '--serial0 socket' if proxmox_vm_settings.serial_socket | bool else '' }}
     _proxmox_vm_notes: >-
       {{ '--description "'
-         ~ (proxmox_vm_description | replace('\n', ' ') | replace('"', "'"))
-         ~ '"' if proxmox_vm_description | length > 0 else '' }}
+         ~ (proxmox_vm_settings.description | replace('\n', ' ') | replace('"', "'"))
+         ~ '"' if proxmox_vm_settings.description | length > 0 else '' }}
     _proxmox_vm_create_cmd: >-
       qm create {{ proxmox_vm_target.proxmox.vmid }}
       --name {{ proxmox_vm_target_host }}
-      --memory {{ proxmox_vm_memory }}
-      --cores {{ proxmox_vm_cores }}
-      --sockets {{ proxmox_vm_sockets }}
-      --balloon {{ proxmox_vm_balloon }}
-      --ostype {{ proxmox_vm_ostype }}
-      --bios {{ proxmox_vm_bios }}
-      --machine {{ proxmox_vm_machine }}
-      --scsihw {{ proxmox_vm_scsihw }}
-      --agent enabled={{ 1 if proxmox_vm_agent_enabled | bool else 0 }}
+      --memory {{ proxmox_vm_settings.memory }}
+      --cores {{ proxmox_vm_settings.cores }}
+      --sockets {{ proxmox_vm_settings.sockets }}
+      --balloon {{ proxmox_vm_settings.balloon }}
+      --ostype {{ proxmox_vm_settings.ostype }}
+      --bios {{ proxmox_vm_settings.bios }}
+      --machine {{ proxmox_vm_settings.machine }}
+      --scsihw {{ proxmox_vm_settings.scsihw }}
+      --agent enabled={{ 1 if proxmox_vm_settings.agent_enabled | bool else 0 }}
       --net0 "virtio={{ proxmox_vm_target.network.mac }},bridge={{ proxmox_vm_target.network.bridge }}{{ _proxmox_vm_vlan }}"
       {{ _proxmox_vm_efidisk }} {{ _proxmox_vm_serial }}
-      --onboot {{ 1 if proxmox_vm_onboot | bool else 0 }}
+      --onboot {{ 1 if proxmox_vm_settings.onboot | bool else 0 }}
       {{ _proxmox_vm_notes }}
   when: proxmox_vm_status_result.rc != 0
 
@@ -149,7 +176,7 @@
   ansible.builtin.command:
     cmd: >-
       qm importdisk {{ proxmox_vm_target.proxmox.vmid }}
-      {{ proxmox_vm_image_file }} {{ proxmox_vm_disk_storage }} --format qcow2
+      {{ proxmox_vm_image_file }} {{ proxmox_vm_settings.disk_storage }} --format qcow2
   register: proxmox_vm_import_result
   changed_when: proxmox_vm_import_result.rc == 0
   when: proxmox_vm_status_result.rc != 0
@@ -204,7 +231,7 @@
   ansible.builtin.command:
     cmd: >-
       qm resize {{ proxmox_vm_target.proxmox.vmid }} scsi0
-      {{ proxmox_vm_disk_size }}
+      {{ proxmox_vm_settings.disk_size }}
   register: proxmox_vm_resize_result
   changed_when: proxmox_vm_resize_result.rc == 0
   when:
@@ -215,7 +242,7 @@
     - >-
       (proxmox_vm_config_result.stdout
        | regex_search('^scsi0: .*size=(\d+)G', '\1') | first | default(0) | int)
-      < (proxmox_vm_disk_size | regex_replace('G$', '') | int)
+      < (proxmox_vm_settings.disk_size | regex_replace('G$', '') | int)
 
 # Build the `qm set` arguments for scalar parameters whose live value differs
 # from the desired one; disk, NIC and firmware are creation-time choices and
@@ -227,7 +254,7 @@
   ansible.builtin.set_fact:
     proxmox_vm_set_args: >-
       {% set cur = {} %}
-      {% for line in proxmox_vm_config_result.stdout_lines %}
+      {% for line in proxmox_vm_config_result.stdout_lines | default([]) %}
       {% if line | regex_search('^[a-zA-Z]+\d*:[ \t]') %}
       {% set _ = cur.update({
            (line | regex_replace('^([a-zA-Z]+\d*):[ \t].*$', '\1')):
@@ -235,12 +262,12 @@
       {% endif %}
       {% endfor %}
       {% set want = {
-           'cores': proxmox_vm_cores | string,
-           'memory': proxmox_vm_memory | string,
-           'balloon': proxmox_vm_balloon | string,
-           'sockets': proxmox_vm_sockets | string,
-           'onboot': '1' if proxmox_vm_onboot | bool else '0',
-           'agent': 'enabled=1' if proxmox_vm_agent_enabled | bool
+           'cores': proxmox_vm_settings.cores | string,
+           'memory': proxmox_vm_settings.memory | string,
+           'balloon': proxmox_vm_settings.balloon | string,
+           'sockets': proxmox_vm_settings.sockets | string,
+           'onboot': '1' if proxmox_vm_settings.onboot | bool else '0',
+           'agent': 'enabled=1' if proxmox_vm_settings.agent_enabled | bool
                     else 'enabled=0'} %}
       {% set ns = namespace(args=[]) %}
       {% for k, v in want.items() %}
@@ -274,7 +301,7 @@
   register: proxmox_vm_start_result
   changed_when: proxmox_vm_start_result.rc == 0
   when:
-    - proxmox_vm_start | bool
+    - proxmox_vm_settings.start | bool
     - "'status: running' not in proxmox_vm_status_result.stdout"
 
 # Report the outcome without echoing image URLs or command lines
@@ -285,7 +312,7 @@
       VM {{ proxmox_vm_target.proxmox.vmid }} ({{ proxmox_vm_target_host }}):
       {{ 'WOULD CHANGE' if ansible_check_mode else 'CHANGED' }}
   when:
-    - proxmox_vm_debug_mode | bool
+    - proxmox_vm_settings.debug_mode | bool
     - >-
       (proxmox_vm_image_result is defined
       and (proxmox_vm_image_result.changed | default(false) | bool))

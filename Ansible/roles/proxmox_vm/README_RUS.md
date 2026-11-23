@@ -33,6 +33,10 @@
 
 ## Переменные
 
+Каждый тюнинг читается сначала из host_vars **целевого** хоста
+(`hostvars[target].proxmox_vm_<name>`) с фолбэком на переменную, заданную на
+ноде Proxmox — та же конвенция, что у `proxmox_lxc`.
+
 | Variable | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `proxmox_vm_target_host` | string | да | `null` | Имя записи VM в инвентаре. |
