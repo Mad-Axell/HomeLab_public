@@ -35,6 +35,7 @@
 | `frigate_shm_size` | string | no | `"1gb"` | Размер shared memory. |
 | `frigate_devices` | list | no | `[]` | Явно передаваемые устройства. |
 | `frigate_ports` | list | no | стандартные порты | Публикуемые порты. |
+| `frigate_extra_networks` | list | no | `[]` | Внешние Docker-сети (например `cam_streams` роли go2rtc), подключаемые как external. |
 | `vault_frigate_config` | string | yes | - | Полное содержимое Frigate `config.yml` из Vault. |
 
 ## Использование

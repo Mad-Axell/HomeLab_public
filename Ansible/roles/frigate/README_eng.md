@@ -35,6 +35,7 @@ This role creates a Frigate Docker Compose project, writes Vault configuration, 
 | `frigate_shm_size` | string | no | `"1gb"` | Shared-memory size. |
 | `frigate_devices` | list | no | `[]` | Explicitly exposed devices. |
 | `frigate_ports` | list | no | default ports | Published ports. |
+| `frigate_extra_networks` | list | no | `[]` | External Docker networks (for example `cam_streams` from the go2rtc role), attached as external. |
 | `vault_frigate_config` | string | yes | - | Complete Frigate `config.yml` content from Vault. |
 
 ## Usage

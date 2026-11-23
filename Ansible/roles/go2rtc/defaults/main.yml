@@ -1,0 +1,30 @@
+---
+# go2rtc deployment configuration
+# Конфигурация развертывания go2rtc
+
+# Boolean. Enable change notifications in debug output.
+# Логическое значение. Включает уведомления об изменениях в debug-выводе.
+go2rtc_debug_mode: false
+
+# String. Docker Compose project directory.
+# Строка. Каталог проекта Docker Compose.
+go2rtc_project_directory: "/opt/go2rtc"
+
+# String. go2rtc container image.
+# Строка. Образ контейнера go2rtc.
+go2rtc_image: "alexxit/go2rtc:1.9.15"
+
+# String. go2rtc container name.
+# Строка. Имя контейнера go2rtc.
+go2rtc_container_name: "go2rtc"
+
+# List. Host port mappings published by go2rtc.
+# Список. Сопоставления портов хоста, публикуемые go2rtc.
+go2rtc_ports:
+  - "1984:1984"
+
+# String. Docker network shared with consumers such as Frigate. The network is
+# created by this role and referenced as external by consumer Compose projects.
+# Строка. Docker-сеть, общая с потребителями вроде Frigate. Сеть создаётся этой
+# ролью и подключается потребительскими Compose-проектами как внешняя.
+go2rtc_network_name: "cam_streams"

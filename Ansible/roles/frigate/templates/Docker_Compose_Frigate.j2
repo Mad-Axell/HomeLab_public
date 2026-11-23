@@ -18,3 +18,18 @@ services:
 {% for frigate_port in frigate_ports %}
       - {{ frigate_port }}
 {% endfor %}
+{% if frigate_extra_networks | length > 0 %}
+    networks:
+      - default
+{% for frigate_network in frigate_extra_networks %}
+      - {{ frigate_network }}
+{% endfor %}
+{% endif %}
+{% if frigate_extra_networks | length > 0 %}
+
+networks:
+{% for frigate_network in frigate_extra_networks %}
+  {{ frigate_network }}:
+    external: true
+{% endfor %}
+{% endif %}

@@ -37,3 +37,9 @@ frigate_ports:
   - "8554:8554"
   - "8555:8555/tcp"
   - "8555:8555/udp"
+
+# List. External Docker networks the Frigate container joins in addition to
+# its project default network (for example a shared go2rtc network).
+# Список. Внешние Docker-сети, к которым контейнер Frigate подключается
+# дополнительно к сети своего проекта (например, общая сеть go2rtc).
+frigate_extra_networks: []

@@ -1,0 +1,20 @@
+services:
+  go2rtc:
+    image: {{ go2rtc_image }}
+    container_name: {{ go2rtc_container_name }}
+    restart: unless-stopped
+    volumes:
+      - {{ go2rtc_project_directory }}/config:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - {{ go2rtc_network_name }}
+{% if go2rtc_ports | length > 0 %}
+    ports:
+{% for go2rtc_port in go2rtc_ports %}
+      - {{ go2rtc_port }}
+{% endfor %}
+{% endif %}
+
+networks:
+  {{ go2rtc_network_name }}:
+    name: {{ go2rtc_network_name }}

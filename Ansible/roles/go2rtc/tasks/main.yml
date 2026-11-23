@@ -1,0 +1,67 @@
+---
+# Validate the required go2rtc configuration secret and public lists.
+# Проверка обязательного секрета конфигурации go2rtc и публичных списков.
+- name: Validate go2rtc deployment configuration
+  ansible.builtin.assert:
+    that:
+      - vault_go2rtc_config is defined
+      - go2rtc_ports is sequence
+    fail_msg: "go2rtc requires vault_go2rtc_config from VARS/secrets.yml and a valid port list."
+  no_log: true
+
+# Create the Compose project and configuration directories.
+# Создание каталога Compose-проекта и каталога конфигурации.
+- name: Create go2rtc directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ go2rtc_project_directory }}"
+    - "{{ go2rtc_project_directory }}/config"
+  register: go2rtc_directory_result
+
+# Deploy the Compose definition for the managed go2rtc container.
+# Развертывание определения Compose для управляемого контейнера go2rtc.
+- name: Configure go2rtc Docker Compose project
+  ansible.builtin.template:
+    src: "Docker_Compose_Go2rtc.j2"
+    dest: "{{ go2rtc_project_directory }}/compose.yml"
+    mode: "0644"
+  register: go2rtc_compose_result
+
+# Deploy the secret-bearing go2rtc stream configuration safely.
+# Безопасное развертывание конфигурации потоков go2rtc, содержащей секреты.
+- name: Configure go2rtc application
+  ansible.builtin.copy:
+    content: "{{ vault_go2rtc_config }}"
+    dest: "{{ go2rtc_project_directory }}/config/go2rtc.yaml"
+    mode: "0640"
+  no_log: true
+  diff: false
+  register: go2rtc_configuration_result
+
+# Start or update go2rtc through the Docker Compose v2 module.
+# Запуск или обновление go2rtc через модуль Docker Compose v2.
+- name: Deploy go2rtc container
+  community.docker.docker_compose_v2:
+    project_src: "{{ go2rtc_project_directory }}"
+    files:
+      - "compose.yml"
+    state: present
+  register: go2rtc_deployment_result
+
+# Report the deployment result without exposing the stream configuration.
+# Вывод результата развертывания без раскрытия конфигурации потоков.
+- name: Display go2rtc change summary
+  ansible.builtin.debug:
+    msg: "go2rtc deployment {{ 'would change' if ansible_check_mode else 'changed' }}."
+  when:
+    - go2rtc_debug_mode | bool
+    - >-
+      (go2rtc_directory_result.changed | default(false) | bool)
+      or (go2rtc_compose_result.changed | default(false) | bool)
+      or (go2rtc_configuration_result.changed | default(false) | bool)
+      or (go2rtc_deployment_result.changed | default(false) | bool)
+  tags:
+    - debug
