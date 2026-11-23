@@ -76,6 +76,7 @@
     state: present
   loop: "{{ coral_edge_tpu_lxc_device_lines }}"
   register: coral_edge_tpu_forwarding_result
+  when: coral_edge_tpu_lxc_config_stat.stat.exists or not ansible_check_mode
 
 # Report whether the runtime or container configuration changed.
 # Вывод информации об изменении среды выполнения или конфигурации контейнера.
