@@ -70,14 +70,14 @@ Inventory defines `ansible_host`. Store each switch's real desired configuration
 Check mode:
 
 ```bash
-ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
+ansible-playbook -i hosts.yml playbooks/network.configure.mikrotik_swos.yml \
   --check --diff --limit MgmtLanSwitch
 ```
 
 A real run additionally requires both flags:
 
 ```bash
-ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
+ansible-playbook -i hosts.yml playbooks/network.configure.mikrotik_swos.yml \
   --limit MgmtLanSwitch \
   -e mikrotik_swos_allow_network_changes=true \
   -e mikrotik_swos_recovery_access_confirmed=true

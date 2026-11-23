@@ -42,14 +42,14 @@ watchdog блокирует новый запуск до ручной прове
 Проверка и сравнение без изменения рабочей конфигурации:
 
 ```shell
-ansible-playbook playbooks/pfsense-config.yml \
+ansible-playbook playbooks/network.configure.pfsense.yml \
   -e pfsense_config_source_file=/secure/path/config.xml
 ```
 
 Применение проверенного кандидата:
 
 ```shell
-ansible-playbook playbooks/pfsense-config.yml \
+ansible-playbook playbooks/network.configure.pfsense.yml \
   -e pfsense_config_source_file=/secure/path/config.xml \
   -e pfsense_config_apply=true \
   -e pfsense_config_apply_confirmation=APPLY_PFSENSE_CONFIG

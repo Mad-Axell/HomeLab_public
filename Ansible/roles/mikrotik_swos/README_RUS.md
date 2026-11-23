@@ -70,14 +70,14 @@ Inventory определяет `ansible_host`. Реальную конфигур
 Check mode:
 
 ```bash
-ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
+ansible-playbook -i hosts.yml playbooks/network.configure.mikrotik_swos.yml \
   --check --diff --limit MgmtLanSwitch
 ```
 
 Реальный запуск дополнительно требует оба флага:
 
 ```bash
-ansible-playbook -i hosts.yml playbooks/network/mikrotik_swos.yml \
+ansible-playbook -i hosts.yml playbooks/network.configure.mikrotik_swos.yml \
   --limit MgmtLanSwitch \
   -e mikrotik_swos_allow_network_changes=true \
   -e mikrotik_swos_recovery_access_confirmed=true
